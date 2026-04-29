@@ -1,0 +1,453 @@
+import { useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent, type MouseEvent } from 'react';
+import type { NodeProps } from 'reactflow';
+import { Handle, Position } from 'reactflow';
+import { INLINE_ATTRIBUTE_TYPE_SUGGESTIONS } from '../constants/attributeTypes';
+import type { ClassAttribute, ClassNodeData } from '../types/diagram';
+import { createId } from '../utils/id';
+
+type AttributeEditPhase = 'name' | 'type';
+
+type AttributeDraft = {
+  id: string;
+  name: string;
+  type: string;
+  original: ClassAttribute | null;
+  isNew: boolean;
+};
+
+const stopFlowEvent = (event: MouseEvent<HTMLElement>): void => {
+  event.stopPropagation();
+};
+
+const isEmptyAttribute = (attribute: Pick<ClassAttribute, 'name' | 'type'>): boolean =>
+  attribute.name.trim().length === 0 && attribute.type.trim().length === 0;
+
+const getActiveTypeSuggestion = (typeValue: string): string | null => {
+  const normalizedTypeValue = typeValue.trim().toLowerCase();
+
+  if (normalizedTypeValue.length === 0) {
+    return null;
+  }
+
+  return INLINE_ATTRIBUTE_TYPE_SUGGESTIONS.find((type) => type.startsWith(normalizedTypeValue)) ?? null;
+};
+
+const handlePositions = [Position.Top, Position.Right, Position.Bottom, Position.Left];
+
+export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
+  const [editingName, setEditingName] = useState(data.shouldStartNameEditing ?? false);
+  const [nameDraft, setNameDraft] = useState(data.shouldStartNameEditing ? '' : data.name);
+  const [editingAttributeId, setEditingAttributeId] = useState<string | null>(null);
+  const [attributeEditPhase, setAttributeEditPhase] = useState<AttributeEditPhase>('name');
+  const [attributeDraft, setAttributeDraft] = useState<AttributeDraft | null>(null);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
+  const nameDraftRef = useRef(data.shouldStartNameEditing ? '' : data.name);
+  const attributeNameInputRef = useRef<HTMLInputElement | null>(null);
+  const attributeTypeInputRef = useRef<HTMLInputElement | null>(null);
+  const attributeDraftRef = useRef<AttributeDraft | null>(null);
+  const skipNameBlurCommitRef = useRef(false);
+  const skipAttributeBlurCommitRef = useRef(false);
+
+  const displayedAttributes = useMemo(() => {
+    if (attributeDraft === null || data.attributes.some((attribute) => attribute.id === attributeDraft.id)) {
+      return data.attributes;
+    }
+
+    return [...data.attributes, { id: attributeDraft.id, name: attributeDraft.name, type: attributeDraft.type }];
+  }, [attributeDraft, data.attributes]);
+
+  const typeSuggestions = useMemo(() => {
+    const typeValue = attributeDraft?.type.trim().toLowerCase() ?? '';
+
+    if (attributeEditPhase !== 'type' || typeValue.length === 0) {
+      return [];
+    }
+
+    return INLINE_ATTRIBUTE_TYPE_SUGGESTIONS.filter((type) => type.startsWith(typeValue));
+  }, [attributeDraft?.type, attributeEditPhase]);
+
+  const activeTypeSuggestion = typeSuggestions[0] ?? null;
+
+  useEffect(() => {
+    if (editingName) {
+      nameInputRef.current?.focus();
+      nameInputRef.current?.select();
+    }
+  }, [editingName]);
+
+  useEffect(() => {
+    if (data.shouldStartNameEditing) {
+      data.onNameEditingStarted?.(id);
+    }
+  }, [data, id]);
+
+  useEffect(() => {
+    if (editingAttributeId === null) {
+      return;
+    }
+
+    const input = attributeEditPhase === 'name' ? attributeNameInputRef.current : attributeTypeInputRef.current;
+    input?.focus();
+    input?.select();
+  }, [attributeEditPhase, editingAttributeId]);
+
+  const startNameEditing = (event: MouseEvent<HTMLDivElement>): void => {
+    event.stopPropagation();
+    nameDraftRef.current = data.name;
+    setNameDraft(data.name);
+    setEditingName(true);
+  };
+
+  const commitNameEditing = (): void => {
+    data.onRenameClass?.(id, nameDraftRef.current);
+    setEditingName(false);
+  };
+
+  const commitNameEditingAndFocusFirstAttribute = (): void => {
+    const committedName = nameDraftRef.current;
+    skipNameBlurCommitRef.current = true;
+    setEditingName(false);
+
+    if (data.attributes.length === 0) {
+      const attribute: ClassAttribute = {
+        id: createId(),
+        name: '',
+        type: '',
+      };
+
+      data.onRenameClassAndCreateAttribute?.(id, committedName, attribute);
+      startAttributeEditing(attribute, undefined, true);
+      return;
+    }
+
+    data.onRenameClass?.(id, committedName);
+    startAttributeEditing(data.attributes[0]);
+  };
+
+  const cancelNameEditing = (): void => {
+    skipNameBlurCommitRef.current = true;
+    nameDraftRef.current = data.name;
+    setNameDraft(data.name);
+    setEditingName(false);
+  };
+
+  const handleNameBlur = (): void => {
+    if (skipNameBlurCommitRef.current) {
+      skipNameBlurCommitRef.current = false;
+      return;
+    }
+
+    commitNameEditing();
+  };
+
+  const handleNameKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
+    event.stopPropagation();
+
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      commitNameEditingAndFocusFirstAttribute();
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      cancelNameEditing();
+    }
+  };
+
+  const setCurrentAttributeDraft = (draft: AttributeDraft | null): void => {
+    attributeDraftRef.current = draft;
+    setAttributeDraft(draft);
+  };
+
+  const startAttributeEditing = (
+    attribute: ClassAttribute,
+    event?: MouseEvent<HTMLElement>,
+    isNew = false,
+    phase: AttributeEditPhase = 'name',
+  ): void => {
+    event?.stopPropagation();
+    const nextDraft = {
+      id: attribute.id,
+      name: attribute.name,
+      type: attribute.type,
+      original: isNew ? null : { ...attribute },
+      isNew,
+    };
+
+    setEditingAttributeId(attribute.id);
+    setAttributeEditPhase(phase);
+    setCurrentAttributeDraft(nextDraft);
+  };
+
+  const createAttributeAndStartEditing = (event?: MouseEvent<HTMLElement>): void => {
+    event?.stopPropagation();
+    const attribute: ClassAttribute = {
+      id: createId(),
+      name: '',
+      type: '',
+    };
+
+    data.onCreateAttribute?.(id, attribute);
+    startAttributeEditing(attribute, event, true);
+  };
+
+  const stopAttributeEditing = (): void => {
+    setEditingAttributeId(null);
+    setAttributeEditPhase('name');
+    setCurrentAttributeDraft(null);
+  };
+
+  const commitAttributeEditing = (): void => {
+    const currentDraft = attributeDraftRef.current;
+
+    if (currentDraft === null) {
+      return;
+    }
+
+    if (currentDraft.isNew && isEmptyAttribute(currentDraft)) {
+      data.onDeleteAttribute?.(id, currentDraft.id);
+    } else {
+      data.onUpdateAttributeFields?.(id, currentDraft.id, {
+        name: currentDraft.name,
+        type: currentDraft.type,
+      });
+    }
+
+    stopAttributeEditing();
+  };
+
+  const commitAttributeAndCreateNext = (typeOverride?: string): void => {
+    const currentDraft = attributeDraftRef.current;
+
+    if (currentDraft === null) {
+      return;
+    }
+
+    const type = typeOverride ?? currentDraft.type;
+    const draftToCommit = { ...currentDraft, type };
+
+    if (draftToCommit.isNew && isEmptyAttribute(draftToCommit)) {
+      data.onDeleteAttribute?.(id, draftToCommit.id);
+      stopAttributeEditing();
+      return;
+    }
+
+    const nextAttribute: ClassAttribute = {
+      id: createId(),
+      name: '',
+      type: '',
+    };
+
+    data.onUpdateAttributeFieldsAndCreateAttribute?.(
+      id,
+      draftToCommit.id,
+      {
+        name: draftToCommit.name,
+        type: draftToCommit.type,
+      },
+      nextAttribute,
+    );
+    startAttributeEditing(nextAttribute, undefined, true);
+  };
+
+  const cancelAttributeEditing = (): void => {
+    const currentDraft = attributeDraftRef.current;
+    skipAttributeBlurCommitRef.current = true;
+
+    if (currentDraft !== null) {
+      if (currentDraft.isNew && isEmptyAttribute(currentDraft)) {
+        data.onDeleteAttribute?.(id, currentDraft.id);
+      } else if (currentDraft.original !== null) {
+        data.onUpdateAttributeFields?.(id, currentDraft.id, {
+          name: currentDraft.original.name,
+          type: currentDraft.original.type,
+        });
+      }
+    }
+
+    stopAttributeEditing();
+  };
+
+  const updateAttributeDraft = (field: keyof Omit<ClassAttribute, 'id'>, value: string): void => {
+    const currentDraft = attributeDraftRef.current;
+
+    if (currentDraft === null) {
+      return;
+    }
+
+    const nextDraft = { ...currentDraft, [field]: value };
+    setCurrentAttributeDraft(nextDraft);
+    data.onUpdateAttributeFields?.(id, nextDraft.id, {
+      name: nextDraft.name,
+      type: nextDraft.type,
+    });
+  };
+
+  const handleAttributeNameKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
+    event.stopPropagation();
+
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      setAttributeEditPhase('type');
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      cancelAttributeEditing();
+    }
+  };
+
+  const handleAttributeTypeKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
+    event.stopPropagation();
+
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      commitAttributeAndCreateNext(getActiveTypeSuggestion(attributeDraftRef.current?.type ?? '') ?? undefined);
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      cancelAttributeEditing();
+    }
+  };
+
+  const handleAttributeBlur = (event: FocusEvent<HTMLDivElement>): void => {
+    if (skipAttributeBlurCommitRef.current) {
+      skipAttributeBlurCommitRef.current = false;
+      return;
+    }
+
+    if (event.currentTarget.dataset.attributeId !== attributeDraftRef.current?.id) {
+      return;
+    }
+
+    if (!event.currentTarget.contains(event.relatedTarget)) {
+      commitAttributeEditing();
+    }
+  };
+
+  const chooseTypeSuggestion = (type: string): void => {
+    updateAttributeDraft('type', type);
+    commitAttributeAndCreateNext(type);
+  };
+
+  return (
+    <section
+      className={`class-node ${selected ? 'selected' : ''}`}
+      onContextMenu={(event) => data.onOpenContextMenu?.(id, event)}
+    >
+      {handlePositions.map((position) => (
+        <Handle
+          className={`class-node-handle class-node-handle-${position}`}
+          id={position}
+          key={position}
+          position={position}
+          type="source"
+        />
+      ))}
+      <div className="class-node-title" onDoubleClick={startNameEditing}>
+        {editingName ? (
+          <input
+            ref={nameInputRef}
+            className="inline-name-input nodrag"
+            value={nameDraft}
+            onBlur={handleNameBlur}
+            onChange={(event) => {
+              nameDraftRef.current = event.target.value;
+              setNameDraft(event.target.value);
+            }}
+            onClick={stopFlowEvent}
+            onContextMenu={stopFlowEvent}
+            onDoubleClick={stopFlowEvent}
+            onKeyDown={handleNameKeyDown}
+            onMouseDown={stopFlowEvent}
+          />
+        ) : (
+          data.name || 'Clase sin nombre'
+        )}
+      </div>
+      <div className="class-node-attributes">
+        {displayedAttributes.length === 0 ? (
+          <span
+            className="muted-attribute"
+            onContextMenu={stopFlowEvent}
+            onDoubleClick={createAttributeAndStartEditing}
+            onMouseDown={stopFlowEvent}
+          >
+            Sin atributos
+          </span>
+        ) : (
+          displayedAttributes.map((attribute) =>
+            editingAttributeId === attribute.id && attributeDraft !== null ? (
+              <div
+                className="inline-attribute-editor nodrag"
+                data-attribute-id={attribute.id}
+                key={attribute.id}
+                onBlur={handleAttributeBlur}
+                onClick={stopFlowEvent}
+                onContextMenu={stopFlowEvent}
+                onDoubleClick={stopFlowEvent}
+                onMouseDown={stopFlowEvent}
+              >
+                <input
+                  ref={attributeNameInputRef}
+                  aria-label="Nombre del atributo"
+                  value={attributeDraft.name}
+                  onChange={(event) => updateAttributeDraft('name', event.target.value)}
+                  onKeyDown={handleAttributeNameKeyDown}
+                  placeholder="nombre"
+                />
+                <span className="attribute-separator">:</span>
+                <div className="inline-type-field">
+                  <input
+                    ref={attributeTypeInputRef}
+                    aria-label="Tipo del atributo"
+                    value={attributeDraft.type}
+                    onChange={(event) => updateAttributeDraft('type', event.target.value)}
+                    onKeyDown={handleAttributeTypeKeyDown}
+                    placeholder="tipo"
+                  />
+                  {typeSuggestions.length > 0 ? (
+                    <div
+                      className="inline-type-suggestions"
+                      onClick={stopFlowEvent}
+                      onContextMenu={stopFlowEvent}
+                      onDoubleClick={stopFlowEvent}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                      }}
+                    >
+                      {typeSuggestions.map((type) => (
+                        <button
+                          className={type === activeTypeSuggestion ? 'active' : ''}
+                          key={type}
+                          type="button"
+                          onClick={() => chooseTypeSuggestion(type)}
+                          onContextMenu={stopFlowEvent}
+                          onDoubleClick={stopFlowEvent}
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                          }}
+                        >
+                          {type}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : (
+              <div className="attribute-row" key={attribute.id} onDoubleClick={(event) => startAttributeEditing(attribute, event)}>
+                <span>{attribute.name || 'atributo'}</span>
+                <span className="attribute-separator">:</span>
+                <span>{attribute.type || 'tipo'}</span>
+              </div>
+            ),
+          )
+        )}
+      </div>
+    </section>
+  );
+}
