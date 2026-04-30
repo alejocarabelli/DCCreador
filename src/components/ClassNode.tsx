@@ -337,13 +337,23 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
       onContextMenu={(event) => data.onOpenContextMenu?.(id, event)}
     >
       {handlePositions.map((position) => (
-        <Handle
-          className={`class-node-handle class-node-handle-${position}`}
-          id={position}
-          key={position}
-          position={position}
-          type="source"
-        />
+        <div className={`class-node-handle-layer class-node-handle-layer-${position}`} key={position}>
+          <Handle
+            className={`class-node-handle class-node-handle-${position}`}
+            id={position}
+            position={position}
+            type="source"
+            onMouseDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            onTouchStart={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+          />
+          <span className={`class-node-handle-visual class-node-handle-visual-${position}`} />
+        </div>
       ))}
       <div className="class-node-title" onDoubleClick={startNameEditing}>
         {editingName ? (

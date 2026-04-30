@@ -86,7 +86,7 @@ export const legacyTheme: DiagramTheme = {
     mutedText: '#555555',
     headerText: '#000000',
     divider: '#B4B4B4',
-    shadow: '5px 5px 0 #9D9D9D',
+    shadow: '5px 5px 0 rgba(95, 95, 95, 0.52)',
     borderRadius: '0px',
     borderWidth: '1px',
   },
@@ -106,7 +106,7 @@ export const legacyTheme: DiagramTheme = {
     markerStroke: '#000000',
     markerFill: 'none',
   },
-  handles: { background: '#FFFFFF', border: '#222222', size: 8 },
+  handles: { background: '#FFFFFF', border: '#6F6F6F', size: 8 },
   typography: {
     fontFamily: '"Arial", "Calibri", sans-serif',
     classNameSize: '14px',
@@ -286,7 +286,7 @@ export const minimalPaperTheme: DiagramTheme = {
     markerStroke: '#111111',
     markerFill: 'none',
   },
-  handles: { background: '#FFFFFF', border: '#111111', size: 7 },
+  handles: { background: '#FFFFFF', border: '#666666', size: 7 },
   typography: {
     fontFamily: '"Arial", "Helvetica", sans-serif',
     classNameSize: '14px',

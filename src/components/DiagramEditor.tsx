@@ -194,9 +194,11 @@ export function DiagramEditor({
   const [valueEditingRequest, setValueEditingRequest] = useState<{ nodeId: string; valueId: string } | null>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const feedbackTimeoutRef = useRef<number | null>(null);
   const normalizedContent = useMemo(() => normalizeDiagramContent(project.content), [project.content]);
   const { nodes, edges } = normalizedContent;
 
@@ -255,6 +257,18 @@ export function DiagramEditor({
       setContextMenu(null);
     }
   }, [nodes, normalizedEdges, onChangeContent, selectedEdgeId, selectedNodeId, updateEdges]);
+
+  const showFeedback = useCallback((message: string): void => {
+    if (feedbackTimeoutRef.current !== null) {
+      window.clearTimeout(feedbackTimeoutRef.current);
+    }
+
+    setFeedbackMessage(message);
+    feedbackTimeoutRef.current = window.setTimeout(() => {
+      setFeedbackMessage(null);
+      feedbackTimeoutRef.current = null;
+    }, 1800);
+  }, []);
 
   const handleNodesChange = useCallback(
     (changes: NodeChange[]): void => {
@@ -796,6 +810,15 @@ export function DiagramEditor({
     localStorage.setItem(SNAP_ENABLED_KEY, String(isSnapEnabled));
   }, [isSnapEnabled]);
 
+  useEffect(
+    () => () => {
+      if (feedbackTimeoutRef.current !== null) {
+        window.clearTimeout(feedbackTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     const handleDeleteKey = (event: globalThis.KeyboardEvent): void => {
       if (event.key !== 'Delete' && event.key !== 'Backspace') {
@@ -851,6 +874,7 @@ export function DiagramEditor({
       JSON.stringify(exportProject, null, 2),
       'application/json',
     );
+    showFeedback('JSON exportado');
   };
 
   const importProjectJson = async (file: File): Promise<void> => {
@@ -863,6 +887,7 @@ export function DiagramEditor({
       }
 
       onImportProject(normalizeDiagramProject(parsed));
+      showFeedback('JSON importado');
     } catch {
       window.alert('No se pudo importar el JSON.');
     } finally {
@@ -874,6 +899,7 @@ export function DiagramEditor({
 
   const exportPng = async (): Promise<void> => {
     if (canvasRef.current === null || renderedNodes.length === 0) {
+      showFeedback('No hay diagrama para exportar');
       return;
     }
 
@@ -917,6 +943,7 @@ export function DiagramEditor({
       link.download = `${project.name.trim() || 'diagrama'}.png`;
       link.href = dataUrl;
       link.click();
+      showFeedback('PNG exportado');
     } finally {
       canvasRef.current.classList.remove('exporting-png');
     }
@@ -1146,6 +1173,11 @@ export function DiagramEditor({
           />
         </div>
       </header>
+      {feedbackMessage !== null ? (
+        <div className="editor-feedback" role="status" aria-live="polite">
+          {feedbackMessage}
+        </div>
+      ) : null}
 
       <div
         className={`editor-body ${hasInspectorSelection ? '' : 'inspector-hidden'} ${
@@ -1191,7 +1223,10 @@ export function DiagramEditor({
             }}
             onPaneContextMenu={handlePaneContextMenu}
             connectionMode={ConnectionMode.Loose}
+            connectionRadius={36}
             deleteKeyCode={null}
+            multiSelectionKeyCode={null}
+            selectNodesOnDrag={false}
             selectionKeyCode={null}
             selectionOnDrag={false}
             snapGrid={[20, 20]}

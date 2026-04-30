@@ -10,9 +10,34 @@
   box-sizing: border-box;
 }
 
+@keyframes subtle-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes soft-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 body {
   background: var(--canvas-background, #f5f7f8);
   margin: 0;
+  transition: background-color 180ms ease;
 }
 
 button,
@@ -33,6 +58,11 @@ button {
   justify-content: center;
   min-height: 36px;
   padding: 0 12px;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease;
 }
 
 button:hover {
@@ -47,6 +77,10 @@ select {
   color: var(--input-text, #17212b);
   min-height: 36px;
   padding: 0 10px;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
   width: 100%;
 }
 
@@ -56,6 +90,10 @@ select {
   grid-template-columns: 340px minmax(0, 1fr);
   height: 100vh;
   min-width: 960px;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease,
+    grid-template-columns 180ms ease;
 }
 
 .app-shell.project-sidebar-collapsed {
@@ -70,6 +108,11 @@ select {
   flex-direction: column;
   min-width: 0;
   padding: 20px;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    padding 180ms ease;
 }
 
 .project-sidebar.collapsed {
@@ -212,12 +255,19 @@ select {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .editor-toolbar {
   background: var(--toolbar-background, #f9fbfc);
   border-bottom: 1px solid var(--panel-border, #dbe2e7);
   padding: 16px 20px;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease;
 }
 
 .editor-toolbar > div:first-child {
@@ -278,6 +328,10 @@ select {
   padding: 0 12px;
   user-select: none;
   white-space: nowrap;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
 }
 
 .toolbar-menu summary::after {
@@ -298,6 +352,7 @@ select {
 }
 
 .toolbar-menu-content {
+  animation: soft-fade-in 140ms ease;
   background: var(--panel-background, #ffffff);
   border: 1px solid var(--panel-border, #dbe2e7);
   border-radius: 8px;
@@ -310,6 +365,22 @@ select {
   right: 0;
   top: calc(100% + 8px);
   z-index: 30;
+}
+
+.editor-feedback {
+  animation: soft-fade-in 140ms ease;
+  background: var(--panel-background, #ffffff);
+  border: 1px solid var(--panel-border, #dbe2e7);
+  border-radius: 999px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+  color: var(--panel-text, #17212b);
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 7px 12px;
+  position: absolute;
+  right: 20px;
+  top: 76px;
+  z-index: 45;
 }
 
 .toolbar-menu-content button {
@@ -347,6 +418,7 @@ select {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
   min-height: 0;
+  transition: grid-template-columns 180ms ease;
 }
 
 .editor-body.inspector-hidden {
@@ -360,24 +432,82 @@ select {
 .canvas-shell {
   min-height: 0;
   position: relative;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .canvas-shell .react-flow {
   background: var(--canvas-background, #f5f7f8);
+  transition: background-color 180ms ease;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-.canvas-shell .react-flow__selection {
-  display: none;
+.canvas-shell .react-flow *,
+.canvas-shell .react-flow__renderer,
+.canvas-shell .react-flow__pane,
+.canvas-shell .react-flow__viewport {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.canvas-shell input,
+.canvas-shell select,
+.canvas-shell textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.canvas-shell .react-flow__pane.selection {
+  cursor: grab;
+}
+
+.canvas-shell .react-flow__selection,
+.canvas-shell .react-flow__nodesselection,
+.canvas-shell .react-flow__nodesselection-rect {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.canvas-shell .react-flow__controls {
+  background: var(--panel-background, #ffffff);
+  border: 1px solid var(--panel-border, #dbe2e7);
+  border-radius: 10px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+  display: grid;
+  gap: 2px;
+  overflow: hidden;
+  padding: 4px;
 }
 
 .canvas-shell .react-flow__controls-button {
-  background: var(--button-background, #ffffff);
-  border-bottom-color: var(--panel-border, #dbe2e7);
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  box-sizing: border-box;
   color: var(--button-text, #17212b);
+  height: 34px;
+  padding: 0;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+  width: 34px;
+}
+
+.canvas-shell .react-flow__controls-button:hover {
+  background: var(--button-background, #ffffff);
 }
 
 .canvas-shell .react-flow__controls-button svg {
   fill: currentColor;
+  height: 16px;
+  max-height: none;
+  max-width: none;
+  width: 16px;
 }
 
 .canvas-shell .react-flow__minimap {
@@ -386,6 +516,7 @@ select {
 }
 
 .canvas-context-menu {
+  animation: soft-fade-in 140ms ease;
   background: var(--panel-background, #ffffff);
   border: 1px solid var(--panel-border, #c9d2d8);
   color: var(--panel-text, #17212b);
@@ -415,11 +546,17 @@ select {
 }
 
 .inspector {
+  animation: soft-fade-in 140ms ease;
   background: var(--panel-background, #ffffff);
   border-left: 1px solid var(--panel-border, #dbe2e7);
   color: var(--panel-text, #17212b);
   overflow: auto;
   padding: 16px 20px 20px;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    padding 180ms ease;
 }
 
 .inspector.collapsed {
@@ -502,6 +639,7 @@ select {
 }
 
 .class-node {
+  animation: subtle-pop-in 150ms ease;
   background: var(--class-background, #ffffff);
   border: var(--class-border-width, 2px) solid var(--class-border, #2f3f4b);
   border-radius: var(--class-radius, 4px);
@@ -510,6 +648,11 @@ select {
   font-weight: var(--normal-weight, 400);
   min-width: 220px;
   position: relative;
+  transition:
+    background-color 180ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    color 180ms ease;
 }
 
 .class-node.selected {
@@ -517,16 +660,82 @@ select {
 }
 
 .class-node .class-node-handle {
-  background: var(--handle-background, #ffffff);
-  border: 2px solid var(--handle-border, #22577a);
-  height: var(--handle-size, 11px);
-  opacity: 0;
-  transition: opacity 120ms ease;
-  width: var(--handle-size, 11px);
+  background: transparent;
+  border: 0;
+  height: 1px;
+  width: 1px;
 }
 
-.class-node:hover .class-node-handle,
-.class-node.selected .class-node-handle {
+.class-node .react-flow__handle-top.class-node-handle {
+  top: 0;
+}
+
+.class-node .react-flow__handle-right.class-node-handle {
+  right: 0;
+}
+
+.class-node .react-flow__handle-bottom.class-node-handle {
+  bottom: 0;
+}
+
+.class-node .react-flow__handle-left.class-node-handle {
+  left: 0;
+}
+
+.class-node .class-node-handle::before {
+  background: rgba(0, 0, 0, 0.001);
+  content: "";
+  height: 34px;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 34px;
+}
+
+.class-node-handle-layer {
+  pointer-events: none;
+}
+
+.class-node-handle-visual {
+  background: color-mix(in srgb, var(--handle-background, #ffffff) 18%, transparent);
+  border: 2px solid var(--handle-border, #22577a);
+  border-radius: 999px;
+  height: var(--handle-size, 11px);
+  opacity: 0;
+  position: absolute;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+  width: var(--handle-size, 11px);
+  z-index: 2;
+}
+
+.class-node-handle-visual-top {
+  left: 50%;
+  top: -18px;
+  transform: translateX(-50%);
+}
+
+.class-node-handle-visual-right {
+  right: -18px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.class-node-handle-visual-bottom {
+  bottom: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.class-node-handle-visual-left {
+  left: -18px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.class-node:hover .class-node-handle-visual,
+.class-node.selected .class-node-handle-visual {
   opacity: 1;
 }
 
@@ -538,6 +747,9 @@ select {
   min-height: 43px;
   padding: 10px 12px;
   text-align: center;
+  transition:
+    border-color 180ms ease,
+    color 180ms ease;
 }
 
 .class-node-attributes {
@@ -671,6 +883,7 @@ select {
 }
 
 .association-label {
+  animation: soft-fade-in 140ms ease;
   background: color-mix(in srgb, var(--canvas-background, #ffffff) 88%, transparent);
   border: 1px solid var(--panel-border, #dbe2e7);
   border-radius: 6px;
@@ -680,6 +893,10 @@ select {
   max-width: 180px;
   padding: 3px 6px;
   white-space: nowrap;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease;
 }
 
 .association-label-center {
@@ -716,6 +933,9 @@ select {
   stroke: var(--marker-stroke, #2f3f4b);
   stroke-linejoin: round;
   stroke-width: 1.8;
+  transition:
+    fill 180ms ease,
+    stroke 180ms ease;
 }
 
 .relation-marker-filled {
@@ -723,6 +943,16 @@ select {
   stroke: var(--marker-stroke, #2f3f4b);
   stroke-linejoin: round;
   stroke-width: 1.8;
+  transition:
+    fill 180ms ease,
+    stroke 180ms ease;
+}
+
+.react-flow__edge-path {
+  stroke-linecap: square;
+  transition:
+    stroke 160ms ease,
+    stroke-width 160ms ease;
 }
 
 .association-fields {
@@ -796,6 +1026,7 @@ select {
 }
 
 .parametric-values-note {
+  animation: subtle-pop-in 150ms ease;
   background: var(--note-background, #fffdf3);
   border: 0;
   border-radius: var(--note-radius, 3px);
@@ -808,6 +1039,10 @@ select {
   overflow: hidden;
   padding: 12px 14px;
   position: relative;
+  transition:
+    background-color 180ms ease,
+    box-shadow 160ms ease,
+    color 180ms ease;
 }
 
 .parametric-values-note::after {
@@ -857,8 +1092,23 @@ select {
   content: "- ";
 }
 
+.parametric-value-row {
+  animation: soft-fade-in 140ms ease;
+}
+
 .parametric-value-editor input {
   min-height: 30px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+  }
 }
 
 .app-shell[data-theme="legacy"] .canvas-shell .react-flow__background {
@@ -1003,6 +1253,10 @@ select {
 }
 
 .exporting-png .react-flow__handle {
+  display: none;
+}
+
+.exporting-png .class-node-handle-visual {
   display: none;
 }
 

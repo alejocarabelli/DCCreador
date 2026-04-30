@@ -26,6 +26,8 @@ const sideToPosition: Record<Exclude<AssociationConnectionSide, 'automatic'>, Po
   left: Position.Left,
 };
 
+const NAVIGATION_ARROW_INSET = 7;
+
 const getEndpointLabelPosition = (
   sourceX: number,
   sourceY: number,
@@ -90,17 +92,39 @@ export function AssociationEdge({
       : edgeData.diamondEnd === 'target'
         ? 'target'
         : 'source';
-  const deltaX = targetX - sourceX;
-  const deltaY = targetY - sourceY;
+  const sourceEndpoint = { x: sourceX, y: sourceY };
+  const targetEndpoint = { x: targetX, y: targetY };
+  const deltaX = targetEndpoint.x - sourceEndpoint.x;
+  const deltaY = targetEndpoint.y - sourceEndpoint.y;
   const length = Math.hypot(deltaX, deltaY) || 1;
   const unitX = deltaX / length;
   const unitY = deltaY / length;
   const markerOffset = relationType === 'generalization' ? 18 : 16;
   const lineInset = relationType === 'association' ? 0 : 28;
-  const adjustedSourceX = relationType !== 'association' && markerEndPosition === 'source' ? sourceX + unitX * lineInset : sourceX;
-  const adjustedSourceY = relationType !== 'association' && markerEndPosition === 'source' ? sourceY + unitY * lineInset : sourceY;
-  const adjustedTargetX = relationType !== 'association' && markerEndPosition === 'target' ? targetX - unitX * lineInset : targetX;
-  const adjustedTargetY = relationType !== 'association' && markerEndPosition === 'target' ? targetY - unitY * lineInset : targetY;
+  const hasSourceNavigationArrow =
+    relationType === 'association' &&
+    (edgeData.navigability === 'target-to-source' || edgeData.navigability === 'bidirectional');
+  const hasTargetNavigationArrow =
+    relationType === 'association' &&
+    (edgeData.navigability === 'source-to-target' || edgeData.navigability === 'bidirectional');
+  const sourceNavigationInset = hasSourceNavigationArrow ? NAVIGATION_ARROW_INSET : 0;
+  const targetNavigationInset = hasTargetNavigationArrow ? NAVIGATION_ARROW_INSET : 0;
+  const adjustedSourceX =
+    relationType !== 'association' && markerEndPosition === 'source'
+      ? sourceEndpoint.x + unitX * lineInset
+      : sourceEndpoint.x + unitX * sourceNavigationInset;
+  const adjustedSourceY =
+    relationType !== 'association' && markerEndPosition === 'source'
+      ? sourceEndpoint.y + unitY * lineInset
+      : sourceEndpoint.y + unitY * sourceNavigationInset;
+  const adjustedTargetX =
+    relationType !== 'association' && markerEndPosition === 'target'
+      ? targetEndpoint.x - unitX * lineInset
+      : targetEndpoint.x - unitX * targetNavigationInset;
+  const adjustedTargetY =
+    relationType !== 'association' && markerEndPosition === 'target'
+      ? targetEndpoint.y - unitY * lineInset
+      : targetEndpoint.y - unitY * targetNavigationInset;
   const pathParams = {
     sourcePosition: effectiveSourcePosition,
     sourceX: adjustedSourceX,
@@ -116,13 +140,31 @@ export function AssociationEdge({
         ? getSmoothStepPath(pathParams)
         : getBezierPath(pathParams);
 
-  const sourceLabelPosition = getEndpointLabelPosition(sourceX, sourceY, targetX, targetY, 'source');
-  const targetLabelPosition = getEndpointLabelPosition(sourceX, sourceY, targetX, targetY, 'target');
-  const markerX = markerEndPosition === 'target' ? targetX - unitX * markerOffset : sourceX + unitX * markerOffset;
-  const markerY = markerEndPosition === 'target' ? targetY - unitY * markerOffset : sourceY + unitY * markerOffset;
+  const sourceLabelPosition = getEndpointLabelPosition(
+    sourceEndpoint.x,
+    sourceEndpoint.y,
+    targetEndpoint.x,
+    targetEndpoint.y,
+    'source',
+  );
+  const targetLabelPosition = getEndpointLabelPosition(
+    sourceEndpoint.x,
+    sourceEndpoint.y,
+    targetEndpoint.x,
+    targetEndpoint.y,
+    'target',
+  );
+  const markerX =
+    markerEndPosition === 'target'
+      ? targetEndpoint.x - unitX * markerOffset
+      : sourceEndpoint.x + unitX * markerOffset;
+  const markerY =
+    markerEndPosition === 'target'
+      ? targetEndpoint.y - unitY * markerOffset
+      : sourceEndpoint.y + unitY * markerOffset;
   const markerAngle =
-    Math.atan2(targetY - sourceY, targetX - sourceX) + (markerEndPosition === 'source' ? Math.PI : 0);
-
+    Math.atan2(targetEndpoint.y - sourceEndpoint.y, targetEndpoint.x - sourceEndpoint.x) +
+    (markerEndPosition === 'source' ? Math.PI : 0);
   const startMultiplicityEditing = (end: MultiplicityEnd, event: MouseEvent<HTMLElement>): void => {
     event.stopPropagation();
     originalMultiplicityRef.current = end === 'source' ? edgeData.sourceMultiplicity : edgeData.targetMultiplicity;
