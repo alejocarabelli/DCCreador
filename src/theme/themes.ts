@@ -103,7 +103,7 @@ export const legacyTheme: DiagramTheme = {
     strokeSelected: '#000000',
     strokeWidth: 1.4,
     multiplicityText: '#111111',
-    markerStroke: '#222222',
+    markerStroke: '#000000',
     markerFill: 'none',
   },
   handles: { background: '#FFFFFF', border: '#222222', size: 8 },

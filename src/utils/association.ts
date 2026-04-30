@@ -1,4 +1,4 @@
-import { MarkerType, type EdgeMarker } from 'reactflow';
+import type { EdgeMarker } from 'reactflow';
 import type { AssociationEdgeData, AssociationNavigability, AssociationRelationType, ClassDiagramEdge } from '../types/diagram';
 
 export const DEFAULT_ASSOCIATION_DATA: AssociationEdgeData = {
@@ -52,15 +52,15 @@ export const getAssociationMarker = (
   }
 
   if (navigability === 'bidirectional') {
-    return { type: MarkerType.Arrow, width: 22, height: 22 };
+    return { type: 'arrow' as EdgeMarker['type'], width: 24, height: 24, color: 'var(--marker-stroke)' };
   }
 
   if (navigability === 'source-to-target' && end === 'target') {
-    return { type: MarkerType.Arrow, width: 22, height: 22 };
+    return { type: 'arrow' as EdgeMarker['type'], width: 24, height: 24, color: 'var(--marker-stroke)' };
   }
 
   if (navigability === 'target-to-source' && end === 'source') {
-    return { type: MarkerType.Arrow, width: 22, height: 22 };
+    return { type: 'arrow' as EdgeMarker['type'], width: 24, height: 24, color: 'var(--marker-stroke)' };
   }
 
   return undefined;
