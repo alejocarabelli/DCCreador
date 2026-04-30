@@ -237,6 +237,7 @@ select {
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
+  min-width: 0;
 }
 
 .theme-selector {
@@ -253,10 +254,83 @@ select {
   min-width: 160px;
 }
 
+.compact-theme-selector select {
+  min-width: 132px;
+}
+
+.toolbar-menu {
+  position: relative;
+}
+
+.toolbar-menu summary {
+  align-items: center;
+  background: var(--button-background, #22577a);
+  border: 1px solid var(--button-border, #22577a);
+  border-radius: 8px;
+  color: var(--button-text, #ffffff);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.95rem;
+  font-weight: 700;
+  gap: 8px;
+  line-height: 1;
+  min-height: 36px;
+  padding: 0 12px;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.toolbar-menu summary::after {
+  content: '▾';
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.toolbar-menu summary::marker,
+.toolbar-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.toolbar-menu[open] summary {
+  background: var(--button-active-background, #14384f);
+  border-color: var(--button-active-background, #14384f);
+  color: var(--button-active-text, #ffffff);
+}
+
+.toolbar-menu-content {
+  background: var(--panel-background, #ffffff);
+  border: 1px solid var(--panel-border, #dbe2e7);
+  border-radius: 8px;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.16);
+  display: grid;
+  gap: 6px;
+  min-width: 170px;
+  padding: 8px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 30;
+}
+
+.toolbar-menu-content button {
+  justify-content: flex-start;
+  min-width: 100%;
+  white-space: nowrap;
+}
+
+.file-menu {
+  min-width: 190px;
+}
+
 .editor-toolbar-actions button {
   background: var(--button-background, #22577a);
   border-color: var(--button-border, #22577a);
   color: var(--button-text, #ffffff);
+}
+
+.editor-toolbar-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .editor-toolbar-actions button.active-tool {
@@ -273,6 +347,10 @@ select {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
   min-height: 0;
+}
+
+.editor-body.inspector-hidden {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .editor-body.inspector-collapsed {

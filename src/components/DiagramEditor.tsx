@@ -19,7 +19,20 @@ import ReactFlow, {
   type XYPosition,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Crosshair, FileDown, FileUp, Grid3X3, ImageDown, Magnet, Maximize2, PanelRightClose, PanelRightOpen, Plus } from 'lucide-react';
+import {
+  Crosshair,
+  FileDown,
+  FileUp,
+  Grid3X3,
+  ImageDown,
+  Magnet,
+  Maximize2,
+  PanelRightClose,
+  PanelRightOpen,
+  Plus,
+  Redo2,
+  Undo2,
+} from 'lucide-react';
 import { toPng } from 'html-to-image';
 import type {
   AssociationEdgeData,
@@ -43,12 +56,16 @@ import { ClassNode } from './ClassNode';
 import { ParametricValuesNote } from './ParametricValuesNote';
 
 type DiagramEditorProps = {
+  canRedo: boolean;
+  canUndo: boolean;
   project: DiagramProject;
   theme: DiagramTheme;
   themeId: DiagramThemeId;
   onChangeContent: (content: DiagramContent) => void;
   onImportProject: (project: DiagramProject) => void;
+  onRedo: () => void;
   onThemeChange: (themeId: DiagramThemeId) => void;
+  onUndo: () => void;
 };
 
 type ContextMenuState = {
@@ -140,13 +157,31 @@ const getEffectiveBackgroundColor = (element: HTMLElement): string => {
 const getAssociationConnectionSide = (handleId: string | null | undefined): AssociationConnectionSide =>
   ASSOCIATION_CONNECTION_SIDES.some((side) => side === handleId) ? (handleId as AssociationConnectionSide) : 'automatic';
 
+const isEditableElement = (element: Element | null): boolean => {
+  if (element === null) {
+    return false;
+  }
+
+  return (
+    element instanceof HTMLInputElement ||
+    element instanceof HTMLSelectElement ||
+    element instanceof HTMLTextAreaElement ||
+    element instanceof HTMLButtonElement ||
+    element.closest('[contenteditable="true"], input, select, textarea, button') !== null
+  );
+};
+
 export function DiagramEditor({
+  canRedo,
+  canUndo,
   project,
   theme,
   themeId,
   onChangeContent,
   onImportProject,
+  onRedo,
   onThemeChange,
+  onUndo,
 }: DiagramEditorProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
@@ -179,6 +214,7 @@ export function DiagramEditor({
     () => normalizedEdges.find((edge) => edge.id === selectedEdgeId) ?? null,
     [normalizedEdges, selectedEdgeId],
   );
+  const hasInspectorSelection = selectedNode !== null || selectedEdge !== null;
 
   const updateNodes = useCallback(
     (nextNodes: ClassDiagramNode[]): void => {
@@ -193,6 +229,32 @@ export function DiagramEditor({
     },
     [nodes, onChangeContent],
   );
+
+  const deleteSelectedElement = useCallback((): void => {
+    if (selectedEdgeId !== null) {
+      updateEdges(normalizedEdges.filter((edge) => edge.id !== selectedEdgeId));
+      setSelectedEdgeId(null);
+      setContextMenu(null);
+      return;
+    }
+
+    if (selectedNodeId !== null) {
+      const selectedClassNode = nodes.find((node) => node.id === selectedNodeId);
+
+      if (selectedClassNode === undefined) {
+        return;
+      }
+
+      onChangeContent({
+        nodes: nodes.filter((node) => node.id !== selectedNodeId).map(normalizeClassNode),
+        edges: normalizedEdges
+          .filter((edge) => edge.source !== selectedNodeId && edge.target !== selectedNodeId)
+          .map(normalizeAssociationEdge),
+      });
+      setSelectedNodeId(null);
+      setContextMenu(null);
+    }
+  }, [nodes, normalizedEdges, onChangeContent, selectedEdgeId, selectedNodeId, updateEdges]);
 
   const handleNodesChange = useCallback(
     (changes: NodeChange[]): void => {
@@ -734,6 +796,31 @@ export function DiagramEditor({
     localStorage.setItem(SNAP_ENABLED_KEY, String(isSnapEnabled));
   }, [isSnapEnabled]);
 
+  useEffect(() => {
+    const handleDeleteKey = (event: globalThis.KeyboardEvent): void => {
+      if (event.key !== 'Delete' && event.key !== 'Backspace') {
+        return;
+      }
+
+      if (isEditableElement(document.activeElement)) {
+        return;
+      }
+
+      if (selectedNodeId === null && selectedEdgeId === null) {
+        return;
+      }
+
+      event.preventDefault();
+      deleteSelectedElement();
+    };
+
+    document.addEventListener('keydown', handleDeleteKey);
+
+    return () => {
+      document.removeEventListener('keydown', handleDeleteKey);
+    };
+  }, [deleteSelectedElement, selectedEdgeId, selectedNodeId]);
+
   const centerDiagram = (): void => {
     if (reactFlowInstance === null || renderedNodes.length === 0) {
       return;
@@ -946,6 +1033,14 @@ export function DiagramEditor({
           <h2>{project.name}</h2>
         </div>
         <div className="editor-toolbar-actions">
+          <button type="button" disabled={!canUndo} onClick={onUndo} title="Deshacer última acción">
+            <Undo2 size={17} />
+            Deshacer
+          </button>
+          <button type="button" disabled={!canRedo} onClick={onRedo} title="Rehacer acción deshecha">
+            <Redo2 size={17} />
+            Rehacer
+          </button>
           <button type="button" onClick={() => addClassNode()}>
             <Plus size={18} />
             Crear clase
@@ -958,38 +1053,72 @@ export function DiagramEditor({
             <Maximize2 size={17} />
             Ver todo
           </button>
-          <button
-            type="button"
-            className={isGridEnabled ? 'active-tool' : ''}
-            onClick={() => setIsGridEnabled((enabled) => !enabled)}
-            title="Activar o desactivar grilla"
-          >
-            <Grid3X3 size={17} />
-            Grilla
-          </button>
-          <button
-            type="button"
-            className={isSnapEnabled ? 'active-tool' : ''}
-            onClick={() => setIsSnapEnabled((enabled) => !enabled)}
-            title="Activar o desactivar snap"
-          >
-            <Magnet size={17} />
-            Snap
-          </button>
-          <button type="button" onClick={exportProjectJson}>
-            <FileDown size={17} />
-            Exportar JSON
-          </button>
-          <button type="button" onClick={() => fileInputRef.current?.click()}>
-            <FileUp size={17} />
-            Importar JSON
-          </button>
-          <button type="button" onClick={() => void exportPng()}>
-            <ImageDown size={17} />
-            Exportar PNG
-          </button>
-          <label className="theme-selector">
-            Temas
+          <details className="toolbar-menu">
+            <summary>Vista</summary>
+            <div className="toolbar-menu-content">
+              <button
+                type="button"
+                className={isGridEnabled ? 'active-tool' : ''}
+                onClick={(event) => {
+                  setIsGridEnabled((enabled) => !enabled);
+                  event.currentTarget.closest('details')?.removeAttribute('open');
+                }}
+                title="Activar o desactivar grilla"
+              >
+                <Grid3X3 size={17} />
+                Grilla
+              </button>
+              <button
+                type="button"
+                className={isSnapEnabled ? 'active-tool' : ''}
+                onClick={(event) => {
+                  setIsSnapEnabled((enabled) => !enabled);
+                  event.currentTarget.closest('details')?.removeAttribute('open');
+                }}
+                title="Activar o desactivar snap"
+              >
+                <Magnet size={17} />
+                Snap
+              </button>
+            </div>
+          </details>
+          <details className="toolbar-menu">
+            <summary>Archivo</summary>
+            <div className="toolbar-menu-content file-menu">
+              <button
+                type="button"
+                onClick={(event) => {
+                  exportProjectJson();
+                  event.currentTarget.closest('details')?.removeAttribute('open');
+                }}
+              >
+                <FileDown size={17} />
+                Exportar JSON
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  fileInputRef.current?.click();
+                  event.currentTarget.closest('details')?.removeAttribute('open');
+                }}
+              >
+                <FileUp size={17} />
+                Importar JSON
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  void exportPng();
+                  event.currentTarget.closest('details')?.removeAttribute('open');
+                }}
+              >
+                <ImageDown size={17} />
+                Exportar PNG
+              </button>
+            </div>
+          </details>
+          <label className="theme-selector compact-theme-selector">
+            Tema
             <select
               value={themeId}
               onChange={(event) => onThemeChange(event.target.value as DiagramThemeId)}
@@ -1018,7 +1147,11 @@ export function DiagramEditor({
         </div>
       </header>
 
-      <div className={`editor-body ${isInspectorCollapsed ? 'inspector-collapsed' : ''}`}>
+      <div
+        className={`editor-body ${hasInspectorSelection ? '' : 'inspector-hidden'} ${
+          hasInspectorSelection && isInspectorCollapsed ? 'inspector-collapsed' : ''
+        }`}
+      >
         <div className="canvas-shell" ref={canvasRef}>
           <ReactFlow
             nodes={renderedNodes}
@@ -1045,9 +1178,11 @@ export function DiagramEditor({
             }}
             onEdgeContextMenu={(event) => event.stopPropagation()}
             onNodeClick={(_, node) => {
+              const classNodeId = getClassNodeIdFromNoteId(node.id) ?? node.id;
+
               setContextMenu(null);
               setSelectedEdgeId(null);
-              setSelectedNodeId(node.id);
+              setSelectedNodeId(classNodeId);
             }}
             onPaneClick={() => {
               setContextMenu(null);
@@ -1056,6 +1191,7 @@ export function DiagramEditor({
             }}
             onPaneContextMenu={handlePaneContextMenu}
             connectionMode={ConnectionMode.Loose}
+            deleteKeyCode={null}
             selectionKeyCode={null}
             selectionOnDrag={false}
             snapGrid={[20, 20]}
@@ -1168,29 +1304,31 @@ export function DiagramEditor({
             </div>
           ) : null}
         </div>
-        <aside className={`inspector ${isInspectorCollapsed ? 'collapsed' : ''}`}>
-          <button
-            className="icon-button inspector-toggle"
-            type="button"
-            onClick={() => setIsInspectorCollapsed((isCollapsed) => !isCollapsed)}
-            title={isInspectorCollapsed ? 'Expandir inspector' : 'Contraer inspector'}
-          >
-            {isInspectorCollapsed ? <PanelRightOpen size={18} /> : <PanelRightClose size={18} />}
-          </button>
-          {isInspectorCollapsed ? null : selectedEdge !== null ? (
-            <AssociationInspector edge={selectedEdge} onUpdateAssociation={updateAssociation} />
-          ) : (
-            <ClassInspector
-              node={selectedNode}
-              onAddAttribute={addAttribute}
-              onDeleteAttribute={deleteAttribute}
-              onRenameClass={renameClass}
-              onSetParametricValuesNote={setParametricValuesNoteByNodeId}
-              onUpdateAttribute={updateAttribute}
-              onUpdateParametricValues={updateParametricValuesByNodeId}
-            />
-          )}
-        </aside>
+        {hasInspectorSelection ? (
+          <aside className={`inspector ${isInspectorCollapsed ? 'collapsed' : ''}`}>
+            <button
+              className="icon-button inspector-toggle"
+              type="button"
+              onClick={() => setIsInspectorCollapsed((isCollapsed) => !isCollapsed)}
+              title={isInspectorCollapsed ? 'Expandir inspector' : 'Contraer inspector'}
+            >
+              {isInspectorCollapsed ? <PanelRightOpen size={18} /> : <PanelRightClose size={18} />}
+            </button>
+            {isInspectorCollapsed ? null : selectedEdge !== null ? (
+              <AssociationInspector edge={selectedEdge} onUpdateAssociation={updateAssociation} />
+            ) : (
+              <ClassInspector
+                node={selectedNode}
+                onAddAttribute={addAttribute}
+                onDeleteAttribute={deleteAttribute}
+                onRenameClass={renameClass}
+                onSetParametricValuesNote={setParametricValuesNoteByNodeId}
+                onUpdateAttribute={updateAttribute}
+                onUpdateParametricValues={updateParametricValuesByNodeId}
+              />
+            )}
+          </aside>
+        ) : null}
       </div>
     </main>
   );

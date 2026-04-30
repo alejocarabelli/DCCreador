@@ -77,10 +77,24 @@ export function ProjectSidebar({
                 <span>Modificado: {formatDate(project.updatedAt)}</span>
               </button>
               <div className="project-actions">
-                <button type="button" onClick={() => onRenameProject(project.id)} title="Renombrar proyecto">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onRenameProject(project.id);
+                  }}
+                  title="Renombrar proyecto"
+                >
                   <Pencil size={15} />
                 </button>
-                <button type="button" onClick={() => onDeleteProject(project.id)} title="Eliminar proyecto">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onDeleteProject(project.id);
+                  }}
+                  title="Eliminar proyecto"
+                >
                   <Trash2 size={15} />
                 </button>
               </div>
