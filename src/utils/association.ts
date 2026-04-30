@@ -10,6 +10,10 @@ export const DEFAULT_ASSOCIATION_DATA: AssociationEdgeData = {
   navigability: 'none',
   relationType: 'association',
   diamondEnd: 'source',
+  lineStyle: 'straight',
+  sourceSide: 'automatic',
+  targetSide: 'automatic',
+  waypoints: [],
 };
 
 export const normalizeAssociationData = (data: Partial<AssociationEdgeData> | undefined): AssociationEdgeData => ({
@@ -18,6 +22,10 @@ export const normalizeAssociationData = (data: Partial<AssociationEdgeData> | un
   navigability: data?.navigability ?? DEFAULT_ASSOCIATION_DATA.navigability,
   relationType: data?.relationType ?? DEFAULT_ASSOCIATION_DATA.relationType,
   diamondEnd: data?.diamondEnd ?? DEFAULT_ASSOCIATION_DATA.diamondEnd,
+  lineStyle: data?.lineStyle ?? DEFAULT_ASSOCIATION_DATA.lineStyle,
+  sourceSide: data?.sourceSide ?? DEFAULT_ASSOCIATION_DATA.sourceSide,
+  targetSide: data?.targetSide ?? DEFAULT_ASSOCIATION_DATA.targetSide,
+  waypoints: Array.isArray(data?.waypoints) ? data.waypoints : [],
 });
 
 export const normalizeAssociationEdge = (edge: ClassDiagramEdge): ClassDiagramEdge => {
@@ -26,6 +34,8 @@ export const normalizeAssociationEdge = (edge: ClassDiagramEdge): ClassDiagramEd
   return {
     ...edge,
     type: 'association',
+    sourceHandle: data.sourceSide === 'automatic' ? edge.sourceHandle : data.sourceSide,
+    targetHandle: data.targetSide === 'automatic' ? edge.targetHandle : data.targetSide,
     data,
     markerStart: getAssociationMarker(data.navigability, 'source', data.relationType),
     markerEnd: getAssociationMarker(data.navigability, 'target', data.relationType),

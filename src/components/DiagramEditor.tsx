@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import ReactFlow, {
   Background,
+  BackgroundVariant,
   ConnectionMode,
   Controls,
   MiniMap,
@@ -22,6 +23,7 @@ import { Crosshair, FileDown, FileUp, Grid3X3, ImageDown, Magnet, Maximize2, Pan
 import { toPng } from 'html-to-image';
 import type {
   AssociationEdgeData,
+  AssociationConnectionSide,
   ClassAttribute,
   ClassDiagramEdge,
   ClassDiagramNode,
@@ -30,6 +32,7 @@ import type {
   ParametricValue,
   ParametricValuesNoteHandle,
 } from '../types/diagram';
+import { themes, type DiagramTheme, type DiagramThemeId } from '../theme/themes';
 import { createId } from '../utils/id';
 import { getAssociationMarker, normalizeAssociationData, normalizeAssociationEdge } from '../utils/association';
 import { normalizeClassNode, normalizeDiagramContent, normalizeDiagramProject } from '../utils/diagramNormalization';
@@ -41,8 +44,11 @@ import { ParametricValuesNote } from './ParametricValuesNote';
 
 type DiagramEditorProps = {
   project: DiagramProject;
+  theme: DiagramTheme;
+  themeId: DiagramThemeId;
   onChangeContent: (content: DiagramContent) => void;
   onImportProject: (project: DiagramProject) => void;
+  onThemeChange: (themeId: DiagramThemeId) => void;
 };
 
 type ContextMenuState = {
@@ -68,13 +74,20 @@ const NOTE_NODE_OFFSET = { x: 24, y: 116 };
 const NOTE_EDGE_SUFFIX = '__values-edge';
 const NOTE_NODE_SUFFIX = '__values-note';
 const NOTE_HANDLE_OPTIONS: Array<{ label: string; value: ParametricValuesNoteHandle }> = [
-  { label: 'Arriba', value: 'top' },
-  { label: 'Derecha', value: 'right' },
-  { label: 'Abajo', value: 'bottom' },
-  { label: 'Izquierda', value: 'left' },
+  { label: '↑', value: 'top' },
+  { label: '→', value: 'right' },
+  { label: '↓', value: 'bottom' },
+  { label: '←', value: 'left' },
 ];
+const OPPOSITE_NOTE_HANDLE: Record<ParametricValuesNoteHandle, ParametricValuesNoteHandle> = {
+  top: 'bottom',
+  right: 'left',
+  bottom: 'top',
+  left: 'right',
+};
 const PNG_WIDTH = 1600;
 const PNG_HEIGHT = 1000;
+const ASSOCIATION_CONNECTION_SIDES = ['top', 'right', 'bottom', 'left'] as const;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
@@ -124,7 +137,17 @@ const getEffectiveBackgroundColor = (element: HTMLElement): string => {
   return '#f5f7f8';
 };
 
-export function DiagramEditor({ project, onChangeContent, onImportProject }: DiagramEditorProps) {
+const getAssociationConnectionSide = (handleId: string | null | undefined): AssociationConnectionSide =>
+  ASSOCIATION_CONNECTION_SIDES.some((side) => side === handleId) ? (handleId as AssociationConnectionSide) : 'automatic';
+
+export function DiagramEditor({
+  project,
+  theme,
+  themeId,
+  onChangeContent,
+  onImportProject,
+  onThemeChange,
+}: DiagramEditorProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(
@@ -226,13 +249,15 @@ export function DiagramEditor({ project, onChangeContent, onImportProject }: Dia
   const handleConnect = useCallback(
     (connection: Connection): void => {
       const navigability = 'none';
+      const sourceSide = getAssociationConnectionSide(connection.sourceHandle);
+      const targetSide = getAssociationConnectionSide(connection.targetHandle);
       updateEdges(
         addEdge(
           {
             ...connection,
             id: createId(),
             type: 'association',
-            data: normalizeAssociationData({ navigability }),
+            data: normalizeAssociationData({ navigability, sourceSide, targetSide }),
             markerStart: getAssociationMarker(navigability, 'source', 'association'),
             markerEnd: getAssociationMarker(navigability, 'target', 'association'),
           },
@@ -513,7 +538,11 @@ export function DiagramEditor({ project, onChangeContent, onImportProject }: Dia
     [nodes, updateNodes],
   );
 
-  const updateParametricValuesNoteHandle = (nodeId: string, handle: ParametricValuesNoteHandle): void => {
+  const updateParametricValuesNoteConnectionHandles = (
+    nodeId: string,
+    handle: ParametricValuesNoteHandle,
+    changedEnd: 'class' | 'note',
+  ): void => {
     updateNodes(
       nodes.map((node) =>
         node.id === nodeId
@@ -521,23 +550,8 @@ export function DiagramEditor({ project, onChangeContent, onImportProject }: Dia
               ...node,
               data: {
                 ...node.data,
-                parametricValuesNoteHandle: handle,
-              },
-            }
-          : node,
-      ),
-    );
-  };
-
-  const updateParametricValuesNoteTargetHandle = (nodeId: string, handle: ParametricValuesNoteHandle): void => {
-    updateNodes(
-      nodes.map((node) =>
-        node.id === nodeId
-          ? {
-              ...node,
-              data: {
-                ...node.data,
-                parametricValuesNoteTargetHandle: handle,
+                parametricValuesNoteHandle: changedEnd === 'class' ? handle : OPPOSITE_NOTE_HANDLE[handle],
+                parametricValuesNoteTargetHandle: changedEnd === 'note' ? handle : OPPOSITE_NOTE_HANDLE[handle],
               },
             }
           : node,
@@ -587,6 +601,8 @@ export function DiagramEditor({ project, onChangeContent, onImportProject }: Dia
 
         return {
           ...edge,
+          sourceHandle: data.sourceSide === 'automatic' ? edge.sourceHandle : data.sourceSide,
+          targetHandle: data.targetSide === 'automatic' ? edge.targetHandle : data.targetSide,
           data,
           markerStart: getAssociationMarker(data.navigability, 'source', data.relationType),
           markerEnd: getAssociationMarker(data.navigability, 'target', data.relationType),
@@ -692,9 +708,13 @@ export function DiagramEditor({ project, onChangeContent, onImportProject }: Dia
           targetHandle: node.data.parametricValuesNoteTargetHandle ?? 'top',
           selectable: true,
           focusable: false,
-          style: { stroke: '#7a8b98', strokeDasharray: '4 4', strokeWidth: 1.2 },
+          style: {
+            stroke: 'var(--note-connection-line)',
+            strokeDasharray: 'var(--note-connection-dash)',
+            strokeWidth: 1.2,
+          },
           interactionWidth: 8,
-          type: 'smoothstep',
+          type: 'straight',
         }));
 
       return [...associationEdges, ...noteEdges];
@@ -968,6 +988,20 @@ export function DiagramEditor({ project, onChangeContent, onImportProject }: Dia
             <ImageDown size={17} />
             Exportar PNG
           </button>
+          <label className="theme-selector">
+            Temas
+            <select
+              value={themeId}
+              onChange={(event) => onThemeChange(event.target.value as DiagramThemeId)}
+              title={theme.description}
+            >
+              {themes.map((availableTheme) => (
+                <option key={availableTheme.id} value={availableTheme.id}>
+                  {availableTheme.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <input
             ref={fileInputRef}
             accept="application/json,.json"
@@ -1022,11 +1056,21 @@ export function DiagramEditor({ project, onChangeContent, onImportProject }: Dia
             }}
             onPaneContextMenu={handlePaneContextMenu}
             connectionMode={ConnectionMode.Loose}
+            selectionKeyCode={null}
+            selectionOnDrag={false}
             snapGrid={[20, 20]}
             snapToGrid={isSnapEnabled}
             fitView
           >
-            {isGridEnabled ? <Background gap={20} /> : null}
+            {isGridEnabled ? (
+              <Background
+                color={theme.canvas.gridColorStrong}
+                gap={20}
+                lineWidth={1}
+                size={1.4}
+                variant={BackgroundVariant.Dots}
+              />
+            ) : null}
             <Controls />
             <MiniMap pannable zoomable />
           </ReactFlow>
@@ -1048,7 +1092,11 @@ export function DiagramEditor({ project, onChangeContent, onImportProject }: Dia
                       type="button"
                       className={noteEdgeContextNode?.data.parametricValuesNoteHandle === option.value ? 'active-context-option' : ''}
                       onClick={() => {
-                        updateParametricValuesNoteHandle(contextMenu.noteEdgeNodeId ?? '', option.value);
+                        updateParametricValuesNoteConnectionHandles(
+                          contextMenu.noteEdgeNodeId ?? '',
+                          option.value,
+                          'class',
+                        );
                         setContextMenu(null);
                       }}
                     >
@@ -1066,7 +1114,11 @@ export function DiagramEditor({ project, onChangeContent, onImportProject }: Dia
                           : ''
                       }
                       onClick={() => {
-                        updateParametricValuesNoteTargetHandle(contextMenu.noteEdgeNodeId ?? '', option.value);
+                        updateParametricValuesNoteConnectionHandles(
+                          contextMenu.noteEdgeNodeId ?? '',
+                          option.value,
+                          'note',
+                        );
                         setContextMenu(null);
                       }}
                     >

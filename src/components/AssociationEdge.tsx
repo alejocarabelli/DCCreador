@@ -1,11 +1,14 @@
 import {
   BaseEdge,
   EdgeLabelRenderer,
+  getBezierPath,
   getSmoothStepPath,
+  getStraightPath,
+  Position,
   type EdgeProps,
 } from 'reactflow';
 import { useRef, useState, type MouseEvent } from 'react';
-import type { AssociationEdgeData } from '../types/diagram';
+import type { AssociationConnectionSide, AssociationEdgeData } from '../types/diagram';
 import { MultiplicityInput } from './MultiplicityInput';
 
 const edgeLabelStyle = {
@@ -15,6 +18,13 @@ const edgeLabelStyle = {
 } as const;
 
 type MultiplicityEnd = 'source' | 'target';
+
+const sideToPosition: Record<Exclude<AssociationConnectionSide, 'automatic'>, Position> = {
+  top: Position.Top,
+  right: Position.Right,
+  bottom: Position.Bottom,
+  left: Position.Left,
+};
 
 const getEndpointLabelPosition = (
   sourceX: number,
@@ -60,9 +70,26 @@ export function AssociationEdge({
     navigability: 'none',
     relationType: 'association',
     diamondEnd: 'source',
+    lineStyle: 'straight',
+    sourceSide: 'automatic',
+    targetSide: 'automatic',
   };
   const relationType = edgeData.relationType ?? 'association';
-  const markerEndPosition = edgeData.diamondEnd === 'target' || relationType === 'generalization' ? 'target' : 'source';
+  const lineStyle = edgeData.lineStyle ?? 'automatic';
+  const effectiveSourcePosition =
+    edgeData.sourceSide !== undefined && edgeData.sourceSide !== 'automatic'
+      ? sideToPosition[edgeData.sourceSide]
+      : sourcePosition;
+  const effectiveTargetPosition =
+    edgeData.targetSide !== undefined && edgeData.targetSide !== 'automatic'
+      ? sideToPosition[edgeData.targetSide]
+      : targetPosition;
+  const markerEndPosition =
+    relationType === 'generalization'
+      ? edgeData.diamondEnd ?? 'target'
+      : edgeData.diamondEnd === 'target'
+        ? 'target'
+        : 'source';
   const deltaX = targetX - sourceX;
   const deltaY = targetY - sourceY;
   const length = Math.hypot(deltaX, deltaY) || 1;
@@ -74,14 +101,20 @@ export function AssociationEdge({
   const adjustedSourceY = relationType !== 'association' && markerEndPosition === 'source' ? sourceY + unitY * lineInset : sourceY;
   const adjustedTargetX = relationType !== 'association' && markerEndPosition === 'target' ? targetX - unitX * lineInset : targetX;
   const adjustedTargetY = relationType !== 'association' && markerEndPosition === 'target' ? targetY - unitY * lineInset : targetY;
-  const [edgePath] = getSmoothStepPath({
-    sourcePosition,
+  const pathParams = {
+    sourcePosition: effectiveSourcePosition,
     sourceX: adjustedSourceX,
     sourceY: adjustedSourceY,
-    targetPosition,
+    targetPosition: effectiveTargetPosition,
     targetX: adjustedTargetX,
     targetY: adjustedTargetY,
-  });
+  };
+  const [edgePath] =
+    lineStyle === 'straight'
+      ? getStraightPath(pathParams)
+      : lineStyle === 'orthogonal'
+        ? getSmoothStepPath(pathParams)
+        : getBezierPath(pathParams);
 
   const sourceLabelPosition = getEndpointLabelPosition(sourceX, sourceY, targetX, targetY, 'source');
   const targetLabelPosition = getEndpointLabelPosition(sourceX, sourceY, targetX, targetY, 'target');
@@ -149,9 +182,13 @@ export function AssociationEdge({
         markerEnd={markerEnd}
         markerStart={markerStart}
         style={{
-          stroke: selected ? '#22577a' : '#2f3f4b',
-          strokeWidth: selected ? 2.5 : 1.8,
+          stroke: selected ? 'var(--association-stroke-selected)' : 'var(--association-stroke)',
+          strokeWidth: selected ? 'calc(var(--association-stroke-width) + 0.9)' : 'var(--association-stroke-width)',
         }}
+      />
+      <path
+        className="association-edge-hit-area"
+        d={edgePath}
       />
       <EdgeLabelRenderer>
         {relationType !== 'association' ? (

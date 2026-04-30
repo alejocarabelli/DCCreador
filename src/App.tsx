@@ -2,6 +2,8 @@ import { DiagramEditor } from './components/DiagramEditor';
 import { ProjectNameDialog } from './components/ProjectNameDialog';
 import { ProjectSidebar } from './components/ProjectSidebar';
 import { useProjects } from './hooks/useProjects';
+import { useTheme } from './hooks/useTheme';
+import type { DiagramThemeId } from './theme/themes';
 import { useEffect, useState } from 'react';
 
 type ProjectDialogState =
@@ -15,6 +17,7 @@ function App() {
   const [isProjectSidebarCollapsed, setIsProjectSidebarCollapsed] = useState(
     () => localStorage.getItem(PROJECT_SIDEBAR_COLLAPSED_KEY) === 'true',
   );
+  const { setThemeId, theme, themeId, themeStyle } = useTheme();
   const {
     activeProject,
     activeProjectId,
@@ -62,7 +65,11 @@ function App() {
   }, [isProjectSidebarCollapsed]);
 
   return (
-    <div className={`app-shell ${isProjectSidebarCollapsed ? 'project-sidebar-collapsed' : ''}`}>
+    <div
+      className={`app-shell ${isProjectSidebarCollapsed ? 'project-sidebar-collapsed' : ''}`}
+      data-theme={theme.id}
+      style={themeStyle}
+    >
       <ProjectSidebar
         activeProjectId={activeProjectId}
         isCollapsed={isProjectSidebarCollapsed}
@@ -85,8 +92,11 @@ function App() {
         <DiagramEditor
           key={activeProject.id}
           project={activeProject}
+          theme={theme}
+          themeId={themeId}
           onChangeContent={(content) => updateProjectContent(activeProject.id, content)}
           onImportProject={importProject}
+          onThemeChange={(nextThemeId) => setThemeId(nextThemeId as DiagramThemeId)}
         />
       )}
       {projectDialog !== null ? (

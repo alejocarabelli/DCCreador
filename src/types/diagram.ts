@@ -47,9 +47,12 @@ export type ClassNodeData = {
 
 export type ClassDiagramNode = Node<ClassNodeData, 'classNode'>;
 
+export type ConnectionSide = 'top' | 'right' | 'bottom' | 'left';
 export type AssociationNavigability = 'none' | 'source-to-target' | 'target-to-source' | 'bidirectional';
 export type AssociationRelationType = 'association' | 'generalization' | 'aggregation' | 'composition';
 export type AssociationDiamondEnd = 'source' | 'target';
+export type AssociationLineStyle = 'automatic' | 'straight' | 'orthogonal';
+export type AssociationConnectionSide = 'automatic' | ConnectionSide;
 
 export type AssociationEdgeData = {
   name: string;
@@ -60,6 +63,10 @@ export type AssociationEdgeData = {
   navigability: AssociationNavigability;
   relationType?: AssociationRelationType;
   diamondEnd?: AssociationDiamondEnd;
+  lineStyle?: AssociationLineStyle;
+  sourceSide?: AssociationConnectionSide;
+  targetSide?: AssociationConnectionSide;
+  waypoints?: XYPosition[];
   onUpdateMultiplicity?: (edgeId: string, end: 'source' | 'target', value: string) => void;
 };
 
