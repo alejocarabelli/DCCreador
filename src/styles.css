@@ -220,6 +220,17 @@ select {
   padding: 16px 20px;
 }
 
+.editor-toolbar > div:first-child {
+  min-width: 180px;
+}
+
+.editor-toolbar h2 {
+  font-size: 1.35rem;
+  line-height: 1.15;
+  max-width: 260px;
+  overflow-wrap: break-word;
+}
+
 .editor-toolbar-actions {
   align-items: center;
   display: flex;
@@ -708,9 +719,10 @@ select {
 
 .parametric-values-note {
   background: var(--note-background, #fffdf3);
-  border: 1px solid var(--note-border, #d3c68a);
+  border: 0;
   border-radius: var(--note-radius, 3px);
   box-shadow: var(--class-shadow, 0 8px 18px rgba(23, 33, 43, 0.12));
+  clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 0 100%);
   color: var(--note-text, #17212b);
   font-size: var(--note-size, 13px);
   min-width: 160px;
@@ -730,17 +742,21 @@ select {
   right: 0;
   top: 0;
   width: 20px;
+  z-index: 3;
 }
 
 .parametric-values-note::before {
-  border-color: transparent var(--canvas-background, #f5f7f8) transparent transparent;
-  border-style: solid;
-  border-width: 0 20px 20px 0;
   content: "";
+  background:
+    linear-gradient(135deg, var(--note-border, #d8ca82) 0 49%, var(--note-background, #f5edc6) 50% 100%);
+  border-left: 1px solid var(--note-border, #d3c68a);
+  border-bottom: 1px solid var(--note-border, #d3c68a);
+  height: 20px;
   position: absolute;
   right: 0;
   top: 0;
-  z-index: 1;
+  width: 20px;
+  z-index: 4;
 }
 
 .parametric-note-handle {
@@ -756,7 +772,7 @@ select {
   min-height: 48px;
   padding-right: 20px;
   position: relative;
-  z-index: 2;
+  z-index: 5;
 }
 
 .parametric-value-row::before {
@@ -765,6 +781,142 @@ select {
 
 .parametric-value-editor input {
   min-height: 30px;
+}
+
+.app-shell[data-theme="legacy"] .canvas-shell .react-flow__background {
+  opacity: 1;
+}
+
+.app-shell[data-theme="legacy"] .class-node {
+  background:
+    linear-gradient(90deg, #fbf1df 0%, var(--class-background, #f7e7c8) 74%, #f3dcae 100%);
+  letter-spacing: 0.01em;
+}
+
+.app-shell[data-theme="legacy"] .class-node-title {
+  min-height: 32px;
+  padding: 7px 12px;
+}
+
+.app-shell[data-theme="legacy"] .class-node-attributes {
+  gap: 2px;
+  min-height: 34px;
+  padding: 8px 12px;
+}
+
+.app-shell[data-theme="legacy"] .attribute-row {
+  min-height: 18px;
+}
+
+.app-shell[data-theme="legacy"] .attribute-row span:first-child::before {
+  content: "- ";
+}
+
+.app-shell[data-theme="legacy"] .association-label {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font-weight: 600;
+  padding: 0 2px;
+}
+
+.app-shell[data-theme="legacy"] .relation-marker {
+  height: 26px;
+  width: 26px;
+}
+
+.app-shell[data-theme="legacy"] .relation-marker-svg {
+  height: 26px;
+  width: 26px;
+}
+
+.app-shell[data-theme="legacy"] .relation-marker-open,
+.app-shell[data-theme="legacy"] .relation-marker-filled {
+  stroke-width: 1.5;
+}
+
+.app-shell[data-theme="legacy"] .parametric-values-note {
+  background: #f1eff1;
+  border: 0;
+  clip-path: polygon(0 0, calc(100% - 24px) 0, 100% 24px, 100% 100%, 0 100%);
+  box-shadow: 5px 5px 0 #9d9d9d;
+  padding: 12px 10px;
+}
+
+.app-shell[data-theme="legacy"] .parametric-values-note::after {
+  background:
+    linear-gradient(#9f9f9f, #9f9f9f) left top / calc(100% - 24px) 1px no-repeat,
+    linear-gradient(#9f9f9f, #9f9f9f) left top / 1px 100% no-repeat,
+    linear-gradient(#9f9f9f, #9f9f9f) left bottom / 100% 1px no-repeat,
+    linear-gradient(#9f9f9f, #9f9f9f) right 24px / 1px calc(100% - 24px) no-repeat;
+  clip-path: none;
+  content: "";
+  height: 100%;
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  width: 100%;
+  z-index: 3;
+}
+
+.app-shell[data-theme="legacy"] .parametric-values-note::before {
+  background: #d8d8d8;
+  border-bottom: 1px solid #9f9f9f;
+  border-left: 1px solid #9f9f9f;
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+  content: "";
+  display: block;
+  box-shadow: none;
+  height: 24px;
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 24px;
+  z-index: 4;
+}
+
+.app-shell[data-theme="legacy"] .editor-toolbar,
+.app-shell[data-theme="legacy"] .project-sidebar,
+.app-shell[data-theme="legacy"] .inspector {
+  border-color: #d8cbb3;
+}
+
+.app-shell[data-theme="legacy"] .project-item.active {
+  background: linear-gradient(90deg, rgba(247, 231, 200, 0.52), var(--panel-background, #f7f8fa));
+}
+
+.app-shell[data-theme="legacy"] .theme-selector select,
+.app-shell[data-theme="legacy"] input:focus,
+.app-shell[data-theme="legacy"] select:focus {
+  border-color: #8a6f42;
+  outline: 2px solid rgba(138, 111, 66, 0.18);
+}
+
+.app-shell[data-theme="blueprint"] .editor-toolbar,
+.app-shell[data-theme="blueprint"] .project-sidebar,
+.app-shell[data-theme="blueprint"] .inspector {
+  box-shadow: inset 0 0 0 1px rgba(107, 197, 242, 0.06);
+}
+
+.app-shell[data-theme="blueprint"] .class-node {
+  font-family: "Menlo", "Consolas", monospace;
+}
+
+.app-shell[data-theme="blueprint"] .class-node-title {
+  letter-spacing: 0.01em;
+}
+
+.app-shell[data-theme="blueprint"] .association-label {
+  background: rgba(13, 34, 54, 0.86);
+  border-color: #3a80ae;
+}
+
+.app-shell[data-theme="blueprint"] .react-flow__controls {
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.24);
+}
+
+.app-shell[data-theme="blueprint"] .react-flow__minimap {
+  opacity: 0.82;
 }
 
 .exporting-png .react-flow__handle {
