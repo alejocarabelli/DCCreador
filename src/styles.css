@@ -730,24 +730,24 @@ select {
 
 .class-node-handle-visual-top {
   left: 50%;
-  top: -18px;
+  top: calc(var(--handle-size, 11px) * -0.5);
   transform: translateX(-50%);
 }
 
 .class-node-handle-visual-right {
-  right: -18px;
+  right: calc(var(--handle-size, 11px) * -0.5);
   top: 50%;
   transform: translateY(-50%);
 }
 
 .class-node-handle-visual-bottom {
-  bottom: -18px;
+  bottom: calc(var(--handle-size, 11px) * -0.5);
   left: 50%;
   transform: translateX(-50%);
 }
 
 .class-node-handle-visual-left {
-  left: -18px;
+  left: calc(var(--handle-size, 11px) * -0.5);
   top: 50%;
   transform: translateY(-50%);
 }

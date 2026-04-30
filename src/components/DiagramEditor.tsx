@@ -1063,9 +1063,22 @@ export function DiagramEditor({
     const nodesBounds = getNodesBounds(renderedNodes);
     const transform = getViewportForBounds(nodesBounds, PNG_WIDTH, PNG_HEIGHT, 0.5, 2, 0.16);
     const backgroundColor = getEffectiveBackgroundColor(flowRoot);
+    const edgePathStyleBackups = Array.from(viewport.querySelectorAll<SVGPathElement>('.react-flow__edge-path')).map(
+      (path) => ({
+        path,
+        style: path.getAttribute('style'),
+      }),
+    );
     canvasRef.current.classList.add('exporting-png');
 
     try {
+      edgePathStyleBackups.forEach(({ path }) => {
+        const computedStyle = window.getComputedStyle(path);
+        path.style.stroke = computedStyle.stroke;
+        path.style.strokeWidth = computedStyle.strokeWidth;
+        path.style.strokeDasharray = computedStyle.strokeDasharray;
+      });
+
       const dataUrl = await toPng(viewport, {
         backgroundColor,
         cacheBust: true,
@@ -1095,6 +1108,13 @@ export function DiagramEditor({
       link.click();
       showFeedback('PNG exportado');
     } finally {
+      edgePathStyleBackups.forEach(({ path, style }) => {
+        if (style === null) {
+          path.removeAttribute('style');
+        } else {
+          path.setAttribute('style', style);
+        }
+      });
       canvasRef.current.classList.remove('exporting-png');
     }
   };
