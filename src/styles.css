@@ -892,6 +892,11 @@ select {
   outline: 2px solid rgba(138, 111, 66, 0.18);
 }
 
+.app-shell[data-theme="minimal-paper"] .parametric-values-note {
+  border: 1px solid var(--note-border, #333333);
+  clip-path: none;
+}
+
 .app-shell[data-theme="blueprint"] .editor-toolbar,
 .app-shell[data-theme="blueprint"] .project-sidebar,
 .app-shell[data-theme="blueprint"] .inspector {
