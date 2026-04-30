@@ -40,6 +40,7 @@ import type {
   ClassAttribute,
   ClassDiagramEdge,
   ClassDiagramNode,
+  ClassMethod,
   DiagramContent,
   DiagramProject,
   ParametricValue,
@@ -192,6 +193,7 @@ export function DiagramEditor({
   const [isSnapEnabled, setIsSnapEnabled] = useState(() => localStorage.getItem(SNAP_ENABLED_KEY) === 'true');
   const [nameEditingNodeId, setNameEditingNodeId] = useState<string | null>(null);
   const [valueEditingRequest, setValueEditingRequest] = useState<{ nodeId: string; valueId: string } | null>(null);
+  const [methodEditingRequest, setMethodEditingRequest] = useState<{ nodeId: string; methodId: string } | null>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
@@ -352,6 +354,7 @@ export function DiagramEditor({
       data: {
         name: '',
         attributes: [],
+        methods: [],
         hasParametricValuesNote: false,
         parametricValuesNotePosition: undefined,
         parametricValues: [],
@@ -546,6 +549,134 @@ export function DiagramEditor({
     );
   };
 
+  const createMethodByNodeId = useCallback(
+    (nodeId: string, method: ClassMethod): void => {
+      updateNodes(
+        nodes.map((node) =>
+          node.id === nodeId ? { ...node, data: { ...node.data, methods: [...node.data.methods, method] } } : node,
+        ),
+      );
+    },
+    [nodes, updateNodes],
+  );
+
+  const deleteMethodByNodeId = useCallback(
+    (nodeId: string, methodId: string): void => {
+      updateNodes(
+        nodes.map((node) =>
+          node.id === nodeId
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  methods: node.data.methods.filter((method) => method.id !== methodId),
+                },
+              }
+            : node,
+        ),
+      );
+    },
+    [nodes, updateNodes],
+  );
+
+  const deleteAttributeAndCreateMethodByNodeId = useCallback(
+    (nodeId: string, attributeId: string, method: ClassMethod): void => {
+      updateNodes(
+        nodes.map((node) =>
+          node.id === nodeId
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  attributes: node.data.attributes.filter((attribute) => attribute.id !== attributeId),
+                  methods: [...node.data.methods, method],
+                },
+              }
+            : node,
+        ),
+      );
+    },
+    [nodes, updateNodes],
+  );
+
+  const updateMethodFieldsByNodeId = useCallback(
+    (nodeId: string, methodId: string, values: Omit<ClassMethod, 'id'>): void => {
+      updateNodes(
+        nodes.map((node) =>
+          node.id === nodeId
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  methods: node.data.methods.map((method) =>
+                    method.id === methodId ? { ...method, ...values } : method,
+                  ),
+                },
+              }
+            : node,
+        ),
+      );
+    },
+    [nodes, updateNodes],
+  );
+
+  const updateMethodFieldsAndCreateMethodByNodeId = useCallback(
+    (nodeId: string, methodId: string, values: Omit<ClassMethod, 'id'>, nextMethod: ClassMethod): void => {
+      updateNodes(
+        nodes.map((node) =>
+          node.id === nodeId
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  methods: [
+                    ...node.data.methods.map((method) => (method.id === methodId ? { ...method, ...values } : method)),
+                    nextMethod,
+                  ],
+                },
+              }
+            : node,
+        ),
+      );
+    },
+    [nodes, updateNodes],
+  );
+
+  const addMethod = (): void => {
+    if (selectedNode === null) {
+      return;
+    }
+
+    addMethodAndStartEditing(selectedNode.id);
+  };
+
+  const addMethodAndStartEditing = (nodeId: string): void => {
+    const method: ClassMethod = {
+      id: createId(),
+      visibility: '',
+      name: '',
+      parameters: '',
+      returnType: '',
+    };
+
+    createMethodByNodeId(nodeId, method);
+    setSelectedNodeId(nodeId);
+    setSelectedEdgeId(null);
+    setMethodEditingRequest({ nodeId, methodId: method.id });
+  };
+
+  const updateMethod = (methodId: string, values: Omit<ClassMethod, 'id'>): void => {
+    if (selectedNode !== null) {
+      updateMethodFieldsByNodeId(selectedNode.id, methodId, values);
+    }
+  };
+
+  const deleteMethod = (methodId: string): void => {
+    if (selectedNode !== null) {
+      deleteMethodByNodeId(selectedNode.id, methodId);
+    }
+  };
+
   const setParametricValuesNoteByNodeId = useCallback(
     (nodeId: string, enabled: boolean): void => {
       updateNodes(
@@ -651,6 +782,7 @@ export function DiagramEditor({
         ...node.data,
         name: `${node.data.name || 'Clase sin nombre'} Copia`,
         attributes: node.data.attributes.map((attribute) => ({ ...attribute, id: createId() })),
+        methods: node.data.methods.map((method) => ({ ...method, id: createId() })),
         parametricValuesNotePosition: node.data.hasParametricValuesNote
           ? {
               x: (node.data.parametricValuesNotePosition ?? getDefaultNotePosition(node)).x + 36,
@@ -701,8 +833,18 @@ export function DiagramEditor({
         data: {
           ...node.data,
           shouldStartNameEditing: node.id === nameEditingNodeId,
+          shouldStartMethodEditing:
+            node.id === methodEditingRequest?.nodeId ? methodEditingRequest.methodId : undefined,
           onCreateAttribute: createAttributeByNodeId,
+          onCreateMethod: createMethodByNodeId,
           onDeleteAttribute: deleteAttributeByNodeId,
+          onDeleteAttributeAndCreateMethod: deleteAttributeAndCreateMethodByNodeId,
+          onDeleteMethod: deleteMethodByNodeId,
+          onMethodEditingStarted: (nodeId: string) => {
+            if (nodeId === methodEditingRequest?.nodeId) {
+              setMethodEditingRequest(null);
+            }
+          },
           onNameEditingStarted: (nodeId: string) => {
             if (nodeId === nameEditingNodeId) {
               setNameEditingNodeId(null);
@@ -715,6 +857,8 @@ export function DiagramEditor({
           onUpdateAttribute: updateAttributeByNodeId,
           onUpdateAttributeFields: updateAttributeFieldsByNodeId,
           onUpdateAttributeFieldsAndCreateAttribute: updateAttributeFieldsAndCreateAttributeByNodeId,
+          onUpdateMethodFields: updateMethodFieldsByNodeId,
+          onUpdateMethodFieldsAndCreateMethod: updateMethodFieldsAndCreateMethodByNodeId,
           onUpdateParametricValues: updateParametricValuesByNodeId,
         },
       }));
@@ -751,7 +895,11 @@ export function DiagramEditor({
     [
       nodes,
       createAttributeByNodeId,
+      createMethodByNodeId,
       deleteAttributeByNodeId,
+      deleteAttributeAndCreateMethodByNodeId,
+      deleteMethodByNodeId,
+      methodEditingRequest,
       nameEditingNodeId,
       renameClassById,
       renameClassAndCreateAttributeByNodeId,
@@ -759,6 +907,8 @@ export function DiagramEditor({
       updateAttributeByNodeId,
       updateAttributeFieldsByNodeId,
       updateAttributeFieldsAndCreateAttributeByNodeId,
+      updateMethodFieldsByNodeId,
+      updateMethodFieldsAndCreateMethodByNodeId,
       updateParametricValuesByNodeId,
       valueEditingRequest,
     ],
@@ -1312,6 +1462,15 @@ export function DiagramEditor({
                   >
                     Duplicar clase
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      addMethodAndStartEditing(contextMenu.nodeId ?? '');
+                      setContextMenu(null);
+                    }}
+                  >
+                    Agregar método
+                  </button>
                   {selectedContextNode?.data.hasParametricValuesNote &&
                   (selectedContextNode.data.parametricValues ?? []).some((value) => value.value.trim().length > 0) ? (
                     <button
@@ -1355,10 +1514,13 @@ export function DiagramEditor({
               <ClassInspector
                 node={selectedNode}
                 onAddAttribute={addAttribute}
+                onAddMethod={addMethod}
                 onDeleteAttribute={deleteAttribute}
+                onDeleteMethod={deleteMethod}
                 onRenameClass={renameClass}
                 onSetParametricValuesNote={setParametricValuesNoteByNodeId}
                 onUpdateAttribute={updateAttribute}
+                onUpdateMethod={updateMethod}
                 onUpdateParametricValues={updateParametricValuesByNodeId}
               />
             )}

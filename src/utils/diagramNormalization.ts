@@ -8,6 +8,7 @@ export const normalizeClassNode = (node: ClassDiagramNode): ClassDiagramNode => 
     ...node.data,
     name: node.data?.name ?? '',
     attributes: Array.isArray(node.data?.attributes) ? node.data.attributes : [],
+    methods: Array.isArray(node.data?.methods) ? node.data.methods : [],
     hasParametricValuesNote: node.data?.hasParametricValuesNote ?? false,
     parametricValuesNoteHandle: node.data?.parametricValuesNoteHandle ?? 'bottom',
     parametricValuesNoteTargetHandle: node.data?.parametricValuesNoteTargetHandle ?? 'top',

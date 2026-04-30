@@ -1,26 +1,32 @@
 import { Plus, Trash2 } from 'lucide-react';
 import type { ChangeEvent } from 'react';
-import type { ClassAttribute, ClassDiagramNode, ParametricValue } from '../types/diagram';
+import type { ClassAttribute, ClassDiagramNode, ClassMethod, ParametricValue } from '../types/diagram';
 import { AttributeTypeSelect } from './AttributeTypeSelect';
 import { createId } from '../utils/id';
 
 type ClassInspectorProps = {
   node: ClassDiagramNode | null;
   onAddAttribute: () => void;
+  onAddMethod: () => void;
   onDeleteAttribute: (attributeId: string) => void;
+  onDeleteMethod: (methodId: string) => void;
   onRenameClass: (name: string) => void;
   onSetParametricValuesNote: (nodeId: string, enabled: boolean) => void;
   onUpdateAttribute: (attributeId: string, field: keyof Omit<ClassAttribute, 'id'>, value: string) => void;
+  onUpdateMethod: (methodId: string, values: Omit<ClassMethod, 'id'>) => void;
   onUpdateParametricValues: (nodeId: string, values: ParametricValue[]) => void;
 };
 
 export function ClassInspector({
   node,
   onAddAttribute,
+  onAddMethod,
   onDeleteAttribute,
+  onDeleteMethod,
   onRenameClass,
   onSetParametricValuesNote,
   onUpdateAttribute,
+  onUpdateMethod,
   onUpdateParametricValues,
 }: ClassInspectorProps) {
   if (node === null) {
@@ -74,6 +80,56 @@ export function ClassInspector({
           </div>
         ))}
         {node.data.attributes.length === 0 ? <p className="helper-text">Esta clase no tiene atributos.</p> : null}
+      </div>
+
+      <div className="inspector-section-header">
+        <h2>Métodos</h2>
+        <button className="icon-button" type="button" onClick={onAddMethod} title="Agregar método">
+          <Plus size={17} />
+        </button>
+      </div>
+
+      <div className="method-editor-list">
+        {node.data.methods.map((method) => (
+          <div className="method-editor" key={method.id}>
+            <select
+              aria-label="Visibilidad del método"
+              value={method.visibility}
+              onChange={(event) =>
+                onUpdateMethod(method.id, {
+                  ...method,
+                  visibility: event.target.value as ClassMethod['visibility'],
+                })
+              }
+            >
+              <option value=""> </option>
+              <option value="+">+</option>
+              <option value="-">-</option>
+              <option value="#">#</option>
+            </select>
+            <input
+              aria-label="Nombre del método"
+              value={method.name}
+              onChange={(event) => onUpdateMethod(method.id, { ...method, name: event.target.value })}
+              placeholder="nombre"
+            />
+            <input
+              aria-label="Parámetros del método"
+              value={method.parameters}
+              onChange={(event) => onUpdateMethod(method.id, { ...method, parameters: event.target.value })}
+              placeholder="parametros"
+            />
+            <input
+              aria-label="Tipo de retorno"
+              value={method.returnType}
+              onChange={(event) => onUpdateMethod(method.id, { ...method, returnType: event.target.value })}
+              placeholder="retorno"
+            />
+            <button type="button" onClick={() => onDeleteMethod(method.id)} title="Borrar método">
+              <Trash2 size={16} />
+            </button>
+          </div>
+        ))}
       </div>
 
       <div className="inspector-section-header">

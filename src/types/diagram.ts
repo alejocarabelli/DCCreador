@@ -7,6 +7,14 @@ export type ClassAttribute = {
   type: string;
 };
 
+export type ClassMethod = {
+  id: string;
+  visibility: '+' | '-' | '#' | '';
+  name: string;
+  parameters: string;
+  returnType: string;
+};
+
 export type ParametricValue = {
   id: string;
   value: string;
@@ -17,14 +25,20 @@ export type ParametricValuesNoteHandle = 'top' | 'right' | 'bottom' | 'left';
 export type ClassNodeData = {
   name: string;
   attributes: ClassAttribute[];
+  methods: ClassMethod[];
   hasParametricValuesNote?: boolean;
   parametricValuesNoteHandle?: ParametricValuesNoteHandle;
   parametricValuesNoteTargetHandle?: ParametricValuesNoteHandle;
   parametricValuesNotePosition?: XYPosition;
   parametricValues?: ParametricValue[];
   shouldStartNameEditing?: boolean;
+  shouldStartMethodEditing?: string;
   onCreateAttribute?: (nodeId: string, attribute: ClassAttribute) => void;
+  onCreateMethod?: (nodeId: string, method: ClassMethod) => void;
   onDeleteAttribute?: (nodeId: string, attributeId: string) => void;
+  onDeleteAttributeAndCreateMethod?: (nodeId: string, attributeId: string, method: ClassMethod) => void;
+  onDeleteMethod?: (nodeId: string, methodId: string) => void;
+  onMethodEditingStarted?: (nodeId: string) => void;
   onNameEditingStarted?: (nodeId: string) => void;
   onOpenContextMenu?: (nodeId: string, event: MouseEvent<HTMLElement>) => void;
   onRenameClass?: (nodeId: string, name: string) => void;
@@ -41,6 +55,17 @@ export type ClassNodeData = {
     attributeId: string,
     values: Pick<ClassAttribute, 'name' | 'type'>,
     nextAttribute: ClassAttribute,
+  ) => void;
+  onUpdateMethodFields?: (
+    nodeId: string,
+    methodId: string,
+    values: Omit<ClassMethod, 'id'>,
+  ) => void;
+  onUpdateMethodFieldsAndCreateMethod?: (
+    nodeId: string,
+    methodId: string,
+    values: Omit<ClassMethod, 'id'>,
+    nextMethod: ClassMethod,
   ) => void;
   onUpdateParametricValues?: (nodeId: string, values: ParametricValue[]) => void;
 };

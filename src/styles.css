@@ -604,7 +604,8 @@ select {
   line-height: 1.4;
 }
 
-.attribute-editor-list {
+.attribute-editor-list,
+.method-editor-list {
   display: grid;
   gap: 10px;
   margin-top: 12px;
@@ -619,6 +620,23 @@ select {
 .attribute-editor button {
   min-width: 36px;
   padding: 0;
+}
+
+.method-editor {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 52px minmax(0, 1fr);
+}
+
+.method-editor button {
+  min-width: 36px;
+  padding: 0;
+}
+
+@media (min-width: 1280px) {
+  .method-editor {
+    grid-template-columns: 52px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) 36px;
+  }
 }
 
 .parametric-values-editor-list {
@@ -760,12 +778,29 @@ select {
   font-size: var(--attribute-size, 13px);
 }
 
+.class-node-methods {
+  border-top: 1px solid var(--class-divider, #2f3f4b);
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  font-size: var(--attribute-size, 13px);
+  transition: border-color 180ms ease;
+}
+
 .attribute-row {
   align-items: baseline;
   display: grid;
   gap: 6px;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   min-height: 24px;
+}
+
+.method-row {
+  align-items: baseline;
+  display: flex;
+  gap: 2px;
+  min-height: 24px;
+  white-space: nowrap;
 }
 
 .attribute-row span:first-child::before {
@@ -828,8 +863,17 @@ select {
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
 }
 
+.inline-method-editor {
+  align-items: center;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 42px minmax(0, 1fr) minmax(0, 1fr) auto minmax(0, 1fr);
+}
+
 .inline-attribute-editor input,
 .inline-attribute-editor select,
+.inline-method-editor input,
+.inline-method-editor select,
 .attribute-type-select.compact input,
 .attribute-type-select.compact select {
   min-height: 30px;
@@ -1126,13 +1170,15 @@ select {
   padding: 7px 12px;
 }
 
-.app-shell[data-theme="legacy"] .class-node-attributes {
+.app-shell[data-theme="legacy"] .class-node-attributes,
+.app-shell[data-theme="legacy"] .class-node-methods {
   gap: 2px;
   min-height: 34px;
   padding: 8px 12px;
 }
 
-.app-shell[data-theme="legacy"] .attribute-row {
+.app-shell[data-theme="legacy"] .attribute-row,
+.app-shell[data-theme="legacy"] .method-row {
   min-height: 18px;
 }
 
