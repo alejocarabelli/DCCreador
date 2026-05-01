@@ -38,14 +38,20 @@ const getEndpointLabelPosition = (
   const deltaX = targetX - sourceX;
   const deltaY = targetY - sourceY;
   const length = Math.hypot(deltaX, deltaY) || 1;
-  const offsetX = (deltaX / length) * 42;
-  const offsetY = (deltaY / length) * 42;
+  const unitX = deltaX / length;
+  const unitY = deltaY / length;
+  const alongOffset = 30;
+  const sideOffset = 18;
+  const offsetX = unitX * alongOffset;
+  const offsetY = unitY * alongOffset;
+  const perpendicularX = -unitY * sideOffset;
+  const perpendicularY = unitX * sideOffset;
 
   if (end === 'source') {
-    return { x: sourceX + offsetX, y: sourceY + offsetY - 16 };
+    return { x: sourceX + offsetX + perpendicularX, y: sourceY + offsetY + perpendicularY };
   }
 
-  return { x: targetX - offsetX, y: targetY - offsetY - 16 };
+  return { x: targetX - offsetX + perpendicularX, y: targetY - offsetY + perpendicularY };
 };
 
 export function AssociationEdge({

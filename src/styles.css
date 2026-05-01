@@ -135,7 +135,7 @@ select {
   align-items: center;
   display: flex;
   justify-content: space-between;
-  gap: 16px;
+  gap: 10px;
 }
 
 .sidebar-header h1,
@@ -239,6 +239,158 @@ select {
   padding: 0;
 }
 
+.project-artifacts {
+  border-top: 1px solid var(--panel-border, #dbe2e7);
+  display: grid;
+  gap: 7px;
+  grid-column: 1 / -1;
+  margin-top: 2px;
+  padding-top: 8px;
+}
+
+.project-artifacts-header {
+  align-items: center;
+  color: var(--panel-muted-text, #60717f);
+  display: flex;
+  font-size: 0.72rem;
+  font-weight: 800;
+  gap: 8px;
+  justify-content: space-between;
+  text-transform: uppercase;
+}
+
+.project-artifacts-header button {
+  align-items: center;
+  display: inline-flex;
+  font-size: 0.74rem;
+  gap: 5px;
+  min-height: 28px;
+  padding: 0 8px;
+  text-transform: none;
+}
+
+.artifact-list {
+  display: grid;
+  gap: 4px;
+}
+
+.artifact-item {
+  align-items: center;
+  display: grid;
+  gap: 4px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.artifact-main {
+  background: transparent;
+  border-color: transparent;
+  color: var(--panel-text, #17212b);
+  justify-content: flex-start;
+  min-height: 30px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 8px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-main:hover,
+.artifact-main:focus-visible,
+.artifact-item.active .artifact-main {
+  background: var(--button-active-background, #22577a);
+  border-color: var(--button-active-background, #22577a);
+  color: var(--button-active-text, #ffffff);
+}
+
+.artifact-item-menu {
+  position: relative;
+}
+
+.artifact-item-menu summary {
+  align-items: center;
+  background: var(--button-background, #ffffff);
+  border: 1px solid var(--button-border, #c9d4de);
+  border-radius: 7px;
+  color: var(--button-text, #17212b);
+  cursor: pointer;
+  display: inline-flex;
+  height: 30px;
+  justify-content: center;
+  list-style: none;
+  width: 30px;
+}
+
+.artifact-item-menu summary.new-artifact-summary {
+  font-size: 0.74rem;
+  font-weight: 700;
+  gap: 5px;
+  padding: 0 8px;
+  text-transform: none;
+  width: auto;
+}
+
+.artifact-item-menu summary::marker,
+.artifact-item-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.artifact-item-menu[open] summary {
+  background: var(--button-active-background, #22577a);
+  border-color: var(--button-active-background, #22577a);
+  color: var(--button-active-text, #ffffff);
+}
+
+.artifact-item-menu-content {
+  animation: soft-fade-in 140ms ease;
+  background: var(--panel-background, #ffffff);
+  border: 1px solid var(--panel-border, #dbe2e7);
+  border-radius: 8px;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.16);
+  display: grid;
+  gap: 6px;
+  min-width: 140px;
+  padding: 8px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 35;
+}
+
+.artifact-item-menu-content button {
+  justify-content: flex-start;
+  min-height: 30px;
+  min-width: 100%;
+}
+
+.artifact-options-trigger {
+  background: var(--button-background, #ffffff);
+  color: var(--button-text, #17212b);
+  min-height: 30px;
+  min-width: 30px;
+  padding: 0;
+}
+
+.artifact-floating-menu {
+  animation: soft-fade-in 140ms ease;
+  background: var(--panel-background, #ffffff);
+  border: 1px solid var(--panel-border, #dbe2e7);
+  border-radius: 8px;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.16);
+  display: grid;
+  gap: 6px;
+  min-width: 148px;
+  padding: 8px;
+  position: fixed;
+  z-index: 100;
+}
+
+.artifact-floating-menu button {
+  justify-content: flex-start;
+  min-height: 30px;
+  min-width: 100%;
+}
+
 .empty-list,
 .welcome-panel {
   align-items: center;
@@ -263,29 +415,52 @@ select {
 .editor-toolbar {
   background: var(--toolbar-background, #f9fbfc);
   border-bottom: 1px solid var(--panel-border, #dbe2e7);
-  padding: 16px 20px;
+  padding: 6px 12px;
   transition:
     background-color 180ms ease,
     border-color 180ms ease,
     color 180ms ease;
 }
 
-.editor-toolbar > div:first-child {
-  min-width: 180px;
+.editor-title-group {
+  min-width: 0;
 }
 
 .editor-toolbar h2 {
-  font-size: 1.35rem;
+  font-size: 1rem;
   line-height: 1.15;
-  max-width: 260px;
+  max-width: 190px;
   overflow-wrap: break-word;
+}
+
+.project-artifact-header {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 1px;
+}
+
+.artifact-title-divider,
+.active-artifact-title {
+  color: var(--panel-muted-text, #60717f);
+  font-size: 0.92rem;
+  font-weight: 700;
+  min-width: 0;
+}
+
+.active-artifact-title {
+  max-width: 210px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .editor-toolbar-actions {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   justify-content: flex-end;
   min-width: 0;
 }
@@ -320,12 +495,12 @@ select {
   color: var(--button-text, #ffffff);
   cursor: pointer;
   display: inline-flex;
-  font-size: 0.95rem;
+  font-size: 0.86rem;
   font-weight: 700;
   gap: 8px;
   line-height: 1;
-  min-height: 36px;
-  padding: 0 12px;
+  min-height: 32px;
+  padding: 0 10px;
   user-select: none;
   white-space: nowrap;
   transition:
@@ -363,7 +538,7 @@ select {
   padding: 8px;
   position: absolute;
   right: 0;
-  top: calc(100% + 8px);
+  top: calc(100% + 6px);
   z-index: 30;
 }
 
@@ -393,10 +568,17 @@ select {
   min-width: 190px;
 }
 
+.theme-menu {
+  min-width: 160px;
+}
+
 .editor-toolbar-actions button {
   background: var(--button-background, #22577a);
   border-color: var(--button-border, #22577a);
   color: var(--button-text, #ffffff);
+  font-size: 0.86rem;
+  min-height: 32px;
+  padding: 0 10px;
 }
 
 .editor-toolbar-actions button:disabled {
@@ -412,6 +594,186 @@ select {
 
 .hidden-file-input {
   display: none;
+}
+
+.use-case-actor-node,
+.use-case-oval-node,
+.system-boundary-node {
+  color: var(--class-text, #111111);
+  font-family: var(--diagram-font-family, Arial, sans-serif);
+  position: relative;
+}
+
+.use-case-actor-node {
+  align-items: center;
+  display: grid;
+  justify-items: center;
+  min-width: 110px;
+}
+
+.actor-symbol-frame {
+  height: 92px;
+  position: relative;
+  width: 72px;
+}
+
+.actor-symbol {
+  fill: var(--class-background, #f4e7cc);
+  height: 92px;
+  overflow: visible;
+  stroke: var(--association-stroke, #222222);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  width: 72px;
+}
+
+.use-case-actor-name,
+.use-case-oval-name,
+.system-boundary-name {
+  color: var(--class-header-text, #000000);
+  cursor: text;
+  font-size: var(--class-name-size, 14px);
+  font-weight: var(--class-name-weight, 650);
+  text-align: center;
+  white-space: pre-wrap;
+}
+
+.use-case-actor-name-input,
+.use-case-oval-name-input,
+.system-boundary-name-input {
+  font: inherit;
+  min-width: 120px;
+  text-align: center;
+}
+
+.use-case-actor-name-input,
+.use-case-oval-name-input {
+  max-width: 180px;
+}
+
+.use-case-oval-node {
+  align-items: center;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.22), transparent 52%),
+    var(--class-background, #f4e7cc);
+  border: 2px solid var(--association-stroke, #222222);
+  border-radius: 50%;
+  box-sizing: border-box;
+  display: flex;
+  height: 112px;
+  justify-content: center;
+  padding: 20px 34px;
+  width: 226px;
+}
+
+.use-case-oval-name {
+  max-width: 170px;
+  overflow-wrap: anywhere;
+}
+
+.use-case-oval-name-input {
+  background: color-mix(in srgb, var(--class-background, #ffffff) 90%, #ffffff);
+  min-height: 42px;
+  resize: none;
+}
+
+.system-boundary-node {
+  background: rgba(255, 255, 255, 0.18);
+  border: 2px solid color-mix(in srgb, var(--association-stroke, #222222) 75%, transparent);
+  height: 100%;
+  min-height: 180px;
+  min-width: 260px;
+  pointer-events: all;
+  width: 100%;
+}
+
+.system-boundary-name {
+  background: color-mix(in srgb, var(--canvas-background, #ffffff) 82%, transparent);
+  left: 14px;
+  padding: 2px 8px;
+  position: absolute;
+  top: 10px;
+}
+
+.use-case-handle {
+  background: transparent;
+  border: 0;
+  height: 22px;
+  opacity: 0;
+  width: 22px;
+}
+
+.actor-handle.react-flow__handle-left {
+  left: -6px;
+  top: 43px;
+}
+
+.actor-handle.react-flow__handle-right {
+  right: -6px;
+  top: 43px;
+}
+
+.actor-handle.react-flow__handle-top {
+  top: -5px;
+}
+
+.actor-handle.react-flow__handle-bottom {
+  bottom: -5px;
+}
+
+.use-case-actor-node:hover .use-case-handle,
+.use-case-oval-node:hover .use-case-handle {
+  opacity: 0.2;
+}
+
+.use-case-relation-edge {
+  stroke: var(--association-stroke, #222222);
+  stroke-width: var(--association-stroke-width, 1.6);
+}
+
+.use-case-relation-edge.selected {
+  stroke: var(--association-stroke-selected, #000000);
+  stroke-width: calc(var(--association-stroke-width, 1.6) + 0.6px);
+}
+
+.use-case-relation-edge.dashed {
+  stroke-dasharray: 10 8;
+}
+
+.use-case-marker-open,
+.use-case-marker-fill {
+  fill: none;
+  stroke: var(--marker-stroke, #222222);
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.use-case-marker-fill {
+  fill: var(--canvas-background, #ffffff);
+}
+
+.use-case-edge-label {
+  background: color-mix(in srgb, var(--canvas-background, #ffffff) 82%, transparent);
+  color: var(--multiplicity-text, #111111);
+  font-family: var(--diagram-font-family, Arial, sans-serif);
+  font-size: var(--multiplicity-size, 12px);
+  font-weight: 700;
+  line-height: 1;
+  padding: 1px 3px;
+  pointer-events: none;
+  position: absolute;
+  transform-origin: center;
+  white-space: nowrap;
+}
+
+.app-shell[data-theme="legacy"] .use-case-oval-node {
+  border-width: 2px;
+  box-shadow: none;
+}
+
+.app-shell[data-theme="legacy"] .actor-symbol {
+  stroke-width: 2;
 }
 
 .editor-body {
@@ -430,7 +792,9 @@ select {
 }
 
 .canvas-shell {
+  height: 100%;
   min-height: 0;
+  overflow: hidden;
   position: relative;
   user-select: none;
   -webkit-user-select: none;
@@ -438,8 +802,10 @@ select {
 
 .canvas-shell .react-flow {
   background: var(--canvas-background, #f5f7f8);
+  height: 100%;
   transition: background-color 180ms ease;
   user-select: none;
+  width: 100%;
   -webkit-user-select: none;
 }
 
@@ -513,6 +879,15 @@ select {
 .canvas-shell .react-flow__minimap {
   background: var(--panel-background, #ffffff);
   border: 1px solid var(--panel-border, #dbe2e7);
+  border-radius: 2px;
+  bottom: 16px;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.12);
+  height: 150px;
+  margin: 0;
+  overflow: hidden;
+  right: 16px;
+  width: 210px;
+  z-index: 12;
 }
 
 .canvas-context-menu {

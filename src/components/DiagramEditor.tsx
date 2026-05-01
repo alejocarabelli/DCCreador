@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type SyntheticEvent } from 'react';
 import ReactFlow, {
   Background,
   BackgroundVariant,
@@ -26,6 +26,7 @@ import {
   Grid3X3,
   ImageDown,
   Magnet,
+  Map,
   Maximize2,
   PanelRightClose,
   PanelRightOpen,
@@ -38,6 +39,7 @@ import type {
   AssociationEdgeData,
   AssociationConnectionSide,
   ClassAttribute,
+  ClassDiagramArtifact,
   ClassDiagramEdge,
   ClassDiagramNode,
   ClassMethod,
@@ -57,6 +59,7 @@ import { ClassNode } from './ClassNode';
 import { ParametricValuesNote } from './ParametricValuesNote';
 
 type DiagramEditorProps = {
+  artifact: ClassDiagramArtifact;
   canRedo: boolean;
   canUndo: boolean;
   project: DiagramProject;
@@ -88,6 +91,7 @@ const edgeTypes = {
 const INSPECTOR_COLLAPSED_KEY = 'class-diagram-inspector-collapsed';
 const GRID_ENABLED_KEY = 'class-diagram-grid-enabled';
 const SNAP_ENABLED_KEY = 'class-diagram-snap-enabled';
+const MINIMAP_ENABLED_KEY = 'class-diagram-minimap-enabled';
 const NOTE_NODE_OFFSET = { x: 24, y: 116 };
 const NOTE_EDGE_SUFFIX = '__values-edge';
 const NOTE_NODE_SUFFIX = '__values-note';
@@ -111,11 +115,15 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
 const isImportableProject = (value: unknown): value is DiagramProject => {
-  if (!isRecord(value) || typeof value.name !== 'string' || !isRecord(value.content)) {
+  if (!isRecord(value) || typeof value.name !== 'string') {
     return false;
   }
 
-  return Array.isArray(value.content.nodes) && Array.isArray(value.content.edges);
+  if (isRecord(value.content)) {
+    return Array.isArray(value.content.nodes) && Array.isArray(value.content.edges);
+  }
+
+  return Array.isArray(value.artifacts);
 };
 
 const downloadTextFile = (filename: string, text: string, type: string): void => {
@@ -173,6 +181,7 @@ const isEditableElement = (element: Element | null): boolean => {
 };
 
 export function DiagramEditor({
+  artifact,
   canRedo,
   canUndo,
   project,
@@ -191,6 +200,9 @@ export function DiagramEditor({
   );
   const [isGridEnabled, setIsGridEnabled] = useState(() => localStorage.getItem(GRID_ENABLED_KEY) !== 'false');
   const [isSnapEnabled, setIsSnapEnabled] = useState(() => localStorage.getItem(SNAP_ENABLED_KEY) === 'true');
+  const [isMiniMapEnabled, setIsMiniMapEnabled] = useState(
+    () => localStorage.getItem(MINIMAP_ENABLED_KEY) !== 'false',
+  );
   const [nameEditingNodeId, setNameEditingNodeId] = useState<string | null>(null);
   const [valueEditingRequest, setValueEditingRequest] = useState<{ nodeId: string; valueId: string } | null>(null);
   const [methodEditingRequest, setMethodEditingRequest] = useState<{ nodeId: string; methodId: string } | null>(null);
@@ -198,10 +210,11 @@ export function DiagramEditor({
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
+  const toolbarRef = useRef<HTMLElement | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const feedbackTimeoutRef = useRef<number | null>(null);
-  const normalizedContent = useMemo(() => normalizeDiagramContent(project.content), [project.content]);
+  const normalizedContent = useMemo(() => normalizeDiagramContent(artifact.content), [artifact.content]);
   const { nodes, edges } = normalizedContent;
 
   const selectedNode = useMemo(
@@ -960,6 +973,10 @@ export function DiagramEditor({
     localStorage.setItem(SNAP_ENABLED_KEY, String(isSnapEnabled));
   }, [isSnapEnabled]);
 
+  useEffect(() => {
+    localStorage.setItem(MINIMAP_ENABLED_KEY, String(isMiniMapEnabled));
+  }, [isMiniMapEnabled]);
+
   useEffect(
     () => () => {
       if (feedbackTimeoutRef.current !== null) {
@@ -1018,7 +1035,12 @@ export function DiagramEditor({
   };
 
   const exportProjectJson = (): void => {
-    const exportProject = normalizeDiagramProject({ ...project, content: normalizedContent });
+    const exportProject = normalizeDiagramProject({
+      ...project,
+      artifacts: project.artifacts.map((currentArtifact) =>
+        currentArtifact.id === artifact.id ? { ...artifact, content: normalizedContent } : currentArtifact,
+      ),
+    });
     downloadTextFile(
       `${project.name.trim() || 'diagrama'}.json`,
       JSON.stringify(exportProject, null, 2),
@@ -1103,7 +1125,7 @@ export function DiagramEditor({
         width: PNG_WIDTH,
       });
       const link = document.createElement('a');
-      link.download = `${project.name.trim() || 'diagrama'}.png`;
+      link.download = `${project.name.trim() || 'diagrama'} - ${artifact.name.trim() || 'artefacto'}.png`;
       link.href = dataUrl;
       link.click();
       showFeedback('PNG exportado');
@@ -1194,6 +1216,20 @@ export function DiagramEditor({
     ? nodes.find((node) => node.id === contextMenu.noteEdgeNodeId) ?? null
     : null;
 
+  const closeToolbarMenus = (except?: HTMLDetailsElement): void => {
+    toolbarRef.current?.querySelectorAll<HTMLDetailsElement>('details.toolbar-menu').forEach((details) => {
+      if (details !== except) {
+        details.removeAttribute('open');
+      }
+    });
+  };
+
+  const handleToolbarMenuToggle = (event: SyntheticEvent<HTMLDetailsElement>): void => {
+    if (event.currentTarget.open) {
+      closeToolbarMenus(event.currentTarget);
+    }
+  };
+
   useEffect(() => {
     if (contextMenu === null) {
       return;
@@ -1222,12 +1258,40 @@ export function DiagramEditor({
     };
   }, [contextMenu]);
 
+  useEffect(() => {
+    const closeOnOutsideClick = (event: globalThis.MouseEvent): void => {
+      if (toolbarRef.current?.contains(event.target as globalThis.Node)) {
+        return;
+      }
+
+      closeToolbarMenus();
+    };
+
+    const closeOnEscape = (event: globalThis.KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        closeToolbarMenus();
+      }
+    };
+
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, []);
+
   return (
     <main className="diagram-editor">
-      <header className="editor-toolbar">
-        <div>
+      <header className="editor-toolbar" ref={toolbarRef}>
+        <div className="editor-title-group">
           <p className="eyebrow">Proyecto abierto</p>
-          <h2>{project.name}</h2>
+          <div className="project-artifact-header">
+            <h2>{project.name}</h2>
+            <span className="artifact-title-divider">/</span>
+            <span className="active-artifact-title">{artifact.name}</span>
+          </div>
         </div>
         <div className="editor-toolbar-actions">
           <button type="button" disabled={!canUndo} onClick={onUndo} title="Deshacer última acción">
@@ -1250,7 +1314,7 @@ export function DiagramEditor({
             <Maximize2 size={17} />
             Ver todo
           </button>
-          <details className="toolbar-menu">
+          <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
             <summary>Vista</summary>
             <div className="toolbar-menu-content">
               <button
@@ -1277,9 +1341,21 @@ export function DiagramEditor({
                 <Magnet size={17} />
                 Snap
               </button>
+              <button
+                type="button"
+                className={isMiniMapEnabled ? 'active-tool' : ''}
+                onClick={(event) => {
+                  setIsMiniMapEnabled((enabled) => !enabled);
+                  event.currentTarget.closest('details')?.removeAttribute('open');
+                }}
+                title="Mostrar u ocultar minimapa"
+              >
+                <Map size={17} />
+                Minimapa
+              </button>
             </div>
           </details>
-          <details className="toolbar-menu">
+          <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
             <summary>Archivo</summary>
             <div className="toolbar-menu-content file-menu">
               <button
@@ -1314,20 +1390,24 @@ export function DiagramEditor({
               </button>
             </div>
           </details>
-          <label className="theme-selector compact-theme-selector">
-            Tema
-            <select
-              value={themeId}
-              onChange={(event) => onThemeChange(event.target.value as DiagramThemeId)}
-              title={theme.description}
-            >
+          <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
+            <summary title={theme.description}>Tema</summary>
+            <div className="toolbar-menu-content theme-menu">
               {themes.map((availableTheme) => (
-                <option key={availableTheme.id} value={availableTheme.id}>
+                <button
+                  key={availableTheme.id}
+                  type="button"
+                  className={availableTheme.id === themeId ? 'active-tool' : ''}
+                  onClick={(event) => {
+                    onThemeChange(availableTheme.id as DiagramThemeId);
+                    event.currentTarget.closest('details')?.removeAttribute('open');
+                  }}
+                >
                   {availableTheme.name}
-                </option>
+                </button>
               ))}
-            </select>
-          </label>
+            </div>
+          </details>
           <input
             ref={fileInputRef}
             accept="application/json,.json"
@@ -1413,7 +1493,7 @@ export function DiagramEditor({
               />
             ) : null}
             <Controls />
-            <MiniMap pannable zoomable />
+            {isMiniMapEnabled ? <MiniMap pannable zoomable /> : null}
           </ReactFlow>
           {contextMenu !== null ? (
             <div

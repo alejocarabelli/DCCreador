@@ -1,16 +1,19 @@
 import { DiagramEditor } from './components/DiagramEditor';
 import { ProjectNameDialog } from './components/ProjectNameDialog';
 import { ProjectSidebar } from './components/ProjectSidebar';
+import { UseCaseModelEditor } from './components/UseCaseModelEditor';
 import { useProjects } from './hooks/useProjects';
 import { useTheme } from './hooks/useTheme';
 import type { DiagramThemeId } from './theme/themes';
-import type { DiagramContent } from './types/diagram';
-import { normalizeDiagramContent } from './utils/diagramNormalization';
+import type { DesignArtifact, DiagramContent } from './types/diagram';
+import { getActiveArtifact, normalizeDiagramContent, normalizeUseCaseModelContent } from './utils/diagramNormalization';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 type ProjectDialogState =
   | { mode: 'create'; projectId?: never; initialName: string }
-  | { mode: 'rename'; projectId: string; initialName: string };
+  | { mode: 'rename'; projectId: string; initialName: string }
+  | { mode: 'createArtifact'; projectId: string; initialName: string; artifactType: DesignArtifact['type'] }
+  | { mode: 'renameArtifact'; projectId: string; artifactId: string; initialName: string };
 
 const PROJECT_SIDEBAR_COLLAPSED_KEY = 'class-diagram-project-sidebar-collapsed';
 const MAX_HISTORY_ENTRIES = 60;
@@ -20,8 +23,12 @@ type ProjectHistory = {
   future: DiagramContent[];
 };
 
-const cloneDiagramContent = (content: DiagramContent): DiagramContent =>
-  normalizeDiagramContent(JSON.parse(JSON.stringify(content)) as DiagramContent);
+const cloneDiagramContent = (content: DiagramContent): DiagramContent => {
+  const cloned = JSON.parse(JSON.stringify(content)) as DiagramContent;
+  return cloned.nodes.some((node) => node.type === 'useCaseActor' || node.type === 'useCaseOval' || node.type === 'systemBoundary')
+    ? normalizeUseCaseModelContent(cloned as Parameters<typeof normalizeUseCaseModelContent>[0])
+    : normalizeDiagramContent(cloned as Parameters<typeof normalizeDiagramContent>[0]);
+};
 
 const areDiagramContentsEqual = (left: DiagramContent, right: DiagramContent): boolean =>
   JSON.stringify(left) === JSON.stringify(right);
@@ -31,18 +38,23 @@ function App() {
   const [isProjectSidebarCollapsed, setIsProjectSidebarCollapsed] = useState(
     () => localStorage.getItem(PROJECT_SIDEBAR_COLLAPSED_KEY) === 'true',
   );
-  const [historyByProjectId, setHistoryByProjectId] = useState<Record<string, ProjectHistory>>({});
+  const [historyByArtifactId, setHistoryByArtifactId] = useState<Record<string, ProjectHistory>>({});
   const { setThemeId, theme, themeId, themeStyle } = useTheme();
   const {
     activeProject,
     activeProjectId,
+    createClassDiagramArtifact,
+    createUseCaseModelArtifact,
     createProject,
+    deleteArtifact,
     deleteProject,
     importProject,
     projects,
+    renameArtifact,
     renameProject,
+    setActiveArtifactId,
     setActiveProjectId,
-    updateProjectContent,
+    updateProjectArtifactContent,
   } = useProjects();
 
   const handleCreateProject = (): void => {
@@ -63,6 +75,18 @@ function App() {
       renameProject(projectDialog.projectId, name);
     }
 
+    if (projectDialog?.mode === 'createArtifact') {
+      if (projectDialog.artifactType === 'use-case-model') {
+        createUseCaseModelArtifact(projectDialog.projectId, name);
+      } else {
+        createClassDiagramArtifact(projectDialog.projectId, name);
+      }
+    }
+
+    if (projectDialog?.mode === 'renameArtifact') {
+      renameArtifact(projectDialog.projectId, projectDialog.artifactId, name);
+    }
+
     setProjectDialog(null);
   };
 
@@ -75,9 +99,58 @@ function App() {
     }
   };
 
+  const handleCreateArtifact = (projectId: string, artifactType: DesignArtifact['type']): void => {
+    setProjectDialog({
+      mode: 'createArtifact',
+      projectId,
+      artifactType,
+      initialName: artifactType === 'use-case-model' ? 'Modelo de casos de uso' : 'Nuevo diagrama de clases',
+    });
+  };
+
+  const handleRenameArtifact = (projectId: string, artifactId: string): void => {
+    const project = projects.find((currentProject) => currentProject.id === projectId);
+    const artifact = project?.artifacts.find((currentArtifact) => currentArtifact.id === artifactId);
+
+    setProjectDialog({
+      mode: 'renameArtifact',
+      projectId,
+      artifactId,
+      initialName: artifact?.name ?? '',
+    });
+  };
+
+  const handleDeleteArtifact = (projectId: string, artifactId: string): void => {
+    const project = projects.find((currentProject) => currentProject.id === projectId);
+    const artifact = project?.artifacts.find((currentArtifact) => currentArtifact.id === artifactId);
+
+    if ((project?.artifacts.length ?? 0) <= 1) {
+      window.alert('No se puede eliminar el último artefacto del proyecto.');
+      return;
+    }
+
+    const shouldDelete = window.confirm(`Eliminar "${artifact?.name ?? 'este artefacto'}"?`);
+
+    if (shouldDelete) {
+      deleteArtifact(projectId, artifactId);
+    }
+  };
+
+  const handleSelectArtifact = (projectId: string, artifactId: string): void => {
+    setActiveProjectId(projectId);
+    setActiveArtifactId(projectId, artifactId);
+  };
+
+  const activeArtifact = useMemo(
+    () => (activeProject !== null ? getActiveArtifact(activeProject) : null),
+    [activeProject],
+  );
+  const activeHistoryKey = activeProject !== null && activeArtifact !== null
+    ? `${activeProject.id}:${activeArtifact.id}`
+    : null;
   const activeProjectHistory = useMemo(
-    () => (activeProjectId !== null ? historyByProjectId[activeProjectId] : undefined),
-    [activeProjectId, historyByProjectId],
+    () => (activeHistoryKey !== null ? historyByArtifactId[activeHistoryKey] : undefined),
+    [activeHistoryKey, historyByArtifactId],
   );
 
   const canUndo = (activeProjectHistory?.past.length ?? 0) > 0;
@@ -85,80 +158,80 @@ function App() {
 
   const handleChangeProjectContent = useCallback(
     (content: DiagramContent): void => {
-      if (activeProject === null) {
+      if (activeProject === null || activeArtifact === null || activeHistoryKey === null) {
         return;
       }
 
-      const previousContent = cloneDiagramContent(activeProject.content);
+      const previousContent = cloneDiagramContent(activeArtifact.content);
       const nextContent = cloneDiagramContent(content);
 
       if (areDiagramContentsEqual(previousContent, nextContent)) {
         return;
       }
 
-      setHistoryByProjectId((currentHistory) => {
-        const projectHistory = currentHistory[activeProject.id] ?? { past: [], future: [] };
+      setHistoryByArtifactId((currentHistory) => {
+        const projectHistory = currentHistory[activeHistoryKey] ?? { past: [], future: [] };
 
         return {
           ...currentHistory,
-          [activeProject.id]: {
+          [activeHistoryKey]: {
             past: [...projectHistory.past, previousContent].slice(-MAX_HISTORY_ENTRIES),
             future: [],
           },
         };
       });
-      updateProjectContent(activeProject.id, nextContent);
+      updateProjectArtifactContent(activeProject.id, activeArtifact.id, nextContent);
     },
-    [activeProject, updateProjectContent],
+    [activeArtifact, activeHistoryKey, activeProject, updateProjectArtifactContent],
   );
 
   const handleUndo = useCallback((): void => {
-    if (activeProject === null) {
+    if (activeProject === null || activeArtifact === null || activeHistoryKey === null) {
       return;
     }
 
-    const projectHistory = historyByProjectId[activeProject.id];
+    const projectHistory = historyByArtifactId[activeHistoryKey];
     const previousContent = projectHistory?.past.at(-1);
 
     if (projectHistory === undefined || previousContent === undefined) {
       return;
     }
 
-    const currentContent = cloneDiagramContent(activeProject.content);
+    const currentContent = cloneDiagramContent(activeArtifact.content);
 
-    setHistoryByProjectId((currentHistory) => ({
+    setHistoryByArtifactId((currentHistory) => ({
       ...currentHistory,
-      [activeProject.id]: {
+      [activeHistoryKey]: {
         past: projectHistory.past.slice(0, -1),
         future: [currentContent, ...projectHistory.future].slice(0, MAX_HISTORY_ENTRIES),
       },
     }));
-    updateProjectContent(activeProject.id, cloneDiagramContent(previousContent));
-  }, [activeProject, historyByProjectId, updateProjectContent]);
+    updateProjectArtifactContent(activeProject.id, activeArtifact.id, cloneDiagramContent(previousContent));
+  }, [activeArtifact, activeHistoryKey, activeProject, historyByArtifactId, updateProjectArtifactContent]);
 
   const handleRedo = useCallback((): void => {
-    if (activeProject === null) {
+    if (activeProject === null || activeArtifact === null || activeHistoryKey === null) {
       return;
     }
 
-    const projectHistory = historyByProjectId[activeProject.id];
+    const projectHistory = historyByArtifactId[activeHistoryKey];
     const nextContent = projectHistory?.future[0];
 
     if (projectHistory === undefined || nextContent === undefined) {
       return;
     }
 
-    const currentContent = cloneDiagramContent(activeProject.content);
+    const currentContent = cloneDiagramContent(activeArtifact.content);
 
-    setHistoryByProjectId((currentHistory) => ({
+    setHistoryByArtifactId((currentHistory) => ({
       ...currentHistory,
-      [activeProject.id]: {
+      [activeHistoryKey]: {
         past: [...projectHistory.past, currentContent].slice(-MAX_HISTORY_ENTRIES),
         future: projectHistory.future.slice(1),
       },
     }));
-    updateProjectContent(activeProject.id, cloneDiagramContent(nextContent));
-  }, [activeProject, historyByProjectId, updateProjectContent]);
+    updateProjectArtifactContent(activeProject.id, activeArtifact.id, cloneDiagramContent(nextContent));
+  }, [activeArtifact, activeHistoryKey, activeProject, historyByArtifactId, updateProjectArtifactContent]);
 
   useEffect(() => {
     localStorage.setItem(PROJECT_SIDEBAR_COLLAPSED_KEY, String(isProjectSidebarCollapsed));
@@ -171,16 +244,21 @@ function App() {
       style={themeStyle}
     >
       <ProjectSidebar
+        activeArtifactId={activeArtifact?.id ?? null}
         activeProjectId={activeProjectId}
         isCollapsed={isProjectSidebarCollapsed}
+        onCreateArtifact={handleCreateArtifact}
         onCreateProject={handleCreateProject}
+        onDeleteArtifact={handleDeleteArtifact}
         onDeleteProject={handleDeleteProject}
+        onRenameArtifact={handleRenameArtifact}
         onRenameProject={handleRenameProject}
+        onSelectArtifact={handleSelectArtifact}
         onSelectProject={setActiveProjectId}
         onToggleCollapsed={() => setIsProjectSidebarCollapsed((isCollapsed) => !isCollapsed)}
         projects={projects}
       />
-      {activeProject === null ? (
+      {activeProject === null || activeArtifact === null ? (
         <main className="welcome-panel">
           <h2>Creá o abrí un proyecto</h2>
           <p>Los diagramas se guardan automáticamente en este navegador.</p>
@@ -189,24 +267,50 @@ function App() {
           </button>
         </main>
       ) : (
-        <DiagramEditor
-          key={activeProject.id}
-          canRedo={canRedo}
-          canUndo={canUndo}
-          project={activeProject}
-          theme={theme}
-          themeId={themeId}
-          onChangeContent={handleChangeProjectContent}
-          onRedo={handleRedo}
-          onUndo={handleUndo}
-          onImportProject={importProject}
-          onThemeChange={(nextThemeId) => setThemeId(nextThemeId as DiagramThemeId)}
-        />
+        activeArtifact.type === 'class-diagram' ? (
+          <DiagramEditor
+            key={`${activeProject.id}:${activeArtifact.id}`}
+            artifact={activeArtifact}
+            canRedo={canRedo}
+            canUndo={canUndo}
+            project={activeProject}
+            theme={theme}
+            themeId={themeId}
+            onChangeContent={handleChangeProjectContent}
+            onRedo={handleRedo}
+            onUndo={handleUndo}
+            onImportProject={importProject}
+            onThemeChange={(nextThemeId) => setThemeId(nextThemeId as DiagramThemeId)}
+          />
+        ) : (
+          <UseCaseModelEditor
+            key={`${activeProject.id}:${activeArtifact.id}`}
+            artifact={activeArtifact}
+            canRedo={canRedo}
+            canUndo={canUndo}
+            project={activeProject}
+            theme={theme}
+            themeId={themeId}
+            onChangeContent={handleChangeProjectContent}
+            onRedo={handleRedo}
+            onUndo={handleUndo}
+            onImportProject={importProject}
+            onThemeChange={(nextThemeId) => setThemeId(nextThemeId as DiagramThemeId)}
+          />
+        )
       )}
       {projectDialog !== null ? (
         <ProjectNameDialog
           initialName={projectDialog.initialName}
-          title={projectDialog.mode === 'create' ? 'Crear proyecto' : 'Renombrar proyecto'}
+          title={
+            projectDialog.mode === 'create'
+              ? 'Crear proyecto'
+              : projectDialog.mode === 'rename'
+                ? 'Renombrar proyecto'
+                : projectDialog.mode === 'createArtifact'
+                  ? 'Crear artefacto'
+                  : 'Renombrar artefacto'
+          }
           onCancel={() => setProjectDialog(null)}
           onConfirm={handleConfirmProjectDialog}
         />

@@ -97,15 +97,72 @@ export type AssociationEdgeData = {
 
 export type ClassDiagramEdge = Edge<AssociationEdgeData>;
 
-export type DiagramContent = {
+export type ClassDiagramContent = {
   nodes: ClassDiagramNode[];
   edges: ClassDiagramEdge[];
 };
 
-export type DiagramProject = {
+export type UseCaseNodeKind = 'actor' | 'use-case' | 'system-boundary';
+export type UseCaseRelationType = 'association' | 'include' | 'extend' | 'generalization';
+
+export type UseCaseNodeData = {
+  kind: UseCaseNodeKind;
+  name: string;
+  onOpenContextMenu?: (nodeId: string, event: MouseEvent<HTMLElement>) => void;
+  onRename?: (nodeId: string, name: string) => void;
+};
+
+export type UseCaseModelNode = Node<UseCaseNodeData, 'useCaseActor' | 'useCaseOval' | 'systemBoundary'>;
+
+export type UseCaseEdgeData = {
+  relationType: UseCaseRelationType;
+  label?: string;
+};
+
+export type UseCaseModelEdge = Edge<UseCaseEdgeData>;
+
+export type UseCaseModelContent = {
+  nodes: UseCaseModelNode[];
+  edges: UseCaseModelEdge[];
+};
+
+export type DiagramContent = ClassDiagramContent | UseCaseModelContent;
+
+export type ClassDiagramArtifact = {
+  id: string;
+  type: 'class-diagram';
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  content: ClassDiagramContent;
+};
+
+export type UseCaseModelArtifact = {
+  id: string;
+  type: 'use-case-model';
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  content: UseCaseModelContent;
+};
+
+export type DesignArtifact = ClassDiagramArtifact | UseCaseModelArtifact;
+
+export type DesignProject = {
   id: string;
   name: string;
   createdAt: string;
   updatedAt: string;
-  content: DiagramContent;
+  activeArtifactId?: string;
+  artifacts: DesignArtifact[];
+};
+
+export type DiagramProject = DesignProject;
+
+export type LegacyDiagramProject = {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  content: ClassDiagramContent;
 };
