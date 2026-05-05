@@ -24,6 +24,7 @@ export type ParametricValuesNoteHandle = 'top' | 'right' | 'bottom' | 'left';
 
 export type ClassNodeData = {
   name: string;
+  description?: string;
   attributes: ClassAttribute[];
   methods: ClassMethod[];
   hasParametricValuesNote?: boolean;

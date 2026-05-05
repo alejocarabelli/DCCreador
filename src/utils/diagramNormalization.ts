@@ -26,6 +26,7 @@ export const normalizeClassNode = (node: ClassDiagramNode): ClassDiagramNode => 
   data: {
     ...node.data,
     name: node.data?.name ?? '',
+    description: node.data?.description ?? '',
     attributes: Array.isArray(node.data?.attributes) ? node.data.attributes : [],
     methods: Array.isArray(node.data?.methods) ? node.data.methods : [],
     hasParametricValuesNote: node.data?.hasParametricValuesNote ?? false,

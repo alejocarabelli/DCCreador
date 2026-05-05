@@ -1,5 +1,5 @@
-import { Plus, Trash2 } from 'lucide-react';
-import type { ChangeEvent } from 'react';
+import { FileText, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useState, type ChangeEvent } from 'react';
 import type { ClassAttribute, ClassDiagramNode, ClassMethod, ParametricValue } from '../types/diagram';
 import { AttributeTypeSelect } from './AttributeTypeSelect';
 import { createId } from '../utils/id';
@@ -12,6 +12,7 @@ type ClassInspectorProps = {
   onDeleteMethod: (methodId: string) => void;
   onRenameClass: (name: string) => void;
   onSetParametricValuesNote: (nodeId: string, enabled: boolean) => void;
+  onUpdateDescription: (description: string) => void;
   onUpdateAttribute: (attributeId: string, field: keyof Omit<ClassAttribute, 'id'>, value: string) => void;
   onUpdateMethod: (methodId: string, values: Omit<ClassMethod, 'id'>) => void;
   onUpdateParametricValues: (nodeId: string, values: ParametricValue[]) => void;
@@ -25,10 +26,17 @@ export function ClassInspector({
   onDeleteMethod,
   onRenameClass,
   onSetParametricValuesNote,
+  onUpdateDescription,
   onUpdateAttribute,
   onUpdateMethod,
   onUpdateParametricValues,
 }: ClassInspectorProps) {
+  const [isDescriptionEditorOpen, setIsDescriptionEditorOpen] = useState(false);
+
+  useEffect(() => {
+    setIsDescriptionEditorOpen(false);
+  }, [node?.id]);
+
   if (node === null) {
     return (
       <div className="inspector-content">
@@ -45,6 +53,8 @@ export function ClassInspector({
 
   const values = node.data.parametricValues ?? [];
   const hasValuesNote = node.data.hasParametricValuesNote ?? false;
+  const description = node.data.description ?? '';
+  const shouldShowDescriptionEditor = isDescriptionEditorOpen || description.trim().length > 0;
 
   return (
     <div className="inspector-content">
@@ -53,6 +63,54 @@ export function ClassInspector({
         Nombre
         <input value={node.data.name} onChange={handleNameChange} />
       </label>
+
+      <section className="class-description-panel">
+        <div className="class-description-header">
+          <div>
+            <p className="class-description-title">Descripción</p>
+            {!shouldShowDescriptionEditor ? (
+              <p className="helper-text class-description-helper">Notas privadas para consultar desde este panel.</p>
+            ) : null}
+          </div>
+          {shouldShowDescriptionEditor ? (
+            <button
+              className="icon-button class-description-clear"
+              type="button"
+              onClick={() => {
+                onUpdateDescription('');
+                setIsDescriptionEditorOpen(false);
+              }}
+              title="Quitar descripción"
+            >
+              <Trash2 size={15} />
+            </button>
+          ) : (
+            <button
+              className="class-description-add-button"
+              type="button"
+              onClick={() => setIsDescriptionEditorOpen(true)}
+            >
+              <FileText size={16} />
+              Agregar descripción
+            </button>
+          )}
+        </div>
+
+        {shouldShowDescriptionEditor ? (
+          <textarea
+            className="class-description-textarea"
+            value={description}
+            onBlur={() => {
+              if (description.trim().length === 0) {
+                setIsDescriptionEditorOpen(false);
+              }
+            }}
+            onChange={(event) => onUpdateDescription(event.target.value)}
+            placeholder="Notas internas de la clase..."
+            rows={4}
+          />
+        ) : null}
+      </section>
 
       <div className="inspector-section-header">
         <h2>Atributos</h2>

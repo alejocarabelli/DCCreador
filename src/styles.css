@@ -42,7 +42,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -70,18 +71,30 @@ button:hover {
 }
 
 input,
-select {
+select,
+textarea {
   background: var(--input-background, #ffffff);
   border: 1px solid var(--input-border, #c9d2d8);
   border-radius: 6px;
   color: var(--input-text, #17212b);
-  min-height: 36px;
   padding: 0 10px;
   transition:
     background-color 160ms ease,
     border-color 160ms ease,
     color 160ms ease;
   width: 100%;
+}
+
+input,
+select {
+  min-height: 36px;
+}
+
+textarea {
+  line-height: 1.45;
+  min-height: 90px;
+  padding: 9px 10px;
+  resize: vertical;
 }
 
 .app-shell {
@@ -977,6 +990,55 @@ select {
 .helper-text {
   color: var(--panel-muted-text, #60717f);
   line-height: 1.4;
+}
+
+.class-description-panel {
+  background: color-mix(in srgb, var(--panel-background, #ffffff) 92%, var(--button-background, #f2f5f9));
+  border: 1px solid color-mix(in srgb, var(--panel-border, #dbe2e7) 72%, transparent);
+  border-radius: 9px;
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 10px;
+}
+
+.class-description-header {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.class-description-title {
+  color: var(--panel-text, #17212b);
+  font-size: 0.83rem;
+  font-weight: 800;
+  margin: 0;
+}
+
+.class-description-helper {
+  font-size: 0.78rem;
+  margin: 3px 0 0;
+}
+
+.class-description-add-button {
+  background: color-mix(in srgb, var(--button-background, #ffffff) 86%, transparent);
+  color: var(--panel-muted-text, #60717f);
+  font-size: 0.82rem;
+  min-height: 32px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.class-description-clear {
+  color: var(--panel-muted-text, #60717f);
+  min-height: 30px;
+  min-width: 30px;
+}
+
+.class-description-textarea {
+  color: color-mix(in srgb, var(--input-text, #17212b) 78%, var(--panel-muted-text, #60717f));
+  font-size: 0.88rem;
 }
 
 .attribute-editor-list,

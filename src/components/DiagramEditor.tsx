@@ -409,6 +409,18 @@ export function DiagramEditor({
     }
   };
 
+  const updateClassDescription = (description: string): void => {
+    if (selectedNode === null) {
+      return;
+    }
+
+    updateNodes(
+      nodes.map((node) =>
+        node.id === selectedNode.id ? { ...node, data: { ...node.data, description } } : node,
+      ),
+    );
+  };
+
   const addAttribute = (): void => {
     if (selectedNode === null) {
       return;
@@ -1619,6 +1631,7 @@ export function DiagramEditor({
                 onDeleteMethod={deleteMethod}
                 onRenameClass={renameClass}
                 onSetParametricValuesNote={setParametricValuesNoteByNodeId}
+                onUpdateDescription={updateClassDescription}
                 onUpdateAttribute={updateAttribute}
                 onUpdateMethod={updateMethod}
                 onUpdateParametricValues={updateParametricValuesByNodeId}
