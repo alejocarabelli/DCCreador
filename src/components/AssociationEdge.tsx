@@ -186,8 +186,15 @@ export function AssociationEdge({
           transform: `${edgeLabelStyle.transform} rotate(${angle}rad)`,
         }}
       >
-        <svg aria-hidden="true" viewBox="0 0 24 24">
-          <path d="M5 4 19 12 5 20" />
+        <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+          <path
+            d="M5 4 19 12 5 20"
+            fill="none"
+            stroke="var(--marker-stroke, #222222)"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.8"
+          />
         </svg>
       </div>
     );
