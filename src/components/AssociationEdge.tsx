@@ -57,8 +57,6 @@ const getEndpointLabelPosition = (
 export function AssociationEdge({
   data,
   id,
-  markerEnd,
-  markerStart,
   selected,
   sourcePosition,
   sourceX,
@@ -171,6 +169,29 @@ export function AssociationEdge({
   const markerAngle =
     Math.atan2(targetEndpoint.y - sourceEndpoint.y, targetEndpoint.x - sourceEndpoint.x) +
     (markerEndPosition === 'source' ? Math.PI : 0);
+  const navigationArrowAngle = Math.atan2(targetEndpoint.y - sourceEndpoint.y, targetEndpoint.x - sourceEndpoint.x);
+  const renderNavigationArrow = (end: MultiplicityEnd) => {
+    const isTarget = end === 'target';
+    const x = isTarget ? targetEndpoint.x - unitX * 9 : sourceEndpoint.x + unitX * 9;
+    const y = isTarget ? targetEndpoint.y - unitY * 9 : sourceEndpoint.y + unitY * 9;
+    const angle = navigationArrowAngle + (isTarget ? 0 : Math.PI);
+
+    return (
+      <div
+        className="association-navigation-arrow"
+        style={{
+          ...edgeLabelStyle,
+          left: x,
+          top: y,
+          transform: `${edgeLabelStyle.transform} rotate(${angle}rad)`,
+        }}
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M5 4 19 12 5 20" />
+        </svg>
+      </div>
+    );
+  };
   const startMultiplicityEditing = (end: MultiplicityEnd, event: MouseEvent<HTMLElement>): void => {
     event.stopPropagation();
     originalMultiplicityRef.current = end === 'source' ? edgeData.sourceMultiplicity : edgeData.targetMultiplicity;
@@ -227,8 +248,6 @@ export function AssociationEdge({
       <BaseEdge
         id={id}
         path={edgePath}
-        markerEnd={markerEnd}
-        markerStart={markerStart}
         style={{
           stroke: selected ? 'var(--association-stroke-selected)' : 'var(--association-stroke)',
           strokeWidth: selected ? 'calc(var(--association-stroke-width) + 0.9)' : 'var(--association-stroke-width)',
@@ -239,6 +258,8 @@ export function AssociationEdge({
         d={edgePath}
       />
       <EdgeLabelRenderer>
+        {hasSourceNavigationArrow ? renderNavigationArrow('source') : null}
+        {hasTargetNavigationArrow ? renderNavigationArrow('target') : null}
         {relationType !== 'association' ? (
           <div
             className="relation-marker"

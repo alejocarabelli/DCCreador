@@ -1396,6 +1396,28 @@ textarea {
   stroke-width: 34;
 }
 
+.association-navigation-arrow {
+  height: 28px;
+  pointer-events: none;
+  position: absolute;
+  width: 28px;
+}
+
+.association-navigation-arrow svg {
+  display: block;
+  height: 100%;
+  overflow: visible;
+  width: 100%;
+}
+
+.association-navigation-arrow path {
+  fill: none;
+  stroke: var(--marker-stroke, #222222);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
 .relation-marker {
   height: 30px;
   pointer-events: none;

@@ -16,10 +16,11 @@ import ReactFlow, {
   type ReactFlowInstance,
   type XYPosition,
 } from 'reactflow';
-import { toPng } from 'html-to-image';
+import { toJpeg, toPng } from 'html-to-image';
 import {
   Crosshair,
   FileDown,
+  FileText,
   FileUp,
   Grid3X3,
   ImageDown,
@@ -42,6 +43,7 @@ import type {
 } from '../types/diagram';
 import { themes, type DiagramTheme, type DiagramThemeId } from '../theme/themes';
 import { createId } from '../utils/id';
+import { createPdfFromJpegDataUrl, downloadBlob, downloadDataUrl } from '../utils/pdfExport';
 import { normalizeDiagramProject, normalizeUseCaseModelContent } from '../utils/diagramNormalization';
 import { SystemBoundaryNode, UseCaseActorNode, UseCaseOvalNode } from './useCaseNodes';
 import { UseCaseRelationEdge } from './UseCaseRelationEdge';
@@ -385,15 +387,15 @@ export function UseCaseModelEditor({
     }
   };
 
-  const exportPng = async (): Promise<void> => {
+  const captureDiagramImage = async (format: 'jpeg' | 'png'): Promise<string | null> => {
     if (canvasRef.current === null || renderedNodes.length === 0) {
       showFeedback('No hay diagrama para exportar');
-      return;
+      return null;
     }
     const viewport = canvasRef.current.querySelector<HTMLElement>('.react-flow__viewport');
     const flowRoot = canvasRef.current.querySelector<HTMLElement>('.react-flow');
     if (viewport === null || flowRoot === null) {
-      return;
+      return null;
     }
     const transform = getViewportForBounds(getNodesBounds(renderedNodes), PNG_WIDTH, PNG_HEIGHT, 0.5, 2, 0.16);
     const backgroundColor = getEffectiveBackgroundColor(flowRoot);
@@ -411,10 +413,10 @@ export function UseCaseModelEditor({
         path.style.strokeWidth = computedStyle.strokeWidth;
         path.style.strokeDasharray = computedStyle.strokeDasharray;
       });
-      const dataUrl = await toPng(viewport, {
+      const imageOptions = {
         backgroundColor,
         cacheBust: true,
-        filter: (node) => {
+        filter: (node: HTMLElement) => {
           if (!(node instanceof Element)) {
             return true;
           }
@@ -432,12 +434,11 @@ export function UseCaseModelEditor({
           width: `${PNG_WIDTH}px`,
         },
         width: PNG_WIDTH,
-      });
-      const link = document.createElement('a');
-      link.download = `${project.name.trim() || 'diagrama'} - ${artifact.name.trim() || 'artefacto'}.png`;
-      link.href = dataUrl;
-      link.click();
-      showFeedback('PNG exportado');
+      };
+
+      return format === 'png'
+        ? await toPng(viewport, imageOptions)
+        : await toJpeg(viewport, { ...imageOptions, quality: 0.95 });
     } finally {
       edgePathStyleBackups.forEach(({ path, style }) => {
         if (style === null) {
@@ -448,6 +449,29 @@ export function UseCaseModelEditor({
       });
       canvasRef.current.classList.remove('exporting-png');
     }
+  };
+
+  const exportPng = async (): Promise<void> => {
+    const dataUrl = await captureDiagramImage('png');
+
+    if (dataUrl === null) {
+      return;
+    }
+
+    downloadDataUrl(`${project.name.trim() || 'diagrama'} - ${artifact.name.trim() || 'artefacto'}.png`, dataUrl);
+    showFeedback('PNG exportado');
+  };
+
+  const exportPdf = async (): Promise<void> => {
+    const dataUrl = await captureDiagramImage('jpeg');
+
+    if (dataUrl === null) {
+      return;
+    }
+
+    const pdf = createPdfFromJpegDataUrl(dataUrl, PNG_WIDTH, PNG_HEIGHT);
+    downloadBlob(`${project.name.trim() || 'diagrama'} - ${artifact.name.trim() || 'artefacto'}.pdf`, pdf);
+    showFeedback('PDF exportado');
   };
 
   const closeToolbarMenus = (except?: HTMLDetailsElement): void => {
@@ -532,6 +556,7 @@ export function UseCaseModelEditor({
               <button type="button" onClick={(event) => { exportProjectJson(); event.currentTarget.closest('details')?.removeAttribute('open'); }}><FileDown size={17} />Exportar JSON</button>
               <button type="button" onClick={(event) => { fileInputRef.current?.click(); event.currentTarget.closest('details')?.removeAttribute('open'); }}><FileUp size={17} />Importar JSON</button>
               <button type="button" onClick={(event) => { void exportPng(); event.currentTarget.closest('details')?.removeAttribute('open'); }}><ImageDown size={17} />Exportar PNG</button>
+              <button type="button" onClick={(event) => { void exportPdf(); event.currentTarget.closest('details')?.removeAttribute('open'); }}><FileText size={17} />Exportar PDF</button>
             </div>
           </details>
           <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
