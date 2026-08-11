@@ -19,10 +19,19 @@ cp "$ROOT_DIR/macos/Info.plist" "$CONTENTS_DIR/Info.plist"
 ditto --norsrc --noextattr --noqtn --noacl "$ROOT_DIR/dist" "$RESOURCES_DIR/WebApp"
 
 clang -O2 -fobjc-arc \
+  -arch arm64 \
+  -arch x86_64 \
+  -mmacosx-version-min=12.0 \
   -framework AppKit \
   -framework WebKit \
   "$ROOT_DIR/macos/AppMain.m" \
   -o "$MACOS_DIR/DisenoDeSistemas"
+
+APP_ARCHITECTURES="$(lipo -archs "$MACOS_DIR/DisenoDeSistemas")"
+[[ "$APP_ARCHITECTURES" == *"arm64"* && "$APP_ARCHITECTURES" == *"x86_64"* ]] || {
+  echo "El ejecutable no es universal: $APP_ARCHITECTURES" >&2
+  exit 1
+}
 
 clang -O2 -fobjc-arc -framework AppKit "$ROOT_DIR/macos/CreateIcon.m" -o "$BUILD_DIR/CreateIcon"
 "$BUILD_DIR/CreateIcon" "$BUILD_DIR/AppIcon-1024.png"
