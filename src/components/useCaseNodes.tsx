@@ -27,10 +27,6 @@ function EditableName({
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
-    setDraft(name);
-  }, [name]);
-
-  useEffect(() => {
     if (isEditing) {
       inputRef.current?.focus();
       inputRef.current?.select();
@@ -84,6 +80,7 @@ function EditableName({
       className={`${className} nodrag`}
       onDoubleClick={(event) => {
         event.stopPropagation();
+        setDraft(name);
         setIsEditing(true);
       }}
       onMouseDown={(event) => event.stopPropagation()}

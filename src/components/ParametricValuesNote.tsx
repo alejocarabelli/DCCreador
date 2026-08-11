@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { Handle, Position, type NodeProps } from 'reactflow';
 import type { ParametricValue } from '../types/diagram';
 import { createId } from '../utils/id';
@@ -30,6 +30,10 @@ const noteHandlePositions = [
 ] as const;
 
 export function ParametricValuesNote({ data }: NodeProps<ParametricValuesNoteData>) {
+  const classNodeId = data.classNodeId;
+  const onValueEditingStarted = data.onValueEditingStarted;
+  const startEditingValueId = data.startEditingValueId;
+  const values = data.values;
   const [editingValueId, setEditingValueId] = useState<string | null>(null);
   const [draft, setDraft] = useState<ValueDraft | null>(null);
   const draftRef = useRef<ValueDraft | null>(null);
@@ -49,6 +53,26 @@ export function ParametricValuesNote({ data }: NodeProps<ParametricValuesNoteDat
     [displayedValues, editingValueId],
   );
 
+  const setCurrentDraft = useCallback((nextDraft: ValueDraft | null): void => {
+    draftRef.current = nextDraft;
+    setDraft(nextDraft);
+  }, []);
+
+  const startEditing = useCallback((
+    value: ParametricValue,
+    event?: MouseEvent<HTMLElement>,
+    isNew = false,
+  ): void => {
+    event?.stopPropagation();
+    setEditingValueId(value.id);
+    setCurrentDraft({
+      id: value.id,
+      value: value.value,
+      original: isNew ? null : value.value,
+      isNew,
+    });
+  }, [setCurrentDraft]);
+
   useEffect(() => {
     if (editingValueId !== null) {
       inputRef.current?.focus();
@@ -57,23 +81,22 @@ export function ParametricValuesNote({ data }: NodeProps<ParametricValuesNoteDat
   }, [editingValueId]);
 
   useEffect(() => {
-    if (data.startEditingValueId === undefined) {
+    if (startEditingValueId === undefined) {
       return;
     }
 
-    const value = data.values.find((currentValue) => currentValue.id === data.startEditingValueId) ?? {
-      id: data.startEditingValueId,
+    const value = values.find((currentValue) => currentValue.id === startEditingValueId) ?? {
+      id: startEditingValueId,
       value: '',
     };
 
-    startEditing(value, undefined, value.value.trim().length === 0);
-    data.onValueEditingStarted?.(data.classNodeId);
-  }, [data]);
+    const timeoutId = window.setTimeout(() => {
+      startEditing(value, undefined, value.value.trim().length === 0);
+      onValueEditingStarted?.(classNodeId);
+    }, 0);
 
-  const setCurrentDraft = (nextDraft: ValueDraft | null): void => {
-    draftRef.current = nextDraft;
-    setDraft(nextDraft);
-  };
+    return () => window.clearTimeout(timeoutId);
+  }, [classNodeId, onValueEditingStarted, startEditing, startEditingValueId, values]);
 
   const updateValues = (nextValues: ParametricValue[]): void => {
     data.onUpdateValues?.(data.classNodeId, nextValues);
@@ -85,17 +108,6 @@ export function ParametricValuesNote({ data }: NodeProps<ParametricValuesNoteDat
     }
 
     return [...data.values, { id: currentDraft.id, value: currentDraft.value }];
-  };
-
-  const startEditing = (value: ParametricValue, event?: MouseEvent<HTMLElement>, isNew = false): void => {
-    event?.stopPropagation();
-    setEditingValueId(value.id);
-    setCurrentDraft({
-      id: value.id,
-      value: value.value,
-      original: isNew ? null : value.value,
-      isNew,
-    });
   };
 
   const createValueAndEdit = (event?: MouseEvent<HTMLElement>): void => {
@@ -119,15 +131,11 @@ export function ParametricValuesNote({ data }: NodeProps<ParametricValuesNoteDat
 
     const trimmedValue = currentDraft.value.trim();
     const currentValues = getValuesWithDraft(currentDraft);
-    let nextValues = currentValues;
-
-    if (currentDraft.isNew && trimmedValue.length === 0) {
-      nextValues = currentValues.filter((value) => value.id !== currentDraft.id);
-    } else {
-      nextValues = currentValues.map((value) =>
-        value.id === currentDraft.id ? { ...value, value: currentDraft.value } : value,
-      );
-    }
+    const nextValues = currentDraft.isNew && trimmedValue.length === 0
+      ? currentValues.filter((value) => value.id !== currentDraft.id)
+      : currentValues.map((value) =>
+          value.id === currentDraft.id ? { ...value, value: currentDraft.value } : value,
+        );
 
     if (createNext && trimmedValue.length > 0) {
       const nextValue = { id: createId(), value: '' };

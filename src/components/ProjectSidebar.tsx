@@ -1,5 +1,15 @@
-import { FolderOpen, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Trash2 } from 'lucide-react';
-import { useEffect, useRef, useState, type MouseEvent, type SyntheticEvent } from 'react';
+import {
+  Blocks,
+  Boxes,
+  FileText,
+  FolderKanban,
+  MoreHorizontal,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Plus,
+  UsersRound,
+} from 'lucide-react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import type { DesignArtifact, DiagramProject } from '../types/diagram';
 
 type ProjectSidebarProps = {
@@ -18,9 +28,16 @@ type ProjectSidebarProps = {
   projects: DiagramProject[];
 };
 
-type ArtifactOptionsMenuState = {
-  artifactId: string;
-  canDelete: boolean;
+type SidebarOptionsMenuState = {
+  artifactId?: string;
+  canDelete?: boolean;
+  kind: 'artifact' | 'project';
+  left: number;
+  projectId: string;
+  top: number;
+};
+
+type NewArtifactMenuState = {
   left: number;
   projectId: string;
   top: number;
@@ -48,32 +65,41 @@ export function ProjectSidebar({
   projects,
 }: ProjectSidebarProps) {
   const sidebarRef = useRef<HTMLElement | null>(null);
-  const artifactOptionsMenuRef = useRef<HTMLDivElement | null>(null);
-  const [artifactOptionsMenu, setArtifactOptionsMenu] = useState<ArtifactOptionsMenuState | null>(null);
+  const optionsMenuRef = useRef<HTMLDivElement | null>(null);
+  const newArtifactMenuRef = useRef<HTMLDivElement | null>(null);
+  const [optionsMenu, setOptionsMenu] = useState<SidebarOptionsMenuState | null>(null);
+  const [newArtifactMenu, setNewArtifactMenu] = useState<NewArtifactMenuState | null>(null);
 
-  const closeArtifactMenus = (except?: HTMLDetailsElement): void => {
-    sidebarRef.current?.querySelectorAll<HTMLDetailsElement>('details.artifact-item-menu').forEach((details) => {
-      if (details !== except) {
-        details.removeAttribute('open');
-      }
+  const openNewArtifactMenu = (projectId: string, event: MouseEvent<HTMLButtonElement>): void => {
+    event.stopPropagation();
+
+    if (newArtifactMenu?.projectId === projectId) {
+      setNewArtifactMenu(null);
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const menuWidth = 224;
+    const menuHeight = 132;
+    const top =
+      rect.bottom + 6 + menuHeight > window.innerHeight
+        ? Math.max(8, rect.top - menuHeight - 6)
+        : rect.bottom + 6;
+
+    setOptionsMenu(null);
+    setNewArtifactMenu({
+      projectId,
+      left: Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)),
+      top,
     });
   };
 
-  const handleArtifactMenuToggle = (event: SyntheticEvent<HTMLDetailsElement>): void => {
-    if (event.currentTarget.open) {
-      closeArtifactMenus(event.currentTarget);
-      setArtifactOptionsMenu(null);
-    }
-  };
-
-  const openArtifactOptionsMenu = (
-    projectId: string,
-    artifactId: string,
-    canDelete: boolean,
+  const openOptionsMenu = (
+    values: Omit<SidebarOptionsMenuState, 'left' | 'top'>,
     event: MouseEvent<HTMLButtonElement>,
   ): void => {
     event.stopPropagation();
-    closeArtifactMenus();
+    setNewArtifactMenu(null);
 
     const rect = event.currentTarget.getBoundingClientRect();
     const menuWidth = 148;
@@ -83,11 +109,9 @@ export function ProjectSidebar({
         ? Math.max(8, rect.top - menuHeight - 6)
         : rect.bottom + 6;
 
-    setArtifactOptionsMenu({
-      artifactId,
-      canDelete,
+    setOptionsMenu({
+      ...values,
       left: Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8),
-      projectId,
       top,
     });
   };
@@ -97,31 +121,30 @@ export function ProjectSidebar({
       const target = event.target as globalThis.Node;
 
       if (
-        artifactOptionsMenuRef.current?.contains(target) ||
-        (target instanceof Element && target.closest('.artifact-options-trigger') !== null)
+        optionsMenuRef.current?.contains(target) ||
+        newArtifactMenuRef.current?.contains(target) ||
+        (target instanceof Element &&
+          target.closest('.artifact-options-trigger, .new-artifact-trigger') !== null)
       ) {
         return;
       }
 
-      if (!sidebarRef.current?.contains(target)) {
-        closeArtifactMenus();
-      }
-
-      setArtifactOptionsMenu(null);
+      setOptionsMenu(null);
+      setNewArtifactMenu(null);
     };
 
     const closeOnEscape = (event: globalThis.KeyboardEvent): void => {
       if (event.key === 'Escape') {
-        closeArtifactMenus();
-        setArtifactOptionsMenu(null);
+        setOptionsMenu(null);
+        setNewArtifactMenu(null);
       }
     };
 
-    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('mousedown', closeOnOutsideClick, true);
     document.addEventListener('keydown', closeOnEscape);
 
     return () => {
-      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('mousedown', closeOnOutsideClick, true);
       document.removeEventListener('keydown', closeOnEscape);
     };
   }, []);
@@ -129,6 +152,9 @@ export function ProjectSidebar({
   if (isCollapsed) {
     return (
       <aside className="project-sidebar collapsed" ref={sidebarRef}>
+        <div className="sidebar-collapsed-mark" aria-hidden="true">
+          <Blocks size={19} />
+        </div>
         <button className="icon-button sidebar-toggle" type="button" onClick={onToggleCollapsed} title="Expandir proyectos">
           <PanelLeftOpen size={18} />
         </button>
@@ -139,9 +165,14 @@ export function ProjectSidebar({
   return (
     <aside className="project-sidebar" ref={sidebarRef}>
       <div className="sidebar-header">
-        <div>
-          <p className="eyebrow">Proyectos</p>
-          <h1>Diagramas de clases</h1>
+        <div className="sidebar-brand">
+          <span className="sidebar-brand-mark" aria-hidden="true">
+            <Blocks size={19} />
+          </span>
+          <div>
+            <h1>Diseño de Sistemas</h1>
+            <p>Proyectos y artefactos</p>
+          </div>
         </div>
         <div className="sidebar-header-actions">
           <button className="icon-button" type="button" onClick={onToggleCollapsed} title="Contraer proyectos">
@@ -156,11 +187,8 @@ export function ProjectSidebar({
       <div className="project-list">
         {projects.length === 0 ? (
           <div className="empty-list">
-            <FolderOpen size={24} />
-            <p>No hay proyectos todavía.</p>
-            <button type="button" onClick={onCreateProject}>
-              Crear primer proyecto
-            </button>
+            <FolderKanban size={23} />
+            <p>Tus proyectos aparecerán acá.</p>
           </div>
         ) : (
           projects.map((project) => (
@@ -169,70 +197,36 @@ export function ProjectSidebar({
               key={project.id}
               onClick={() => onSelectProject(project.id)}
             >
-              <button className="project-main" type="button">
-                <strong>{project.name}</strong>
-                <span>Creado: {formatDate(project.createdAt)}</span>
-                <span>Modificado: {formatDate(project.updatedAt)}</span>
+              <button className="project-main" type="button" title={`Creado: ${formatDate(project.createdAt)}`}>
+                <span className="project-main-icon" aria-hidden="true"><FolderKanban size={17} /></span>
+                <span className="project-main-copy">
+                  <strong>{project.name}</strong>
+                  <small>Actualizado {formatDate(project.updatedAt)}</small>
+                </span>
               </button>
-              <div className="project-actions">
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onRenameProject(project.id);
-                  }}
-                  title="Renombrar proyecto"
-                >
-                  <Pencil size={15} />
-                </button>
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onDeleteProject(project.id);
-                  }}
-                  title="Eliminar proyecto"
-                >
-                  <Trash2 size={15} />
-                </button>
-              </div>
+              <button
+                aria-label="Opciones de proyecto"
+                className="artifact-options-trigger project-options-trigger"
+                type="button"
+                onClick={(event) => openOptionsMenu({ kind: 'project', projectId: project.id }, event)}
+              >
+                <MoreHorizontal size={16} />
+              </button>
               {project.id === activeProjectId ? (
                 <div className="project-artifacts">
                   <div className="project-artifacts-header">
                     <span>Artefactos</span>
-                    <details className="artifact-item-menu" onToggle={handleArtifactMenuToggle}>
-                      <summary
-                        className="new-artifact-summary"
-                        aria-label="Nuevo artefacto"
-                        onClick={(event) => event.stopPropagation()}
-                        title="Nuevo artefacto"
-                      >
-                        <Plus size={14} />
-                        Nuevo artefacto
-                      </summary>
-                      <div className="artifact-item-menu-content">
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onCreateArtifact(project.id, 'class-diagram');
-                            event.currentTarget.closest('details')?.removeAttribute('open');
-                          }}
-                        >
-                          Diagrama de clases
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onCreateArtifact(project.id, 'use-case-model');
-                            event.currentTarget.closest('details')?.removeAttribute('open');
-                          }}
-                        >
-                          Modelo de casos de uso
-                        </button>
-                      </div>
-                    </details>
+                    <button
+                      aria-expanded={newArtifactMenu?.projectId === project.id}
+                      aria-haspopup="menu"
+                      className="new-artifact-trigger"
+                      type="button"
+                      onClick={(event) => openNewArtifactMenu(project.id, event)}
+                      title="Nuevo artefacto"
+                    >
+                      <Plus size={14} />
+                      Nuevo
+                    </button>
                   </div>
                   <div className="artifact-list">
                     {project.artifacts.map((artifact) => (
@@ -250,6 +244,13 @@ export function ProjectSidebar({
                             onSelectArtifact(project.id, artifact.id);
                           }}
                         >
+                          {artifact.type === 'class-diagram' ? (
+                            <Boxes aria-hidden="true" size={15} />
+                          ) : artifact.type === 'use-case-model' ? (
+                            <UsersRound aria-hidden="true" size={15} />
+                          ) : (
+                            <FileText aria-hidden="true" size={15} />
+                          )}
                           {artifact.name}
                         </button>
                         <button
@@ -257,7 +258,15 @@ export function ProjectSidebar({
                           className="artifact-options-trigger"
                           type="button"
                           onClick={(event) =>
-                            openArtifactOptionsMenu(project.id, artifact.id, project.artifacts.length > 1, event)
+                            openOptionsMenu(
+                              {
+                                artifactId: artifact.id,
+                                canDelete: project.artifacts.length > 1,
+                                kind: 'artifact',
+                                projectId: project.id,
+                              },
+                              event,
+                            )
                           }
                         >
                           <MoreHorizontal size={15} />
@@ -271,30 +280,81 @@ export function ProjectSidebar({
           ))
         )}
       </div>
-      {artifactOptionsMenu !== null ? (
+      {optionsMenu !== null ? (
         <div
           className="artifact-floating-menu"
-          ref={artifactOptionsMenuRef}
-          style={{ left: artifactOptionsMenu.left, top: artifactOptionsMenu.top }}
+          ref={optionsMenuRef}
+          style={{ left: optionsMenu.left, top: optionsMenu.top }}
         >
           <button
             type="button"
             onClick={() => {
-              onRenameArtifact(artifactOptionsMenu.projectId, artifactOptionsMenu.artifactId);
-              setArtifactOptionsMenu(null);
+              if (optionsMenu.kind === 'artifact' && optionsMenu.artifactId !== undefined) {
+                onRenameArtifact(optionsMenu.projectId, optionsMenu.artifactId);
+              } else {
+                onRenameProject(optionsMenu.projectId);
+              }
+              setOptionsMenu(null);
             }}
           >
             Renombrar
           </button>
           <button
             type="button"
-            disabled={!artifactOptionsMenu.canDelete}
+            disabled={optionsMenu.kind === 'artifact' && !optionsMenu.canDelete}
             onClick={() => {
-              onDeleteArtifact(artifactOptionsMenu.projectId, artifactOptionsMenu.artifactId);
-              setArtifactOptionsMenu(null);
+              if (optionsMenu.kind === 'artifact' && optionsMenu.artifactId !== undefined) {
+                onDeleteArtifact(optionsMenu.projectId, optionsMenu.artifactId);
+              } else {
+                onDeleteProject(optionsMenu.projectId);
+              }
+              setOptionsMenu(null);
             }}
           >
             Eliminar
+          </button>
+        </div>
+      ) : null}
+      {newArtifactMenu !== null ? (
+        <div
+          aria-label="Crear artefacto"
+          className="artifact-floating-menu new-artifact-floating-menu"
+          ref={newArtifactMenuRef}
+          role="menu"
+          style={{ left: newArtifactMenu.left, top: newArtifactMenu.top }}
+        >
+          <button
+            role="menuitem"
+            type="button"
+            onClick={() => {
+              onCreateArtifact(newArtifactMenu.projectId, 'class-diagram');
+              setNewArtifactMenu(null);
+            }}
+          >
+            <Boxes size={15} />
+            Diagrama de clases
+          </button>
+          <button
+            role="menuitem"
+            type="button"
+            onClick={() => {
+              onCreateArtifact(newArtifactMenu.projectId, 'use-case-model');
+              setNewArtifactMenu(null);
+            }}
+          >
+            <UsersRound size={15} />
+            Modelo de casos de uso
+          </button>
+          <button
+            role="menuitem"
+            type="button"
+            onClick={() => {
+              onCreateArtifact(newArtifactMenu.projectId, 'use-case-flow');
+              setNewArtifactMenu(null);
+            }}
+          >
+            <FileText size={15} />
+            Flujo de sucesos
           </button>
         </div>
       ) : null}

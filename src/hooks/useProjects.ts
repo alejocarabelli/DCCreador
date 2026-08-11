@@ -1,7 +1,23 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { ClassDiagramArtifact, ClassDiagramContent, DesignArtifact, DiagramContent, DiagramProject, UseCaseModelArtifact, UseCaseModelContent } from '../types/diagram';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type {
+  ArtifactContent,
+  ClassDiagramArtifact,
+  ClassDiagramContent,
+  DiagramContent,
+  DiagramProject,
+  UseCaseFlowArtifact,
+  UseCaseFlowContent,
+  UseCaseModelArtifact,
+  UseCaseModelContent,
+} from '../types/diagram';
 import { loadProjects, saveProjects } from '../storage/projectsStorage';
-import { getActiveClassDiagramArtifact, normalizeDiagramContent, normalizeDiagramProject, normalizeUseCaseModelContent } from '../utils/diagramNormalization';
+import {
+  getActiveClassDiagramArtifact,
+  normalizeDiagramContent,
+  normalizeDiagramProject,
+  normalizeUseCaseFlowContent,
+  normalizeUseCaseModelContent,
+} from '../utils/diagramNormalization';
 import { createId } from '../utils/id';
 
 const createEmptyContent = (): ClassDiagramContent => ({
@@ -12,6 +28,23 @@ const createEmptyContent = (): ClassDiagramContent => ({
 const createEmptyUseCaseModelContent = (): UseCaseModelArtifact['content'] => ({
   nodes: [],
   edges: [],
+});
+
+const createEmptyUseCaseFlowContent = (): UseCaseFlowContent => ({
+  classDiagramArtifactId: undefined,
+  description: {
+    useCaseName: '',
+    actor: '',
+    description: '',
+    priority: 'A',
+    inputParameters: '',
+    precondition: '',
+    postcondition: '',
+    initialState: '',
+    finalState: '',
+  },
+  basicFlow: [],
+  alternativeFlows: [],
 });
 
 const buildProject = (name: string): DiagramProject => {
@@ -36,14 +69,24 @@ const buildProject = (name: string): DiagramProject => {
 };
 
 export const useProjects = () => {
-  const [projects, setProjects] = useState<DiagramProject[]>(() => loadProjects());
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(() => {
-    const storedProjects = loadProjects();
-    return storedProjects[0]?.id ?? null;
-  });
+  const [initialLoad] = useState(loadProjects);
+  const [projects, setProjects] = useState<DiagramProject[]>(initialLoad.projects);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(initialLoad.projects[0]?.id ?? null);
+  const [storageWarning, setStorageWarning] = useState<string | null>(initialLoad.warning);
+  const skipInitialSaveRef = useRef(initialLoad.skipInitialSave);
 
   useEffect(() => {
-    saveProjects(projects);
+    if (skipInitialSaveRef.current) {
+      skipInitialSaveRef.current = false;
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      const result = saveProjects(projects);
+      setStorageWarning(result.error);
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
   }, [projects]);
 
   const activeProject = useMemo(
@@ -145,6 +188,31 @@ export const useProjects = () => {
     );
   };
 
+  const createUseCaseFlowArtifact = (projectId: string, name: string): void => {
+    const now = new Date().toISOString();
+    const artifact: UseCaseFlowArtifact = {
+      id: createId(),
+      type: 'use-case-flow',
+      name: name.trim() || 'Flujo de sucesos',
+      createdAt: now,
+      updatedAt: now,
+      content: createEmptyUseCaseFlowContent(),
+    };
+
+    setProjects((currentProjects) =>
+      currentProjects.map((project) =>
+        project.id === projectId
+          ? {
+              ...project,
+              activeArtifactId: artifact.id,
+              artifacts: [...project.artifacts, artifact],
+              updatedAt: now,
+            }
+          : project,
+      ),
+    );
+  };
+
   const renameArtifact = (projectId: string, artifactId: string, name: string): void => {
     const cleanName = name.trim();
 
@@ -195,7 +263,7 @@ export const useProjects = () => {
     );
   };
 
-  const updateProjectArtifactContent = (projectId: string, artifactId: string, content: DesignArtifact['content']): void => {
+  const updateProjectArtifactContent = (projectId: string, artifactId: string, content: ArtifactContent): void => {
     const now = new Date().toISOString();
 
     setProjects((currentProjects) =>
@@ -214,6 +282,14 @@ export const useProjects = () => {
                   return {
                     ...artifact,
                     content: normalizeUseCaseModelContent(content as Partial<UseCaseModelContent>),
+                    updatedAt: now,
+                  };
+                }
+
+                if (artifact.type === 'use-case-flow') {
+                  return {
+                    ...artifact,
+                    content: normalizeUseCaseFlowContent(content as Partial<UseCaseFlowContent>),
                     updatedAt: now,
                   };
                 }
@@ -263,6 +339,7 @@ export const useProjects = () => {
     activeProject,
     activeProjectId,
     createClassDiagramArtifact,
+    createUseCaseFlowArtifact,
     createUseCaseModelArtifact,
     createProject,
     deleteArtifact,
@@ -273,6 +350,7 @@ export const useProjects = () => {
     renameProject,
     setActiveArtifactId,
     setActiveProjectId,
+    storageWarning,
     updateProjectArtifactContent,
     updateProjectContent,
   };

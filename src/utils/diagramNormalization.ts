@@ -6,19 +6,45 @@ import type {
   DesignArtifact,
   DiagramProject,
   LegacyDiagramProject,
+  AlternativeUseCaseFlow,
   UseCaseEdgeData,
+  UseCaseFlowArtifact,
+  UseCaseFlowContent,
+  UseCaseFlowDescription,
+  UseCaseFlowPriority,
+  UseCaseFlowStep,
   UseCaseModelArtifact,
   UseCaseModelContent,
   UseCaseModelEdge,
   UseCaseModelNode,
 } from '../types/diagram';
 import { normalizeAssociationEdge } from './association';
+import { createId } from './id';
 
 const DEFAULT_CLASS_ARTIFACT_ID = 'default-class-diagram';
-const DEFAULT_USE_CASE_ARTIFACT_ID = 'default-use-case-model';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
+
+const ensureUniqueIds = <T extends { id: string }>(items: T[]): T[] => {
+  const usedIds = new Set<string>();
+
+  return items.map((item) => {
+    const id = item.id.trim();
+
+    if (id.length > 0 && !usedIds.has(id)) {
+      usedIds.add(id);
+      return item;
+    }
+
+    let nextId = createId();
+    while (usedIds.has(nextId)) {
+      nextId = createId();
+    }
+    usedIds.add(nextId);
+    return { ...item, id: nextId };
+  });
+};
 
 export const normalizeClassNode = (node: ClassDiagramNode): ClassDiagramNode => ({
   ...node,
@@ -39,10 +65,15 @@ export const normalizeClassNode = (node: ClassDiagramNode): ClassDiagramNode => 
 
 export const normalizeDiagramContent = (
   content: Partial<ClassDiagramContent> | undefined,
-): ClassDiagramContent => ({
-  nodes: Array.isArray(content?.nodes) ? (content.nodes as ClassDiagramNode[]).map(normalizeClassNode) : [],
-  edges: Array.isArray(content?.edges) ? (content.edges as ClassDiagramEdge[]).map(normalizeAssociationEdge) : [],
-});
+): ClassDiagramContent => {
+  const nodes = Array.isArray(content?.nodes) ? (content.nodes as ClassDiagramNode[]).map(normalizeClassNode) : [];
+  const edges = Array.isArray(content?.edges) ? (content.edges as ClassDiagramEdge[]).map(normalizeAssociationEdge) : [];
+
+  return {
+    nodes: ensureUniqueIds(nodes),
+    edges: ensureUniqueIds(edges),
+  };
+};
 
 export const normalizeUseCaseNode = (node: UseCaseModelNode): UseCaseModelNode => {
   const kind = node.data?.kind ?? (node.type === 'useCaseActor' ? 'actor' : node.type === 'systemBoundary' ? 'system-boundary' : 'use-case');
@@ -75,16 +106,74 @@ export const normalizeUseCaseEdge = (edge: UseCaseModelEdge): UseCaseModelEdge =
 
 export const normalizeUseCaseModelContent = (
   content: Partial<UseCaseModelContent> | undefined,
-): UseCaseModelContent => ({
-  nodes: Array.isArray(content?.nodes) ? (content.nodes as UseCaseModelNode[]).map(normalizeUseCaseNode) : [],
-  edges: Array.isArray(content?.edges) ? (content.edges as UseCaseModelEdge[]).map(normalizeUseCaseEdge) : [],
+): UseCaseModelContent => {
+  const nodes = Array.isArray(content?.nodes) ? (content.nodes as UseCaseModelNode[]).map(normalizeUseCaseNode) : [];
+  const edges = Array.isArray(content?.edges) ? (content.edges as UseCaseModelEdge[]).map(normalizeUseCaseEdge) : [];
+
+  return {
+    nodes: ensureUniqueIds(nodes),
+    edges: ensureUniqueIds(edges),
+  };
+};
+
+const normalizeString = (value: unknown): string => (typeof value === 'string' ? value : '');
+
+const normalizeUseCaseFlowPriority = (value: unknown): UseCaseFlowPriority =>
+  value === 'B' || value === 'C' ? value : 'A';
+
+const normalizeUseCaseFlowDescription = (
+  description: Partial<UseCaseFlowDescription> | undefined,
+): UseCaseFlowDescription => ({
+  useCaseName: normalizeString(description?.useCaseName),
+  actor: normalizeString(description?.actor),
+  description: normalizeString(description?.description),
+  priority: normalizeUseCaseFlowPriority(description?.priority),
+  inputParameters: normalizeString(description?.inputParameters),
+  precondition: normalizeString(description?.precondition),
+  postcondition: normalizeString(description?.postcondition),
+  initialState: normalizeString(description?.initialState),
+  finalState: normalizeString(description?.finalState),
 });
+
+export const normalizeUseCaseFlowStep = (step: Partial<UseCaseFlowStep> | undefined): UseCaseFlowStep => ({
+  id: typeof step?.id === 'string' && step.id.length > 0 ? step.id : createId(),
+  actor: normalizeString(step?.actor),
+  system: normalizeString(step?.system),
+  ref: normalizeString(step?.ref),
+});
+
+export const normalizeUseCaseFlowContent = (
+  content: Partial<UseCaseFlowContent> | undefined,
+): UseCaseFlowContent => {
+  const basicFlow = Array.isArray(content?.basicFlow)
+    ? (content.basicFlow as Partial<UseCaseFlowStep>[]).map(normalizeUseCaseFlowStep)
+    : [];
+  const alternativeFlows = Array.isArray(content?.alternativeFlows)
+    ? (content.alternativeFlows as Partial<AlternativeUseCaseFlow>[]).map((flow, index) => ({
+        id: typeof flow?.id === 'string' && flow.id.length > 0 ? flow.id : createId(),
+        code: normalizeString(flow?.code) || `CA ${index + 1}`,
+        name: normalizeString(flow?.name),
+        steps: ensureUniqueIds(
+          Array.isArray(flow?.steps)
+            ? (flow.steps as Partial<UseCaseFlowStep>[]).map(normalizeUseCaseFlowStep)
+            : [],
+        ),
+      }))
+    : [];
+
+  return {
+    classDiagramArtifactId: normalizeString(content?.classDiagramArtifactId) || undefined,
+    description: normalizeUseCaseFlowDescription(content?.description),
+    basicFlow: ensureUniqueIds(basicFlow),
+    alternativeFlows: ensureUniqueIds(alternativeFlows),
+  };
+};
 
 const normalizeClassDiagramArtifact = (
   artifact: Partial<ClassDiagramArtifact> | undefined,
   fallbackDates: Pick<DiagramProject, 'createdAt' | 'updatedAt'>,
 ): ClassDiagramArtifact => ({
-  id: typeof artifact?.id === 'string' && artifact.id.length > 0 ? artifact.id : DEFAULT_CLASS_ARTIFACT_ID,
+  id: typeof artifact?.id === 'string' && artifact.id.length > 0 ? artifact.id : createId(),
   type: 'class-diagram',
   name: typeof artifact?.name === 'string' && artifact.name.length > 0 ? artifact.name : 'Diagrama de clases',
   createdAt: typeof artifact?.createdAt === 'string' ? artifact.createdAt : fallbackDates.createdAt,
@@ -96,12 +185,24 @@ const normalizeUseCaseModelArtifact = (
   artifact: Partial<UseCaseModelArtifact> | undefined,
   fallbackDates: Pick<DiagramProject, 'createdAt' | 'updatedAt'>,
 ): UseCaseModelArtifact => ({
-  id: typeof artifact?.id === 'string' && artifact.id.length > 0 ? artifact.id : DEFAULT_USE_CASE_ARTIFACT_ID,
+  id: typeof artifact?.id === 'string' && artifact.id.length > 0 ? artifact.id : createId(),
   type: 'use-case-model',
   name: typeof artifact?.name === 'string' && artifact.name.length > 0 ? artifact.name : 'Modelo de casos de uso',
   createdAt: typeof artifact?.createdAt === 'string' ? artifact.createdAt : fallbackDates.createdAt,
   updatedAt: typeof artifact?.updatedAt === 'string' ? artifact.updatedAt : fallbackDates.updatedAt,
   content: normalizeUseCaseModelContent(artifact?.content),
+});
+
+const normalizeUseCaseFlowArtifact = (
+  artifact: Partial<UseCaseFlowArtifact> | undefined,
+  fallbackDates: Pick<DiagramProject, 'createdAt' | 'updatedAt'>,
+): UseCaseFlowArtifact => ({
+  id: typeof artifact?.id === 'string' && artifact.id.length > 0 ? artifact.id : createId(),
+  type: 'use-case-flow',
+  name: typeof artifact?.name === 'string' && artifact.name.length > 0 ? artifact.name : 'Flujo de sucesos',
+  createdAt: typeof artifact?.createdAt === 'string' ? artifact.createdAt : fallbackDates.createdAt,
+  updatedAt: typeof artifact?.updatedAt === 'string' ? artifact.updatedAt : fallbackDates.updatedAt,
+  content: normalizeUseCaseFlowContent(artifact?.content),
 });
 
 const normalizeArtifact = (
@@ -120,6 +221,10 @@ const normalizeArtifact = (
     return normalizeUseCaseModelArtifact(artifact as Partial<UseCaseModelArtifact>, fallbackDates);
   }
 
+  if (artifact.type === 'use-case-flow') {
+    return normalizeUseCaseFlowArtifact(artifact as Partial<UseCaseFlowArtifact>, fallbackDates);
+  }
+
   return null;
 };
 
@@ -128,7 +233,7 @@ const isLegacyProject = (project: unknown): project is Partial<LegacyDiagramProj
 
 export const normalizeDiagramProject = (project: Partial<DiagramProject> | Partial<LegacyDiagramProject>): DiagramProject => {
   const now = new Date().toISOString();
-  const id = typeof project.id === 'string' && project.id.length > 0 ? project.id : '';
+  const id = typeof project.id === 'string' && project.id.length > 0 ? project.id : createId();
   const name = typeof project.name === 'string' && project.name.length > 0 ? project.name : 'Nuevo diagrama';
   const createdAt = typeof project.createdAt === 'string' ? project.createdAt : now;
   const updatedAt = typeof project.updatedAt === 'string' ? project.updatedAt : now;
@@ -162,10 +267,11 @@ export const normalizeDiagramProject = (project: Partial<DiagramProject> | Parti
         .filter((artifact): artifact is DesignArtifact => artifact !== null)
     : [];
 
-  const artifacts =
+  const artifacts = ensureUniqueIds(
     normalizedArtifacts.length > 0
       ? normalizedArtifacts
-      : [normalizeClassDiagramArtifact(undefined, { createdAt, updatedAt })];
+      : [normalizeClassDiagramArtifact(undefined, { createdAt, updatedAt })],
+  );
   const requestedActiveArtifactId =
     typeof project.activeArtifactId === 'string' ? project.activeArtifactId : undefined;
   const activeArtifactId = artifacts.some((artifact) => artifact.id === requestedActiveArtifactId)

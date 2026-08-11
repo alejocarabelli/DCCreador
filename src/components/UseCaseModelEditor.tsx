@@ -28,7 +28,9 @@ import {
   Maximize2,
   Plus,
   Redo2,
+  SquareDashed,
   Undo2,
+  UserRound,
 } from 'lucide-react';
 import type {
   DiagramContent,
@@ -44,14 +46,19 @@ import type {
 import { themes, type DiagramTheme, type DiagramThemeId } from '../theme/themes';
 import { createId } from '../utils/id';
 import { createPdfFromJpegDataUrl, downloadBlob, downloadDataUrl } from '../utils/pdfExport';
+import { readUiPreference, writeUiPreference } from '../storage/uiPreferences';
 import { normalizeDiagramProject, normalizeUseCaseModelContent } from '../utils/diagramNormalization';
 import { SystemBoundaryNode, UseCaseActorNode, UseCaseOvalNode } from './useCaseNodes';
 import { UseCaseRelationEdge } from './UseCaseRelationEdge';
+import { EditorIdentity } from './EditorIdentity';
 
 const GRID_ENABLED_KEY = 'class-diagram-grid-enabled';
 const SNAP_ENABLED_KEY = 'class-diagram-snap-enabled';
 const PNG_WIDTH = 1600;
 const PNG_HEIGHT = 1000;
+
+const isEditableElement = (element: Element | null): boolean =>
+  element !== null && element.closest('[contenteditable="true"], input, select, textarea, button') !== null;
 
 type UseCaseModelEditorProps = {
   artifact: UseCaseModelArtifact;
@@ -163,8 +170,8 @@ export function UseCaseModelEditor({
 }: UseCaseModelEditorProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const [isGridEnabled, setIsGridEnabled] = useState(() => localStorage.getItem(GRID_ENABLED_KEY) !== 'false');
-  const [isSnapEnabled, setIsSnapEnabled] = useState(() => localStorage.getItem(SNAP_ENABLED_KEY) === 'true');
+  const [isGridEnabled, setIsGridEnabled] = useState(() => readUiPreference(GRID_ENABLED_KEY) !== 'false');
+  const [isSnapEnabled, setIsSnapEnabled] = useState(() => readUiPreference(SNAP_ENABLED_KEY) === 'true');
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
@@ -193,17 +200,45 @@ export function UseCaseModelEditor({
     [onChangeContent],
   );
 
-  const updateNodes = (nextNodes: UseCaseModelNode[]): void => {
+  const updateNodes = useCallback((nextNodes: UseCaseModelNode[]): void => {
     commitContent({ nodes: nextNodes, edges });
-  };
+  }, [commitContent, edges]);
 
-  const updateEdges = (nextEdges: UseCaseModelEdge[]): void => {
+  const updateEdges = useCallback((nextEdges: UseCaseModelEdge[]): void => {
     commitContent({ nodes, edges: nextEdges });
-  };
+  }, [commitContent, nodes]);
 
-  const renameNode = (nodeId: string, name: string): void => {
+  const deleteSelectedElement = useCallback((): void => {
+    if (selectedEdgeId !== null) {
+      commitContent({ nodes, edges: edges.filter((edge) => edge.id !== selectedEdgeId) });
+      setSelectedEdgeId(null);
+      return;
+    }
+
+    if (selectedNodeId !== null) {
+      commitContent({
+        nodes: nodes.filter((node) => node.id !== selectedNodeId),
+        edges: edges.filter((edge) => edge.source !== selectedNodeId && edge.target !== selectedNodeId),
+      });
+      setSelectedNodeId(null);
+    }
+  }, [commitContent, edges, nodes, selectedEdgeId, selectedNodeId]);
+
+  const renameNode = useCallback((nodeId: string, name: string): void => {
     updateNodes(nodes.map((node) => (node.id === nodeId ? { ...node, data: { ...node.data, name } } : node)));
-  };
+  }, [nodes, updateNodes]);
+
+  const openNodeContextMenu = useCallback((nodeId: string, event: MouseEvent<HTMLElement>): void => {
+    const bounds = canvasRef.current?.getBoundingClientRect();
+    if (bounds === undefined || reactFlowInstance === null) {
+      return;
+    }
+    setContextMenu({
+      nodeId,
+      screenPosition: { x: event.clientX - bounds.left, y: event.clientY - bounds.top },
+      flowPosition: reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY }),
+    });
+  }, [reactFlowInstance]);
 
   const renderedNodes = useMemo(
     () =>
@@ -211,22 +246,12 @@ export function UseCaseModelEditor({
         ...node,
         data: {
           ...node.data,
-          onOpenContextMenu: (nodeId: string, event: MouseEvent<HTMLElement>) => {
-            const bounds = canvasRef.current?.getBoundingClientRect();
-            if (bounds === undefined || reactFlowInstance === null) {
-              return;
-            }
-            setContextMenu({
-              nodeId,
-              screenPosition: { x: event.clientX - bounds.left, y: event.clientY - bounds.top },
-              flowPosition: reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY }),
-            });
-          },
+          onOpenContextMenu: openNodeContextMenu,
           onRename: renameNode,
         },
         zIndex: node.data.kind === 'system-boundary' ? 0 : 10,
       })),
-    [nodes, reactFlowInstance],
+    [nodes, openNodeContextMenu, renameNode],
   );
 
   const addNode = (kind: UseCaseNodeKind, position: XYPosition): void => {
@@ -346,7 +371,15 @@ export function UseCaseModelEditor({
   };
 
   const centerDiagram = (): void => {
-    reactFlowInstance?.setCenter(0, 0, { duration: 300, zoom: reactFlowInstance.getZoom() });
+    if (reactFlowInstance === null || renderedNodes.length === 0) {
+      return;
+    }
+
+    const bounds = getNodesBounds(renderedNodes);
+    reactFlowInstance.setCenter(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2, {
+      duration: 300,
+      zoom: reactFlowInstance.getZoom(),
+    });
   };
 
   const fitDiagram = (): void => {
@@ -489,11 +522,11 @@ export function UseCaseModelEditor({
   };
 
   useEffect(() => {
-    localStorage.setItem(GRID_ENABLED_KEY, String(isGridEnabled));
+    writeUiPreference(GRID_ENABLED_KEY, String(isGridEnabled));
   }, [isGridEnabled]);
 
   useEffect(() => {
-    localStorage.setItem(SNAP_ENABLED_KEY, String(isSnapEnabled));
+    writeUiPreference(SNAP_ENABLED_KEY, String(isSnapEnabled));
   }, [isSnapEnabled]);
 
   useEffect(() => {
@@ -508,13 +541,31 @@ export function UseCaseModelEditor({
         setContextMenu(null);
       }
     };
-    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('mousedown', closeOnOutsideClick, true);
     document.addEventListener('keydown', closeOnEscape);
     return () => {
-      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('mousedown', closeOnOutsideClick, true);
       document.removeEventListener('keydown', closeOnEscape);
     };
   }, []);
+
+  useEffect(() => {
+    const handleDeleteKey = (event: globalThis.KeyboardEvent): void => {
+      if ((event.key !== 'Delete' && event.key !== 'Backspace') || isEditableElement(document.activeElement)) {
+        return;
+      }
+
+      if (selectedNodeId === null && selectedEdgeId === null) {
+        return;
+      }
+
+      event.preventDefault();
+      deleteSelectedElement();
+    };
+
+    document.addEventListener('keydown', handleDeleteKey);
+    return () => document.removeEventListener('keydown', handleDeleteKey);
+  }, [deleteSelectedElement, selectedEdgeId, selectedNodeId]);
 
   const relationOptions =
     selectedEdge !== null
@@ -527,27 +578,26 @@ export function UseCaseModelEditor({
   return (
     <main className="diagram-editor use-case-editor">
       <header className="editor-toolbar" ref={toolbarRef}>
-        <div className="editor-title-group">
-          <p className="eyebrow">Proyecto abierto</p>
-          <div className="project-artifact-header">
-            <h2>{project.name}</h2>
-            <span className="artifact-title-divider">/</span>
-            <span className="active-artifact-title">{artifact.name}</span>
-          </div>
-        </div>
+        <EditorIdentity artifactKind="Modelo de casos de uso" artifactName={artifact.name} projectName={project.name} />
         <div className="editor-toolbar-actions">
-          <button type="button" disabled={!canUndo} onClick={onUndo}><Undo2 size={17} />Deshacer</button>
-          <button type="button" disabled={!canRedo} onClick={onRedo}><Redo2 size={17} />Rehacer</button>
-          <button type="button" onClick={() => addNode('actor', { x: 80, y: 120 })}><Plus size={17} />Actor</button>
-          <button type="button" onClick={() => addNode('use-case', { x: 240, y: 140 })}><Plus size={17} />Caso de uso</button>
-          <button type="button" onClick={() => addNode('system-boundary', { x: 180, y: 90 })}><Plus size={17} />Límite</button>
-          <button type="button" onClick={centerDiagram}><Crosshair size={17} />Centrar</button>
-          <button type="button" onClick={fitDiagram}><Maximize2 size={17} />Ver todo</button>
+          <button className="toolbar-icon-action" aria-label="Deshacer" title="Deshacer última acción" type="button" disabled={!canUndo} onClick={onUndo}><Undo2 size={17} /></button>
+          <button className="toolbar-icon-action" aria-label="Rehacer" title="Rehacer acción deshecha" type="button" disabled={!canRedo} onClick={onRedo}><Redo2 size={17} /></button>
+          <span className="toolbar-divider" aria-hidden="true" />
+          <details className="toolbar-menu add-element-menu" onToggle={handleToolbarMenuToggle}>
+            <summary><Plus size={16} />Agregar elemento</summary>
+            <div className="toolbar-menu-content">
+              <button type="button" onClick={(event) => { addNode('actor', { x: 80, y: 120 }); event.currentTarget.closest('details')?.removeAttribute('open'); }}><UserRound size={16} />Actor</button>
+              <button type="button" onClick={(event) => { addNode('use-case', { x: 240, y: 140 }); event.currentTarget.closest('details')?.removeAttribute('open'); }}><Plus size={16} />Caso de uso</button>
+              <button type="button" onClick={(event) => { addNode('system-boundary', { x: 180, y: 90 }); event.currentTarget.closest('details')?.removeAttribute('open'); }}><SquareDashed size={16} />Límite del sistema</button>
+            </div>
+          </details>
+          <button className="toolbar-icon-action" aria-label="Centrar vista" title="Centrar vista" type="button" onClick={centerDiagram}><Crosshair size={17} /></button>
+          <button className="toolbar-icon-action" aria-label="Ver todo" title="Ajustar para ver todo" type="button" onClick={fitDiagram}><Maximize2 size={17} /></button>
           <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
             <summary>Vista</summary>
             <div className="toolbar-menu-content">
               <button type="button" className={isGridEnabled ? 'active-tool' : ''} onClick={(event) => { setIsGridEnabled((enabled) => !enabled); event.currentTarget.closest('details')?.removeAttribute('open'); }}><Grid3X3 size={17} />Grilla</button>
-              <button type="button" className={isSnapEnabled ? 'active-tool' : ''} onClick={(event) => { setIsSnapEnabled((enabled) => !enabled); event.currentTarget.closest('details')?.removeAttribute('open'); }}><Magnet size={17} />Snap</button>
+              <button type="button" className={isSnapEnabled ? 'active-tool' : ''} onClick={(event) => { setIsSnapEnabled((enabled) => !enabled); event.currentTarget.closest('details')?.removeAttribute('open'); }}><Magnet size={17} />Ajustar a la grilla</button>
             </div>
           </details>
           <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
@@ -577,7 +627,7 @@ export function UseCaseModelEditor({
         <div className="flow-canvas" ref={canvasRef}>
           <ReactFlow
             connectionMode={ConnectionMode.Loose}
-            deleteKeyCode={['Backspace', 'Delete']}
+            deleteKeyCode={null}
             edgeTypes={edgeTypes}
             edges={edges}
             maxZoom={2}
@@ -635,9 +685,10 @@ export function UseCaseModelEditor({
           <aside className="inspector">
             {selectedNode !== null ? (
               <section className="inspector-section">
-                <p className="eyebrow">
+                <p className="eyebrow">Propiedades</p>
+                <h2>
                   {selectedNode.data.kind === 'actor' ? 'Actor' : selectedNode.data.kind === 'system-boundary' ? 'Límite del sistema' : 'Caso de uso'}
-                </p>
+                </h2>
                 <label className="field">
                   Nombre
                   <input value={selectedNode.data.name} onChange={(event) => renameNode(selectedNode.id, event.target.value)} />
@@ -646,7 +697,8 @@ export function UseCaseModelEditor({
             ) : null}
             {selectedEdge !== null ? (
               <section className="inspector-section">
-                <p className="eyebrow">Relación MCU</p>
+                <p className="eyebrow">Propiedades</p>
+                <h2>Relación</h2>
                 <label className="field">
                   Tipo
                   <select

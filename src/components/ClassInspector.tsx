@@ -1,5 +1,5 @@
 import { FileText, Plus, Trash2 } from 'lucide-react';
-import { useEffect, useState, type ChangeEvent } from 'react';
+import { useState, type ChangeEvent } from 'react';
 import type { ClassAttribute, ClassDiagramNode, ClassMethod, ParametricValue } from '../types/diagram';
 import { AttributeTypeSelect } from './AttributeTypeSelect';
 import { createId } from '../utils/id';
@@ -31,11 +31,7 @@ export function ClassInspector({
   onUpdateMethod,
   onUpdateParametricValues,
 }: ClassInspectorProps) {
-  const [isDescriptionEditorOpen, setIsDescriptionEditorOpen] = useState(false);
-
-  useEffect(() => {
-    setIsDescriptionEditorOpen(false);
-  }, [node?.id]);
+  const [descriptionEditorNodeId, setDescriptionEditorNodeId] = useState<string | null>(null);
 
   if (node === null) {
     return (
@@ -54,11 +50,15 @@ export function ClassInspector({
   const values = node.data.parametricValues ?? [];
   const hasValuesNote = node.data.hasParametricValuesNote ?? false;
   const description = node.data.description ?? '';
-  const shouldShowDescriptionEditor = isDescriptionEditorOpen || description.trim().length > 0;
+  const shouldShowDescriptionEditor = descriptionEditorNodeId === node.id || description.trim().length > 0;
 
   return (
     <div className="inspector-content">
-      <p className="eyebrow">Clase seleccionada</p>
+      <div className="inspector-heading">
+        <p className="eyebrow">Propiedades</p>
+        <h2>{node.data.name.trim() || 'Clase sin nombre'}</h2>
+        <span>Clase</span>
+      </div>
       <label className="field">
         Nombre
         <input value={node.data.name} onChange={handleNameChange} />
@@ -78,7 +78,7 @@ export function ClassInspector({
               type="button"
               onClick={() => {
                 onUpdateDescription('');
-                setIsDescriptionEditorOpen(false);
+                setDescriptionEditorNodeId(null);
               }}
               title="Quitar descripción"
             >
@@ -88,7 +88,7 @@ export function ClassInspector({
             <button
               className="class-description-add-button"
               type="button"
-              onClick={() => setIsDescriptionEditorOpen(true)}
+              onClick={() => setDescriptionEditorNodeId(node.id)}
             >
               <FileText size={16} />
               Agregar descripción
@@ -102,7 +102,7 @@ export function ClassInspector({
             value={description}
             onBlur={() => {
               if (description.trim().length === 0) {
-                setIsDescriptionEditorOpen(false);
+                setDescriptionEditorNodeId(null);
               }
             }}
             onChange={(event) => onUpdateDescription(event.target.value)}

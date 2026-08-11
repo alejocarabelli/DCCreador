@@ -52,6 +52,7 @@ import type {
 import { themes, type DiagramTheme, type DiagramThemeId } from '../theme/themes';
 import { createId } from '../utils/id';
 import { createPdfFromJpegDataUrl, downloadBlob, downloadDataUrl } from '../utils/pdfExport';
+import { readUiPreference, writeUiPreference } from '../storage/uiPreferences';
 import { getAssociationMarker, normalizeAssociationData, normalizeAssociationEdge } from '../utils/association';
 import { normalizeClassNode, normalizeDiagramContent, normalizeDiagramProject } from '../utils/diagramNormalization';
 import { AssociationEdge } from './AssociationEdge';
@@ -59,6 +60,7 @@ import { AssociationInspector } from './AssociationInspector';
 import { ClassInspector } from './ClassInspector';
 import { ClassNode } from './ClassNode';
 import { ParametricValuesNote } from './ParametricValuesNote';
+import { EditorIdentity } from './EditorIdentity';
 
 type DiagramEditorProps = {
   artifact: ClassDiagramArtifact;
@@ -198,12 +200,12 @@ export function DiagramEditor({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(
-    () => localStorage.getItem(INSPECTOR_COLLAPSED_KEY) === 'true',
+    () => readUiPreference(INSPECTOR_COLLAPSED_KEY) === 'true',
   );
-  const [isGridEnabled, setIsGridEnabled] = useState(() => localStorage.getItem(GRID_ENABLED_KEY) !== 'false');
-  const [isSnapEnabled, setIsSnapEnabled] = useState(() => localStorage.getItem(SNAP_ENABLED_KEY) === 'true');
+  const [isGridEnabled, setIsGridEnabled] = useState(() => readUiPreference(GRID_ENABLED_KEY) !== 'false');
+  const [isSnapEnabled, setIsSnapEnabled] = useState(() => readUiPreference(SNAP_ENABLED_KEY) === 'true');
   const [isMiniMapEnabled, setIsMiniMapEnabled] = useState(
-    () => localStorage.getItem(MINIMAP_ENABLED_KEY) !== 'false',
+    () => readUiPreference(MINIMAP_ENABLED_KEY) !== 'false',
   );
   const [nameEditingNodeId, setNameEditingNodeId] = useState<string | null>(null);
   const [valueEditingRequest, setValueEditingRequest] = useState<{ nodeId: string; valueId: string } | null>(null);
@@ -825,7 +827,7 @@ export function DiagramEditor({
     setSelectedEdgeId(null);
   };
 
-  const updateAssociation = (edgeId: string, values: Partial<AssociationEdgeData>): void => {
+  const updateAssociation = useCallback((edgeId: string, values: Partial<AssociationEdgeData>): void => {
     updateEdges(
       normalizedEdges.map((edge) => {
         if (edge.id !== edgeId) {
@@ -844,14 +846,35 @@ export function DiagramEditor({
         };
       }),
     );
-  };
+  }, [normalizedEdges, updateEdges]);
 
   const updateAssociationMultiplicity = useCallback(
     (edgeId: string, end: 'source' | 'target', value: string): void => {
       updateAssociation(edgeId, end === 'source' ? { sourceMultiplicity: value } : { targetMultiplicity: value });
     },
-    [normalizedEdges, updateEdges],
+    [updateAssociation],
   );
+
+  const handleClassContextMenu = useCallback((nodeId: string, event: MouseEvent<HTMLElement>): void => {
+    if (canvasRef.current === null) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    const bounds = canvasRef.current.getBoundingClientRect();
+
+    setSelectedNodeId(nodeId);
+    setSelectedEdgeId(null);
+    setContextMenu({
+      nodeId,
+      screenPosition: {
+        x: event.clientX - bounds.left,
+        y: event.clientY - bounds.top,
+      },
+      flowPosition: reactFlowInstance?.screenToFlowPosition({ x: event.clientX, y: event.clientY }) ?? { x: 0, y: 0 },
+    });
+  }, [reactFlowInstance]);
 
   const renderedNodes = useMemo<Node[]>(
     () => {
@@ -926,6 +949,7 @@ export function DiagramEditor({
       deleteAttributeByNodeId,
       deleteAttributeAndCreateMethodByNodeId,
       deleteMethodByNodeId,
+      handleClassContextMenu,
       methodEditingRequest,
       nameEditingNodeId,
       renameClassById,
@@ -976,19 +1000,19 @@ export function DiagramEditor({
   );
 
   useEffect(() => {
-    localStorage.setItem(INSPECTOR_COLLAPSED_KEY, String(isInspectorCollapsed));
+    writeUiPreference(INSPECTOR_COLLAPSED_KEY, String(isInspectorCollapsed));
   }, [isInspectorCollapsed]);
 
   useEffect(() => {
-    localStorage.setItem(GRID_ENABLED_KEY, String(isGridEnabled));
+    writeUiPreference(GRID_ENABLED_KEY, String(isGridEnabled));
   }, [isGridEnabled]);
 
   useEffect(() => {
-    localStorage.setItem(SNAP_ENABLED_KEY, String(isSnapEnabled));
+    writeUiPreference(SNAP_ENABLED_KEY, String(isSnapEnabled));
   }, [isSnapEnabled]);
 
   useEffect(() => {
-    localStorage.setItem(MINIMAP_ENABLED_KEY, String(isMiniMapEnabled));
+    writeUiPreference(MINIMAP_ENABLED_KEY, String(isMiniMapEnabled));
   }, [isMiniMapEnabled]);
 
   useEffect(
@@ -1224,27 +1248,6 @@ export function DiagramEditor({
     });
   };
 
-  function handleClassContextMenu(nodeId: string, event: MouseEvent<HTMLElement>): void {
-    if (canvasRef.current === null) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    const bounds = canvasRef.current.getBoundingClientRect();
-
-    setSelectedNodeId(nodeId);
-    setSelectedEdgeId(null);
-    setContextMenu({
-      nodeId,
-      screenPosition: {
-        x: event.clientX - bounds.left,
-        y: event.clientY - bounds.top,
-      },
-      flowPosition: reactFlowInstance?.screenToFlowPosition({ x: event.clientX, y: event.clientY }) ?? { x: 0, y: 0 },
-    });
-  }
-
   const selectedContextNode = contextMenu?.nodeId
     ? nodes.find((node) => node.id === contextMenu.nodeId) ?? null
     : null;
@@ -1309,11 +1312,11 @@ export function DiagramEditor({
       }
     };
 
-    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('mousedown', closeOnOutsideClick, true);
     document.addEventListener('keydown', closeOnEscape);
 
     return () => {
-      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('mousedown', closeOnOutsideClick, true);
       document.removeEventListener('keydown', closeOnEscape);
     };
   }, []);
@@ -1321,34 +1324,24 @@ export function DiagramEditor({
   return (
     <main className="diagram-editor">
       <header className="editor-toolbar" ref={toolbarRef}>
-        <div className="editor-title-group">
-          <p className="eyebrow">Proyecto abierto</p>
-          <div className="project-artifact-header">
-            <h2>{project.name}</h2>
-            <span className="artifact-title-divider">/</span>
-            <span className="active-artifact-title">{artifact.name}</span>
-          </div>
-        </div>
+        <EditorIdentity artifactKind="Diagrama de clases" artifactName={artifact.name} projectName={project.name} />
         <div className="editor-toolbar-actions">
-          <button type="button" disabled={!canUndo} onClick={onUndo} title="Deshacer última acción">
+          <button className="toolbar-icon-action" aria-label="Deshacer" type="button" disabled={!canUndo} onClick={onUndo} title="Deshacer última acción">
             <Undo2 size={17} />
-            Deshacer
           </button>
-          <button type="button" disabled={!canRedo} onClick={onRedo} title="Rehacer acción deshecha">
+          <button className="toolbar-icon-action" aria-label="Rehacer" type="button" disabled={!canRedo} onClick={onRedo} title="Rehacer acción deshecha">
             <Redo2 size={17} />
-            Rehacer
           </button>
-          <button type="button" onClick={() => addClassNode()}>
+          <span className="toolbar-divider" aria-hidden="true" />
+          <button className="toolbar-primary-action" type="button" onClick={() => addClassNode()}>
             <Plus size={18} />
             Crear clase
           </button>
-          <button type="button" onClick={centerDiagram} title="Centrar vista">
+          <button className="toolbar-icon-action" aria-label="Centrar vista" type="button" onClick={centerDiagram} title="Centrar vista">
             <Crosshair size={17} />
-            Centrar
           </button>
-          <button type="button" onClick={fitDiagram} title="Ajustar para ver todo">
+          <button className="toolbar-icon-action" aria-label="Ver todo" type="button" onClick={fitDiagram} title="Ajustar para ver todo">
             <Maximize2 size={17} />
-            Ver todo
           </button>
           <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
             <summary>Vista</summary>
@@ -1372,10 +1365,10 @@ export function DiagramEditor({
                   setIsSnapEnabled((enabled) => !enabled);
                   event.currentTarget.closest('details')?.removeAttribute('open');
                 }}
-                title="Activar o desactivar snap"
+                title="Ajustar elementos a la grilla"
               >
                 <Magnet size={17} />
-                Snap
+                Ajustar a la grilla
               </button>
               <button
                 type="button"

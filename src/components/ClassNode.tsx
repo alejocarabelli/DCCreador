@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import type { NodeProps } from 'reactflow';
 import { Handle, Position } from 'reactflow';
 import { INLINE_ATTRIBUTE_TYPE_SUGGESTIONS } from '../constants/attributeTypes';
@@ -44,6 +44,11 @@ const getActiveTypeSuggestion = (typeValue: string): string | null => {
 const handlePositions = [Position.Top, Position.Right, Position.Bottom, Position.Left];
 
 export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
+  const shouldStartNameEditing = data.shouldStartNameEditing;
+  const shouldStartMethodEditing = data.shouldStartMethodEditing;
+  const onNameEditingStarted = data.onNameEditingStarted;
+  const onMethodEditingStarted = data.onMethodEditingStarted;
+  const methods = data.methods;
   const [editingName, setEditingName] = useState(data.shouldStartNameEditing ?? false);
   const [nameDraft, setNameDraft] = useState(data.shouldStartNameEditing ? '' : data.name);
   const [editingAttributeId, setEditingAttributeId] = useState<string | null>(null);
@@ -110,10 +115,10 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
   }, [editingName]);
 
   useEffect(() => {
-    if (data.shouldStartNameEditing) {
-      data.onNameEditingStarted?.(id);
+    if (shouldStartNameEditing) {
+      onNameEditingStarted?.(id);
     }
-  }, [data, id]);
+  }, [id, onNameEditingStarted, shouldStartNameEditing]);
 
   useEffect(() => {
     if (editingAttributeId === null) {
@@ -394,12 +399,12 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
     commitAttributeAndCreateNext(type);
   };
 
-  const setCurrentMethodDraft = (draft: MethodDraft | null): void => {
+  const setCurrentMethodDraft = useCallback((draft: MethodDraft | null): void => {
     methodDraftRef.current = draft;
     setMethodDraft(draft);
-  };
+  }, []);
 
-  const startMethodEditing = (
+  const startMethodEditing = useCallback((
     method: ClassMethod,
     event?: MouseEvent<HTMLElement>,
     isNew = false,
@@ -415,22 +420,26 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
     setEditingMethodId(method.id);
     setMethodEditPhase(phase);
     setCurrentMethodDraft(nextDraft);
-  };
+  }, [setCurrentMethodDraft]);
 
   useEffect(() => {
-    if (data.shouldStartMethodEditing === undefined) {
+    if (shouldStartMethodEditing === undefined) {
       return;
     }
 
-    const method = data.methods.find((currentMethod) => currentMethod.id === data.shouldStartMethodEditing);
+    const method = methods.find((currentMethod) => currentMethod.id === shouldStartMethodEditing);
 
     if (method === undefined) {
       return;
     }
 
-    startMethodEditing(method, undefined, true);
-    data.onMethodEditingStarted?.(id);
-  }, [data.shouldStartMethodEditing, data.methods, data, id]);
+    const timeoutId = window.setTimeout(() => {
+      startMethodEditing(method, undefined, true);
+      onMethodEditingStarted?.(id);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [id, methods, onMethodEditingStarted, shouldStartMethodEditing, startMethodEditing]);
 
   const stopMethodEditing = (): void => {
     setEditingMethodId(null);

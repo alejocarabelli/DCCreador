@@ -28,30 +28,35 @@ const sideToPosition: Record<Exclude<AssociationConnectionSide, 'automatic'>, Po
 
 const NAVIGATION_ARROW_INSET = 7;
 
+const getOutwardUnit = (position: Position, fallback: { x: number; y: number }) => {
+  if (position === Position.Top) {
+    return { x: 0, y: -1 };
+  }
+  if (position === Position.Right) {
+    return { x: 1, y: 0 };
+  }
+  if (position === Position.Bottom) {
+    return { x: 0, y: 1 };
+  }
+  if (position === Position.Left) {
+    return { x: -1, y: 0 };
+  }
+  return fallback;
+};
+
 const getEndpointLabelPosition = (
-  sourceX: number,
-  sourceY: number,
-  targetX: number,
-  targetY: number,
-  end: MultiplicityEnd,
+  endpoint: { x: number; y: number },
+  outward: { x: number; y: number },
 ) => {
-  const deltaX = targetX - sourceX;
-  const deltaY = targetY - sourceY;
-  const length = Math.hypot(deltaX, deltaY) || 1;
-  const unitX = deltaX / length;
-  const unitY = deltaY / length;
   const alongOffset = 30;
   const sideOffset = 18;
-  const offsetX = unitX * alongOffset;
-  const offsetY = unitY * alongOffset;
-  const perpendicularX = -unitY * sideOffset;
-  const perpendicularY = unitX * sideOffset;
+  const perpendicularX = -outward.y * sideOffset;
+  const perpendicularY = outward.x * sideOffset;
 
-  if (end === 'source') {
-    return { x: sourceX + offsetX + perpendicularX, y: sourceY + offsetY + perpendicularY };
-  }
-
-  return { x: targetX - offsetX + perpendicularX, y: targetY - offsetY + perpendicularY };
+  return {
+    x: endpoint.x + outward.x * alongOffset + perpendicularX,
+    y: endpoint.y + outward.y * alongOffset + perpendicularY,
+  };
 };
 
 export function AssociationEdge({
@@ -103,6 +108,8 @@ export function AssociationEdge({
   const length = Math.hypot(deltaX, deltaY) || 1;
   const unitX = deltaX / length;
   const unitY = deltaY / length;
+  const sourceOutward = getOutwardUnit(effectiveSourcePosition, { x: unitX, y: unitY });
+  const targetOutward = getOutwardUnit(effectiveTargetPosition, { x: -unitX, y: -unitY });
   const markerOffset = relationType === 'generalization' ? 18 : 16;
   const lineInset = relationType === 'association' ? 0 : 28;
   const hasSourceNavigationArrow =
@@ -115,20 +122,20 @@ export function AssociationEdge({
   const targetNavigationInset = hasTargetNavigationArrow ? NAVIGATION_ARROW_INSET : 0;
   const adjustedSourceX =
     relationType !== 'association' && markerEndPosition === 'source'
-      ? sourceEndpoint.x + unitX * lineInset
-      : sourceEndpoint.x + unitX * sourceNavigationInset;
+      ? sourceEndpoint.x + sourceOutward.x * lineInset
+      : sourceEndpoint.x + sourceOutward.x * sourceNavigationInset;
   const adjustedSourceY =
     relationType !== 'association' && markerEndPosition === 'source'
-      ? sourceEndpoint.y + unitY * lineInset
-      : sourceEndpoint.y + unitY * sourceNavigationInset;
+      ? sourceEndpoint.y + sourceOutward.y * lineInset
+      : sourceEndpoint.y + sourceOutward.y * sourceNavigationInset;
   const adjustedTargetX =
     relationType !== 'association' && markerEndPosition === 'target'
-      ? targetEndpoint.x - unitX * lineInset
-      : targetEndpoint.x - unitX * targetNavigationInset;
+      ? targetEndpoint.x + targetOutward.x * lineInset
+      : targetEndpoint.x + targetOutward.x * targetNavigationInset;
   const adjustedTargetY =
     relationType !== 'association' && markerEndPosition === 'target'
-      ? targetEndpoint.y - unitY * lineInset
-      : targetEndpoint.y - unitY * targetNavigationInset;
+      ? targetEndpoint.y + targetOutward.y * lineInset
+      : targetEndpoint.y + targetOutward.y * targetNavigationInset;
   const pathParams = {
     sourcePosition: effectiveSourcePosition,
     sourceX: adjustedSourceX,
@@ -144,37 +151,25 @@ export function AssociationEdge({
         ? getSmoothStepPath(pathParams)
         : getBezierPath(pathParams);
 
-  const sourceLabelPosition = getEndpointLabelPosition(
-    sourceEndpoint.x,
-    sourceEndpoint.y,
-    targetEndpoint.x,
-    targetEndpoint.y,
-    'source',
-  );
-  const targetLabelPosition = getEndpointLabelPosition(
-    sourceEndpoint.x,
-    sourceEndpoint.y,
-    targetEndpoint.x,
-    targetEndpoint.y,
-    'target',
-  );
+  const sourceLabelPosition = getEndpointLabelPosition(sourceEndpoint, sourceOutward);
+  const targetLabelPosition = getEndpointLabelPosition(targetEndpoint, targetOutward);
   const markerX =
     markerEndPosition === 'target'
-      ? targetEndpoint.x - unitX * markerOffset
-      : sourceEndpoint.x + unitX * markerOffset;
+      ? targetEndpoint.x + targetOutward.x * markerOffset
+      : sourceEndpoint.x + sourceOutward.x * markerOffset;
   const markerY =
     markerEndPosition === 'target'
-      ? targetEndpoint.y - unitY * markerOffset
-      : sourceEndpoint.y + unitY * markerOffset;
-  const markerAngle =
-    Math.atan2(targetEndpoint.y - sourceEndpoint.y, targetEndpoint.x - sourceEndpoint.x) +
-    (markerEndPosition === 'source' ? Math.PI : 0);
-  const navigationArrowAngle = Math.atan2(targetEndpoint.y - sourceEndpoint.y, targetEndpoint.x - sourceEndpoint.x);
+      ? targetEndpoint.y + targetOutward.y * markerOffset
+      : sourceEndpoint.y + sourceOutward.y * markerOffset;
+  const markerOutward = markerEndPosition === 'target' ? targetOutward : sourceOutward;
+  const markerAngle = Math.atan2(-markerOutward.y, -markerOutward.x);
   const renderNavigationArrow = (end: MultiplicityEnd) => {
     const isTarget = end === 'target';
-    const x = isTarget ? targetEndpoint.x - unitX * 9 : sourceEndpoint.x + unitX * 9;
-    const y = isTarget ? targetEndpoint.y - unitY * 9 : sourceEndpoint.y + unitY * 9;
-    const angle = navigationArrowAngle + (isTarget ? 0 : Math.PI);
+    const endpoint = isTarget ? targetEndpoint : sourceEndpoint;
+    const outward = isTarget ? targetOutward : sourceOutward;
+    const x = endpoint.x + outward.x * 9;
+    const y = endpoint.y + outward.y * 9;
+    const angle = Math.atan2(-outward.y, -outward.x);
 
     return (
       <div

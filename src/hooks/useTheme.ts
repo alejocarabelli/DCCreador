@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { DEFAULT_THEME_ID, getThemeById, type DiagramTheme, type DiagramThemeId } from '../theme/themes';
+import { readUiPreference, writeUiPreference } from '../storage/uiPreferences';
 
 const THEME_STORAGE_KEY = 'class-diagram-ui-theme';
 
@@ -7,6 +8,8 @@ type ThemeCssProperties = CSSProperties & Record<`--${string}`, string | number>
 
 const buildThemeVariables = (theme: DiagramTheme): ThemeCssProperties => ({
   '--app-font-family': theme.typography.fontFamily,
+  '--diagram-font-family': theme.typography.fontFamily,
+  '--ui-font-family': 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   '--canvas-background': theme.canvas.background,
   '--canvas-grid-color': theme.canvas.gridColor,
   '--canvas-grid-color-strong': theme.canvas.gridColorStrong,
@@ -58,14 +61,14 @@ const buildThemeVariables = (theme: DiagramTheme): ThemeCssProperties => ({
 
 export const useTheme = () => {
   const [themeId, setThemeId] = useState<DiagramThemeId>(() => {
-    const storedThemeId = localStorage.getItem(THEME_STORAGE_KEY);
+    const storedThemeId = readUiPreference(THEME_STORAGE_KEY);
     return getThemeById(storedThemeId).id as DiagramThemeId;
   });
   const theme = getThemeById(themeId);
   const themeStyle = useMemo(() => buildThemeVariables(theme), [theme]);
 
   useEffect(() => {
-    localStorage.setItem(THEME_STORAGE_KEY, themeId);
+    writeUiPreference(THEME_STORAGE_KEY, themeId);
   }, [themeId]);
 
   return { setThemeId, theme, themeId, themeStyle };

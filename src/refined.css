@@ -1,0 +1,817 @@
+/*
+ * Refined desktop UI
+ *
+ * The existing stylesheet provides the editor foundations. These rules define
+ * the single polished application interface while diagram themes remain
+ * independent.
+ */
+
+.app-shell[data-ui-version='refined'] {
+  --app-font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  --ui-font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  --panel-background: #ffffff !important;
+  --panel-border: #dce2e8 !important;
+  --panel-text: #1f2933 !important;
+  --panel-muted-text: #65717d !important;
+  --toolbar-background: #ffffff !important;
+  --button-background: #f3f5f7 !important;
+  --button-border: #cfd7df !important;
+  --button-text: #26313b !important;
+  --button-active-background: #315f8c !important;
+  --button-active-text: #ffffff !important;
+  --input-background: #ffffff !important;
+  --input-text: #1f2933 !important;
+  --input-border: #cfd7df !important;
+  --ui-app-background: #f1f4f6;
+  --ui-sidebar-background: #f7f8fa;
+  --ui-hover-background: #edf2f6;
+  --ui-selected-background: #e6eef6;
+  --ui-selected-text: #244f78;
+  --ui-danger: #b63d42;
+  background: var(--ui-app-background);
+  color: var(--panel-text);
+  grid-template-columns: 260px minmax(0, 1fr);
+}
+
+.app-shell[data-ui-version='refined'].project-sidebar-collapsed {
+  grid-template-columns: 50px minmax(0, 1fr);
+}
+
+.app-shell[data-ui-version='refined'] button:focus-visible,
+.app-shell[data-ui-version='refined'] input:focus-visible,
+.app-shell[data-ui-version='refined'] select:focus-visible,
+.app-shell[data-ui-version='refined'] textarea:focus-visible,
+.app-shell[data-ui-version='refined'] summary:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--button-active-background) 72%, white);
+  outline-offset: 2px;
+}
+
+/* Sidebar */
+
+.app-shell[data-ui-version='refined'] .project-sidebar {
+  background: var(--ui-sidebar-background);
+  border-color: var(--panel-border);
+  min-height: 0;
+}
+
+.app-shell[data-ui-version='refined'] .project-sidebar.collapsed {
+  gap: 8px;
+  padding: 9px 7px;
+}
+
+.app-shell[data-ui-version='refined'] .sidebar-header {
+  background: #ffffff;
+  border-color: var(--panel-border);
+  min-height: 58px;
+  padding: 9px 10px 9px 12px;
+}
+
+.app-shell[data-ui-version='refined'] .sidebar-brand {
+  gap: 9px;
+}
+
+.app-shell[data-ui-version='refined'] .sidebar-brand-mark,
+.app-shell[data-ui-version='refined'] .sidebar-collapsed-mark,
+.app-shell[data-ui-version='refined'] .welcome-mark {
+  background: #e8f0f7;
+  border-color: #c9d9e7;
+  border-radius: 6px;
+  color: var(--button-active-background);
+}
+
+.app-shell[data-ui-version='refined'] .sidebar-brand-mark {
+  height: 32px;
+  width: 32px;
+}
+
+.app-shell[data-ui-version='refined'] .sidebar-header h1 {
+  font-size: 0.9rem;
+  font-weight: 720;
+}
+
+.app-shell[data-ui-version='refined'] .sidebar-brand p {
+  font-size: 0.68rem;
+  margin-top: 1px;
+}
+
+.app-shell[data-ui-version='refined'] .sidebar-header-actions {
+  gap: 2px;
+}
+
+.app-shell[data-ui-version='refined'] .sidebar-header-actions .icon-button,
+.app-shell[data-ui-version='refined'] .sidebar-toggle {
+  background: transparent;
+  border-color: transparent;
+  border-radius: 6px;
+  min-height: 30px;
+  min-width: 30px;
+}
+
+.app-shell[data-ui-version='refined'] .sidebar-header-actions .icon-button:hover,
+.app-shell[data-ui-version='refined'] .sidebar-toggle:hover {
+  background: var(--ui-hover-background);
+}
+
+.app-shell[data-ui-version='refined'] .sidebar-header-actions .icon-button.primary {
+  background: var(--button-active-background);
+  border-color: var(--button-active-background);
+  color: white;
+}
+
+.app-shell[data-ui-version='refined'] .project-list {
+  align-content: start;
+  flex: 1 1 auto;
+  gap: 2px;
+  margin: 0;
+  min-height: 0;
+  padding: 9px 7px 14px;
+}
+
+.app-shell[data-ui-version='refined'] .project-item,
+.app-shell[data-ui-version='refined'] .project-item.active {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: none;
+  gap: 2px;
+  padding: 2px;
+}
+
+.app-shell[data-ui-version='refined'] .project-main {
+  align-items: center;
+  border-radius: 6px;
+  gap: 7px;
+  grid-template-columns: 26px minmax(0, 1fr);
+  min-height: 40px;
+  padding: 5px 7px;
+}
+
+.app-shell[data-ui-version='refined'] .project-main:hover,
+.app-shell[data-ui-version='refined'] .project-item.active > .project-main {
+  background: var(--ui-hover-background);
+}
+
+.app-shell[data-ui-version='refined'] .project-item.active > .project-main {
+  box-shadow: inset 2px 0 0 var(--button-active-background);
+}
+
+.app-shell[data-ui-version='refined'] .project-main-icon {
+  color: #70808e;
+}
+
+.app-shell[data-ui-version='refined'] .project-main-copy {
+  gap: 1px;
+}
+
+.app-shell[data-ui-version='refined'] .project-main-copy strong {
+  font-size: 0.82rem;
+  font-weight: 690;
+}
+
+.app-shell[data-ui-version='refined'] .project-main-copy small {
+  font-size: 0.65rem;
+}
+
+.app-shell[data-ui-version='refined'] .project-options-trigger,
+.app-shell[data-ui-version='refined'] .artifact-options-trigger {
+  background: transparent;
+  border-color: transparent;
+  border-radius: 5px;
+  min-height: 28px;
+  min-width: 28px;
+}
+
+.app-shell[data-ui-version='refined'] .project-options-trigger:hover,
+.app-shell[data-ui-version='refined'] .artifact-options-trigger:hover {
+  background: #dfe6ec;
+}
+
+.app-shell[data-ui-version='refined'] .project-artifacts {
+  border-left: 1px solid #d6dde4;
+  gap: 3px;
+  margin: 4px 0 3px 20px;
+  padding: 4px 0 2px 9px;
+}
+
+.app-shell[data-ui-version='refined'] .project-artifacts-header {
+  color: #77838e;
+  font-size: 0.63rem;
+  font-weight: 720;
+  letter-spacing: 0.04em;
+  padding: 0 3px 2px 6px;
+}
+
+.app-shell[data-ui-version='refined'] .new-artifact-trigger {
+  background: transparent;
+  border-color: transparent;
+  color: var(--button-active-background);
+  font-size: 0.69rem;
+  min-height: 25px;
+}
+
+.app-shell[data-ui-version='refined'] .new-artifact-trigger:hover {
+  background: #e5ebf0;
+}
+
+.app-shell[data-ui-version='refined'] .artifact-list {
+  gap: 1px;
+}
+
+.app-shell[data-ui-version='refined'] .artifact-main {
+  border-radius: 5px;
+  color: #42505c;
+  font-size: 0.78rem;
+  font-weight: 520;
+  gap: 7px;
+  min-height: 31px;
+  padding: 0 7px;
+}
+
+.app-shell[data-ui-version='refined'] .artifact-main:hover,
+.app-shell[data-ui-version='refined'] .artifact-main:focus-visible {
+  background: var(--ui-hover-background);
+  color: var(--panel-text);
+}
+
+.app-shell[data-ui-version='refined'] .artifact-item.active .artifact-main {
+  background: var(--ui-selected-background);
+  color: var(--ui-selected-text);
+  font-weight: 680;
+}
+
+/* Editor header */
+
+.app-shell[data-ui-version='refined'] .editor-toolbar {
+  background: rgba(255, 255, 255, 0.98);
+  border-color: var(--panel-border);
+  gap: 12px;
+  min-height: 52px;
+  padding: 6px 10px 6px 14px;
+}
+
+.app-shell[data-ui-version='refined'] .editor-identity {
+  flex-basis: 200px;
+  gap: 1px;
+}
+
+.app-shell[data-ui-version='refined'] .editor-artifact-kind {
+  color: #74818c;
+  font-size: 0.62rem;
+  font-weight: 680;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.app-shell[data-ui-version='refined'] .editor-breadcrumb {
+  color: #78848e;
+  font-size: 0.8rem;
+  gap: 2px;
+}
+
+.app-shell[data-ui-version='refined'] .editor-breadcrumb strong {
+  color: var(--panel-text);
+  font-weight: 700;
+}
+
+.app-shell[data-ui-version='refined'] .editor-toolbar-actions {
+  gap: 2px;
+}
+
+.app-shell[data-ui-version='refined'] .editor-toolbar-actions button,
+.app-shell[data-ui-version='refined'] .toolbar-menu summary {
+  background: transparent;
+  border-color: transparent;
+  border-radius: 6px;
+  color: #35414c;
+  font-size: 0.78rem;
+  font-weight: 620;
+  min-height: 32px;
+  padding-inline: 9px;
+}
+
+.app-shell[data-ui-version='refined'] .editor-toolbar-actions button:hover,
+.app-shell[data-ui-version='refined'] .toolbar-menu summary:hover,
+.app-shell[data-ui-version='refined'] .toolbar-menu[open] summary {
+  background: var(--ui-hover-background);
+  border-color: transparent;
+  color: var(--panel-text);
+}
+
+.app-shell[data-ui-version='refined'] .editor-toolbar-actions .toolbar-icon-action {
+  min-width: 32px;
+  padding: 0;
+}
+
+.app-shell[data-ui-version='refined'] .editor-toolbar-actions .toolbar-primary-action,
+.app-shell[data-ui-version='refined'] .add-element-menu > summary {
+  background: var(--button-active-background);
+  border-color: var(--button-active-background);
+  color: white;
+  font-weight: 680;
+  padding-inline: 10px;
+}
+
+.app-shell[data-ui-version='refined'] .editor-toolbar-actions .toolbar-primary-action:hover,
+.app-shell[data-ui-version='refined'] .add-element-menu > summary:hover {
+  background: #294f75;
+  color: white;
+}
+
+.app-shell[data-ui-version='refined'] .toolbar-divider {
+  background: #e1e6eb;
+  height: 20px;
+  margin-inline: 3px;
+}
+
+.app-shell[data-ui-version='refined'] .toolbar-menu-content,
+.app-shell[data-ui-version='refined'] .artifact-floating-menu,
+.app-shell[data-ui-version='refined'] .canvas-context-menu {
+  background: #ffffff;
+  border: 1px solid #dce2e8;
+  border-radius: 7px;
+  box-shadow: 0 12px 28px rgba(31, 41, 51, 0.14), 0 2px 6px rgba(31, 41, 51, 0.06);
+  gap: 2px;
+  padding: 5px;
+}
+
+.app-shell[data-ui-version='refined'] .toolbar-menu-content button,
+.app-shell[data-ui-version='refined'] .artifact-floating-menu button,
+.app-shell[data-ui-version='refined'] .canvas-context-menu button {
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  color: var(--panel-text);
+  font-size: 0.78rem;
+  min-height: 31px;
+  padding: 0 9px;
+}
+
+.app-shell[data-ui-version='refined'] .toolbar-menu-content button:hover,
+.app-shell[data-ui-version='refined'] .artifact-floating-menu button:hover,
+.app-shell[data-ui-version='refined'] .canvas-context-menu button:hover {
+  background: var(--ui-hover-background);
+}
+
+.app-shell[data-ui-version='refined'] .toolbar-menu-content button.active-tool {
+  background: var(--ui-selected-background);
+  color: var(--ui-selected-text);
+}
+
+/* Canvas chrome */
+
+.app-shell[data-ui-version='refined'] .canvas-shell .react-flow__controls,
+.app-shell[data-ui-version='refined'] .flow-canvas .react-flow__controls {
+  background: #ffffff;
+  border: 1px solid #dce2e8;
+  border-radius: 7px;
+  box-shadow: 0 5px 16px rgba(31, 41, 51, 0.1);
+  overflow: hidden;
+}
+
+.app-shell[data-ui-version='refined'] .canvas-shell .react-flow__controls-button,
+.app-shell[data-ui-version='refined'] .flow-canvas .react-flow__controls-button {
+  background: #ffffff;
+  border: 0;
+  border-bottom: 1px solid #e5e9ed;
+  color: #35414c;
+  height: 34px;
+  width: 34px;
+}
+
+.app-shell[data-ui-version='refined'] .canvas-shell .react-flow__controls-button:last-child,
+.app-shell[data-ui-version='refined'] .flow-canvas .react-flow__controls-button:last-child {
+  border-bottom: 0;
+}
+
+.app-shell[data-ui-version='refined'] .canvas-shell .react-flow__controls-button:hover,
+.app-shell[data-ui-version='refined'] .flow-canvas .react-flow__controls-button:hover {
+  background: var(--ui-hover-background);
+}
+
+.app-shell[data-ui-version='refined'] .canvas-shell .react-flow__minimap,
+.app-shell[data-ui-version='refined'] .flow-canvas .react-flow__minimap {
+  border: 1px solid #dce2e8;
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(31, 41, 51, 0.1);
+}
+
+/* Inspector */
+
+.app-shell[data-ui-version='refined'] .editor-body {
+  grid-template-columns: minmax(0, 1fr) 304px;
+}
+
+.app-shell[data-ui-version='refined'] .editor-body.inspector-hidden {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app-shell[data-ui-version='refined'] .editor-body.inspector-collapsed {
+  grid-template-columns: minmax(0, 1fr) 48px;
+}
+
+.app-shell[data-ui-version='refined'] .inspector {
+  background: #ffffff;
+  border-color: var(--panel-border);
+  padding: 13px 15px 24px;
+}
+
+.app-shell[data-ui-version='refined'] .inspector-toggle {
+  background: transparent;
+  border-color: transparent;
+  border-radius: 6px;
+  min-height: 30px;
+  min-width: 30px;
+}
+
+.app-shell[data-ui-version='refined'] .inspector-toggle:hover {
+  background: var(--ui-hover-background);
+}
+
+.app-shell[data-ui-version='refined'] .inspector-heading {
+  border-color: #e2e7ec;
+  gap: 2px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+}
+
+.app-shell[data-ui-version='refined'] .eyebrow {
+  color: #77838e;
+  font-size: 0.62rem;
+  font-weight: 720;
+  letter-spacing: 0.035em;
+}
+
+.app-shell[data-ui-version='refined'] .inspector-heading h2,
+.app-shell[data-ui-version='refined'] .inspector-section > h2 {
+  color: var(--panel-text);
+  font-size: 0.98rem;
+  font-weight: 720;
+  line-height: 1.25;
+}
+
+.app-shell[data-ui-version='refined'] .inspector-heading span {
+  font-size: 0.68rem;
+}
+
+.app-shell[data-ui-version='refined'] .field {
+  color: #687580;
+  font-size: 0.72rem;
+  font-weight: 650;
+  gap: 5px;
+  margin-top: 11px;
+}
+
+.app-shell[data-ui-version='refined'] .field input,
+.app-shell[data-ui-version='refined'] .field select,
+.app-shell[data-ui-version='refined'] .field textarea,
+.app-shell[data-ui-version='refined'] .attribute-editor input,
+.app-shell[data-ui-version='refined'] .attribute-editor select,
+.app-shell[data-ui-version='refined'] .method-editor input,
+.app-shell[data-ui-version='refined'] .method-editor select,
+.app-shell[data-ui-version='refined'] .parametric-value-inspector-row input {
+  background: #fbfcfd;
+  border-color: #d6dde4;
+  border-radius: 5px;
+  color: var(--panel-text);
+  font-size: 0.8rem;
+  min-height: 32px;
+}
+
+.app-shell[data-ui-version='refined'] .field input:focus,
+.app-shell[data-ui-version='refined'] .field select:focus,
+.app-shell[data-ui-version='refined'] .field textarea:focus,
+.app-shell[data-ui-version='refined'] .attribute-editor input:focus,
+.app-shell[data-ui-version='refined'] .method-editor input:focus {
+  background: #ffffff;
+  border-color: #7fa2c3;
+  outline: none;
+}
+
+.app-shell[data-ui-version='refined'] .inspector-section-header {
+  border-color: #e2e7ec;
+  margin-top: 18px;
+  padding-top: 13px;
+}
+
+.app-shell[data-ui-version='refined'] .inspector-section-header h2 {
+  font-size: 0.82rem;
+  font-weight: 720;
+}
+
+.app-shell[data-ui-version='refined'] .inspector-section-header .icon-button,
+.app-shell[data-ui-version='refined'] .attribute-editor button,
+.app-shell[data-ui-version='refined'] .method-editor button,
+.app-shell[data-ui-version='refined'] .parametric-value-inspector-row button {
+  background: transparent;
+  border-color: transparent;
+  border-radius: 5px;
+  color: #687580;
+  min-height: 30px;
+}
+
+.app-shell[data-ui-version='refined'] .inspector-section-header .icon-button:hover,
+.app-shell[data-ui-version='refined'] .attribute-editor button:hover,
+.app-shell[data-ui-version='refined'] .method-editor button:hover,
+.app-shell[data-ui-version='refined'] .parametric-value-inspector-row button:hover {
+  background: var(--ui-hover-background);
+  color: var(--ui-danger);
+}
+
+.app-shell[data-ui-version='refined'] .class-description-panel {
+  background: #f7f9fa;
+  border-color: #e0e5ea;
+  border-radius: 6px;
+  margin-top: 14px;
+  padding: 10px;
+}
+
+.app-shell[data-ui-version='refined'] .class-description-title {
+  font-size: 0.76rem;
+}
+
+.app-shell[data-ui-version='refined'] .helper-text {
+  color: #74808a;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.app-shell[data-ui-version='refined'] .attribute-editor-list,
+.app-shell[data-ui-version='refined'] .method-editor-list,
+.app-shell[data-ui-version='refined'] .parametric-values-editor-list {
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.app-shell[data-ui-version='refined'] .advanced-line-section {
+  border-color: #e2e7ec;
+  margin-top: 18px;
+  padding-top: 12px;
+}
+
+.app-shell[data-ui-version='refined'] .advanced-line-section summary {
+  color: #53616d;
+  font-size: 0.76rem;
+  font-weight: 680;
+}
+
+/* Structured use-case document */
+
+.app-shell[data-ui-version='refined'] .flow-editor-shell {
+  background: var(--ui-app-background);
+}
+
+.app-shell[data-ui-version='refined'] .flow-document {
+  color: var(--panel-text);
+  gap: 0;
+  padding: 20px clamp(18px, 3vw, 42px) 60px;
+}
+
+.app-shell[data-ui-version='refined'] .flow-document > * {
+  max-width: 1080px;
+}
+
+.app-shell[data-ui-version='refined'] .flow-document-header {
+  background: #ffffff;
+  border: 1px solid #dce2e8;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(31, 41, 51, 0.04);
+  gap: 12px;
+  padding: 15px 17px 0;
+}
+
+.app-shell[data-ui-version='refined'] .flow-document-header h3 {
+  color: var(--panel-text);
+  font-size: 1.08rem;
+  font-weight: 730;
+}
+
+.app-shell[data-ui-version='refined'] .flow-section-nav {
+  gap: 16px;
+}
+
+.app-shell[data-ui-version='refined'] .flow-section-nav a {
+  color: #6d7984;
+  font-size: 0.73rem;
+  font-weight: 650;
+  padding: 9px 0 10px;
+}
+
+.app-shell[data-ui-version='refined'] .flow-card {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  gap: 18px;
+  padding: 28px 2px;
+}
+
+.app-shell[data-ui-version='refined'] .flow-card + .flow-card {
+  border-top: 1px solid #dce2e8;
+}
+
+.app-shell[data-ui-version='refined'] .flow-section-heading h4 {
+  color: var(--panel-text);
+  font-size: 1.02rem;
+  font-weight: 720;
+}
+
+.app-shell[data-ui-version='refined'] .flow-description-grid {
+  gap: 14px 16px;
+}
+
+.app-shell[data-ui-version='refined'] .flow-description-grid label span,
+.app-shell[data-ui-version='refined'] .alternative-flow-header label span {
+  color: #697681;
+  font-size: 0.71rem;
+  font-weight: 650;
+}
+
+.app-shell[data-ui-version='refined'] .flow-description-grid input,
+.app-shell[data-ui-version='refined'] .flow-description-grid select,
+.app-shell[data-ui-version='refined'] .flow-description-grid textarea,
+.app-shell[data-ui-version='refined'] .alternative-flow-header input {
+  background: #ffffff;
+  border: 1px solid #d4dce3;
+  border-radius: 5px;
+  color: var(--panel-text);
+}
+
+.app-shell[data-ui-version='refined'] .flow-description-grid input:focus,
+.app-shell[data-ui-version='refined'] .flow-description-grid select:focus,
+.app-shell[data-ui-version='refined'] .flow-description-grid textarea:focus,
+.app-shell[data-ui-version='refined'] .alternative-flow-header input:focus {
+  border-color: #7fa2c3;
+  outline: none;
+}
+
+.app-shell[data-ui-version='refined'] .flow-inline-toolbar {
+  background: #ffffff;
+  border-color: #dce2e8;
+  border-radius: 6px;
+  gap: 2px;
+  padding: 3px;
+}
+
+.app-shell[data-ui-version='refined'] .flow-inline-toolbar button {
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: #53616d;
+  font-size: 0.69rem;
+  min-height: 25px;
+  padding: 0 7px;
+}
+
+.app-shell[data-ui-version='refined'] .flow-inline-toolbar button:hover {
+  background: var(--ui-hover-background);
+}
+
+.app-shell[data-ui-version='refined'] .flow-table-wrap {
+  border: 1px solid #d7dee5;
+  border-radius: 6px;
+  overflow: auto;
+  padding: 0;
+}
+
+.app-shell[data-ui-version='refined'] .flow-table {
+  min-width: 640px;
+}
+
+.app-shell[data-ui-version='refined'] .flow-table th {
+  background: #f3f5f7;
+  border-color: #d7dee5;
+  color: #53616d;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 8px 10px;
+}
+
+.app-shell[data-ui-version='refined'] .flow-table td {
+  background: #ffffff;
+  border-color: #e0e5ea;
+}
+
+.app-shell[data-ui-version='refined'] .flow-cell-editor,
+.app-shell[data-ui-version='refined'] .flow-ref-input {
+  color: var(--panel-text);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.app-shell[data-ui-version='refined'] .flow-cell-editor:focus,
+.app-shell[data-ui-version='refined'] .flow-ref-input:focus {
+  background: #f7fafc;
+  box-shadow: inset 2px 0 0 var(--button-active-background);
+}
+
+.app-shell[data-ui-version='refined'] .alternative-flow-card {
+  background: #ffffff;
+  border: 1px solid #dce2e8;
+  border-radius: 7px;
+  box-shadow: none;
+  padding: 12px;
+}
+
+.app-shell[data-ui-version='refined'] .alternative-code {
+  background: #eef3f7;
+  border-color: #d8e1e9;
+  border-radius: 5px;
+  color: #3e5f7d;
+  font-size: 0.73rem;
+  font-weight: 700;
+}
+
+/* Dialogs and feedback */
+
+.app-shell[data-ui-version='refined'] .modal-backdrop {
+  background: rgba(31, 41, 51, 0.32);
+  backdrop-filter: blur(2px);
+}
+
+.app-shell[data-ui-version='refined'] .project-dialog {
+  background: #ffffff;
+  border: 1px solid #dce2e8;
+  border-radius: 8px;
+  box-shadow: 0 22px 55px rgba(31, 41, 51, 0.2);
+  padding: 20px;
+}
+
+.app-shell[data-ui-version='refined'] .project-dialog h2 {
+  font-size: 1.02rem;
+  font-weight: 720;
+}
+
+.app-shell[data-ui-version='refined'] .dialog-actions {
+  border-top: 1px solid #e4e8ec;
+  margin-top: 18px;
+  padding-top: 12px;
+}
+
+.app-shell[data-ui-version='refined'] .editor-feedback {
+  background: #263746;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: 0 10px 24px rgba(31, 41, 51, 0.18);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 650;
+  padding: 7px 10px;
+}
+
+.app-shell[data-ui-version='refined'] .welcome-panel {
+  background: var(--ui-app-background);
+  color: #697681;
+  gap: 9px;
+}
+
+.app-shell[data-ui-version='refined'] .welcome-panel h2 {
+  color: var(--panel-text);
+  font-size: 1.35rem;
+  font-weight: 740;
+}
+
+.app-shell[data-ui-version='refined'] .welcome-primary-action {
+  background: var(--button-active-background);
+  border-color: var(--button-active-background);
+  border-radius: 6px;
+  color: white;
+}
+
+@media (max-width: 1180px) {
+  .app-shell[data-ui-version='refined'] {
+    grid-template-columns: 232px minmax(0, 1fr);
+  }
+
+  .app-shell[data-ui-version='refined'] .editor-identity {
+    flex-basis: 140px;
+  }
+}
+
+@media (max-width: 900px) {
+  .app-shell[data-ui-version='refined'] {
+    grid-template-columns: 50px minmax(0, 1fr);
+  }
+
+  .app-shell[data-ui-version='refined'] .project-sidebar:not(.collapsed) {
+    box-shadow: 8px 0 24px rgba(31, 41, 51, 0.12);
+    width: 232px;
+  }
+
+  .app-shell[data-ui-version='refined'] .editor-toolbar {
+    gap: 6px;
+    padding-inline: 8px;
+  }
+
+  .app-shell[data-ui-version='refined'] .editor-body {
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 38vw);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell[data-ui-version='refined'] *,
+  .app-shell[data-ui-version='refined'] *::before,
+  .app-shell[data-ui-version='refined'] *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+  }
+}

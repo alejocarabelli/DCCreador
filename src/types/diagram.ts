@@ -127,7 +127,43 @@ export type UseCaseModelContent = {
   edges: UseCaseModelEdge[];
 };
 
+export type UseCaseFlowPriority = 'A' | 'B' | 'C';
+
+export type UseCaseFlowDescription = {
+  useCaseName: string;
+  actor: string;
+  description: string;
+  priority: UseCaseFlowPriority;
+  inputParameters: string;
+  precondition: string;
+  postcondition: string;
+  initialState: string;
+  finalState: string;
+};
+
+export type UseCaseFlowStep = {
+  id: string;
+  actor: string;
+  system: string;
+  ref: string;
+};
+
+export type AlternativeUseCaseFlow = {
+  id: string;
+  code: string;
+  name: string;
+  steps: UseCaseFlowStep[];
+};
+
+export type UseCaseFlowContent = {
+  classDiagramArtifactId?: string;
+  description: UseCaseFlowDescription;
+  basicFlow: UseCaseFlowStep[];
+  alternativeFlows: AlternativeUseCaseFlow[];
+};
+
 export type DiagramContent = ClassDiagramContent | UseCaseModelContent;
+export type ArtifactContent = DiagramContent | UseCaseFlowContent;
 
 export type ClassDiagramArtifact = {
   id: string;
@@ -147,7 +183,16 @@ export type UseCaseModelArtifact = {
   content: UseCaseModelContent;
 };
 
-export type DesignArtifact = ClassDiagramArtifact | UseCaseModelArtifact;
+export type UseCaseFlowArtifact = {
+  id: string;
+  type: 'use-case-flow';
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  content: UseCaseFlowContent;
+};
+
+export type DesignArtifact = ClassDiagramArtifact | UseCaseModelArtifact | UseCaseFlowArtifact;
 
 export type DesignProject = {
   id: string;

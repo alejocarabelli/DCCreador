@@ -36,7 +36,11 @@ export function AssociationInspector({ edge, onUpdateAssociation }: AssociationI
 
   return (
     <div className="inspector-content">
-      <p className="eyebrow">Relación seleccionada</p>
+      <div className="inspector-heading">
+        <p className="eyebrow">Propiedades</p>
+        <h2>Relación</h2>
+        <span>Diagrama de clases</span>
+      </div>
       <label className="field compact-field">
         Tipo de relación
         <select
@@ -123,7 +127,7 @@ export function AssociationInspector({ edge, onUpdateAssociation }: AssociationI
       ) : null}
 
       <details className="advanced-line-section">
-        <summary>Línea avanzada</summary>
+        <summary>Recorrido de la línea</summary>
 
         <label className="field compact-field">
           Estilo
@@ -182,7 +186,7 @@ export function AssociationInspector({ edge, onUpdateAssociation }: AssociationI
         </div>
 
         <button type="button" onClick={resetLine}>
-          Restablecer línea
+          Restablecer recorrido
         </button>
       </details>
     </div>
