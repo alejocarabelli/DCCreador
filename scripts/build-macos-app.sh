@@ -9,6 +9,7 @@ MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
 DELIVERY_DIR="$ROOT_DIR/build"
 DELIVERY_ZIP="$DELIVERY_DIR/Diseno-de-Sistemas-macOS.zip"
+DELIVERY_DMG="$DELIVERY_DIR/Diseno-de-Sistemas-macOS.dmg"
 
 cd "$ROOT_DIR"
 npm run build
@@ -21,7 +22,7 @@ ditto --norsrc --noextattr --noqtn --noacl "$ROOT_DIR/dist" "$RESOURCES_DIR/WebA
 clang -O2 -fobjc-arc \
   -arch arm64 \
   -arch x86_64 \
-  -mmacosx-version-min=12.0 \
+  -mmacosx-version-min=11.3 \
   -framework AppKit \
   -framework WebKit \
   "$ROOT_DIR/macos/AppMain.m" \
@@ -44,5 +45,18 @@ codesign --verify --deep --strict "$APP_BUNDLE"
 rm -f "$DELIVERY_ZIP"
 ditto -c -k --norsrc --noextattr --noqtn --noacl --keepParent "$APP_BUNDLE" "$DELIVERY_ZIP"
 
+DMG_STAGING="$BUILD_DIR/dmg-staging"
+mkdir -p "$DMG_STAGING"
+ditto --norsrc --noextattr --noqtn --noacl "$APP_BUNDLE" "$DMG_STAGING/Diseño de Sistemas.app"
+ln -s /Applications "$DMG_STAGING/Aplicaciones"
+rm -f "$DELIVERY_DMG"
+hdiutil create \
+  -volname "Diseño de Sistemas" \
+  -srcfolder "$DMG_STAGING" \
+  -ov \
+  -format UDZO \
+  "$DELIVERY_DMG" >/dev/null
+
 echo "$APP_BUNDLE"
 echo "$DELIVERY_ZIP"
+echo "$DELIVERY_DMG"
