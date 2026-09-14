@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent, type MouseEvent } from 'react';
+import { getClassGroupColor } from '../constants/classGroupColors';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FocusEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import type { NodeProps } from 'reactflow';
 import { Handle, Position } from 'reactflow';
 import { INLINE_ATTRIBUTE_TYPE_SUGGESTIONS } from '../constants/attributeTypes';
-import type { ClassAttribute, ClassMethod, ClassNodeData } from '../types/diagram';
+import type { ClassAttribute, ClassMethod, ClassNodeData, ConnectionSide } from '../types/diagram';
 import { createId } from '../utils/id';
 
 type AttributeEditPhase = 'name' | 'type';
@@ -41,13 +42,45 @@ const getActiveTypeSuggestion = (typeValue: string): string | null => {
   return INLINE_ATTRIBUTE_TYPE_SUGGESTIONS.find((type) => type.startsWith(normalizedTypeValue)) ?? null;
 };
 
-const handlePositions = [Position.Top, Position.Right, Position.Bottom, Position.Left];
+type ClassConnectionHandle = {
+  id: string;
+  offset: number;
+  position: Position;
+};
+
+const legacyHandlePositions = [Position.Top, Position.Right, Position.Bottom, Position.Left];
+const connectionHandles: ClassConnectionHandle[] = legacyHandlePositions.flatMap((position) => [
+  { id: `${position}-start`, offset: 20, position },
+  { id: position, offset: 50, position },
+  { id: `${position}-end`, offset: 80, position },
+]);
+
+const getHandleOffsetStyle = (position: Position, offset: number) =>
+  position === Position.Top || position === Position.Bottom
+    ? { left: `${offset}%` }
+    : { top: `${offset}%` };
+
+const getClosestHandleSide = (event: MouseEvent<HTMLElement>): ConnectionSide => {
+  const bounds = event.currentTarget.getBoundingClientRect();
+  const distances: Array<{ distance: number; side: ConnectionSide }> = [
+    { distance: Math.abs(event.clientY - bounds.top), side: 'top' },
+    { distance: Math.abs(bounds.right - event.clientX), side: 'right' },
+    { distance: Math.abs(bounds.bottom - event.clientY), side: 'bottom' },
+    { distance: Math.abs(event.clientX - bounds.left), side: 'left' },
+  ];
+
+  return distances.sort((first, second) => first.distance - second.distance)[0].side;
+};
 
 export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
+  const groupColor = getClassGroupColor(data.groupColor);
   const shouldStartNameEditing = data.shouldStartNameEditing;
+  const shouldStartAttributeEditing = data.shouldStartAttributeEditing;
   const shouldStartMethodEditing = data.shouldStartMethodEditing;
   const onNameEditingStarted = data.onNameEditingStarted;
+  const onAttributeEditingStarted = data.onAttributeEditingStarted;
   const onMethodEditingStarted = data.onMethodEditingStarted;
+  const attributes = data.attributes;
   const methods = data.methods;
   const [editingName, setEditingName] = useState(data.shouldStartNameEditing ?? false);
   const [nameDraft, setNameDraft] = useState(data.shouldStartNameEditing ? '' : data.name);
@@ -57,6 +90,7 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
   const [editingMethodId, setEditingMethodId] = useState<string | null>(null);
   const [methodEditPhase, setMethodEditPhase] = useState<MethodEditPhase>('name');
   const [methodDraft, setMethodDraft] = useState<MethodDraft | null>(null);
+  const [activeHandleSide, setActiveHandleSide] = useState<ConnectionSide | null>(null);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const nameDraftRef = useRef(data.shouldStartNameEditing ? '' : data.name);
   const attributeNameInputRef = useRef<HTMLInputElement | null>(null);
@@ -108,10 +142,18 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
   const activeTypeSuggestion = typeSuggestions[0] ?? null;
 
   useEffect(() => {
-    if (editingName) {
+    if (!editingName) {
+      return;
+    }
+
+    const focusInput = (): void => {
       nameInputRef.current?.focus();
       nameInputRef.current?.select();
-    }
+    };
+    focusInput();
+    const animationFrameId = window.requestAnimationFrame(focusInput);
+
+    return () => window.cancelAnimationFrame(animationFrameId);
   }, [editingName]);
 
   useEffect(() => {
@@ -125,9 +167,15 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
       return;
     }
 
-    const input = attributeEditPhase === 'name' ? attributeNameInputRef.current : attributeTypeInputRef.current;
-    input?.focus();
-    input?.select();
+    const focusInput = (): void => {
+      const input = attributeEditPhase === 'name' ? attributeNameInputRef.current : attributeTypeInputRef.current;
+      input?.focus();
+      input?.select();
+    };
+    focusInput();
+    const animationFrameId = window.requestAnimationFrame(focusInput);
+
+    return () => window.cancelAnimationFrame(animationFrameId);
   }, [attributeEditPhase, editingAttributeId]);
 
   useEffect(() => {
@@ -135,14 +183,20 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
       return;
     }
 
-    const input =
-      methodEditPhase === 'name'
-        ? methodNameInputRef.current
-        : methodEditPhase === 'parameters'
-          ? methodParametersInputRef.current
-          : methodReturnTypeInputRef.current;
-    input?.focus();
-    input?.select();
+    const focusInput = (): void => {
+      const input =
+        methodEditPhase === 'name'
+          ? methodNameInputRef.current
+          : methodEditPhase === 'parameters'
+            ? methodParametersInputRef.current
+            : methodReturnTypeInputRef.current;
+      input?.focus();
+      input?.select();
+    };
+    focusInput();
+    const animationFrameId = window.requestAnimationFrame(focusInput);
+
+    return () => window.cancelAnimationFrame(animationFrameId);
   }, [editingMethodId, methodEditPhase]);
 
   const startNameEditing = (event: MouseEvent<HTMLDivElement>): void => {
@@ -153,12 +207,12 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
   };
 
   const commitNameEditing = (): void => {
-    data.onRenameClass?.(id, nameDraftRef.current);
+    data.onRenameClass?.(id, nameDraftRef.current.trim() || 'Clase sin nombre');
     setEditingName(false);
   };
 
   const commitNameEditingAndFocusFirstAttribute = (): void => {
-    const committedName = nameDraftRef.current;
+    const committedName = nameDraftRef.current.trim() || 'Clase sin nombre';
     skipNameBlurCommitRef.current = true;
     setEditingName(false);
 
@@ -180,8 +234,10 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
 
   const cancelNameEditing = (): void => {
     skipNameBlurCommitRef.current = true;
-    nameDraftRef.current = data.name;
-    setNameDraft(data.name);
+    const originalName = data.name.trim().length > 0 ? data.name : 'Clase sin nombre';
+    nameDraftRef.current = originalName;
+    setNameDraft(originalName);
+    data.onRenameClass?.(id, originalName);
     setEditingName(false);
   };
 
@@ -208,12 +264,12 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
     }
   };
 
-  const setCurrentAttributeDraft = (draft: AttributeDraft | null): void => {
+  const setCurrentAttributeDraft = useCallback((draft: AttributeDraft | null): void => {
     attributeDraftRef.current = draft;
     setAttributeDraft(draft);
-  };
+  }, []);
 
-  const startAttributeEditing = (
+  const startAttributeEditing = useCallback((
     attribute: ClassAttribute,
     event?: MouseEvent<HTMLElement>,
     isNew = false,
@@ -231,7 +287,28 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
     setEditingAttributeId(attribute.id);
     setAttributeEditPhase(phase);
     setCurrentAttributeDraft(nextDraft);
-  };
+  }, [setCurrentAttributeDraft]);
+
+  useEffect(() => {
+    if (shouldStartAttributeEditing === undefined) {
+      return;
+    }
+
+    const attribute = attributes.find(
+      (currentAttribute) => currentAttribute.id === shouldStartAttributeEditing,
+    );
+
+    if (attribute === undefined) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      startAttributeEditing(attribute, undefined, true);
+      onAttributeEditingStarted?.(id);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [attributes, id, onAttributeEditingStarted, shouldStartAttributeEditing, startAttributeEditing]);
 
   const createAttributeAndStartEditing = (event?: MouseEvent<HTMLElement>): void => {
     event?.stopPropagation();
@@ -309,7 +386,7 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
     skipAttributeBlurCommitRef.current = true;
 
     if (currentDraft !== null) {
-      if (currentDraft.isNew && isEmptyAttribute(currentDraft)) {
+      if (currentDraft.isNew) {
         data.onDeleteAttribute?.(id, currentDraft.id);
       } else if (currentDraft.original !== null) {
         data.onUpdateAttributeFields?.(id, currentDraft.id, {
@@ -523,7 +600,7 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
     skipMethodBlurCommitRef.current = true;
 
     if (currentDraft !== null) {
-      if (currentDraft.isNew && isEmptyMethod(currentDraft)) {
+      if (currentDraft.isNew) {
         data.onDeleteMethod?.(id, currentDraft.id);
       } else if (currentDraft.original !== null) {
         data.onUpdateMethodFields?.(id, currentDraft.id, {
@@ -593,32 +670,51 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
 
   return (
     <section
-      className={`class-node ${selected ? 'selected' : ''}`}
+      className={`class-node ${selected ? 'selected' : ''} ${
+        data.isConnectionInProgress ? 'connection-in-progress' : ''
+      } ${data.isConnectionSource ? 'connection-source' : 'connection-target'}`}
+      data-group-color={groupColor?.id}
+      style={groupColor ? {
+        '--group-border': groupColor.border,
+        '--group-name': groupColor.name,
+        '--group-border-dark': groupColor.darkBorder,
+        '--group-name-dark': groupColor.darkName,
+      } as CSSProperties : undefined}
+      data-active-handle-side={activeHandleSide ?? undefined}
       onContextMenu={(event) => data.onOpenContextMenu?.(id, event)}
+      onMouseMove={(event) => setActiveHandleSide(getClosestHandleSide(event))}
+      onMouseLeave={() => setActiveHandleSide(null)}
     >
-      {handlePositions.map((position) => (
-        <div className={`class-node-handle-layer class-node-handle-layer-${position}`} key={position}>
-          <Handle
-            className={`class-node-handle class-node-handle-${position}`}
-            id={position}
-            position={position}
-            type="source"
-            onMouseDown={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-            }}
-            onTouchStart={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-            }}
-          />
-          <span className={`class-node-handle-visual class-node-handle-visual-${position}`} />
-        </div>
-      ))}
+      {connectionHandles.map(({ id: handleId, offset, position }) => {
+        const offsetStyle = getHandleOffsetStyle(position, offset);
+
+        return (
+          <div
+            className={`class-node-handle-layer class-node-handle-layer-${position}`}
+            key={handleId}
+          >
+            <Handle
+              className={`class-node-handle class-node-handle-${position}`}
+              id={handleId}
+              position={position}
+              style={offsetStyle}
+              type="source"
+            />
+            <span
+              className={`class-node-handle-visual class-node-handle-visual-${position} ${
+                handleId === position ? 'is-central' : 'is-secondary'
+              }`}
+              style={offsetStyle}
+            />
+          </div>
+        );
+      })}
       <div className="class-node-title" onDoubleClick={startNameEditing}>
         {editingName ? (
           <input
             ref={nameInputRef}
+            aria-label="Nombre de la clase"
+            autoFocus
             className="inline-name-input nodrag"
             value={nameDraft}
             onBlur={handleNameBlur}
@@ -633,10 +729,10 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
             onMouseDown={stopFlowEvent}
           />
         ) : (
-          data.name || 'Clase sin nombre'
+          data.name.trim() || 'Clase sin nombre'
         )}
       </div>
-      <div className="class-node-attributes">
+      <div className="class-node-attributes" hidden={data.hideAttributes && editingAttributeId === null}>
         {displayedAttributes.length === 0 ? (
           <span
             className="muted-attribute"
@@ -718,7 +814,7 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
           )
         )}
       </div>
-      {displayedMethods.length > 0 ? (
+      {displayedMethods.length > 0 && (!data.hideMethods || editingMethodId !== null) ? (
         <div className="class-node-methods">
           {displayedMethods.map((method) =>
             editingMethodId === method.id && methodDraft !== null ? (
@@ -766,7 +862,7 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
                   value={methodDraft.parameters}
                   onChange={(event) => updateMethodDraft('parameters', event.target.value)}
                   onKeyDown={(event) => handleMethodKeyDown(event, 'parameters')}
-                  placeholder="parametros"
+                  placeholder="parámetros"
                 />
                 <span className="attribute-separator">:</span>
                 <input
@@ -781,7 +877,7 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
             ) : (
               <div className="method-row" key={method.id} onDoubleClick={(event) => startMethodEditing(method, event)}>
                 <span>{method.visibility}</span>
-                <span>{method.name || 'metodo'}</span>
+                <span>{method.name || 'método'}</span>
                 <span>({method.parameters})</span>
                 <span className="attribute-separator">:</span>
                 <span>{method.returnType || 'void'}</span>

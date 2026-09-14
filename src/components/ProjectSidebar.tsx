@@ -8,6 +8,7 @@ import {
   PanelLeftOpen,
   Plus,
   UsersRound,
+  Workflow,
 } from 'lucide-react';
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import type { DesignArtifact, DiagramProject } from '../types/diagram';
@@ -80,7 +81,7 @@ export function ProjectSidebar({
 
     const rect = event.currentTarget.getBoundingClientRect();
     const menuWidth = 224;
-    const menuHeight = 132;
+    const menuHeight = 176;
     const top =
       rect.bottom + 6 + menuHeight > window.innerHeight
         ? Math.max(8, rect.top - menuHeight - 6)
@@ -170,7 +171,7 @@ export function ProjectSidebar({
             <Blocks size={19} />
           </span>
           <div>
-            <h1>Diseño de Sistemas</h1>
+            <h1>Modelador de Sistemas</h1>
             <p>Proyectos y artefactos</p>
           </div>
         </div>
@@ -248,8 +249,10 @@ export function ProjectSidebar({
                             <Boxes aria-hidden="true" size={15} />
                           ) : artifact.type === 'use-case-model' ? (
                             <UsersRound aria-hidden="true" size={15} />
-                          ) : (
+                          ) : artifact.type === 'use-case-flow' ? (
                             <FileText aria-hidden="true" size={15} />
+                          ) : (
+                            <Workflow aria-hidden="true" size={15} />
                           )}
                           {artifact.name}
                         </button>
@@ -355,6 +358,17 @@ export function ProjectSidebar({
           >
             <FileText size={15} />
             Flujo de sucesos
+          </button>
+          <button
+            role="menuitem"
+            type="button"
+            onClick={() => {
+              onCreateArtifact(newArtifactMenu.projectId, 'sequence-diagram');
+              setNewArtifactMenu(null);
+            }}
+          >
+            <Workflow size={15} />
+            Diagrama de secuencia
           </button>
         </div>
       ) : null}

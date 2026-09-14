@@ -1,5 +1,4 @@
 import type {
-  AssociationConnectionSide,
   AssociationDiamondEnd,
   AssociationEdgeData,
   AssociationLineStyle,
@@ -15,25 +14,35 @@ type AssociationInspectorProps = {
   onUpdateAssociation: (edgeId: string, values: Partial<AssociationEdgeData>) => void;
 };
 
-const sideOptions: Array<{ label: string; value: AssociationConnectionSide }> = [
-  { label: 'Automático', value: 'automatic' },
-  { label: '↑', value: 'top' },
-  { label: '→', value: 'right' },
-  { label: '↓', value: 'bottom' },
-  { label: '←', value: 'left' },
-];
+const sideLabels: Record<string, string> = {
+  top: 'Arriba',
+  right: 'Derecha',
+  bottom: 'Abajo',
+  left: 'Izquierda',
+};
+
+const describeHandle = (handleId: string | null | undefined): string => {
+  if (!handleId) {
+    return 'Centro';
+  }
+
+  const [side, slot = 'center'] = handleId.split('-');
+  const sideLabel = sideLabels[side] ?? side;
+
+  if (slot === 'center') {
+    return `${sideLabel} · centro`;
+  }
+
+  const isHorizontalSide = side === 'top' || side === 'bottom';
+  const slotLabel = isHorizontalSide
+    ? slot === 'start' ? 'izquierda' : 'derecha'
+    : slot === 'start' ? 'arriba' : 'abajo';
+
+  return `${sideLabel} · ${slotLabel}`;
+};
 
 export function AssociationInspector({ edge, onUpdateAssociation }: AssociationInspectorProps) {
   const data = normalizeAssociationData(edge.data);
-  const resetLine = (): void => {
-    onUpdateAssociation(edge.id, {
-      lineStyle: 'straight',
-      sourceSide: 'automatic',
-      targetSide: 'automatic',
-      waypoints: [],
-    });
-  };
-
   return (
     <div className="inspector-content">
       <div className="inspector-heading">
@@ -82,8 +91,22 @@ export function AssociationInspector({ edge, onUpdateAssociation }: AssociationI
         </label>
       ) : null}
 
-      {data.relationType === 'association' ? (
+      {data.relationType !== 'generalization' ? (
         <>
+          <label className="field compact-field association-label-field">
+            Etiqueta de relación
+            <input
+              type="text"
+              value={data.name}
+              maxLength={80}
+              onChange={(event) => onUpdateAssociation(edge.id, { name: event.target.value })}
+              placeholder="Ej. responsable, titular"
+            />
+            <span className="helper-text">
+              Opcional. Aparece en el centro de la línea y sirve para distinguir asociaciones similares.
+            </span>
+          </label>
+
           <div className="inspector-section-header compact-section-header">
             <h2>Extremos</h2>
           </div>
@@ -126,11 +149,12 @@ export function AssociationInspector({ edge, onUpdateAssociation }: AssociationI
         </>
       ) : null}
 
-      <details className="advanced-line-section">
-        <summary>Recorrido de la línea</summary>
-
+      <button type="button" onClick={() => onUpdateAssociation(edge.id, {
+        lineStyle: 'automatic', waypoints: [], labelOffset: { x: 0, y: 0 },
+      })}>Restablecer recorrido y etiqueta</button>
+      <div className="association-routing-control">
         <label className="field compact-field">
-          Estilo
+          Recorrido
           <select
             value={data.lineStyle}
             onChange={(event) =>
@@ -140,55 +164,34 @@ export function AssociationInspector({ edge, onUpdateAssociation }: AssociationI
               })
             }
           >
-            <option value="automatic">Automática</option>
-            <option value="straight">Recta</option>
-            <option value="orthogonal">Ortogonal</option>
+            <option value="automatic">Adaptable</option>
+            <option value="orthogonal">Con codos</option>
+            <option value="straight">Recto</option>
           </select>
         </label>
+        <p className="helper-text">
+          Adaptable usa una línea recta cuando puede y agrega codos cuando hace falta. No mueve los puntos elegidos.
+        </p>
+      </div>
 
-        <div className="association-fields compact-association-fields">
-          <label className="field compact-field">
-            Salida
-            <select
-              value={data.sourceSide}
-              onChange={(event) =>
-                onUpdateAssociation(edge.id, {
-                  sourceSide: event.target.value as AssociationConnectionSide,
-                  waypoints: [],
-                })
-              }
-            >
-              {sideOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field compact-field">
-            Entrada
-            <select
-              value={data.targetSide}
-              onChange={(event) =>
-                onUpdateAssociation(edge.id, {
-                  targetSide: event.target.value as AssociationConnectionSide,
-                  waypoints: [],
-                })
-              }
-            >
-              {sideOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+      <div className="association-endpoint-editor">
+        <div>
+          <strong>Puntos de conexión</strong>
+          <p className="helper-text">
+            Arrastrá los círculos de los extremos de la línea hasta el punto que prefieras en cada clase.
+          </p>
         </div>
-
-        <button type="button" onClick={resetLine}>
-          Restablecer recorrido
-        </button>
-      </details>
+        <dl className="association-endpoint-summary">
+          <div>
+            <dt>Origen</dt>
+            <dd>{describeHandle(edge.sourceHandle)}</dd>
+          </div>
+          <div>
+            <dt>Destino</dt>
+            <dd>{describeHandle(edge.targetHandle)}</dd>
+          </div>
+        </dl>
+      </div>
     </div>
   );
 }

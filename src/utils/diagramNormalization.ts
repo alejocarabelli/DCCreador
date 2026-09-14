@@ -1,11 +1,16 @@
+import { isClassGroupColor } from '../constants/classGroupColors';
 import type {
   ClassDiagramArtifact,
   ClassDiagramContent,
   ClassDiagramEdge,
   ClassDiagramNode,
+  ClassAttribute,
+  ClassMethod,
   DesignArtifact,
   DiagramProject,
   LegacyDiagramProject,
+  ParametricValue,
+  SequenceDiagramArtifact,
   AlternativeUseCaseFlow,
   UseCaseEdgeData,
   UseCaseFlowArtifact,
@@ -20,6 +25,7 @@ import type {
 } from '../types/diagram';
 import { normalizeAssociationEdge } from './association';
 import { createId } from './id';
+import { normalizeSequenceDiagramContent } from './sequenceDiagram';
 
 const DEFAULT_CLASS_ARTIFACT_ID = 'default-class-diagram';
 
@@ -30,7 +36,7 @@ const ensureUniqueIds = <T extends { id: string }>(items: T[]): T[] => {
   const usedIds = new Set<string>();
 
   return items.map((item) => {
-    const id = item.id.trim();
+    const id = typeof item.id === 'string' ? item.id.trim() : '';
 
     if (id.length > 0 && !usedIds.has(id)) {
       usedIds.add(id);
@@ -46,32 +52,115 @@ const ensureUniqueIds = <T extends { id: string }>(items: T[]): T[] => {
   });
 };
 
-export const normalizeClassNode = (node: ClassDiagramNode): ClassDiagramNode => ({
-  ...node,
-  type: 'classNode',
-  data: {
-    ...node.data,
-    name: node.data?.name ?? '',
-    description: node.data?.description ?? '',
-    attributes: Array.isArray(node.data?.attributes) ? node.data.attributes : [],
-    methods: Array.isArray(node.data?.methods) ? node.data.methods : [],
-    hasParametricValuesNote: node.data?.hasParametricValuesNote ?? false,
-    parametricValuesNoteHandle: node.data?.parametricValuesNoteHandle ?? 'bottom',
-    parametricValuesNoteTargetHandle: node.data?.parametricValuesNoteTargetHandle ?? 'top',
-    parametricValuesNotePosition: node.data?.parametricValuesNotePosition,
-    parametricValues: Array.isArray(node.data?.parametricValues) ? node.data.parametricValues : [],
-  },
-});
+const normalizeString = (value: unknown): string => (typeof value === 'string' ? value : '');
+
+const normalizePosition = (value: unknown, fallback = { x: 0, y: 0 }): { x: number; y: number } => {
+  if (!isRecord(value)) {
+    return fallback;
+  }
+
+  return {
+    x: typeof value.x === 'number' && Number.isFinite(value.x) ? value.x : fallback.x,
+    y: typeof value.y === 'number' && Number.isFinite(value.y) ? value.y : fallback.y,
+  };
+};
+
+const noteHandles = ['top', 'right', 'bottom', 'left'] as const;
+const normalizeNoteHandle = (value: unknown, fallback: (typeof noteHandles)[number]) =>
+  noteHandles.some((handle) => handle === value) ? (value as (typeof noteHandles)[number]) : fallback;
+
+export const normalizeClassNode = (node: ClassDiagramNode): ClassDiagramNode => {
+  const data: Record<string, unknown> = isRecord(node?.data) ? node.data : {};
+  const rawAttributes: unknown[] = Array.isArray(data.attributes) ? data.attributes : [];
+  const rawMethods: unknown[] = Array.isArray(data.methods) ? data.methods : [];
+  const rawParametricValues: unknown[] = Array.isArray(data.parametricValues) ? data.parametricValues : [];
+  const attributes: ClassAttribute[] = ensureUniqueIds(
+    rawAttributes
+      .filter(isRecord)
+      .map((attribute) => ({
+        id: normalizeString(attribute.id),
+        name: normalizeString(attribute.name),
+        type: normalizeString(attribute.type),
+      })),
+  );
+  const methods: ClassMethod[] = ensureUniqueIds(
+    rawMethods
+      .filter(isRecord)
+      .map((method) => ({
+        id: normalizeString(method.id),
+        visibility:
+          method.visibility === '+' || method.visibility === '-' || method.visibility === '#'
+            ? method.visibility
+            : '',
+        name: normalizeString(method.name),
+        parameters: normalizeString(method.parameters),
+        returnType: normalizeString(method.returnType),
+      })),
+  );
+  const parametricValues: ParametricValue[] = ensureUniqueIds(
+    rawParametricValues
+      .filter(isRecord)
+      .map((value) => ({ id: normalizeString(value.id), value: normalizeString(value.value) })),
+  );
+  const normalizedNode: ClassDiagramNode = {
+    ...node,
+    id: normalizeString(node?.id),
+    type: 'classNode',
+    position: normalizePosition(node?.position),
+    data: {
+      name: normalizeString(data.name),
+      ...(isClassGroupColor(data.groupColor) ? { groupColor: data.groupColor } : {}),
+      ...(data.hideAttributes === true ? { hideAttributes: true } : {}),
+      ...(data.hideMethods === true ? { hideMethods: true } : {}),
+      description: normalizeString(data.description),
+      attributes,
+      methods,
+      hasParametricValuesNote: data.hasParametricValuesNote === true,
+      parametricValuesNoteConnectionMode:
+        data.parametricValuesNoteConnectionMode === 'automatic' || data.parametricValuesNoteConnectionMode === 'manual'
+          ? data.parametricValuesNoteConnectionMode
+          : data.hasParametricValuesNote === true
+            ? 'manual'
+            : 'automatic',
+      parametricValuesNoteHandle: normalizeNoteHandle(data.parametricValuesNoteHandle, 'bottom'),
+      parametricValuesNoteTargetHandle: normalizeNoteHandle(data.parametricValuesNoteTargetHandle, 'top'),
+      parametricValuesNotePosition: isRecord(data.parametricValuesNotePosition)
+        ? normalizePosition(data.parametricValuesNotePosition)
+        : undefined,
+      parametricValues,
+    },
+  };
+
+  delete normalizedNode.selected;
+  delete normalizedNode.dragging;
+  delete normalizedNode.width;
+  delete normalizedNode.height;
+  delete (normalizedNode as ClassDiagramNode & { positionAbsolute?: { x: number; y: number } }).positionAbsolute;
+
+  return normalizedNode;
+};
 
 export const normalizeDiagramContent = (
   content: Partial<ClassDiagramContent> | undefined,
 ): ClassDiagramContent => {
-  const nodes = Array.isArray(content?.nodes) ? (content.nodes as ClassDiagramNode[]).map(normalizeClassNode) : [];
-  const edges = Array.isArray(content?.edges) ? (content.edges as ClassDiagramEdge[]).map(normalizeAssociationEdge) : [];
+  const nodes = ensureUniqueIds(
+    Array.isArray(content?.nodes)
+      ? content.nodes.filter(isRecord).map((node) => normalizeClassNode(node as unknown as ClassDiagramNode))
+      : [],
+  );
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  const edges = ensureUniqueIds(
+    Array.isArray(content?.edges)
+      ? content.edges
+          .filter(isRecord)
+          .map((edge) => normalizeAssociationEdge(edge as unknown as ClassDiagramEdge))
+          .filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target))
+      : [],
+  );
 
   return {
-    nodes: ensureUniqueIds(nodes),
-    edges: ensureUniqueIds(edges),
+    nodes,
+    edges,
   };
 };
 
@@ -115,8 +204,6 @@ export const normalizeUseCaseModelContent = (
     edges: ensureUniqueIds(edges),
   };
 };
-
-const normalizeString = (value: unknown): string => (typeof value === 'string' ? value : '');
 
 const normalizeUseCaseFlowPriority = (value: unknown): UseCaseFlowPriority =>
   value === 'B' || value === 'C' ? value : 'A';
@@ -205,6 +292,18 @@ const normalizeUseCaseFlowArtifact = (
   content: normalizeUseCaseFlowContent(artifact?.content),
 });
 
+const normalizeSequenceDiagramArtifact = (
+  artifact: Partial<SequenceDiagramArtifact> | undefined,
+  fallbackDates: Pick<DiagramProject, 'createdAt' | 'updatedAt'>,
+): SequenceDiagramArtifact => ({
+  id: typeof artifact?.id === 'string' && artifact.id.length > 0 ? artifact.id : createId(),
+  type: 'sequence-diagram',
+  name: typeof artifact?.name === 'string' && artifact.name.length > 0 ? artifact.name : 'Diagrama de secuencia',
+  createdAt: typeof artifact?.createdAt === 'string' ? artifact.createdAt : fallbackDates.createdAt,
+  updatedAt: typeof artifact?.updatedAt === 'string' ? artifact.updatedAt : fallbackDates.updatedAt,
+  content: normalizeSequenceDiagramContent(artifact?.content),
+});
+
 const normalizeArtifact = (
   artifact: unknown,
   fallbackDates: Pick<DiagramProject, 'createdAt' | 'updatedAt'>,
@@ -223,6 +322,10 @@ const normalizeArtifact = (
 
   if (artifact.type === 'use-case-flow') {
     return normalizeUseCaseFlowArtifact(artifact as Partial<UseCaseFlowArtifact>, fallbackDates);
+  }
+
+  if (artifact.type === 'sequence-diagram') {
+    return normalizeSequenceDiagramArtifact(artifact as Partial<SequenceDiagramArtifact>, fallbackDates);
   }
 
   return null;

@@ -1,14 +1,13 @@
+import { AssociationTextLabel } from './AssociationTextLabel';
 import {
   BaseEdge,
   EdgeLabelRenderer,
-  getBezierPath,
-  getSmoothStepPath,
-  getStraightPath,
   Position,
   type EdgeProps,
 } from 'reactflow';
 import { useRef, useState, type MouseEvent } from 'react';
 import type { AssociationConnectionSide, AssociationEdgeData } from '../types/diagram';
+import { buildAssociationPath, getAssociationCenterLabelPosition } from '../utils/associationRouting';
 import { MultiplicityInput } from './MultiplicityInput';
 
 const edgeLabelStyle = {
@@ -25,8 +24,6 @@ const sideToPosition: Record<Exclude<AssociationConnectionSide, 'automatic'>, Po
   bottom: Position.Bottom,
   left: Position.Left,
 };
-
-const NAVIGATION_ARROW_INSET = 7;
 
 const getOutwardUnit = (position: Position, fallback: { x: number; y: number }) => {
   if (position === Position.Top) {
@@ -48,8 +45,8 @@ const getEndpointLabelPosition = (
   endpoint: { x: number; y: number },
   outward: { x: number; y: number },
 ) => {
-  const alongOffset = 30;
-  const sideOffset = 18;
+  const alongOffset = 23;
+  const sideOffset = 20;
   const perpendicularX = -outward.y * sideOffset;
   const perpendicularY = outward.x * sideOffset;
 
@@ -57,6 +54,44 @@ const getEndpointLabelPosition = (
     x: endpoint.x + outward.x * alongOffset + perpendicularX,
     y: endpoint.y + outward.y * alongOffset + perpendicularY,
   };
+};
+
+const getOpenChevronPath = (
+  endpoint: { x: number; y: number },
+  towardLine: { x: number; y: number },
+  length = 14,
+  halfWidth = 7,
+): string => {
+  const baseX = endpoint.x + towardLine.x * length;
+  const baseY = endpoint.y + towardLine.y * length;
+  const perpendicularX = -towardLine.y * halfWidth;
+  const perpendicularY = towardLine.x * halfWidth;
+
+  return `M ${baseX + perpendicularX} ${baseY + perpendicularY} L ${endpoint.x} ${endpoint.y} L ${baseX - perpendicularX} ${baseY - perpendicularY}`;
+};
+
+const getTrianglePoints = (
+  endpoint: { x: number; y: number },
+  towardLine: { x: number; y: number },
+): string => {
+  const baseX = endpoint.x + towardLine.x * 20;
+  const baseY = endpoint.y + towardLine.y * 20;
+  const perpendicularX = -towardLine.y * 9;
+  const perpendicularY = towardLine.x * 9;
+  return `${endpoint.x},${endpoint.y} ${baseX + perpendicularX},${baseY + perpendicularY} ${baseX - perpendicularX},${baseY - perpendicularY}`;
+};
+
+const getDiamondPoints = (
+  endpoint: { x: number; y: number },
+  towardLine: { x: number; y: number },
+): string => {
+  const middleX = endpoint.x + towardLine.x * 11;
+  const middleY = endpoint.y + towardLine.y * 11;
+  const farX = endpoint.x + towardLine.x * 22;
+  const farY = endpoint.y + towardLine.y * 22;
+  const perpendicularX = -towardLine.y * 7;
+  const perpendicularY = towardLine.x * 7;
+  return `${endpoint.x},${endpoint.y} ${middleX + perpendicularX},${middleY + perpendicularY} ${farX},${farY} ${middleX - perpendicularX},${middleY - perpendicularY}`;
 };
 
 export function AssociationEdge({
@@ -81,7 +116,7 @@ export function AssociationEdge({
     navigability: 'none',
     relationType: 'association',
     diamondEnd: 'source',
-    lineStyle: 'straight',
+    lineStyle: 'automatic',
     sourceSide: 'automatic',
     targetSide: 'automatic',
   };
@@ -110,90 +145,64 @@ export function AssociationEdge({
   const unitY = deltaY / length;
   const sourceOutward = getOutwardUnit(effectiveSourcePosition, { x: unitX, y: unitY });
   const targetOutward = getOutwardUnit(effectiveTargetPosition, { x: -unitX, y: -unitY });
-  const markerOffset = relationType === 'generalization' ? 18 : 16;
-  const lineInset = relationType === 'association' ? 0 : 28;
+  const preliminaryPath = buildAssociationPath({
+    sourcePosition: effectiveSourcePosition,
+    sourceX,
+    sourceY,
+    targetPosition: effectiveTargetPosition,
+    targetX,
+    targetY,
+    lineStyle,
+    obstacles: edgeData.routingObstacles,
+  });
+  const sourcePathOutward = preliminaryPath.style === 'straight' ? { x: unitX, y: unitY } : sourceOutward;
+  const targetPathOutward = preliminaryPath.style === 'straight' ? { x: -unitX, y: -unitY } : targetOutward;
+  const lineInset = relationType === 'association' ? 0 : 24;
   const hasSourceNavigationArrow =
     relationType === 'association' &&
     (edgeData.navigability === 'target-to-source' || edgeData.navigability === 'bidirectional');
   const hasTargetNavigationArrow =
     relationType === 'association' &&
     (edgeData.navigability === 'source-to-target' || edgeData.navigability === 'bidirectional');
-  const sourceNavigationInset = hasSourceNavigationArrow ? NAVIGATION_ARROW_INSET : 0;
-  const targetNavigationInset = hasTargetNavigationArrow ? NAVIGATION_ARROW_INSET : 0;
   const adjustedSourceX =
     relationType !== 'association' && markerEndPosition === 'source'
-      ? sourceEndpoint.x + sourceOutward.x * lineInset
-      : sourceEndpoint.x + sourceOutward.x * sourceNavigationInset;
+      ? sourceEndpoint.x + sourcePathOutward.x * lineInset
+      : sourceEndpoint.x;
   const adjustedSourceY =
     relationType !== 'association' && markerEndPosition === 'source'
-      ? sourceEndpoint.y + sourceOutward.y * lineInset
-      : sourceEndpoint.y + sourceOutward.y * sourceNavigationInset;
+      ? sourceEndpoint.y + sourcePathOutward.y * lineInset
+      : sourceEndpoint.y;
   const adjustedTargetX =
     relationType !== 'association' && markerEndPosition === 'target'
-      ? targetEndpoint.x + targetOutward.x * lineInset
-      : targetEndpoint.x + targetOutward.x * targetNavigationInset;
+      ? targetEndpoint.x + targetPathOutward.x * lineInset
+      : targetEndpoint.x;
   const adjustedTargetY =
     relationType !== 'association' && markerEndPosition === 'target'
-      ? targetEndpoint.y + targetOutward.y * lineInset
-      : targetEndpoint.y + targetOutward.y * targetNavigationInset;
-  const pathParams = {
+      ? targetEndpoint.y + targetPathOutward.y * lineInset
+      : targetEndpoint.y;
+  const { path: edgePath, labelX, labelY } = buildAssociationPath({
     sourcePosition: effectiveSourcePosition,
     sourceX: adjustedSourceX,
     sourceY: adjustedSourceY,
     targetPosition: effectiveTargetPosition,
     targetX: adjustedTargetX,
     targetY: adjustedTargetY,
-  };
-  const [edgePath] =
-    lineStyle === 'straight'
-      ? getStraightPath(pathParams)
-      : lineStyle === 'orthogonal'
-        ? getSmoothStepPath(pathParams)
-        : getBezierPath(pathParams);
+    lineStyle,
+    obstacles: edgeData.routingObstacles,
+  });
+  const centerLabelPosition = getAssociationCenterLabelPosition(
+    labelX,
+    labelY,
+    adjustedSourceX,
+    adjustedSourceY,
+    adjustedTargetX,
+    adjustedTargetY,
+  );
 
   const sourceLabelPosition = getEndpointLabelPosition(sourceEndpoint, sourceOutward);
   const targetLabelPosition = getEndpointLabelPosition(targetEndpoint, targetOutward);
-  const markerX =
-    markerEndPosition === 'target'
-      ? targetEndpoint.x + targetOutward.x * markerOffset
-      : sourceEndpoint.x + sourceOutward.x * markerOffset;
-  const markerY =
-    markerEndPosition === 'target'
-      ? targetEndpoint.y + targetOutward.y * markerOffset
-      : sourceEndpoint.y + sourceOutward.y * markerOffset;
-  const markerOutward = markerEndPosition === 'target' ? targetOutward : sourceOutward;
-  const markerAngle = Math.atan2(-markerOutward.y, -markerOutward.x);
-  const renderNavigationArrow = (end: MultiplicityEnd) => {
-    const isTarget = end === 'target';
-    const endpoint = isTarget ? targetEndpoint : sourceEndpoint;
-    const outward = isTarget ? targetOutward : sourceOutward;
-    const x = endpoint.x + outward.x * 9;
-    const y = endpoint.y + outward.y * 9;
-    const angle = Math.atan2(-outward.y, -outward.x);
-
-    return (
-      <div
-        className="association-navigation-arrow"
-        style={{
-          ...edgeLabelStyle,
-          left: x,
-          top: y,
-          transform: `${edgeLabelStyle.transform} rotate(${angle}rad)`,
-        }}
-      >
-        <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
-          <path
-            d="M5 4 19 12 5 20"
-            fill="none"
-            stroke="var(--marker-stroke, #222222)"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="1.8"
-          />
-        </svg>
-      </div>
-    );
-  };
+  const markerEndpoint = markerEndPosition === 'target' ? targetEndpoint : sourceEndpoint;
+  const markerOutward = markerEndPosition === 'target' ? targetPathOutward : sourcePathOutward;
   const startMultiplicityEditing = (end: MultiplicityEnd, event: MouseEvent<HTMLElement>): void => {
     event.stopPropagation();
     originalMultiplicityRef.current = end === 'source' ? edgeData.sourceMultiplicity : edgeData.targetMultiplicity;
@@ -215,13 +224,14 @@ export function AssociationEdge({
   const renderMultiplicity = (end: MultiplicityEnd, value: string, x: number, y: number) => {
     const isEditing = editingMultiplicity === end;
 
-    if (!value && !isEditing) {
+    if (!value && !isEditing && !selected) {
       return null;
     }
 
     return (
       <div
-        className="association-label association-label-end"
+        className="association-label association-label-end nodrag nopan"
+        data-empty={!value}
         style={{ ...edgeLabelStyle, left: x, top: y }}
         onClick={(event) => event.stopPropagation()}
         onContextMenu={(event) => event.stopPropagation()}
@@ -239,7 +249,7 @@ export function AssociationEdge({
             onConfirm={() => setEditingMultiplicity(null)}
           />
         ) : (
-          value
+          value || '…'
         )}
       </div>
     );
@@ -259,37 +269,50 @@ export function AssociationEdge({
         className="association-edge-hit-area"
         d={edgePath}
       />
+      {hasSourceNavigationArrow ? (
+        <path
+          className="association-navigation-chevron"
+          d={getOpenChevronPath(sourceEndpoint, sourcePathOutward)}
+        />
+      ) : null}
+      {hasTargetNavigationArrow ? (
+        <path
+          className="association-navigation-chevron"
+          d={getOpenChevronPath(targetEndpoint, targetPathOutward)}
+        />
+      ) : null}
+      {relationType === 'generalization' ? (
+        <polygon
+          className="association-uml-marker association-uml-marker-open"
+          points={getTrianglePoints(markerEndpoint, markerOutward)}
+        />
+      ) : null}
+      {relationType === 'aggregation' || relationType === 'composition' ? (
+        <polygon
+          className={`association-uml-marker ${
+            relationType === 'composition' ? 'association-uml-marker-filled' : 'association-uml-marker-open'
+          }`}
+          points={getDiamondPoints(markerEndpoint, markerOutward)}
+        />
+      ) : null}
       <EdgeLabelRenderer>
-        {hasSourceNavigationArrow ? renderNavigationArrow('source') : null}
-        {hasTargetNavigationArrow ? renderNavigationArrow('target') : null}
-        {relationType !== 'association' ? (
-          <div
-            className="relation-marker"
-            style={{
-              ...edgeLabelStyle,
-              left: markerX,
-              top: markerY,
-              transform: `${edgeLabelStyle.transform} rotate(${markerAngle}rad)`,
-            }}
-          >
-            {relationType === 'generalization' ? (
-              <svg aria-hidden="true" className="relation-marker-svg" viewBox="0 0 24 24">
-                <polygon className="relation-marker-open" points="21,12 4,3 4,21" />
-              </svg>
-            ) : (
-              <svg aria-hidden="true" className="relation-marker-svg" viewBox="0 0 24 24">
-                <polygon
-                  className={relationType === 'composition' ? 'relation-marker-filled' : 'relation-marker-open'}
-                  points="21,12 12,4 3,12 12,20"
-                />
-              </svg>
-            )}
-          </div>
-        ) : null}
-        {relationType === 'association'
+        {relationType !== 'generalization' ? <>
+          <AssociationTextLabel value={edgeData.name} placeholder="Nombre de relación" selected={Boolean(selected)}
+            x={centerLabelPosition.x} y={centerLabelPosition.y} offset={edgeData.labelOffset}
+            className="association-label-center association-relation-label"
+            onCommit={name => edgeData.onUpdateLabel?.(id, { name })}
+            onMove={labelOffset => edgeData.onUpdateLabel?.(id, { labelOffset })} />
+          <AssociationTextLabel value={edgeData.sourceRole} placeholder="Rol de origen" selected={Boolean(selected)}
+            x={sourceLabelPosition.x} y={sourceLabelPosition.y + 26} className="association-role-label"
+            onCommit={sourceRole => edgeData.onUpdateLabel?.(id, { sourceRole })} />
+          <AssociationTextLabel value={edgeData.targetRole} placeholder="Rol de destino" selected={Boolean(selected)}
+            x={targetLabelPosition.x} y={targetLabelPosition.y + 26} className="association-role-label"
+            onCommit={targetRole => edgeData.onUpdateLabel?.(id, { targetRole })} />
+        </> : null}
+        {relationType !== 'generalization'
           ? renderMultiplicity('source', edgeData.sourceMultiplicity, sourceLabelPosition.x, sourceLabelPosition.y)
           : null}
-        {relationType === 'association'
+        {relationType !== 'generalization'
           ? renderMultiplicity('target', edgeData.targetMultiplicity, targetLabelPosition.x, targetLabelPosition.y)
           : null}
       </EdgeLabelRenderer>

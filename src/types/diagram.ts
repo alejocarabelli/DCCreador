@@ -1,3 +1,4 @@
+import type { ClassGroupColor } from '../constants/classGroupColors';
 import type { Edge, Node, XYPosition } from 'reactflow';
 import type { MouseEvent } from 'react';
 
@@ -21,24 +22,33 @@ export type ParametricValue = {
 };
 
 export type ParametricValuesNoteHandle = 'top' | 'right' | 'bottom' | 'left';
+export type ParametricValuesNoteConnectionMode = 'automatic' | 'manual';
 
 export type ClassNodeData = {
+  groupColor?: ClassGroupColor;
+  hideAttributes?: boolean;
+  hideMethods?: boolean;
   name: string;
   description?: string;
   attributes: ClassAttribute[];
   methods: ClassMethod[];
   hasParametricValuesNote?: boolean;
+  parametricValuesNoteConnectionMode?: ParametricValuesNoteConnectionMode;
   parametricValuesNoteHandle?: ParametricValuesNoteHandle;
   parametricValuesNoteTargetHandle?: ParametricValuesNoteHandle;
   parametricValuesNotePosition?: XYPosition;
   parametricValues?: ParametricValue[];
   shouldStartNameEditing?: boolean;
+  shouldStartAttributeEditing?: string;
   shouldStartMethodEditing?: string;
+  isConnectionInProgress?: boolean;
+  isConnectionSource?: boolean;
   onCreateAttribute?: (nodeId: string, attribute: ClassAttribute) => void;
   onCreateMethod?: (nodeId: string, method: ClassMethod) => void;
   onDeleteAttribute?: (nodeId: string, attributeId: string) => void;
   onDeleteAttributeAndCreateMethod?: (nodeId: string, attributeId: string, method: ClassMethod) => void;
   onDeleteMethod?: (nodeId: string, methodId: string) => void;
+  onAttributeEditingStarted?: (nodeId: string) => void;
   onMethodEditingStarted?: (nodeId: string) => void;
   onNameEditingStarted?: (nodeId: string) => void;
   onOpenContextMenu?: (nodeId: string, event: MouseEvent<HTMLElement>) => void;
@@ -81,6 +91,9 @@ export type AssociationLineStyle = 'automatic' | 'straight' | 'orthogonal';
 export type AssociationConnectionSide = 'automatic' | ConnectionSide;
 
 export type AssociationEdgeData = {
+  labelOffset?: XYPosition;
+  routingObstacles?: Array<{ x: number; y: number; width: number; height: number }>;
+  onUpdateLabel?: (edgeId: string, values: Partial<AssociationEdgeData>) => void;
   name: string;
   sourceMultiplicity: string;
   targetMultiplicity: string;
@@ -162,8 +175,99 @@ export type UseCaseFlowContent = {
   alternativeFlows: AlternativeUseCaseFlow[];
 };
 
+export type SequenceParticipantKind = 'actor' | 'boundary' | 'control' | 'entity' | 'object';
+export type SequenceMessageType = 'synchronous' | 'asynchronous' | 'return' | 'create' | 'destroy';
+export type SequenceFragmentOperator = 'alt' | 'loop' | 'opt' | 'par' | 'break' | 'critical' | 'ref';
+export type SequenceNumberingMode = 'sequential' | 'hierarchical' | 'none';
+
+export type SequenceParticipant = {
+  id: string;
+  kind: SequenceParticipantKind;
+  name: string;
+  classifierName: string;
+  classifierNodeId?: string;
+  x: number;
+  createdByMessageId?: string;
+  destroyedByMessageId?: string;
+};
+
+export type SequenceMessage = {
+  id: string;
+  kind: 'message';
+  type: SequenceMessageType;
+  sourceId: string;
+  targetId: string;
+  name: string;
+  arguments: string;
+  parameterValues: string;
+  returnType: string;
+  operationMethodId?: string;
+  replyToMessageId?: string;
+  flowReference: string;
+};
+
+export type SequenceFragmentOperand = {
+  id: string;
+  guard: string;
+  items: SequenceTimelineItem[];
+};
+
+export type SequenceFragment = {
+  id: string;
+  kind: 'fragment';
+  operator: SequenceFragmentOperator;
+  name: string;
+  startParticipantId?: string;
+  endParticipantId?: string;
+  operands: SequenceFragmentOperand[];
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+};
+
+export type SequenceTimelineItem = SequenceMessage | SequenceFragment;
+
+export type SequenceActivation = {
+  id: string;
+  participantId: string;
+  startMessageId: string;
+  endMessageId?: string;
+  level: number;
+  manual: boolean;
+};
+
+export type SequenceNoteAnchorKind = 'free' | 'message' | 'fragment' | 'participant';
+
+export type SequenceNote = {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  anchorKind: SequenceNoteAnchorKind;
+  anchorId?: string;
+};
+
+export type SequenceDiagramContent = {
+  version: 1;
+  classDiagramArtifactId?: string;
+  flowArtifactId?: string;
+  numbering: SequenceNumberingMode;
+  showActivations: boolean;
+  participants: SequenceParticipant[];
+  items: SequenceTimelineItem[];
+  activations: SequenceActivation[];
+  notes: SequenceNote[];
+  canvas: {
+    width: number;
+    height: number;
+  };
+};
+
 export type DiagramContent = ClassDiagramContent | UseCaseModelContent;
-export type ArtifactContent = DiagramContent | UseCaseFlowContent;
+export type ArtifactContent = DiagramContent | UseCaseFlowContent | SequenceDiagramContent;
 
 export type ClassDiagramArtifact = {
   id: string;
@@ -192,7 +296,20 @@ export type UseCaseFlowArtifact = {
   content: UseCaseFlowContent;
 };
 
-export type DesignArtifact = ClassDiagramArtifact | UseCaseModelArtifact | UseCaseFlowArtifact;
+export type SequenceDiagramArtifact = {
+  id: string;
+  type: 'sequence-diagram';
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  content: SequenceDiagramContent;
+};
+
+export type DesignArtifact =
+  | ClassDiagramArtifact
+  | UseCaseModelArtifact
+  | UseCaseFlowArtifact
+  | SequenceDiagramArtifact;
 
 export type DesignProject = {
   id: string;

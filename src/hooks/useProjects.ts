@@ -5,6 +5,8 @@ import type {
   ClassDiagramContent,
   DiagramContent,
   DiagramProject,
+  SequenceDiagramArtifact,
+  SequenceDiagramContent,
   UseCaseFlowArtifact,
   UseCaseFlowContent,
   UseCaseModelArtifact,
@@ -19,6 +21,7 @@ import {
   normalizeUseCaseModelContent,
 } from '../utils/diagramNormalization';
 import { createId } from '../utils/id';
+import { createEmptySequenceDiagramContent, normalizeSequenceDiagramContent } from '../utils/sequenceDiagram';
 
 const createEmptyContent = (): ClassDiagramContent => ({
   nodes: [],
@@ -74,20 +77,56 @@ export const useProjects = () => {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(initialLoad.projects[0]?.id ?? null);
   const [storageWarning, setStorageWarning] = useState<string | null>(initialLoad.warning);
   const skipInitialSaveRef = useRef(initialLoad.skipInitialSave);
+  const latestProjectsRef = useRef(projects);
+  const hasPendingSaveRef = useRef(false);
 
   useEffect(() => {
+    latestProjectsRef.current = projects;
+
     if (skipInitialSaveRef.current) {
       skipInitialSaveRef.current = false;
       return;
     }
 
+    hasPendingSaveRef.current = true;
     const timeoutId = window.setTimeout(() => {
       const result = saveProjects(projects);
+      hasPendingSaveRef.current = false;
       setStorageWarning(result.error);
     }, 250);
 
     return () => window.clearTimeout(timeoutId);
   }, [projects]);
+
+  useEffect(() => {
+    const flushPendingSave = (): void => {
+      if (!hasPendingSaveRef.current) {
+        return;
+      }
+
+      const result = saveProjects(latestProjectsRef.current);
+      hasPendingSaveRef.current = false;
+
+      if (result.error !== null) {
+        setStorageWarning(result.error);
+      }
+    };
+
+    const flushWhenHidden = (): void => {
+      if (document.visibilityState === 'hidden') {
+        flushPendingSave();
+      }
+    };
+
+    window.addEventListener('pagehide', flushPendingSave);
+    document.addEventListener('visibilitychange', flushWhenHidden);
+
+    return () => {
+      window.removeEventListener('pagehide', flushPendingSave);
+      document.removeEventListener('visibilitychange', flushWhenHidden);
+      flushPendingSave();
+    };
+  }, []);
 
   const activeProject = useMemo(
     () => projects.find((project) => project.id === activeProjectId) ?? null,
@@ -213,6 +252,27 @@ export const useProjects = () => {
     );
   };
 
+  const createSequenceDiagramArtifact = (projectId: string, name: string): void => {
+    const now = new Date().toISOString();
+    const artifact: SequenceDiagramArtifact = {
+      id: createId(),
+      type: 'sequence-diagram',
+      name: name.trim() || 'Diagrama de secuencia',
+      createdAt: now,
+      updatedAt: now,
+      content: createEmptySequenceDiagramContent(),
+    };
+
+    setProjects((currentProjects) => currentProjects.map((project) => project.id === projectId
+      ? {
+          ...project,
+          activeArtifactId: artifact.id,
+          artifacts: [...project.artifacts, artifact],
+          updatedAt: now,
+        }
+      : project));
+  };
+
   const renameArtifact = (projectId: string, artifactId: string, name: string): void => {
     const cleanName = name.trim();
 
@@ -294,6 +354,14 @@ export const useProjects = () => {
                   };
                 }
 
+                if (artifact.type === 'sequence-diagram') {
+                  return {
+                    ...artifact,
+                    content: normalizeSequenceDiagramContent(content as Partial<SequenceDiagramContent>),
+                    updatedAt: now,
+                  };
+                }
+
                 return {
                   ...artifact,
                   content: normalizeDiagramContent(content as Partial<ClassDiagramContent>),
@@ -341,6 +409,7 @@ export const useProjects = () => {
     createClassDiagramArtifact,
     createUseCaseFlowArtifact,
     createUseCaseModelArtifact,
+    createSequenceDiagramArtifact,
     createProject,
     deleteArtifact,
     deleteProject,

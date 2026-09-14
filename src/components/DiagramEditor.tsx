@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type SyntheticEvent } from 'react';
+import { ClassGroupColorPicker } from './ClassGroupColorPicker';
+import type { ClassGroupColor } from '../constants/classGroupColors';
+import { ClassAlignmentGuides } from './ClassAlignmentGuides';
+import { DiagramSelectionTools } from './DiagramSelectionTools';
+import { DiagramReviewPanel } from './DiagramReviewPanel';
+import { arrangeClasses, duplicateClasses, moveClass, type ClassArrangement, type ClassSize } from '../utils/classDiagramOperations';
+import { reviewClassDiagram, type DiagramIssue } from '../utils/classDiagramReview';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type SyntheticEvent } from 'react';
 import ReactFlow, {
   Background,
   BackgroundVariant,
@@ -10,6 +17,7 @@ import ReactFlow, {
   applyNodeChanges,
   getNodesBounds,
   getViewportForBounds,
+  reconnectEdge,
   type Connection,
   type Edge,
   type EdgeChange,
@@ -35,10 +43,8 @@ import {
   Redo2,
   Undo2,
 } from 'lucide-react';
-import { toJpeg, toPng } from 'html-to-image';
 import type {
   AssociationEdgeData,
-  AssociationConnectionSide,
   ClassAttribute,
   ClassDiagramArtifact,
   ClassDiagramEdge,
@@ -47,15 +53,22 @@ import type {
   DiagramContent,
   DiagramProject,
   ParametricValue,
+  ParametricValuesNoteConnectionMode,
   ParametricValuesNoteHandle,
 } from '../types/diagram';
 import { themes, type DiagramTheme, type DiagramThemeId } from '../theme/themes';
 import { createId } from '../utils/id';
-import { createPdfFromJpegDataUrl, downloadBlob, downloadDataUrl } from '../utils/pdfExport';
+import { reorderItemsByIds } from '../utils/reorder';
+import { useDiagramImageExport } from '../hooks/useDiagramImageExport';
 import { readUiPreference, writeUiPreference } from '../storage/uiPreferences';
 import { getAssociationMarker, normalizeAssociationData, normalizeAssociationEdge } from '../utils/association';
+import {
+  oppositeConnectionSide,
+  resolveAutomaticNoteHandles,
+} from '../utils/associationRouting';
 import { normalizeClassNode, normalizeDiagramContent, normalizeDiagramProject } from '../utils/diagramNormalization';
 import { AssociationEdge } from './AssociationEdge';
+import { AssociationConnectionPreview } from './AssociationConnectionPreview';
 import { AssociationInspector } from './AssociationInspector';
 import { ClassInspector } from './ClassInspector';
 import { ClassNode } from './ClassNode';
@@ -69,16 +82,19 @@ type DiagramEditorProps = {
   project: DiagramProject;
   theme: DiagramTheme;
   themeId: DiagramThemeId;
-  onChangeContent: (content: DiagramContent) => void;
+  onChangeContent: (content: DiagramContent, options?: ContentChangeOptions) => void;
   onImportProject: (project: DiagramProject) => void;
   onRedo: () => void;
   onThemeChange: (themeId: DiagramThemeId) => void;
   onUndo: () => void;
 };
 
+type ContentChangeOptions = {
+  separateHistoryEntry?: boolean;
+};
+
 type ContextMenuState = {
   nodeId?: string;
-  noteEdgeNodeId?: string;
   screenPosition: XYPosition;
   flowPosition: XYPosition;
 };
@@ -99,21 +115,6 @@ const MINIMAP_ENABLED_KEY = 'class-diagram-minimap-enabled';
 const NOTE_NODE_OFFSET = { x: 24, y: 116 };
 const NOTE_EDGE_SUFFIX = '__values-edge';
 const NOTE_NODE_SUFFIX = '__values-note';
-const NOTE_HANDLE_OPTIONS: Array<{ label: string; value: ParametricValuesNoteHandle }> = [
-  { label: '↑', value: 'top' },
-  { label: '→', value: 'right' },
-  { label: '↓', value: 'bottom' },
-  { label: '←', value: 'left' },
-];
-const OPPOSITE_NOTE_HANDLE: Record<ParametricValuesNoteHandle, ParametricValuesNoteHandle> = {
-  top: 'bottom',
-  right: 'left',
-  bottom: 'top',
-  left: 'right',
-};
-const PNG_WIDTH = 1600;
-const PNG_HEIGHT = 1000;
-const ASSOCIATION_CONNECTION_SIDES = ['top', 'right', 'bottom', 'left'] as const;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
@@ -137,7 +138,7 @@ const downloadTextFile = (filename: string, text: string, type: string): void =>
   link.href = url;
   link.download = filename;
   link.click();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 
 const getDefaultNotePosition = (node: ClassDiagramNode): XYPosition => ({
@@ -150,25 +151,6 @@ const getClassNodeIdFromNoteId = (nodeId: string): string | null =>
 
 const getChangedNodeId = (change: NodeChange): string | null =>
   'id' in change && typeof change.id === 'string' ? change.id : null;
-
-const getEffectiveBackgroundColor = (element: HTMLElement): string => {
-  let currentElement: HTMLElement | null = element;
-
-  while (currentElement !== null) {
-    const backgroundColor = getComputedStyle(currentElement).backgroundColor;
-
-    if (backgroundColor !== 'rgba(0, 0, 0, 0)' && backgroundColor !== 'transparent') {
-      return backgroundColor;
-    }
-
-    currentElement = currentElement.parentElement;
-  }
-
-  return '#f5f7f8';
-};
-
-const getAssociationConnectionSide = (handleId: string | null | undefined): AssociationConnectionSide =>
-  ASSOCIATION_CONNECTION_SIDES.some((side) => side === handleId) ? (handleId as AssociationConnectionSide) : 'automatic';
 
 const isEditableElement = (element: Element | null): boolean => {
   if (element === null) {
@@ -197,7 +179,14 @@ export function DiagramEditor({
   onThemeChange,
   onUndo,
 }: DiagramEditorProps) {
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
+  const setSelectedNodeId = useCallback((id: string | null) => setSelectedNodeIds(id === null ? [] : [id]), []);
+  const [nodeSizes, setNodeSizes] = useState<Record<string, ClassSize>>({});
+  const [movingNodeIds, setMovingNodeIds] = useState<string[]>([]);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [hideAttributes, setHideAttributes] = useState(() => readUiPreference('class-diagram-hide-attributes') === 'true');
+  const [hideGroupColors, setHideGroupColors] = useState(() => readUiPreference('class-diagram-hide-group-colors') === 'true');
+  const [hideMethods, setHideMethods] = useState(() => readUiPreference('class-diagram-hide-methods') === 'true');
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(
     () => readUiPreference(INSPECTOR_COLLAPSED_KEY) === 'true',
@@ -208,11 +197,14 @@ export function DiagramEditor({
     () => readUiPreference(MINIMAP_ENABLED_KEY) !== 'false',
   );
   const [nameEditingNodeId, setNameEditingNodeId] = useState<string | null>(null);
+  const [attributeEditingRequest, setAttributeEditingRequest] = useState<{ nodeId: string; attributeId: string } | null>(null);
   const [valueEditingRequest, setValueEditingRequest] = useState<{ nodeId: string; valueId: string } | null>(null);
   const [methodEditingRequest, setMethodEditingRequest] = useState<{ nodeId: string; methodId: string } | null>(null);
+  const [selectedNoteNodeId, setSelectedNoteNodeId] = useState<string | null>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  const [connectionSourceNodeId, setConnectionSourceNodeId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const toolbarRef = useRef<HTMLElement | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
@@ -220,6 +212,11 @@ export function DiagramEditor({
   const feedbackTimeoutRef = useRef<number | null>(null);
   const normalizedContent = useMemo(() => normalizeDiagramContent(artifact.content), [artifact.content]);
   const { nodes, edges } = normalizedContent;
+  const activeSelectedIds = selectedNodeIds.filter(id => nodes.some(node => node.id === id));
+  const selectedNodeId = activeSelectedIds.length === 1 ? activeSelectedIds[0] : null;
+  const selectionColors = new Set(nodes.filter(node => activeSelectedIds.includes(node.id)).map(node => node.data.groupColor));
+  const selectionColor = selectionColors.size > 1 ? 'mixed' : [...selectionColors][0];
+  const reviewIssues = useMemo(() => reviewClassDiagram(normalizedContent), [normalizedContent]);
 
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selectedNodeId) ?? null,
@@ -238,44 +235,62 @@ export function DiagramEditor({
   const hasInspectorSelection = selectedNode !== null || selectedEdge !== null;
 
   const updateNodes = useCallback(
-    (nextNodes: ClassDiagramNode[]): void => {
-      onChangeContent({ nodes: nextNodes.map(normalizeClassNode), edges });
+    (nextNodes: ClassDiagramNode[], options?: ContentChangeOptions): void => {
+      onChangeContent({ nodes: nextNodes.map(normalizeClassNode), edges }, options);
     },
     [edges, onChangeContent],
   );
 
   const updateEdges = useCallback(
-    (nextEdges: ClassDiagramEdge[]): void => {
-      onChangeContent({ nodes, edges: nextEdges.map(normalizeAssociationEdge) });
+    (nextEdges: ClassDiagramEdge[], options?: ContentChangeOptions): void => {
+      onChangeContent({ nodes, edges: nextEdges.map(normalizeAssociationEdge) }, options);
     },
     [nodes, onChangeContent],
   );
 
   const deleteSelectedElement = useCallback((): void => {
+    if (selectedNoteNodeId !== null) {
+      onChangeContent(
+        {
+          nodes: nodes.map((node) =>
+            node.id === selectedNoteNodeId
+              ? normalizeClassNode({
+                  ...node,
+                  data: {
+                    ...node.data,
+                    hasParametricValuesNote: false,
+                    parametricValuesNotePosition: undefined,
+                    parametricValues: [],
+                  },
+                })
+              : normalizeClassNode(node),
+          ),
+          edges: normalizedEdges.map(normalizeAssociationEdge),
+        },
+        { separateHistoryEntry: true },
+      );
+      setSelectedNoteNodeId(null);
+      setSelectedNodeId(null);
+      setContextMenu(null);
+      return;
+    }
+
     if (selectedEdgeId !== null) {
-      updateEdges(normalizedEdges.filter((edge) => edge.id !== selectedEdgeId));
+      updateEdges(normalizedEdges.filter((edge) => edge.id !== selectedEdgeId), { separateHistoryEntry: true });
       setSelectedEdgeId(null);
       setContextMenu(null);
       return;
     }
 
-    if (selectedNodeId !== null) {
-      const selectedClassNode = nodes.find((node) => node.id === selectedNodeId);
-
-      if (selectedClassNode === undefined) {
-        return;
-      }
-
-      onChangeContent({
-        nodes: nodes.filter((node) => node.id !== selectedNodeId).map(normalizeClassNode),
-        edges: normalizedEdges
-          .filter((edge) => edge.source !== selectedNodeId && edge.target !== selectedNodeId)
-          .map(normalizeAssociationEdge),
-      });
-      setSelectedNodeId(null);
-      setContextMenu(null);
-    }
-  }, [nodes, normalizedEdges, onChangeContent, selectedEdgeId, selectedNodeId, updateEdges]);
+    const deletingIds = new Set(selectedNodeIds);
+    if (!nodes.some(node => deletingIds.has(node.id))) return;
+    onChangeContent({
+      nodes: nodes.filter(node => !deletingIds.has(node.id)).map(normalizeClassNode),
+      edges: normalizedEdges.filter(edge => !deletingIds.has(edge.source) && !deletingIds.has(edge.target)).map(normalizeAssociationEdge),
+    }, { separateHistoryEntry: true });
+    setSelectedNodeId(null);
+    setContextMenu(null);
+  }, [nodes, normalizedEdges, onChangeContent, selectedEdgeId, selectedNodeIds, selectedNoteNodeId, updateEdges, setSelectedNodeId]);
 
   const showFeedback = useCallback((message: string): void => {
     if (feedbackTimeoutRef.current !== null) {
@@ -291,9 +306,39 @@ export function DiagramEditor({
 
   const handleNodesChange = useCallback(
     (changes: NodeChange[]): void => {
+      const selections = changes.filter(change => change.type === 'select');
+      if (selections.length > 0) {
+        if (selections.some(change => change.type === 'select' && change.selected)) {
+          setSelectedEdgeId(null);
+          setSelectedNoteNodeId(null);
+        }
+        setSelectedNodeIds(current => {
+          const next = new Set(current.filter(id => nodes.some(node => node.id === id)));
+          for (const change of selections) if (change.type === 'select' && getClassNodeIdFromNoteId(change.id) === null) {
+            if (change.selected) next.add(change.id); else next.delete(change.id);
+          }
+          return next.size === current.length && current.every(id => next.has(id)) ? current : [...next];
+        });
+      }
+      const dimensions = changes.filter(change => change.type === 'dimensions');
+      if (dimensions.length > 0) setNodeSizes(current => {
+        const next = { ...current };
+        let changed = false;
+        for (const change of dimensions) if (change.type === 'dimensions' && change.dimensions) {
+          if (current[change.id]?.width !== change.dimensions.width || current[change.id]?.height !== change.dimensions.height) {
+            next[change.id] = change.dimensions;
+            changed = true;
+          }
+        }
+        return changed ? next : current;
+      });
       const classChanges = changes.filter((change) => {
         const changedNodeId = getChangedNodeId(change);
-        return changedNodeId === null || getClassNodeIdFromNoteId(changedNodeId) === null;
+        return (
+          change.type !== 'select' &&
+          change.type !== 'dimensions' &&
+          (changedNodeId === null || getClassNodeIdFromNoteId(changedNodeId) === null)
+        );
       });
       const notePositionChanges = changes.filter(
         (change) => {
@@ -306,7 +351,16 @@ export function DiagramEditor({
           );
         },
       );
-      let nextNodes = applyNodeChanges(classChanges, nodes) as ClassDiagramNode[];
+
+      if (classChanges.length === 0 && notePositionChanges.length === 0) {
+        return;
+      }
+
+      let nextNodes = (applyNodeChanges(classChanges, nodes) as ClassDiagramNode[]).map(node => {
+        const previous = nodes.find(item => item.id === node.id);
+        return previous && (previous.position.x !== node.position.x || previous.position.y !== node.position.y)
+          ? { ...node, data: moveClass(previous, node.position).data } : node;
+      });
 
       if (notePositionChanges.length > 0) {
         nextNodes = nextNodes.map((node) => {
@@ -336,7 +390,13 @@ export function DiagramEditor({
 
   const handleEdgesChange = useCallback(
     (changes: EdgeChange[]): void => {
-      updateEdges(applyEdgeChanges(changes, normalizedEdges) as ClassDiagramEdge[]);
+      const durableChanges = changes.filter((change) => change.type !== 'select');
+
+      if (durableChanges.length === 0) {
+        return;
+      }
+
+      updateEdges(applyEdgeChanges(durableChanges, normalizedEdges) as ClassDiagramEdge[]);
     },
     [normalizedEdges, updateEdges],
   );
@@ -344,21 +404,26 @@ export function DiagramEditor({
   const handleConnect = useCallback(
     (connection: Connection): void => {
       const navigability = 'none';
-      const sourceSide = getAssociationConnectionSide(connection.sourceHandle);
-      const targetSide = getAssociationConnectionSide(connection.targetHandle);
       updateEdges(
         addEdge(
           {
             ...connection,
             id: createId(),
             type: 'association',
-            data: normalizeAssociationData({ navigability, sourceSide, targetSide }),
+            data: normalizeAssociationData({
+              navigability,
+              lineStyle: 'automatic',
+              sourceSide: 'automatic',
+              targetSide: 'automatic',
+            }),
             markerStart: getAssociationMarker(navigability, 'source', 'association'),
             markerEnd: getAssociationMarker(navigability, 'target', 'association'),
           },
           normalizedEdges,
         ) as ClassDiagramEdge[],
+        { separateHistoryEntry: true },
       );
+      setConnectionSourceNodeId(null);
     },
     [normalizedEdges, updateEdges],
   );
@@ -373,14 +438,25 @@ export function DiagramEditor({
         attributes: [],
         methods: [],
         hasParametricValuesNote: false,
+        parametricValuesNoteConnectionMode: 'automatic',
         parametricValuesNotePosition: undefined,
         parametricValues: [],
       },
     };
 
-    updateNodes([...nodes, newNode]);
+    updateNodes([...nodes, newNode], { separateHistoryEntry: true });
     setSelectedNodeId(newNode.id);
+    setSelectedEdgeId(null);
+    setSelectedNoteNodeId(null);
     setNameEditingNodeId(newNode.id);
+    window.setTimeout(() => {
+      const nodeElement = Array.from(
+        canvasRef.current?.querySelectorAll<HTMLElement>('.react-flow__node-classNode') ?? [],
+      ).find((element) => element.dataset.id === newNode.id);
+      const input = nodeElement?.querySelector<HTMLInputElement>('input[aria-label="Nombre de la clase"]');
+      input?.focus();
+      input?.select();
+    }, 50);
   };
 
   const renameClassById = useCallback((nodeId: string, name: string): void => {
@@ -432,8 +508,8 @@ export function DiagramEditor({
 
     const attribute: ClassAttribute = {
       id: createId(),
-      name: 'nuevoAtributo',
-      type: 'string',
+      name: '',
+      type: '',
     };
 
     updateNodes(
@@ -443,6 +519,7 @@ export function DiagramEditor({
           : node,
       ),
     );
+    setAttributeEditingRequest({ nodeId: selectedNode.id, attributeId: attribute.id });
   };
 
   const updateAttributeByNodeId = useCallback(
@@ -578,6 +655,27 @@ export function DiagramEditor({
     );
   };
 
+  const reorderAttributes = (attributeIds: string[]): void => {
+    if (selectedNode === null) {
+      return;
+    }
+
+    const reorderedAttributes = reorderItemsByIds(selectedNode.data.attributes, attributeIds);
+
+    if (reorderedAttributes === selectedNode.data.attributes) {
+      return;
+    }
+
+    updateNodes(
+      nodes.map((node) =>
+        node.id === selectedNode.id
+          ? { ...node, data: { ...node.data, attributes: reorderedAttributes } }
+          : node,
+      ),
+      { separateHistoryEntry: true },
+    );
+  };
+
   const createMethodByNodeId = useCallback(
     (nodeId: string, method: ClassMethod): void => {
       updateNodes(
@@ -691,6 +789,7 @@ export function DiagramEditor({
     createMethodByNodeId(nodeId, method);
     setSelectedNodeId(nodeId);
     setSelectedEdgeId(null);
+    setSelectedNoteNodeId(null);
     setMethodEditingRequest({ nodeId, methodId: method.id });
   };
 
@@ -716,6 +815,9 @@ export function DiagramEditor({
                 data: {
                   ...node.data,
                   hasParametricValuesNote: enabled,
+                  parametricValuesNoteConnectionMode: enabled
+                    ? node.data.parametricValuesNoteConnectionMode ?? 'automatic'
+                    : node.data.parametricValuesNoteConnectionMode,
                   parametricValuesNotePosition: enabled
                     ? node.data.parametricValuesNotePosition ?? getDefaultNotePosition(node)
                     : undefined,
@@ -724,6 +826,7 @@ export function DiagramEditor({
               }
             : node,
         ),
+        { separateHistoryEntry: true },
       );
     },
     [nodes, updateNodes],
@@ -740,7 +843,9 @@ export function DiagramEditor({
               data: {
                 ...node.data,
                 hasParametricValuesNote: true,
+                parametricValuesNoteConnectionMode: 'automatic',
                 parametricValuesNoteHandle: node.data.parametricValuesNoteHandle ?? 'bottom',
+                parametricValuesNoteTargetHandle: node.data.parametricValuesNoteTargetHandle ?? 'top',
                 parametricValuesNotePosition: node.data.parametricValuesNotePosition ?? getDefaultNotePosition(node),
                 parametricValues: [
                   ...(node.data.parametricValues ?? []).filter((value) => value.value.trim().length > 0),
@@ -774,10 +879,13 @@ export function DiagramEditor({
     [nodes, updateNodes],
   );
 
-  const updateParametricValuesNoteConnectionHandles = (
+  const updateParametricValuesNoteConnection = (
     nodeId: string,
-    handle: ParametricValuesNoteHandle,
-    changedEnd: 'class' | 'note',
+    values: {
+      mode?: ParametricValuesNoteConnectionMode;
+      handle?: ParametricValuesNoteHandle;
+      changedEnd?: 'class' | 'note';
+    },
   ): void => {
     updateNodes(
       nodes.map((node) =>
@@ -786,45 +894,69 @@ export function DiagramEditor({
               ...node,
               data: {
                 ...node.data,
-                parametricValuesNoteHandle: changedEnd === 'class' ? handle : OPPOSITE_NOTE_HANDLE[handle],
-                parametricValuesNoteTargetHandle: changedEnd === 'note' ? handle : OPPOSITE_NOTE_HANDLE[handle],
+                parametricValuesNoteConnectionMode:
+                  values.mode ?? node.data.parametricValuesNoteConnectionMode ?? 'automatic',
+                ...(values.handle !== undefined && values.changedEnd === 'class'
+                  ? {
+                      parametricValuesNoteHandle: values.handle,
+                      parametricValuesNoteTargetHandle: oppositeConnectionSide(values.handle),
+                    }
+                  : {}),
+                ...(values.handle !== undefined && values.changedEnd === 'note'
+                  ? {
+                      parametricValuesNoteHandle: oppositeConnectionSide(values.handle),
+                      parametricValuesNoteTargetHandle: values.handle,
+                    }
+                  : {}),
               },
             }
           : node,
       ),
+      { separateHistoryEntry: true },
     );
   };
 
-  const duplicateClassNode = (nodeId: string): void => {
-    const node = nodes.find((currentNode) => currentNode.id === nodeId);
-
-    if (node === undefined) {
-      return;
-    }
-
-    const duplicatedNode: ClassDiagramNode = {
-      ...node,
-      id: createId(),
-      selected: false,
-      position: { x: node.position.x + 36, y: node.position.y + 36 },
-      data: {
-        ...node.data,
-        name: `${node.data.name || 'Clase sin nombre'} Copia`,
-        attributes: node.data.attributes.map((attribute) => ({ ...attribute, id: createId() })),
-        methods: node.data.methods.map((method) => ({ ...method, id: createId() })),
-        parametricValuesNotePosition: node.data.hasParametricValuesNote
-          ? {
-              x: (node.data.parametricValuesNotePosition ?? getDefaultNotePosition(node)).x + 36,
-              y: (node.data.parametricValuesNotePosition ?? getDefaultNotePosition(node)).y + 36,
-            }
-          : undefined,
-        parametricValues: (node.data.parametricValues ?? []).map((value) => ({ ...value, id: createId() })),
-      },
-    };
-
-    updateNodes([...nodes, duplicatedNode]);
-    setSelectedNodeId(duplicatedNode.id);
+  const duplicateSelection = (ids = activeSelectedIds): void => {
+    const result = duplicateClasses(normalizedContent, ids);
+    if (result.ids.length === 0) return;
+    onChangeContent(result.content, { separateHistoryEntry: true });
+    setSelectedNodeIds(result.ids);
     setSelectedEdgeId(null);
+    setSelectedNoteNodeId(null);
+    setContextMenu(null);
+    showFeedback(`${result.ids.length} clase(s) duplicada(s)`);
+  };
+
+  const duplicateClassNode = (id: string): void => duplicateSelection([id]);
+
+  const arrangeSelection = (action: ClassArrangement): void => {
+    const next = arrangeClasses(nodes, activeSelectedIds, action, new globalThis.Map(Object.entries(nodeSizes)));
+    if (next !== nodes) updateNodes(next, { separateHistoryEntry: true });
+  };
+
+  const focusIssue = (issue: DiagramIssue): void => {
+    const edge = normalizedEdges.find(item => item.id === issue.edgeId);
+    const targets = nodes.filter(node => node.id === issue.nodeId || node.id === edge?.source || node.id === edge?.target);
+    setSelectedNodeId(issue.nodeId ?? null);
+    setSelectedEdgeId(issue.edgeId ?? null);
+    setSelectedNoteNodeId(null);
+    if (targets.length) void reactFlowInstance?.fitView({ nodes: targets, padding: 0.5, maxZoom: 1.2, duration: 250 });
+  };
+
+  const setSelectionColor = (groupColor: ClassGroupColor | undefined): void => {
+    const selected = new Set(activeSelectedIds);
+    const changed = nodes.some(node => selected.has(node.id) && node.data.groupColor !== groupColor);
+    if (changed) updateNodes(nodes.map(node => selected.has(node.id) ? {
+      ...node, data: { ...node.data, groupColor },
+    } : node), { separateHistoryEntry: true });
+    if (groupColor !== undefined) setHideGroupColors(false);
+    setContextMenu(null);
+  };
+
+  const toggleClassDetail = (field: 'hideAttributes' | 'hideMethods'): void => {
+    const selected = new Set(activeSelectedIds);
+    const allHidden = nodes.filter(node => selected.has(node.id)).every(node => node.data[field]);
+    updateNodes(nodes.map(node => selected.has(node.id) ? { ...node, data: { ...node.data, [field]: !allHidden } } : node), { separateHistoryEntry: true });
   };
 
   const updateAssociation = useCallback((edgeId: string, values: Partial<AssociationEdgeData>): void => {
@@ -855,6 +987,45 @@ export function DiagramEditor({
     [updateAssociation],
   );
 
+  const handleReconnect = useCallback(
+    (renderedEdge: Edge, connection: Connection): void => {
+      const storedEdge = normalizedEdges.find((edge) => edge.id === renderedEdge.id);
+
+      if (storedEdge === undefined) {
+        return;
+      }
+
+      const sourceChanged =
+        storedEdge.source !== connection.source || storedEdge.sourceHandle !== connection.sourceHandle;
+      const targetChanged =
+        storedEdge.target !== connection.target || storedEdge.targetHandle !== connection.targetHandle;
+      const reconnectableEdge: ClassDiagramEdge = {
+        ...storedEdge,
+        data: normalizeAssociationData({
+          ...storedEdge.data,
+          ...(sourceChanged ? { sourceSide: 'automatic' as const } : {}),
+          ...(targetChanged ? { targetSide: 'automatic' as const } : {}),
+        }),
+      };
+      const edgesWithReconnectableSource = normalizedEdges.map((edge) =>
+        edge.id === storedEdge.id ? reconnectableEdge : edge,
+      );
+      const nextEdges = reconnectEdge(
+        reconnectableEdge,
+        connection,
+        edgesWithReconnectableSource,
+        { shouldReplaceId: false },
+      ) as ClassDiagramEdge[];
+
+      updateEdges(nextEdges, { separateHistoryEntry: true });
+      setSelectedEdgeId(storedEdge.id);
+      setSelectedNodeId(null);
+      setSelectedNoteNodeId(null);
+      showFeedback('Punto de conexión actualizado');
+    },
+    [normalizedEdges, showFeedback, updateEdges, setSelectedNodeId],
+  );
+
   const handleClassContextMenu = useCallback((nodeId: string, event: MouseEvent<HTMLElement>): void => {
     if (canvasRef.current === null) {
       return;
@@ -864,8 +1035,9 @@ export function DiagramEditor({
     event.stopPropagation();
     const bounds = canvasRef.current.getBoundingClientRect();
 
-    setSelectedNodeId(nodeId);
+    setSelectedNodeIds(current => current.includes(nodeId) ? current : [nodeId]);
     setSelectedEdgeId(null);
+    setSelectedNoteNodeId(null);
     setContextMenu({
       nodeId,
       screenPosition: {
@@ -878,40 +1050,63 @@ export function DiagramEditor({
 
   const renderedNodes = useMemo<Node[]>(
     () => {
-      const classNodes = nodes.map((node) => ({
-        ...node,
-        data: {
-          ...node.data,
-          shouldStartNameEditing: node.id === nameEditingNodeId,
-          shouldStartMethodEditing:
-            node.id === methodEditingRequest?.nodeId ? methodEditingRequest.methodId : undefined,
-          onCreateAttribute: createAttributeByNodeId,
-          onCreateMethod: createMethodByNodeId,
-          onDeleteAttribute: deleteAttributeByNodeId,
-          onDeleteAttributeAndCreateMethod: deleteAttributeAndCreateMethodByNodeId,
-          onDeleteMethod: deleteMethodByNodeId,
-          onMethodEditingStarted: (nodeId: string) => {
-            if (nodeId === methodEditingRequest?.nodeId) {
-              setMethodEditingRequest(null);
-            }
+      const classNodes = nodes.map((node) => {
+        const measuredNode = nodeSizes[node.id];
+        const measuredDimensions =
+          typeof measuredNode?.width === 'number' && measuredNode.width > 0 &&
+          typeof measuredNode?.height === 'number' && measuredNode.height > 0
+            ? { width: measuredNode.width, height: measuredNode.height }
+            : {};
+
+        return {
+          ...node,
+          ...measuredDimensions,
+          selected: selectedNodeIds.includes(node.id) && selectedNoteNodeId === null,
+          data: {
+            ...node.data,
+            groupColor: hideGroupColors ? undefined : node.data.groupColor,
+            hideAttributes: hideAttributes || node.data.hideAttributes,
+            hideMethods: hideMethods || node.data.hideMethods,
+            isConnectionInProgress: connectionSourceNodeId !== null,
+            isConnectionSource: connectionSourceNodeId === node.id,
+            shouldStartNameEditing: node.id === nameEditingNodeId,
+            shouldStartAttributeEditing:
+              node.id === attributeEditingRequest?.nodeId ? attributeEditingRequest.attributeId : undefined,
+            shouldStartMethodEditing:
+              node.id === methodEditingRequest?.nodeId ? methodEditingRequest.methodId : undefined,
+            onAttributeEditingStarted: (nodeId: string) => {
+              if (nodeId === attributeEditingRequest?.nodeId) {
+                setAttributeEditingRequest(null);
+              }
+            },
+            onCreateAttribute: createAttributeByNodeId,
+            onCreateMethod: createMethodByNodeId,
+            onDeleteAttribute: deleteAttributeByNodeId,
+            onDeleteAttributeAndCreateMethod: deleteAttributeAndCreateMethodByNodeId,
+            onDeleteMethod: deleteMethodByNodeId,
+            onMethodEditingStarted: (nodeId: string) => {
+              if (nodeId === methodEditingRequest?.nodeId) {
+                setMethodEditingRequest(null);
+              }
+            },
+            onNameEditingStarted: (nodeId: string) => {
+              if (nodeId === nameEditingNodeId) {
+                setNameEditingNodeId(null);
+              }
+            },
+            onOpenContextMenu: handleClassContextMenu,
+            onRenameClass: renameClassById,
+            onRenameClassAndCreateAttribute: renameClassAndCreateAttributeByNodeId,
+            onSetParametricValuesNote: setParametricValuesNoteByNodeId,
+            onUpdateAttribute: updateAttributeByNodeId,
+            onUpdateAttributeFields: updateAttributeFieldsByNodeId,
+            onUpdateAttributeFieldsAndCreateAttribute: updateAttributeFieldsAndCreateAttributeByNodeId,
+            onUpdateMethodFields: updateMethodFieldsByNodeId,
+            onUpdateMethodFieldsAndCreateMethod: updateMethodFieldsAndCreateMethodByNodeId,
+            onUpdateParametricValues: updateParametricValuesByNodeId,
           },
-          onNameEditingStarted: (nodeId: string) => {
-            if (nodeId === nameEditingNodeId) {
-              setNameEditingNodeId(null);
-            }
-          },
-          onOpenContextMenu: handleClassContextMenu,
-          onRenameClass: renameClassById,
-          onRenameClassAndCreateAttribute: renameClassAndCreateAttributeByNodeId,
-          onSetParametricValuesNote: setParametricValuesNoteByNodeId,
-          onUpdateAttribute: updateAttributeByNodeId,
-          onUpdateAttributeFields: updateAttributeFieldsByNodeId,
-          onUpdateAttributeFieldsAndCreateAttribute: updateAttributeFieldsAndCreateAttributeByNodeId,
-          onUpdateMethodFields: updateMethodFieldsByNodeId,
-          onUpdateMethodFieldsAndCreateMethod: updateMethodFieldsAndCreateMethodByNodeId,
-          onUpdateParametricValues: updateParametricValuesByNodeId,
-        },
-      }));
+        };
+      });
 
       const noteNodes = nodes
         .filter((node) => node.data.hasParametricValuesNote)
@@ -936,6 +1131,7 @@ export function DiagramEditor({
           draggable: true,
           selectable: false,
           connectable: false,
+          selected: node.id === selectedNoteNodeId,
           width: 180,
           height: 90,
         }));
@@ -944,6 +1140,8 @@ export function DiagramEditor({
     },
     [
       nodes,
+      connectionSourceNodeId,
+      attributeEditingRequest,
       createAttributeByNodeId,
       createMethodByNodeId,
       deleteAttributeByNodeId,
@@ -954,6 +1152,12 @@ export function DiagramEditor({
       nameEditingNodeId,
       renameClassById,
       renameClassAndCreateAttributeByNodeId,
+      selectedNodeIds,
+      hideAttributes,
+      hideMethods,
+      hideGroupColors,
+      nodeSizes,
+      selectedNoteNodeId,
       setParametricValuesNoteByNodeId,
       updateAttributeByNodeId,
       updateAttributeFieldsByNodeId,
@@ -967,37 +1171,71 @@ export function DiagramEditor({
 
   const renderedEdges = useMemo<Edge[]>(
     () => {
-      const associationEdges = normalizedEdges.map((edge) => ({
-        ...edge,
-        data: {
-          ...edge.data,
-          onUpdateMultiplicity: updateAssociationMultiplicity,
-        },
-      }));
+      const associationEdges = normalizedEdges.map((edge) => {
+        return {
+          ...edge,
+          selected: edge.id === selectedEdgeId,
+          reconnectable: edge.id === selectedEdgeId,
+          data: {
+            ...edge.data,
+            onUpdateMultiplicity: updateAssociationMultiplicity,
+            onUpdateLabel: updateAssociation,
+            routingObstacles: nodes.map(node => {
+              // Handles sit one pixel inside the class border. Other classes get an 8px clearance.
+              const inset = node.id === edge.source || node.id === edge.target ? 2 : -8;
+              return {
+                x: node.position.x + inset, y: node.position.y + inset,
+                width: (nodeSizes[node.id]?.width ?? 220) - inset * 2,
+                height: (nodeSizes[node.id]?.height ?? 100) - inset * 2,
+              };
+            }),
+          },
+        };
+      });
 
       const noteEdges = nodes
         .filter((node) => node.data.hasParametricValuesNote)
-        .map((node) => ({
-          id: `${node.id}${NOTE_EDGE_SUFFIX}`,
-          source: node.id,
-          sourceHandle: node.data.parametricValuesNoteHandle ?? 'bottom',
-          target: `${node.id}${NOTE_NODE_SUFFIX}`,
-          targetHandle: node.data.parametricValuesNoteTargetHandle ?? 'top',
-          selectable: true,
-          focusable: false,
-          style: {
-            stroke: 'var(--note-connection-line)',
-            strokeDasharray: 'var(--note-connection-dash)',
-            strokeWidth: 1.2,
-          },
-          interactionWidth: 8,
-          type: 'straight',
-        }));
+        .map((node) => {
+          const classNode = reactFlowInstance?.getNode(node.id) ?? node;
+          const notePosition = node.data.parametricValuesNotePosition ?? getDefaultNotePosition(node);
+          const automaticHandles = resolveAutomaticNoteHandles(classNode, {
+            position: notePosition,
+            width: 180,
+            height: 90,
+          });
+          const isAutomatic = node.data.parametricValuesNoteConnectionMode === 'automatic';
+
+          return {
+            id: `${node.id}${NOTE_EDGE_SUFFIX}`,
+            source: node.id,
+            sourceHandle: isAutomatic
+              ? automaticHandles.sourceHandle
+              : node.data.parametricValuesNoteHandle ?? 'bottom',
+            target: `${node.id}${NOTE_NODE_SUFFIX}`,
+            targetHandle: isAutomatic
+              ? automaticHandles.targetHandle
+              : node.data.parametricValuesNoteTargetHandle ?? 'top',
+            selectable: true,
+            focusable: false,
+            reconnectable: false,
+            style: {
+              stroke: 'var(--note-connection-line)',
+              strokeDasharray: 'var(--note-connection-dash)',
+              strokeWidth: 1.2,
+            },
+            interactionWidth: 12,
+            type: 'straight',
+          };
+        });
 
       return [...associationEdges, ...noteEdges];
     },
-    [nodes, normalizedEdges, updateAssociationMultiplicity],
+    [nodes, nodeSizes, normalizedEdges, reactFlowInstance, selectedEdgeId, updateAssociationMultiplicity, updateAssociation],
   );
+
+  useEffect(() => { writeUiPreference('class-diagram-hide-attributes', String(hideAttributes)); }, [hideAttributes]);
+  useEffect(() => { writeUiPreference('class-diagram-hide-group-colors', String(hideGroupColors)); }, [hideGroupColors]);
+  useEffect(() => { writeUiPreference('class-diagram-hide-methods', String(hideMethods)); }, [hideMethods]);
 
   useEffect(() => {
     writeUiPreference(INSPECTOR_COLLAPSED_KEY, String(isInspectorCollapsed));
@@ -1034,7 +1272,7 @@ export function DiagramEditor({
         return;
       }
 
-      if (selectedNodeId === null && selectedEdgeId === null) {
+      if (selectedNodeIds.length === 0 && selectedEdgeId === null && selectedNoteNodeId === null) {
         return;
       }
 
@@ -1047,14 +1285,23 @@ export function DiagramEditor({
     return () => {
       document.removeEventListener('keydown', handleDeleteKey);
     };
-  }, [deleteSelectedElement, selectedEdgeId, selectedNodeId]);
+  }, [deleteSelectedElement, selectedEdgeId, selectedNodeIds, selectedNoteNodeId]);
+
+  const getDiagramBounds = useCallback(() => {
+    const renderedNodeIds = new Set(renderedNodes.map((node) => node.id));
+    const measuredNodes = reactFlowInstance
+      ?.getNodes()
+      .filter((node) => renderedNodeIds.has(node.id));
+
+    return getNodesBounds(measuredNodes !== undefined && measuredNodes.length > 0 ? measuredNodes : renderedNodes);
+  }, [reactFlowInstance, renderedNodes]);
 
   const centerDiagram = (): void => {
     if (reactFlowInstance === null || renderedNodes.length === 0) {
       return;
     }
 
-    const bounds = getNodesBounds(renderedNodes);
+    const bounds = getDiagramBounds();
     reactFlowInstance.setCenter(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2, {
       duration: 300,
       zoom: reactFlowInstance.getZoom(),
@@ -1066,7 +1313,7 @@ export function DiagramEditor({
       return;
     }
 
-    const bounds = getNodesBounds(renderedNodes);
+    const bounds = getDiagramBounds();
     const { width, height } = canvasRef.current.getBoundingClientRect();
     const viewport = getViewportForBounds(bounds, width, height, 0.2, 1.5, 0.18);
     reactFlowInstance.setViewport(viewport, { duration: 300 });
@@ -1107,99 +1354,14 @@ export function DiagramEditor({
     }
   };
 
-  const captureDiagramImage = async (format: 'jpeg' | 'png'): Promise<string | null> => {
-    if (canvasRef.current === null || renderedNodes.length === 0) {
-      showFeedback('No hay diagrama para exportar');
-      return null;
-    }
-
-    const viewport = canvasRef.current.querySelector<HTMLElement>('.react-flow__viewport');
-    const flowRoot = canvasRef.current.querySelector<HTMLElement>('.react-flow');
-
-    if (viewport === null || flowRoot === null) {
-      return null;
-    }
-
-    const nodesBounds = getNodesBounds(renderedNodes);
-    const transform = getViewportForBounds(nodesBounds, PNG_WIDTH, PNG_HEIGHT, 0.5, 2, 0.16);
-    const backgroundColor = getEffectiveBackgroundColor(flowRoot);
-    const edgePathStyleBackups = Array.from(viewport.querySelectorAll<SVGPathElement>('.react-flow__edge-path')).map(
-      (path) => ({
-        path,
-        style: path.getAttribute('style'),
-      }),
-    );
-    canvasRef.current.classList.add('exporting-png');
-
-    try {
-      edgePathStyleBackups.forEach(({ path }) => {
-        const computedStyle = window.getComputedStyle(path);
-        path.style.stroke = computedStyle.stroke;
-        path.style.strokeWidth = computedStyle.strokeWidth;
-        path.style.strokeDasharray = computedStyle.strokeDasharray;
-      });
-
-      const imageOptions = {
-        backgroundColor,
-        cacheBust: true,
-        filter: (node: HTMLElement) => {
-          if (!(node instanceof Element)) {
-            return true;
-          }
-
-          return (
-            !node.classList.contains('react-flow__handle') &&
-            !node.classList.contains('react-flow__background') &&
-            !node.classList.contains('react-flow__controls') &&
-            !node.classList.contains('react-flow__minimap')
-          );
-        },
-        height: PNG_HEIGHT,
-        style: {
-          height: `${PNG_HEIGHT}px`,
-          transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.zoom})`,
-          width: `${PNG_WIDTH}px`,
-        },
-        width: PNG_WIDTH,
-      };
-
-      return format === 'png'
-        ? await toPng(viewport, imageOptions)
-        : await toJpeg(viewport, { ...imageOptions, quality: 0.95 });
-    } finally {
-      edgePathStyleBackups.forEach(({ path, style }) => {
-        if (style === null) {
-          path.removeAttribute('style');
-        } else {
-          path.setAttribute('style', style);
-        }
-      });
-      canvasRef.current.classList.remove('exporting-png');
-    }
-  };
-
-  const exportPng = async (): Promise<void> => {
-    const dataUrl = await captureDiagramImage('png');
-
-    if (dataUrl === null) {
-      return;
-    }
-
-    downloadDataUrl(`${project.name.trim() || 'diagrama'} - ${artifact.name.trim() || 'artefacto'}.png`, dataUrl);
-    showFeedback('PNG exportado');
-  };
-
-  const exportPdf = async (): Promise<void> => {
-    const dataUrl = await captureDiagramImage('jpeg');
-
-    if (dataUrl === null) {
-      return;
-    }
-
-    const pdf = createPdfFromJpegDataUrl(dataUrl, PNG_WIDTH, PNG_HEIGHT);
-    downloadBlob(`${project.name.trim() || 'diagrama'} - ${artifact.name.trim() || 'artefacto'}.pdf`, pdf);
-    showFeedback('PDF exportado');
-  };
+  const { exportPng, exportPdf, isExporting } = useDiagramImageExport({
+    canvasRef,
+    hasNodes: renderedNodes.length > 0,
+    getDiagramBounds,
+    projectName: project.name,
+    artifactName: artifact.name,
+    showFeedback,
+  });
 
   const handlePaneContextMenu = (event: MouseEvent<Element>): void => {
     if (reactFlowInstance === null || canvasRef.current === null) {
@@ -1228,31 +1390,8 @@ export function DiagramEditor({
     }
   };
 
-  const openNoteEdgeMenu = (nodeId: string, event: MouseEvent<Element>): void => {
-    if (canvasRef.current === null) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    const bounds = canvasRef.current.getBoundingClientRect();
-    setSelectedEdgeId(null);
-    setSelectedNodeId(nodeId);
-    setContextMenu({
-      noteEdgeNodeId: nodeId,
-      screenPosition: {
-        x: event.clientX - bounds.left,
-        y: event.clientY - bounds.top,
-      },
-      flowPosition: reactFlowInstance?.screenToFlowPosition({ x: event.clientX, y: event.clientY }) ?? { x: 0, y: 0 },
-    });
-  };
-
   const selectedContextNode = contextMenu?.nodeId
     ? nodes.find((node) => node.id === contextMenu.nodeId) ?? null
-    : null;
-  const noteEdgeContextNode = contextMenu?.noteEdgeNodeId
-    ? nodes.find((node) => node.id === contextMenu.noteEdgeNodeId) ?? null
     : null;
 
   const closeToolbarMenus = (except?: HTMLDetailsElement): void => {
@@ -1268,6 +1407,32 @@ export function DiagramEditor({
       closeToolbarMenus(event.currentTarget);
     }
   };
+
+  useLayoutEffect(() => {
+    if (contextMenu === null || contextMenuRef.current === null || canvasRef.current === null) {
+      return;
+    }
+
+    const padding = 8;
+    const menuBounds = contextMenuRef.current.getBoundingClientRect();
+    const canvasBounds = canvasRef.current.getBoundingClientRect();
+    const nextX = Math.min(
+      Math.max(padding, contextMenu.screenPosition.x),
+      Math.max(padding, canvasBounds.width - menuBounds.width - padding),
+    );
+    const nextY = Math.min(
+      Math.max(padding, contextMenu.screenPosition.y),
+      Math.max(padding, canvasBounds.height - menuBounds.height - padding),
+    );
+
+    if (nextX !== contextMenu.screenPosition.x || nextY !== contextMenu.screenPosition.y) {
+      setContextMenu((currentMenu) =>
+        currentMenu === null
+          ? null
+          : { ...currentMenu, screenPosition: { x: nextX, y: nextY } },
+      );
+    }
+  }, [contextMenu]);
 
   useEffect(() => {
     if (contextMenu === null) {
@@ -1322,31 +1487,53 @@ export function DiagramEditor({
   }, []);
 
   return (
-    <main className="diagram-editor">
+    <main className="diagram-editor class-diagram-editor">
       <header className="editor-toolbar" ref={toolbarRef}>
         <EditorIdentity artifactKind="Diagrama de clases" artifactName={artifact.name} projectName={project.name} />
         <div className="editor-toolbar-actions">
-          <button className="toolbar-icon-action" aria-label="Deshacer" type="button" disabled={!canUndo} onClick={onUndo} title="Deshacer última acción">
+          <button className="toolbar-icon-action" aria-label="Deshacer" type="button" disabled={!canUndo} onClick={() => { closeToolbarMenus(); onUndo(); }} title="Deshacer última acción (⌘Z)">
             <Undo2 size={17} />
           </button>
-          <button className="toolbar-icon-action" aria-label="Rehacer" type="button" disabled={!canRedo} onClick={onRedo} title="Rehacer acción deshecha">
+          <button className="toolbar-icon-action" aria-label="Rehacer" type="button" disabled={!canRedo} onClick={() => { closeToolbarMenus(); onRedo(); }} title="Rehacer acción deshecha (⇧⌘Z)">
             <Redo2 size={17} />
           </button>
           <span className="toolbar-divider" aria-hidden="true" />
-          <button className="toolbar-primary-action" type="button" onClick={() => addClassNode()}>
+          <button
+            className="toolbar-primary-action"
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={(event) => {
+              event.currentTarget.blur();
+              closeToolbarMenus();
+              addClassNode();
+            }}
+          >
             <Plus size={18} />
             Crear clase
           </button>
-          <button className="toolbar-icon-action" aria-label="Centrar vista" type="button" onClick={centerDiagram} title="Centrar vista">
+          <button className="toolbar-icon-action" aria-label="Centrar vista" type="button" onClick={() => { closeToolbarMenus(); centerDiagram(); }} title="Centrar vista">
             <Crosshair size={17} />
           </button>
-          <button className="toolbar-icon-action" aria-label="Ver todo" type="button" onClick={fitDiagram} title="Ajustar para ver todo">
+          <button className="toolbar-icon-action" aria-label="Ver todo" type="button" onClick={() => { closeToolbarMenus(); fitDiagram(); }} title="Ajustar para ver todo">
             <Maximize2 size={17} />
           </button>
+          <DiagramSelectionTools count={activeSelectedIds.length} onArrange={arrangeSelection}
+            onDuplicate={() => { duplicateSelection(); closeToolbarMenus(); }}
+            onSelectAll={() => { setSelectedNodeIds(nodes.map(node => node.id)); setSelectedEdgeId(null); setSelectedNoteNodeId(null); closeToolbarMenus(); }}
+            onToggle={handleToolbarMenuToggle} />
+          <button type="button" aria-pressed={reviewOpen} onClick={() => { closeToolbarMenus(); setReviewOpen(open => !open); }}>Revisar</button>
           <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
             <summary>Vista</summary>
             <div className="toolbar-menu-content">
+              {nodes.some(node => node.data.groupColor) ? <button type="button" aria-pressed={!hideGroupColors}
+                onClick={() => setHideGroupColors(hidden => !hidden)}>{hideGroupColors ? 'Mostrar' : 'Ocultar'} colores de grupo</button> : null}
+              <button type="button" aria-pressed={!hideAttributes} onClick={() => setHideAttributes(hidden => !hidden)}>{hideAttributes ? 'Mostrar' : 'Ocultar'} todos los atributos</button>
+              <button type="button" aria-pressed={!hideMethods} onClick={() => setHideMethods(hidden => !hidden)}>{hideMethods ? 'Mostrar' : 'Ocultar'} todos los métodos</button>
+              <button type="button" disabled={activeSelectedIds.length === 0} onClick={() => toggleClassDetail('hideAttributes')}>Alternar atributos de la selección</button>
+              <button type="button" disabled={activeSelectedIds.length === 0} onClick={() => toggleClassDetail('hideMethods')}>Alternar métodos de la selección</button>
+              <hr />
               <button
+                aria-pressed={isGridEnabled}
                 type="button"
                 className={isGridEnabled ? 'active-tool' : ''}
                 onClick={(event) => {
@@ -1359,6 +1546,7 @@ export function DiagramEditor({
                 Grilla
               </button>
               <button
+                aria-pressed={isSnapEnabled}
                 type="button"
                 className={isSnapEnabled ? 'active-tool' : ''}
                 onClick={(event) => {
@@ -1371,6 +1559,7 @@ export function DiagramEditor({
                 Ajustar a la grilla
               </button>
               <button
+                aria-pressed={isMiniMapEnabled}
                 type="button"
                 className={isMiniMapEnabled ? 'active-tool' : ''}
                 onClick={(event) => {
@@ -1408,6 +1597,7 @@ export function DiagramEditor({
                 Importar JSON
               </button>
               <button
+                disabled={isExporting}
                 type="button"
                 onClick={(event) => {
                   void exportPng();
@@ -1418,6 +1608,7 @@ export function DiagramEditor({
                 Exportar PNG
               </button>
               <button
+                disabled={isExporting}
                 type="button"
                 onClick={(event) => {
                   void exportPdf();
@@ -1434,6 +1625,7 @@ export function DiagramEditor({
             <div className="toolbar-menu-content theme-menu">
               {themes.map((availableTheme) => (
                 <button
+                  aria-current={availableTheme.id === themeId ? 'true' : undefined}
                   key={availableTheme.id}
                   type="button"
                   className={availableTheme.id === themeId ? 'active-tool' : ''}
@@ -1473,7 +1665,10 @@ export function DiagramEditor({
           hasInspectorSelection && isInspectorCollapsed ? 'inspector-collapsed' : ''
         }`}
       >
-        <div className="canvas-shell" ref={canvasRef}>
+        <div
+          className={`canvas-shell class-diagram-canvas ${connectionSourceNodeId !== null ? 'is-connecting' : ''}`}
+          ref={canvasRef}
+        >
           <ReactFlow
             nodes={renderedNodes}
             edges={renderedEdges}
@@ -1481,42 +1676,82 @@ export function DiagramEditor({
             edgeTypes={edgeTypes}
             onInit={setReactFlowInstance}
             onNodesChange={handleNodesChange}
+            onNodeDragStart={(_, node, group) => {
+              setSelectedEdgeId(null);
+              setSelectedNoteNodeId(null);
+              setMovingNodeIds(group.length ? group.map(item => item.id) : [node.id]);
+            }}
+            onNodeDragStop={() => setMovingNodeIds([])}
+            onSelectionDragStart={(_, group) => setMovingNodeIds(group.map(node => node.id))}
+            onSelectionDragStop={() => setMovingNodeIds([])}
             onEdgesChange={handleEdgesChange}
             onConnect={handleConnect}
+            onConnectStart={(_, params) => {
+              window.getSelection()?.removeAllRanges();
+              setConnectionSourceNodeId(params.nodeId ?? null);
+            }}
+            onConnectEnd={() => setConnectionSourceNodeId(null)}
+            onReconnect={handleReconnect}
+            onReconnectStart={(_, edge) => {
+              window.getSelection()?.removeAllRanges();
+              setConnectionSourceNodeId(edge.source);
+            }}
+            onReconnectEnd={() => setConnectionSourceNodeId(null)}
+            reconnectRadius={12}
+            edgesUpdatable={false}
+            connectionLineComponent={AssociationConnectionPreview}
+            connectionLineStyle={{
+              stroke: 'var(--association-stroke)',
+              strokeWidth: 'var(--association-stroke-width)',
+            }}
             onEdgeClick={(_, edge) => {
               const noteClassNodeId = edge.id.endsWith(NOTE_EDGE_SUFFIX)
                 ? edge.id.slice(0, -NOTE_EDGE_SUFFIX.length)
                 : null;
 
               if (noteClassNodeId !== null) {
-                openNoteEdgeMenu(noteClassNodeId, _);
+                setContextMenu(null);
+                setSelectedEdgeId(null);
+                setSelectedNodeId(noteClassNodeId);
+                setSelectedNoteNodeId(noteClassNodeId);
                 return;
               }
 
               setContextMenu(null);
               setSelectedEdgeId(edge.id);
               setSelectedNodeId(null);
+              setSelectedNoteNodeId(null);
             }}
             onEdgeContextMenu={(event) => event.stopPropagation()}
-            onNodeClick={(_, node) => {
-              const classNodeId = getClassNodeIdFromNoteId(node.id) ?? node.id;
+            onNodeClick={(event, node) => {
+              const noteClassNodeId = getClassNodeIdFromNoteId(node.id);
+              const classNodeId = noteClassNodeId ?? node.id;
 
               setContextMenu(null);
               setSelectedEdgeId(null);
-              setSelectedNodeId(classNodeId);
+              if (noteClassNodeId !== null) setSelectedNodeId(classNodeId);
+              else if (event.metaKey || event.ctrlKey) {
+                // Use the selection from before this click; React Flow may also emit selection changes.
+                setSelectedNodeIds(activeSelectedIds.includes(node.id)
+                  ? activeSelectedIds.filter(id => id !== node.id)
+                  : [...activeSelectedIds, node.id]);
+              }
+              setSelectedNoteNodeId(noteClassNodeId);
             }}
             onPaneClick={() => {
               setContextMenu(null);
               setSelectedEdgeId(null);
               setSelectedNodeId(null);
+              setSelectedNoteNodeId(null);
             }}
             onPaneContextMenu={handlePaneContextMenu}
             connectionMode={ConnectionMode.Loose}
             connectionRadius={36}
             deleteKeyCode={null}
-            multiSelectionKeyCode={null}
+            multiSelectionKeyCode={['Meta', 'Control']}
             selectNodesOnDrag={false}
-            selectionKeyCode={null}
+            nodeDragThreshold={3}
+            selectionKeyCode="Shift"
             selectionOnDrag={false}
             snapGrid={[20, 20]}
             snapToGrid={isSnapEnabled}
@@ -1531,9 +1766,11 @@ export function DiagramEditor({
                 variant={BackgroundVariant.Dots}
               />
             ) : null}
+            <ClassAlignmentGuides movingIds={movingNodeIds} />
             <Controls />
             {isMiniMapEnabled ? <MiniMap pannable zoomable /> : null}
           </ReactFlow>
+          {reviewOpen ? <DiagramReviewPanel issues={reviewIssues} onFocus={focusIssue} onClose={() => setReviewOpen(false)} /> : null}
           {contextMenu !== null ? (
             <div
               className="canvas-context-menu"
@@ -1543,63 +1780,21 @@ export function DiagramEditor({
               onContextMenu={(event) => event.preventDefault()}
               onMouseDown={(event) => event.stopPropagation()}
             >
-              {contextMenu.noteEdgeNodeId !== undefined ? (
-                <>
-                  <p className="context-menu-title">Clase</p>
-                  {NOTE_HANDLE_OPTIONS.map((option) => (
-                    <button
-                      key={`source-${option.value}`}
-                      type="button"
-                      className={noteEdgeContextNode?.data.parametricValuesNoteHandle === option.value ? 'active-context-option' : ''}
-                      onClick={() => {
-                        updateParametricValuesNoteConnectionHandles(
-                          contextMenu.noteEdgeNodeId ?? '',
-                          option.value,
-                          'class',
-                        );
-                        setContextMenu(null);
-                      }}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                  <p className="context-menu-title">Nota</p>
-                  {NOTE_HANDLE_OPTIONS.map((option) => (
-                    <button
-                      key={`target-${option.value}`}
-                      type="button"
-                      className={
-                        noteEdgeContextNode?.data.parametricValuesNoteTargetHandle === option.value
-                          ? 'active-context-option'
-                          : ''
-                      }
-                      onClick={() => {
-                        updateParametricValuesNoteConnectionHandles(
-                          contextMenu.noteEdgeNodeId ?? '',
-                          option.value,
-                          'note',
-                        );
-                        setContextMenu(null);
-                      }}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </>
-              ) : contextMenu.nodeId === undefined ? (
+              {contextMenu.nodeId === undefined ? (
                 <button type="button" onClick={createClassFromContextMenu}>
                   Crear clase
                 </button>
               ) : (
                 <>
+                  <ClassGroupColorPicker value={selectionColor} count={activeSelectedIds.length} onChange={setSelectionColor} />
                   <button
                     type="button"
                     onClick={() => {
-                      duplicateClassNode(contextMenu.nodeId ?? '');
+                      if (activeSelectedIds.length > 1) duplicateSelection(); else duplicateClassNode(contextMenu.nodeId ?? '');
                       setContextMenu(null);
                     }}
                   >
-                    Duplicar clase
+                    {activeSelectedIds.length > 1 ? 'Duplicar selección' : 'Duplicar clase'}
                   </button>
                   <button
                     type="button"
@@ -1610,8 +1805,7 @@ export function DiagramEditor({
                   >
                     Agregar método
                   </button>
-                  {selectedContextNode?.data.hasParametricValuesNote &&
-                  (selectedContextNode.data.parametricValues ?? []).some((value) => value.value.trim().length > 0) ? (
+                  {selectedContextNode?.data.hasParametricValuesNote ? (
                     <button
                       type="button"
                       onClick={() => {
@@ -1656,12 +1850,20 @@ export function DiagramEditor({
                 onAddMethod={addMethod}
                 onDeleteAttribute={deleteAttribute}
                 onDeleteMethod={deleteMethod}
+                onReorderAttributes={reorderAttributes}
                 onRenameClass={renameClass}
-                onSetParametricValuesNote={setParametricValuesNoteByNodeId}
+                onSetParametricValuesNote={(nodeId, enabled) => {
+                  if (enabled) {
+                    addParametricValuesNoteAndStartEditing(nodeId);
+                  } else {
+                    setParametricValuesNoteByNodeId(nodeId, false);
+                  }
+                }}
                 onUpdateDescription={updateClassDescription}
                 onUpdateAttribute={updateAttribute}
                 onUpdateMethod={updateMethod}
                 onUpdateParametricValues={updateParametricValuesByNodeId}
+                onUpdateParametricValuesNoteConnection={updateParametricValuesNoteConnection}
               />
             )}
           </aside>

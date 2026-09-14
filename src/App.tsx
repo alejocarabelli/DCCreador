@@ -3,6 +3,7 @@ import { ProjectNameDialog } from './components/ProjectNameDialog';
 import { ProjectSidebar } from './components/ProjectSidebar';
 import { UseCaseFlowEditor } from './components/UseCaseFlowEditor';
 import { UseCaseModelEditor } from './components/UseCaseModelEditor';
+import { SequenceDiagramEditor } from './components/SequenceDiagramEditor';
 import { Blocks, Plus } from 'lucide-react';
 import { useProjects } from './hooks/useProjects';
 import { useTheme } from './hooks/useTheme';
@@ -15,6 +16,7 @@ import {
   normalizeUseCaseFlowContent,
   normalizeUseCaseModelContent,
 } from './utils/diagramNormalization';
+import { normalizeSequenceDiagramContent } from './utils/sequenceDiagram';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 type ProjectDialogState =
@@ -32,6 +34,10 @@ type ProjectHistory = {
   future: ArtifactContent[];
 };
 
+type ContentChangeOptions = {
+  separateHistoryEntry?: boolean;
+};
+
 const cloneArtifactContent = (artifact: DesignArtifact): ArtifactContent => {
   const cloned = JSON.parse(JSON.stringify(artifact.content)) as ArtifactContent;
 
@@ -41,6 +47,10 @@ const cloneArtifactContent = (artifact: DesignArtifact): ArtifactContent => {
 
   if (artifact.type === 'use-case-flow') {
     return normalizeUseCaseFlowContent(cloned as Parameters<typeof normalizeUseCaseFlowContent>[0]);
+  }
+
+  if (artifact.type === 'sequence-diagram') {
+    return normalizeSequenceDiagramContent(cloned);
   }
 
   return normalizeDiagramContent(cloned as Parameters<typeof normalizeDiagramContent>[0]);
@@ -55,6 +65,10 @@ const cloneContentForType = (artifactType: DesignArtifact['type'], content: Arti
 
   if (artifactType === 'use-case-flow') {
     return normalizeUseCaseFlowContent(cloned as Parameters<typeof normalizeUseCaseFlowContent>[0]);
+  }
+
+  if (artifactType === 'sequence-diagram') {
+    return normalizeSequenceDiagramContent(cloned);
   }
 
   return normalizeDiagramContent(cloned as Parameters<typeof normalizeDiagramContent>[0]);
@@ -77,6 +91,7 @@ function App() {
     createClassDiagramArtifact,
     createUseCaseFlowArtifact,
     createUseCaseModelArtifact,
+    createSequenceDiagramArtifact,
     createProject,
     deleteArtifact,
     deleteProject,
@@ -113,6 +128,8 @@ function App() {
         createUseCaseModelArtifact(projectDialog.projectId, name);
       } else if (projectDialog.artifactType === 'use-case-flow') {
         createUseCaseFlowArtifact(projectDialog.projectId, name);
+      } else if (projectDialog.artifactType === 'sequence-diagram') {
+        createSequenceDiagramArtifact(projectDialog.projectId, name);
       } else {
         createClassDiagramArtifact(projectDialog.projectId, name);
       }
@@ -148,6 +165,8 @@ function App() {
           ? 'Modelo de casos de uso'
           : artifactType === 'use-case-flow'
             ? 'Flujo de sucesos'
+            : artifactType === 'sequence-diagram'
+              ? 'Diagrama de secuencia'
             : 'Nuevo diagrama de clases',
     });
   };
@@ -208,7 +227,7 @@ function App() {
   const canRedo = (activeProjectHistory?.future.length ?? 0) > 0;
 
   const handleChangeProjectContent = useCallback(
-    (content: ArtifactContent): void => {
+    (content: ArtifactContent, options?: ContentChangeOptions): void => {
       if (activeProject === null || activeArtifact === null || activeHistoryKey === null) {
         return;
       }
@@ -223,10 +242,13 @@ function App() {
       const now = performance.now();
       const previousBurst = historyBurstRef.current;
       const shouldCreateHistoryEntry =
+        options?.separateHistoryEntry === true ||
         previousBurst === null ||
         previousBurst.key !== activeHistoryKey ||
         now - previousBurst.updatedAt > HISTORY_BURST_WINDOW_MS;
-      historyBurstRef.current = { key: activeHistoryKey, updatedAt: now };
+      historyBurstRef.current = options?.separateHistoryEntry === true
+        ? null
+        : { key: activeHistoryKey, updatedAt: now };
 
       setHistoryByArtifactId((currentHistory) => {
         const projectHistory = currentHistory[activeHistoryKey] ?? { past: [], future: [] };
@@ -297,6 +319,36 @@ function App() {
   }, [activeArtifact, activeHistoryKey, activeProject, historyByArtifactId, updateProjectArtifactContent]);
 
   useEffect(() => {
+    const handleHistoryShortcut = (event: KeyboardEvent): void => {
+      if ((!event.metaKey && !event.ctrlKey) || document.querySelector('.modal-backdrop') !== null) {
+        return;
+      }
+
+      const target = event.target instanceof Element ? event.target : null;
+      const isEditing = target?.closest('input, textarea, select, [contenteditable="true"]') !== null;
+
+      if (isEditing) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+      const wantsRedo = (key === 'z' && event.shiftKey) || key === 'y';
+      const wantsUndo = key === 'z' && !event.shiftKey;
+
+      if (wantsRedo && canRedo) {
+        event.preventDefault();
+        handleRedo();
+      } else if (wantsUndo && canUndo) {
+        event.preventDefault();
+        handleUndo();
+      }
+    };
+
+    document.addEventListener('keydown', handleHistoryShortcut);
+    return () => document.removeEventListener('keydown', handleHistoryShortcut);
+  }, [canRedo, canUndo, handleRedo, handleUndo]);
+
+  useEffect(() => {
     writeUiPreference(PROJECT_SIDEBAR_COLLAPSED_KEY, String(isProjectSidebarCollapsed));
   }, [isProjectSidebarCollapsed]);
 
@@ -332,7 +384,7 @@ function App() {
           <div className="welcome-mark" aria-hidden="true">
             <Blocks size={28} />
           </div>
-          <p className="eyebrow">Diseño de Sistemas</p>
+          <p className="eyebrow">Modelador de Sistemas</p>
           <h2>Empezá tu primer proyecto</h2>
           <p>Organizá diagramas y especificaciones en un mismo espacio de trabajo.</p>
           <button className="welcome-primary-action" type="button" onClick={handleCreateProject}>
@@ -372,8 +424,23 @@ function App() {
             onImportProject={importProject}
             onThemeChange={(nextThemeId) => setThemeId(nextThemeId as DiagramThemeId)}
           />
-        ) : (
+        ) : activeArtifact.type === 'use-case-flow' ? (
           <UseCaseFlowEditor
+            key={`${activeProject.id}:${activeArtifact.id}`}
+            artifact={activeArtifact}
+            canRedo={canRedo}
+            canUndo={canUndo}
+            project={activeProject}
+            theme={theme}
+            themeId={themeId}
+            onChangeContent={handleChangeProjectContent}
+            onRedo={handleRedo}
+            onUndo={handleUndo}
+            onImportProject={importProject}
+            onThemeChange={(nextThemeId) => setThemeId(nextThemeId as DiagramThemeId)}
+          />
+        ) : (
+          <SequenceDiagramEditor
             key={`${activeProject.id}:${activeArtifact.id}`}
             artifact={activeArtifact}
             canRedo={canRedo}

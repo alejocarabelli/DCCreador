@@ -168,7 +168,7 @@
     initiatedByFrame:(WKFrameInfo *)frame
     completionHandler:(void (^)(void))completionHandler {
     NSAlert *alert = [[NSAlert alloc] init];
-    alert.messageText = @"Diseño de Sistemas";
+    alert.messageText = @"Modelador de Sistemas";
     alert.informativeText = message;
     [alert addButtonWithTitle:@"Aceptar"];
     [alert beginSheetModalForWindow:self.window completionHandler:^(__unused NSModalResponse result) {
@@ -181,7 +181,7 @@
     initiatedByFrame:(WKFrameInfo *)frame
     completionHandler:(void (^)(BOOL result))completionHandler {
     NSAlert *alert = [[NSAlert alloc] init];
-    alert.messageText = @"Diseño de Sistemas";
+    alert.messageText = @"Modelador de Sistemas";
     alert.informativeText = message;
     [alert addButtonWithTitle:@"Aceptar"];
     [alert addButtonWithTitle:@"Cancelar"];
@@ -227,11 +227,11 @@
     self.window = [[NSWindow alloc]
         initWithContentRect:frame
         styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
-                   NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable |
-                   NSWindowStyleMaskFullSizeContentView)
+                   NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable)
         backing:NSBackingStoreBuffered
         defer:NO];
-    self.window.title = @"Diseño de Sistemas";
+    self.window.title = @"Modelador de Sistemas";
+    self.window.backgroundColor = [NSColor colorWithWhite:0.96 alpha:1.0];
     self.window.minSize = NSMakeSize(900, 600);
     self.window.releasedWhenClosed = NO;
     [self.window center];
@@ -272,7 +272,7 @@
 
 - (void)presentStartupError:(NSString *)message {
     NSAlert *alert = [[NSAlert alloc] init];
-    alert.messageText = @"No se pudo abrir Diseño de Sistemas";
+    alert.messageText = @"No se pudo abrir Modelador de Sistemas";
     alert.informativeText = message;
     [alert runModal];
     [NSApp terminate:nil];
@@ -283,11 +283,11 @@
 
     NSMenuItem *applicationMenuItem = [[NSMenuItem alloc] init];
     NSMenu *applicationMenu = [[NSMenu alloc] initWithTitle:@"Aplicación"];
-    [applicationMenu addItemWithTitle:@"Acerca de Diseño de Sistemas"
+    [applicationMenu addItemWithTitle:@"Acerca de Modelador de Sistemas"
                                action:@selector(orderFrontStandardAboutPanel:)
                         keyEquivalent:@""];
     [applicationMenu addItem:NSMenuItem.separatorItem];
-    [applicationMenu addItemWithTitle:@"Salir de Diseño de Sistemas"
+    [applicationMenu addItemWithTitle:@"Salir de Modelador de Sistemas"
                                action:@selector(terminate:)
                         keyEquivalent:@"q"];
     applicationMenuItem.submenu = applicationMenu;

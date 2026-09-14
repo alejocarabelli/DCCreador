@@ -44,7 +44,7 @@ export function AttributeTypeSelect({ value, onChange, compact = false }: Attrib
       </select>
       {selectValue === 'custom' ? (
         <input
-          aria-label="Tipo custom"
+          aria-label="Tipo personalizado"
           value={customValue}
           onChange={handleCustomChange}
           onClick={stopFlowEvent}
