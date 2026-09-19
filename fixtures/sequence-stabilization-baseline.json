@@ -1,0 +1,199 @@
+{
+  "id": "fixture-sequence-stabilization",
+  "name": "Fixture · estabilización de secuencia",
+  "createdAt": "2026-09-14T00:00:00.000Z",
+  "updatedAt": "2026-09-14T00:00:00.000Z",
+  "activeArtifactId": "sequence-stabilization",
+  "artifacts": [
+    {
+      "id": "sequence-stabilization",
+      "type": "sequence-diagram",
+      "name": "Casos de caracterización",
+      "createdAt": "2026-09-14T00:00:00.000Z",
+      "updatedAt": "2026-09-14T00:00:00.000Z",
+      "content": {
+        "version": 1,
+        "numbering": "sequential",
+        "showActivations": true,
+        "canvas": { "width": 1200, "height": 900 },
+        "participants": [
+          { "id": "cliente", "kind": "actor", "name": "Cliente con un nombre deliberadamente largo para probar el recorte", "classifierName": "", "x": 120 },
+          { "id": "api", "kind": "boundary", "name": "", "classifierName": "API", "x": 300 },
+          { "id": "servicio", "kind": "control", "name": "", "classifierName": "Servicio", "x": 440 },
+          { "id": "temporal", "kind": "object", "name": "tmp", "classifierName": "Temporal", "x": 670 }
+        ],
+        "items": [
+          {
+            "id": "before-create",
+            "kind": "message",
+            "type": "synchronous",
+            "sourceId": "cliente",
+            "targetId": "temporal",
+            "name": "usarAntesDeCrear",
+            "arguments": "id",
+            "parameterValues": "42",
+            "returnType": "",
+            "flowReference": "inválido temporalmente"
+          },
+          {
+            "id": "create-temporal",
+            "kind": "message",
+            "type": "create",
+            "sourceId": "api",
+            "targetId": "temporal",
+            "name": "create",
+            "arguments": "",
+            "parameterValues": "",
+            "returnType": "",
+            "flowReference": ""
+          },
+          {
+            "id": "alt-principal",
+            "kind": "fragment",
+            "operator": "alt",
+            "name": "Dos ramas con llamadas y retornos",
+            "operands": [
+              {
+                "id": "rama-ok",
+                "guard": "[válido]",
+                "items": [
+                  {
+                    "id": "ok-call",
+                    "kind": "message",
+                    "type": "synchronous",
+                    "sourceId": "cliente",
+                    "targetId": "api",
+                    "name": "procesarUnaOperacionConTextoMuyLargoQueDebeConservarseCompleto",
+                    "arguments": "pedido, contexto, prioridad, metadatos, trazabilidad",
+                    "parameterValues": "",
+                    "returnType": "ResultadoDetallado",
+                    "flowReference": "CA-1"
+                  },
+                  {
+                    "id": "nested-loop",
+                    "kind": "fragment",
+                    "operator": "loop",
+                    "name": "Fragmento anidado",
+                    "operands": [
+                      {
+                        "id": "nested-operand",
+                        "guard": "cada elemento",
+                        "items": [
+                          {
+                            "id": "nested-call",
+                            "kind": "message",
+                            "type": "synchronous",
+                            "sourceId": "api",
+                            "targetId": "servicio",
+                            "name": "validar",
+                            "arguments": "elemento",
+                            "parameterValues": "",
+                            "returnType": "",
+                            "flowReference": ""
+                          },
+                          {
+                            "id": "nested-return",
+                            "kind": "message",
+                            "type": "return",
+                            "sourceId": "servicio",
+                            "targetId": "api",
+                            "name": "",
+                            "arguments": "",
+                            "parameterValues": "",
+                            "returnType": "",
+                            "replyToMessageId": "nested-call",
+                            "flowReference": ""
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "id": "ok-return",
+                    "kind": "message",
+                    "type": "return",
+                    "sourceId": "api",
+                    "targetId": "cliente",
+                    "name": "",
+                    "arguments": "",
+                    "parameterValues": "",
+                    "returnType": "",
+                    "replyToMessageId": "ok-call",
+                    "flowReference": ""
+                  }
+                ]
+              },
+              {
+                "id": "rama-error",
+                "guard": "[error]",
+                "items": [
+                  {
+                    "id": "error-call",
+                    "kind": "message",
+                    "type": "synchronous",
+                    "sourceId": "cliente",
+                    "targetId": "api",
+                    "name": "informarError",
+                    "arguments": "motivo",
+                    "parameterValues": "",
+                    "returnType": "",
+                    "flowReference": "CA-2"
+                  },
+                  {
+                    "id": "error-return",
+                    "kind": "message",
+                    "type": "return",
+                    "sourceId": "api",
+                    "targetId": "cliente",
+                    "name": "",
+                    "arguments": "",
+                    "parameterValues": "",
+                    "returnType": "",
+                    "replyToMessageId": "error-call",
+                    "flowReference": ""
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "destroy-temporal",
+            "kind": "message",
+            "type": "destroy",
+            "sourceId": "api",
+            "targetId": "temporal",
+            "name": "destroy",
+            "arguments": "",
+            "parameterValues": "",
+            "returnType": "",
+            "flowReference": ""
+          },
+          {
+            "id": "after-destroy",
+            "kind": "message",
+            "type": "synchronous",
+            "sourceId": "temporal",
+            "targetId": "api",
+            "name": "usarDespuesDeDestroy",
+            "arguments": "",
+            "parameterValues": "",
+            "returnType": "",
+            "flowReference": "inválido temporalmente"
+          }
+        ],
+        "activations": [],
+        "notes": [
+          {
+            "id": "large-note",
+            "text": "Nota deliberadamente extensa. Debe permitir comprobar si todo su contenido se ve al utilizar una nota de tamaño reducido sin ocultar las líneas finales. Repetición para exceder el límite visual actual: contenido largo contenido largo contenido largo contenido largo contenido largo contenido largo contenido largo contenido largo contenido largo contenido largo contenido largo contenido largo contenido largo.",
+            "x": 720,
+            "y": 260,
+            "width": 180,
+            "height": 90,
+            "anchorKind": "free"
+          }
+        ]
+      }
+    }
+  ]
+}

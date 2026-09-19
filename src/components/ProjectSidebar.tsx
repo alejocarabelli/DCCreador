@@ -156,7 +156,7 @@ export function ProjectSidebar({
         <div className="sidebar-collapsed-mark" aria-hidden="true">
           <Blocks size={19} />
         </div>
-        <button className="icon-button sidebar-toggle" type="button" onClick={onToggleCollapsed} title="Expandir proyectos">
+        <button aria-label="Expandir proyectos" className="icon-button sidebar-toggle" type="button" onClick={onToggleCollapsed} title="Expandir proyectos">
           <PanelLeftOpen size={18} />
         </button>
       </aside>
@@ -176,10 +176,10 @@ export function ProjectSidebar({
           </div>
         </div>
         <div className="sidebar-header-actions">
-          <button className="icon-button" type="button" onClick={onToggleCollapsed} title="Contraer proyectos">
+          <button aria-label="Contraer proyectos" className="icon-button" type="button" onClick={onToggleCollapsed} title="Contraer proyectos">
             <PanelLeftClose size={18} />
           </button>
-          <button className="icon-button primary" type="button" onClick={onCreateProject} title="Crear proyecto">
+          <button aria-label="Crear proyecto" className="icon-button primary" type="button" onClick={onCreateProject} title="Crear proyecto">
             <Plus size={18} />
           </button>
         </div>

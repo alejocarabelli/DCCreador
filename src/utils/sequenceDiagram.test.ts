@@ -5,11 +5,17 @@ import {
   buildSequenceMessageNumbers,
   buildDerivedActivations,
   clampParticipantX,
+  cloneSequenceTimelineItems,
   createEmptySequenceDiagramContent,
   duplicateSequenceItem,
   flattenSequenceItems,
   formatSequenceMessageLabel,
+  formatSequenceParticipantName,
+  getTopLevelBlockIds,
+  insertSequenceItemAtY,
+  moveSequenceItemsBlock,
   normalizeSequenceDiagramContent,
+  removeSequenceItemsBlock,
   resolveSequenceInsertionTarget,
 } from './sequenceDiagram';
 import { buildSequenceLayout } from './sequenceDiagramLayout';
@@ -140,6 +146,95 @@ describe('sequence diagram model', () => {
       .toMatchObject({ placement: 'end', parentFragmentId: 'fragment', operandId: 'else' });
   });
 
+  it('does not treat a Y-only hit as an opt insertion when message endpoints are outside its horizontal frame', () => {
+    const fragment: SequenceFragment = {
+      id: 'opt-ab', kind: 'fragment', operator: 'opt', name: '',
+      operands: [{ id: 'opt-body', guard: 'condición', items: [message('inside-ab', 'a', 'b')] }],
+    };
+    const content = normalizeSequenceDiagramContent({
+      ...createEmptySequenceDiagramContent(),
+      participants: [
+        participant('a', 120), participant('b', 350), participant('c', 580),
+        participant('d', 810), participant('e', 1040),
+      ],
+      items: [fragment, message('after', 'd', 'e')],
+    });
+    const layout = buildSequenceLayout(content);
+    const optBody = layout.fragmentLayouts.get('opt-ab')!.operands[0];
+    const target = resolveSequenceInsertionTarget(
+      content.items,
+      layout,
+      (optBody.top + optBody.bottom) / 2,
+      { sourceId: 'd', targetId: 'e' },
+    );
+
+    expect(target.parentFragmentId).toBeUndefined();
+    expect(target.operandId).toBeUndefined();
+
+    const inserted = insertSequenceItemAtY(content.items, message('new-de', 'd', 'e'), layout, (optBody.top + optBody.bottom) / 2);
+    const insertedFragment = inserted.find((item) => item.id === 'opt-ab');
+    expect(insertedFragment?.kind).toBe('fragment');
+    expect(insertedFragment?.kind === 'fragment' ? insertedFragment.operands[0].items.map((item) => item.id) : []).toEqual(['inside-ab']);
+    expect(inserted.some((item) => item.id === 'new-de')).toBe(true);
+  });
+
+  it('keeps insertion in the operand only when both endpoints belong to its horizontal content', () => {
+    const fragment: SequenceFragment = {
+      id: 'alt-branches', kind: 'fragment', operator: 'alt', name: '',
+      operands: [
+        { id: 'when-ab', guard: 'A/B', items: [message('inside-ab', 'a', 'b')] },
+        { id: 'when-de', guard: 'D/E', items: [message('inside-de', 'd', 'e')] },
+      ],
+    };
+    const content = normalizeSequenceDiagramContent({
+      ...createEmptySequenceDiagramContent(),
+      participants: [
+        participant('a', 120), participant('b', 350), participant('c', 580),
+        participant('d', 810), participant('e', 1040),
+      ],
+      items: [fragment],
+    });
+    const layout = buildSequenceLayout(content);
+    const fragmentLayout = layout.fragmentLayouts.get('alt-branches')!;
+    const firstOperand = fragmentLayout.operands[0];
+    const secondOperand = fragmentLayout.operands[1];
+
+    expect(resolveSequenceInsertionTarget(content.items, layout, firstOperand.contentTop + 20, {
+      sourceId: 'a', targetId: 'b',
+    })).toMatchObject({ parentFragmentId: 'alt-branches', operandId: 'when-ab' });
+    expect(resolveSequenceInsertionTarget(content.items, layout, firstOperand.contentTop + 20, {
+      sourceId: 'a', targetId: 'd',
+    }).parentFragmentId).toBeUndefined();
+    expect(resolveSequenceInsertionTarget(content.items, layout, secondOperand.contentTop + 20, {
+      sourceId: 'd', targetId: 'e',
+    })).toMatchObject({ parentFragmentId: 'alt-branches', operandId: 'when-de' });
+  });
+
+  it('resolves a nested operand using the nested participants instead of its outer Y range', () => {
+    const nested: SequenceFragment = {
+      id: 'nested-opt', kind: 'fragment', operator: 'opt', name: '',
+      operands: [{ id: 'nested-body', guard: 'B/C', items: [message('nested-bc', 'b', 'c')] }],
+    };
+    const outer: SequenceFragment = {
+      id: 'outer-alt', kind: 'fragment', operator: 'alt', name: '',
+      operands: [{ id: 'outer-body', guard: 'camino', items: [nested] }],
+    };
+    const content = normalizeSequenceDiagramContent({
+      ...createEmptySequenceDiagramContent(),
+      participants: [participant('a', 120), participant('b', 350), participant('c', 580), participant('d', 810)],
+      items: [outer],
+    });
+    const layout = buildSequenceLayout(content);
+    const nestedOperand = layout.fragmentLayouts.get('nested-opt')!.operands[0];
+
+    expect(resolveSequenceInsertionTarget(content.items, layout, nestedOperand.contentTop + 20, {
+      sourceId: 'b', targetId: 'c',
+    })).toMatchObject({ parentFragmentId: 'nested-opt', operandId: 'nested-body' });
+    expect(resolveSequenceInsertionTarget(content.items, layout, nestedOperand.contentTop + 20, {
+      sourceId: 'a', targetId: 'd',
+    }).parentFragmentId).toBeUndefined();
+  });
+
   it('derives receiver executions and closes the matching nested return', () => {
     const call = message('call', 'a', 'b');
     const nested = message('nested', 'b', 'c');
@@ -186,6 +281,27 @@ describe('sequence diagram model', () => {
     const sourceActivation = layout.activationLayouts.find((activation) => activation.participantId === 'a');
     expect(sourceActivation?.height).toBeLessThan(layout.height - 100);
     expect(getSequenceMessageEndpoints(content, layout, create)?.targetX).toBe(270);
+  });
+
+  it('normalizes valid note semantic colors and discards unsupported colors', () => {
+    const content = normalizeSequenceDiagramContent({
+      ...createEmptySequenceDiagramContent(),
+      notes: [
+        { id: 'n1', text: 'Nota amarilla', x: 100, y: 150, width: 200, height: 100, anchorKind: 'free', color: 'yellow' },
+        { id: 'n2', text: 'Nota alerta', x: 300, y: 150, width: 200, height: 100, anchorKind: 'free', color: 'red' },
+        { id: 'n3', text: 'Nota éxito', x: 500, y: 150, width: 200, height: 100, anchorKind: 'free', color: 'green' },
+        { id: 'n4', text: 'Nota técnica', x: 700, y: 150, width: 200, height: 100, anchorKind: 'free', color: 'blue' },
+        { id: 'n5', text: 'Nota sin color', x: 900, y: 150, width: 200, height: 100, anchorKind: 'free' },
+        { id: 'n6', text: 'Nota inválida', x: 1100, y: 150, width: 200, height: 100, anchorKind: 'free', color: 'purple' as unknown as 'yellow' },
+      ],
+    });
+
+    expect(content.notes[0].color).toBe('yellow');
+    expect(content.notes[1].color).toBe('red');
+    expect(content.notes[2].color).toBe('green');
+    expect(content.notes[3].color).toBe('blue');
+    expect(content.notes[4].color).toBeUndefined();
+    expect(content.notes[5].color).toBeUndefined();
   });
 });
 
@@ -405,5 +521,131 @@ describe('sequence execution geometry', () => {
     expect(duplicate.width).toBe(400);
     expect(duplicate.height).toBe(180);
   });
+
+  describe('formatSequenceParticipantName', () => {
+    it('handles single classifier without duplicating colons', () => {
+      expect(formatSequenceParticipantName({
+        id: 'p1', kind: 'object', name: '', classifierName: ':IndireccionPersistencia', x: 100,
+      })).toBe(':IndireccionPersistencia');
+
+      expect(formatSequenceParticipantName({
+        id: 'p2', kind: 'object', name: '', classifierName: 'IndireccionPersistencia', x: 100,
+      })).toBe(':IndireccionPersistencia');
+    });
+
+    it('formats single-line name and classifier with space and colon', () => {
+      expect(formatSequenceParticipantName({
+        id: 'p3', kind: 'object', name: 'servicio', classifierName: 'IndireccionPersistencia', x: 100,
+      })).toBe('servicio : IndireccionPersistencia');
+    });
+
+    it('preserves newline between name and classifier when user pressed Enter', () => {
+      expect(formatSequenceParticipantName({
+        id: 'p4', kind: 'object', name: 'servicio\n', classifierName: 'IndireccionPersistencia', x: 100,
+      })).toBe('servicio\n:IndireccionPersistencia');
+    });
+
+    it('preserves internal newlines inside classifier when user formatted it', () => {
+      expect(formatSequenceParticipantName({
+        id: 'p5', kind: 'object', name: '', classifierName: 'Indireccion\nPersistencia', x: 100,
+      })).toBe(':Indireccion\nPersistencia');
+    });
+  });
+
+  describe('participantColors setting normalization', () => {
+    it('defaults participantColors to "automatic" when not provided or undefined', () => {
+      const normalized = normalizeSequenceDiagramContent({});
+      expect(normalized.participantColors).toBe('automatic');
+    });
+
+    it('preserves participantColors "disabled"', () => {
+      const normalized = normalizeSequenceDiagramContent({ participantColors: 'disabled' });
+      expect(normalized.participantColors).toBe('disabled');
+    });
+
+    it('preserves participantColors "automatic"', () => {
+      const normalized = normalizeSequenceDiagramContent({ participantColors: 'automatic' });
+      expect(normalized.participantColors).toBe('automatic');
+    });
+  });
+
+  describe('terminateLifeline normalization', () => {
+    it('preserves boolean terminateLifeline flags on participants', () => {
+      const content = normalizeSequenceDiagramContent({
+        participants: [
+          { id: 'p1', kind: 'object', name: 'p1', classifierName: '', x: 100, terminateLifeline: true },
+          { id: 'p2', kind: 'object', name: 'p2', classifierName: '', x: 300, terminateLifeline: false },
+          { id: 'p3', kind: 'object', name: 'p3', classifierName: '', x: 500 },
+        ],
+      });
+      expect(content.participants[0].terminateLifeline).toBe(true);
+      expect(content.participants[1].terminateLifeline).toBe(false);
+      expect(content.participants[2].terminateLifeline).toBeUndefined();
+    });
+  });
 });
 
+
+describe('operaciones de bloque', () => {
+  const blockMsg = (id: string): SequenceMessage => ({
+    id,
+    kind: 'message',
+    type: 'synchronous',
+    sourceId: 'a',
+    targetId: 'b',
+    name: id,
+    arguments: '',
+    parameterValues: '',
+    returnType: '',
+    flowReference: '',
+  });
+
+  it('filtra ids de primer nivel en orden de documento', () => {
+    const inner = blockMsg('inner');
+    const items = [
+      blockMsg('m1'),
+      blockMsg('m2'),
+      {
+        id: 'f1', kind: 'fragment', operator: 'opt', name: '',
+        operands: [{ id: 'op1', guard: '', items: [inner] }],
+      } as SequenceFragment,
+      blockMsg('m3'),
+    ];
+    // 'inner' está anidado en 'f1': se descarta si el fragmento también está seleccionado.
+    expect(getTopLevelBlockIds(items, ['m3', 'inner', 'f1', 'm1', 'nope'])).toEqual(['m1', 'f1', 'm3']);
+  });
+
+  it('mueve un bloque contiguo hacia arriba y abajo', () => {
+    const items = [blockMsg('m1'), blockMsg('m2'), blockMsg('m3'), blockMsg('m4')];
+    expect(moveSequenceItemsBlock(items, ['m2', 'm3'], -1).map((i) => i.id)).toEqual(['m2', 'm3', 'm1', 'm4']);
+    expect(moveSequenceItemsBlock(items, ['m2', 'm3'], 1).map((i) => i.id)).toEqual(['m1', 'm4', 'm2', 'm3']);
+    // Bordes y bloques no contiguos no cambian nada.
+    expect(moveSequenceItemsBlock(items, ['m1', 'm2'], -1)).toBe(items);
+    expect(moveSequenceItemsBlock(items, ['m3', 'm4'], 1)).toBe(items);
+    expect(moveSequenceItemsBlock(items, ['m1', 'm3'], 1)).toBe(items);
+  });
+
+  it('elimina un bloque incluyendo fragmentos con hijos', () => {
+    const inner1 = blockMsg('inner1');
+    const inner2 = blockMsg('inner2');
+    const items = [
+      blockMsg('m1'),
+      {
+        id: 'f1', kind: 'fragment', operator: 'opt', name: '',
+        operands: [{ id: 'op1', guard: '', items: [inner1, inner2] }],
+      } as SequenceFragment,
+      blockMsg('m2'),
+    ];
+    const result = removeSequenceItemsBlock(items, ['m1', 'f1', 'inner1']);
+    expect(result.items.map((i) => i.id)).toEqual(['m2']);
+    expect(result.removed.map((i) => i.id)).toEqual(['m1', 'f1']);
+  });
+
+  it('clona elementos con identificadores nuevos', () => {
+    const items = [blockMsg('m1')];
+    const clones = cloneSequenceTimelineItems(items);
+    expect(clones).toHaveLength(1);
+    expect(clones[0].id).not.toBe('m1');
+    expect({ ...clones[0], id: 'm1' }).toEqual(items[0]);
+  });
+});

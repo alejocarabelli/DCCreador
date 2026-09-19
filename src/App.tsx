@@ -17,6 +17,7 @@ import {
   normalizeUseCaseModelContent,
 } from './utils/diagramNormalization';
 import { normalizeSequenceDiagramContent } from './utils/sequenceDiagram';
+import { changeHistory, redoHistory, undoHistory, type ArtifactHistory } from './utils/artifactHistory';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 type ProjectDialogState =
@@ -29,13 +30,11 @@ const PROJECT_SIDEBAR_COLLAPSED_KEY = 'class-diagram-project-sidebar-collapsed';
 const MAX_HISTORY_ENTRIES = 60;
 const HISTORY_BURST_WINDOW_MS = 650;
 
-type ProjectHistory = {
-  past: ArtifactContent[];
-  future: ArtifactContent[];
-};
+type ProjectHistory = ArtifactHistory<ArtifactContent>;
 
 type ContentChangeOptions = {
   separateHistoryEntry?: boolean;
+  alreadyNormalized?: boolean;
 };
 
 const cloneArtifactContent = (artifact: DesignArtifact): ArtifactContent => {
@@ -50,7 +49,7 @@ const cloneArtifactContent = (artifact: DesignArtifact): ArtifactContent => {
   }
 
   if (artifact.type === 'sequence-diagram') {
-    return normalizeSequenceDiagramContent(cloned);
+    return cloned;
   }
 
   return normalizeDiagramContent(cloned as Parameters<typeof normalizeDiagramContent>[0]);
@@ -83,6 +82,14 @@ function App() {
     () => readUiPreference(PROJECT_SIDEBAR_COLLAPSED_KEY) === 'true',
   );
   const [historyByArtifactId, setHistoryByArtifactId] = useState<Record<string, ProjectHistory>>({});
+  const historyByArtifactIdRef = useRef<Record<string, ProjectHistory>>({});
+  const updateHistory = useCallback((update: (current: Record<string, ProjectHistory>) => Record<string, ProjectHistory>): void => {
+    setHistoryByArtifactId((current) => {
+      const next = update(current);
+      historyByArtifactIdRef.current = next;
+      return next;
+    });
+  }, []);
   const historyBurstRef = useRef<{ key: string; updatedAt: number } | null>(null);
   const { setThemeId, theme, themeId, themeStyle } = useTheme();
   const {
@@ -99,6 +106,7 @@ function App() {
     projects,
     renameArtifact,
     renameProject,
+    saveStatus,
     setActiveArtifactId,
     setActiveProjectId,
     storageWarning,
@@ -148,7 +156,7 @@ function App() {
 
     if (shouldDelete) {
       deleteProject(projectId);
-      setHistoryByArtifactId((currentHistory) =>
+      updateHistory((currentHistory) =>
         Object.fromEntries(Object.entries(currentHistory).filter(([key]) => !key.startsWith(`${projectId}:`))),
       );
       historyBurstRef.current = null;
@@ -196,7 +204,7 @@ function App() {
 
     if (shouldDelete) {
       deleteArtifact(projectId, artifactId);
-      setHistoryByArtifactId((currentHistory) => {
+      updateHistory((currentHistory) => {
         const nextHistory = { ...currentHistory };
         delete nextHistory[`${projectId}:${artifactId}`];
         return nextHistory;
@@ -232,11 +240,18 @@ function App() {
         return;
       }
 
-      const previousContent = cloneArtifactContent(activeArtifact);
-      const nextContent = cloneContentForType(activeArtifact.type, content);
-
-      if (areArtifactContentsEqual(previousContent, nextContent)) {
-        return;
+      let previousContent: ArtifactContent;
+      let nextContent: ArtifactContent;
+      if (activeArtifact.type === 'sequence-diagram' && options?.alreadyNormalized) {
+        const previousSerialized = JSON.stringify(activeArtifact.content);
+        const nextSerialized = JSON.stringify(content);
+        if (previousSerialized === nextSerialized) return;
+        previousContent = JSON.parse(previousSerialized) as ArtifactContent;
+        nextContent = JSON.parse(nextSerialized) as ArtifactContent;
+      } else {
+        previousContent = cloneArtifactContent(activeArtifact);
+        nextContent = cloneContentForType(activeArtifact.type, content);
+        if (areArtifactContentsEqual(previousContent, nextContent)) return;
       }
 
       const now = performance.now();
@@ -250,22 +265,17 @@ function App() {
         ? null
         : { key: activeHistoryKey, updatedAt: now };
 
-      setHistoryByArtifactId((currentHistory) => {
+      updateHistory((currentHistory) => {
         const projectHistory = currentHistory[activeHistoryKey] ?? { past: [], future: [] };
 
         return {
           ...currentHistory,
-          [activeHistoryKey]: {
-            past: shouldCreateHistoryEntry
-              ? [...projectHistory.past, previousContent].slice(-MAX_HISTORY_ENTRIES)
-              : projectHistory.past,
-            future: [],
-          },
+          [activeHistoryKey]: changeHistory(projectHistory, previousContent, shouldCreateHistoryEntry, MAX_HISTORY_ENTRIES),
         };
       });
-      updateProjectArtifactContent(activeProject.id, activeArtifact.id, nextContent);
+      updateProjectArtifactContent(activeProject.id, activeArtifact.id, nextContent, { alreadyNormalized: true });
     },
-    [activeArtifact, activeHistoryKey, activeProject, updateProjectArtifactContent],
+    [activeArtifact, activeHistoryKey, activeProject, updateHistory, updateProjectArtifactContent],
   );
 
   const handleUndo = useCallback((): void => {
@@ -273,50 +283,44 @@ function App() {
       return;
     }
 
-    const projectHistory = historyByArtifactId[activeHistoryKey];
-    const previousContent = projectHistory?.past.at(-1);
+    const projectHistory = historyByArtifactIdRef.current[activeHistoryKey];
+    const result = projectHistory ? undoHistory(projectHistory, cloneArtifactContent(activeArtifact), MAX_HISTORY_ENTRIES) : undefined;
+    const previousContent = result?.content;
 
-    if (projectHistory === undefined || previousContent === undefined) {
+    if (projectHistory === undefined || result === undefined || previousContent === undefined) {
       return;
     }
 
-    const currentContent = cloneArtifactContent(activeArtifact);
     historyBurstRef.current = null;
 
-    setHistoryByArtifactId((currentHistory) => ({
+    updateHistory((currentHistory) => ({
       ...currentHistory,
-      [activeHistoryKey]: {
-        past: projectHistory.past.slice(0, -1),
-        future: [currentContent, ...projectHistory.future].slice(0, MAX_HISTORY_ENTRIES),
-      },
+      [activeHistoryKey]: result.history,
     }));
-    updateProjectArtifactContent(activeProject.id, activeArtifact.id, cloneContentForType(activeArtifact.type, previousContent));
-  }, [activeArtifact, activeHistoryKey, activeProject, historyByArtifactId, updateProjectArtifactContent]);
+    updateProjectArtifactContent(activeProject.id, activeArtifact.id, cloneContentForType(activeArtifact.type, previousContent), { alreadyNormalized: true });
+  }, [activeArtifact, activeHistoryKey, activeProject, updateHistory, updateProjectArtifactContent]);
 
   const handleRedo = useCallback((): void => {
     if (activeProject === null || activeArtifact === null || activeHistoryKey === null) {
       return;
     }
 
-    const projectHistory = historyByArtifactId[activeHistoryKey];
-    const nextContent = projectHistory?.future[0];
+    const projectHistory = historyByArtifactIdRef.current[activeHistoryKey];
+    const result = projectHistory ? redoHistory(projectHistory, cloneArtifactContent(activeArtifact), MAX_HISTORY_ENTRIES) : undefined;
+    const nextContent = result?.content;
 
-    if (projectHistory === undefined || nextContent === undefined) {
+    if (projectHistory === undefined || result === undefined || nextContent === undefined) {
       return;
     }
 
-    const currentContent = cloneArtifactContent(activeArtifact);
     historyBurstRef.current = null;
 
-    setHistoryByArtifactId((currentHistory) => ({
+    updateHistory((currentHistory) => ({
       ...currentHistory,
-      [activeHistoryKey]: {
-        past: [...projectHistory.past, currentContent].slice(-MAX_HISTORY_ENTRIES),
-        future: projectHistory.future.slice(1),
-      },
+      [activeHistoryKey]: result.history,
     }));
-    updateProjectArtifactContent(activeProject.id, activeArtifact.id, cloneContentForType(activeArtifact.type, nextContent));
-  }, [activeArtifact, activeHistoryKey, activeProject, historyByArtifactId, updateProjectArtifactContent]);
+    updateProjectArtifactContent(activeProject.id, activeArtifact.id, cloneContentForType(activeArtifact.type, nextContent), { alreadyNormalized: true });
+  }, [activeArtifact, activeHistoryKey, activeProject, updateHistory, updateProjectArtifactContent]);
 
   useEffect(() => {
     const handleHistoryShortcut = (event: KeyboardEvent): void => {
@@ -354,7 +358,7 @@ function App() {
 
   return (
     <div
-      className={`app-shell ${isProjectSidebarCollapsed ? 'project-sidebar-collapsed' : ''}`}
+      className={`app-shell ${isProjectSidebarCollapsed ? 'project-sidebar-collapsed' : 'project-sidebar-expanded'}`}
       data-theme={theme.id}
       data-ui-version="refined"
       style={themeStyle}
@@ -448,6 +452,13 @@ function App() {
             project={activeProject}
             theme={theme}
             themeId={themeId}
+            saveStatus={saveStatus}
+            onNavigateToArtifact={(targetArtifactId) =>
+              setActiveArtifactId(activeProject.id, targetArtifactId)
+            }
+            onCreateSequenceDiagramArtifact={(name, initialContent) =>
+              createSequenceDiagramArtifact(activeProject.id, name, initialContent)
+            }
             onChangeContent={handleChangeProjectContent}
             onRedo={handleRedo}
             onUndo={handleUndo}

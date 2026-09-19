@@ -1,6 +1,10 @@
 #!/bin/zsh
 set -euo pipefail
 
+if [[ -d "/Library/Developer/CommandLineTools" ]]; then
+  export DEVELOPER_DIR="/Library/Developer/CommandLineTools"
+fi
+
 ROOT_DIR="${0:A:h:h}"
 BUILD_DIR="/private/tmp/diseno-sistemas-macos-build"
 APP_BUNDLE="$BUILD_DIR/Modelador de Sistemas.app"
@@ -44,6 +48,12 @@ codesign --verify --deep --strict "$APP_BUNDLE"
 
 rm -f "$DELIVERY_ZIP"
 ditto -c -k --norsrc --noextattr --noqtn --noacl --keepParent "$APP_BUNDLE" "$DELIVERY_ZIP"
+
+if [[ -w "/Applications" || -w "/Applications/Modelador de Sistemas.app" ]]; then
+  rm -rf "/Applications/Modelador de Sistemas.app"
+  ditto --norsrc --noextattr --noqtn --noacl "$APP_BUNDLE" "/Applications/Modelador de Sistemas.app"
+  echo "Instalado/Actualizado en /Applications/Modelador de Sistemas.app"
+fi
 
 if [[ "${SKIP_DMG:-0}" != "1" ]]; then
 DMG_STAGING="$BUILD_DIR/dmg-staging"

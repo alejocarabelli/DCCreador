@@ -189,6 +189,7 @@ export type SequenceParticipant = {
   x: number;
   createdByMessageId?: string;
   destroyedByMessageId?: string;
+  terminateLifeline?: boolean;
 };
 
 export type SequenceMessage = {
@@ -224,6 +225,7 @@ export type SequenceFragment = {
   y?: number;
   width?: number;
   height?: number;
+  interactionArtifactId?: string;
 };
 
 export type SequenceTimelineItem = SequenceMessage | SequenceFragment;
@@ -233,11 +235,102 @@ export type SequenceActivation = {
   participantId: string;
   startMessageId: string;
   endMessageId?: string;
+  /** Boundary used when an activation is open only inside an alternative path. */
+  endScope?: {
+    fragmentId: string;
+    operandId: string;
+  };
   level: number;
   manual: boolean;
 };
 
+/**
+ * A recoverable semantic issue found while reading a sequence timeline.
+ * Items are deliberately kept in the document so an import never loses the
+ * original authoring evidence; consumers can decide how to present or repair
+ * the issue later.
+ */
+export type SequenceDiagramProblemCode =
+  | 'normalization-repair'
+  | 'missing-participant-reference'
+  | 'message-before-create'
+  | 'message-after-destroy'
+  | 'conditional-participant-lifecycle'
+  | 'duplicate-create'
+  | 'create-after-destroy'
+  | 'destroy-before-create'
+  | 'duplicate-destroy'
+  | 'unmatched-return'
+  | 'ambiguous-activation'
+  | 'ambiguous-lifecycle-marker'
+  | 'invalid-manual-activation'
+  | 'broken-interaction-reference'
+  | 'unlinked-interaction-reference';
+
+export type SequenceDiagramProblem = {
+  id: string;
+  code: SequenceDiagramProblemCode;
+  severity: 'error' | 'warning';
+  message: string;
+  activationId?: string;
+  messageId?: string;
+  participantId?: string;
+  fragmentId?: string;
+  operandId?: string;
+};
+
 export type SequenceNoteAnchorKind = 'free' | 'message' | 'fragment' | 'participant';
+
+export type SequenceNoteColor = 'yellow' | 'red' | 'green' | 'blue';
+
+export type SequenceNoteColorScheme = {
+  background: string;
+  border: string;
+  fold: string;
+  text: string;
+  connectionLine: string;
+  dot: string;
+  label: string;
+};
+
+export const SEQUENCE_NOTE_COLORS: Record<SequenceNoteColor, SequenceNoteColorScheme> = {
+  yellow: {
+    background: '#FFF9DB',
+    border: '#E9D37A',
+    fold: '#E5C95B',
+    text: '#2F2A1D',
+    connectionLine: '#D4B841',
+    dot: '#F59F00',
+    label: 'Amarillo',
+  },
+  red: {
+    background: '#FFE3E3',
+    border: '#FFA8A8',
+    fold: '#F08C8C',
+    text: '#491217',
+    connectionLine: '#E03131',
+    dot: '#E03131',
+    label: 'Rojo',
+  },
+  green: {
+    background: '#EBFBEE',
+    border: '#8CE99A',
+    fold: '#69DB7C',
+    text: '#1B4323',
+    connectionLine: '#2F9E44',
+    dot: '#2F9E44',
+    label: 'Verde',
+  },
+  blue: {
+    background: '#E7F5FF',
+    border: '#A5D8FF',
+    fold: '#74C0FC',
+    text: '#183B56',
+    connectionLine: '#1C7ED6',
+    dot: '#1971C2',
+    label: 'Azul',
+  },
+};
 
 export type SequenceNote = {
   id: string;
@@ -248,7 +341,10 @@ export type SequenceNote = {
   height: number;
   anchorKind: SequenceNoteAnchorKind;
   anchorId?: string;
+  color?: SequenceNoteColor;
 };
+
+export type SequenceParticipantColorMode = 'automatic' | 'disabled';
 
 export type SequenceDiagramContent = {
   version: 1;
@@ -256,9 +352,11 @@ export type SequenceDiagramContent = {
   flowArtifactId?: string;
   numbering: SequenceNumberingMode;
   showActivations: boolean;
+  participantColors?: SequenceParticipantColorMode;
   participants: SequenceParticipant[];
   items: SequenceTimelineItem[];
   activations: SequenceActivation[];
+  problems: SequenceDiagramProblem[];
   notes: SequenceNote[];
   canvas: {
     width: number;

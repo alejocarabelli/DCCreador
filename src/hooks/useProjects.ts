@@ -71,11 +71,14 @@ const buildProject = (name: string): DiagramProject => {
   };
 };
 
+export type DiagramSaveStatus = 'saved' | 'saving' | 'error';
+
 export const useProjects = () => {
   const [initialLoad] = useState(loadProjects);
   const [projects, setProjects] = useState<DiagramProject[]>(initialLoad.projects);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(initialLoad.projects[0]?.id ?? null);
   const [storageWarning, setStorageWarning] = useState<string | null>(initialLoad.warning);
+  const [saveStatus, setSaveStatus] = useState<DiagramSaveStatus>('saved');
   const skipInitialSaveRef = useRef(initialLoad.skipInitialSave);
   const latestProjectsRef = useRef(projects);
   const hasPendingSaveRef = useRef(false);
@@ -88,11 +91,17 @@ export const useProjects = () => {
       return;
     }
 
+    setSaveStatus('saving');
     hasPendingSaveRef.current = true;
     const timeoutId = window.setTimeout(() => {
       const result = saveProjects(projects);
       hasPendingSaveRef.current = false;
       setStorageWarning(result.error);
+      if (result.ok && result.error === null) {
+        setSaveStatus('saved');
+      } else {
+        setSaveStatus('error');
+      }
     }, 250);
 
     return () => window.clearTimeout(timeoutId);
@@ -109,6 +118,9 @@ export const useProjects = () => {
 
       if (result.error !== null) {
         setStorageWarning(result.error);
+        setSaveStatus('error');
+      } else if (result.ok) {
+        setSaveStatus('saved');
       }
     };
 
@@ -252,7 +264,11 @@ export const useProjects = () => {
     );
   };
 
-  const createSequenceDiagramArtifact = (projectId: string, name: string): void => {
+  const createSequenceDiagramArtifact = (
+    projectId: string,
+    name: string,
+    initialContent?: SequenceDiagramContent,
+  ): void => {
     const now = new Date().toISOString();
     const artifact: SequenceDiagramArtifact = {
       id: createId(),
@@ -260,7 +276,7 @@ export const useProjects = () => {
       name: name.trim() || 'Diagrama de secuencia',
       createdAt: now,
       updatedAt: now,
-      content: createEmptySequenceDiagramContent(),
+      content: initialContent ? normalizeSequenceDiagramContent(initialContent) : createEmptySequenceDiagramContent(),
     };
 
     setProjects((currentProjects) => currentProjects.map((project) => project.id === projectId
@@ -323,7 +339,12 @@ export const useProjects = () => {
     );
   };
 
-  const updateProjectArtifactContent = (projectId: string, artifactId: string, content: ArtifactContent): void => {
+  const updateProjectArtifactContent = (
+    projectId: string,
+    artifactId: string,
+    content: ArtifactContent,
+    options?: { alreadyNormalized?: boolean },
+  ): void => {
     const now = new Date().toISOString();
 
     setProjects((currentProjects) =>
@@ -341,7 +362,7 @@ export const useProjects = () => {
                 if (artifact.type === 'use-case-model') {
                   return {
                     ...artifact,
-                    content: normalizeUseCaseModelContent(content as Partial<UseCaseModelContent>),
+                    content: options?.alreadyNormalized ? content as UseCaseModelContent : normalizeUseCaseModelContent(content as Partial<UseCaseModelContent>),
                     updatedAt: now,
                   };
                 }
@@ -349,7 +370,7 @@ export const useProjects = () => {
                 if (artifact.type === 'use-case-flow') {
                   return {
                     ...artifact,
-                    content: normalizeUseCaseFlowContent(content as Partial<UseCaseFlowContent>),
+                    content: options?.alreadyNormalized ? content as UseCaseFlowContent : normalizeUseCaseFlowContent(content as Partial<UseCaseFlowContent>),
                     updatedAt: now,
                   };
                 }
@@ -357,14 +378,14 @@ export const useProjects = () => {
                 if (artifact.type === 'sequence-diagram') {
                   return {
                     ...artifact,
-                    content: normalizeSequenceDiagramContent(content as Partial<SequenceDiagramContent>),
+                    content: options?.alreadyNormalized ? content as SequenceDiagramContent : normalizeSequenceDiagramContent(content as Partial<SequenceDiagramContent>),
                     updatedAt: now,
                   };
                 }
 
                 return {
                   ...artifact,
-                  content: normalizeDiagramContent(content as Partial<ClassDiagramContent>),
+                  content: options?.alreadyNormalized ? content as ClassDiagramContent : normalizeDiagramContent(content as Partial<ClassDiagramContent>),
                   updatedAt: now,
                 };
               }),
@@ -417,6 +438,7 @@ export const useProjects = () => {
     importProject,
     renameArtifact,
     renameProject,
+    saveStatus,
     setActiveArtifactId,
     setActiveProjectId,
     storageWarning,
