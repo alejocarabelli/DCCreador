@@ -3508,7 +3508,7 @@
 }
 
 .app-shell[data-ui-version='refined'] .sequence-outline-panel {
-  background: #f8faf9;
+  background: var(--panel-subtle-background);
 }
 
 .app-shell[data-ui-version='refined'] .sequence-inspector-panel,
@@ -3555,7 +3555,7 @@
 }
 
 .app-shell[data-ui-version='refined'] .sequence-canvas-controls {
-  border-color: #d5dddb;
+  border-color: var(--panel-border);
   background: color-mix(in srgb, #ffffff 92%, transparent);
   box-shadow: 0 3px 12px rgba(52, 65, 73, 0.10);
 }
