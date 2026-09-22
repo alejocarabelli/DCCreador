@@ -277,3 +277,13 @@ describe('shared sequence message editing contract', () => {
     expect(reopened.participants.find((participant) => participant.id === 'receiver')?.destroyedByMessageId).toBe('destroy-1');
   });
 });
+
+describe('method link while editing a message', () => {
+  it('keeps the linked method when only the passed values change, and drops it on rename', () => {
+    const linked = createSequenceMessageEditModel({ name: 'buscarPrestamos', operationMethodId: 'm1' });
+
+    expect(updateSequenceMessageEditModel(linked, { name: 'buscarPrestamos', arguments: '5001' }).operationMethodId).toBe('m1');
+    expect(updateSequenceMessageEditModel(linked, { returnType: 'Prestamo[]' }).operationMethodId).toBe('m1');
+    expect(updateSequenceMessageEditModel(linked, { name: 'buscarSocios' }).operationMethodId).toBeUndefined();
+  });
+});

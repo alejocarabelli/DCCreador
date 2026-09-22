@@ -1,4 +1,5 @@
 import type {
+  ClassAttribute,
   ClassDiagramContent,
   ClassDiagramNode,
   ClassMethod,
@@ -11,6 +12,7 @@ import { flattenSequenceItems } from './sequenceDiagram';
 
 export type SequenceClassImportSummary = {
   createdClasses: number;
+  addedAttributes: number;
   addedMethods: number;
   updatedClasses: number;
 };
@@ -36,6 +38,41 @@ const operationFromMessage = (message: SequenceMessage): ImportedOperation | nul
   if (name.length === 0) return null;
 
   return { name, parameters: '', returnType: message.returnType.trim() };
+};
+
+/**
+ * `getNombre` and `setNombre` read and write an attribute, so the class has to
+ * hold `nombre`. A getter's result is the attribute's type; a setter's
+ * argument is only a value, so it says nothing about the type.
+ */
+export const accessorAttribute = (operation: Pick<ImportedOperation, 'name' | 'returnType'>): Omit<ClassAttribute, 'id'> | null => {
+  const match = /^(get|set)([A-ZÁÉÍÓÚÜÑ][\wÁÉÍÓÚÜÑáéíóúüñ]*)$/.exec(operation.name.trim());
+  if (match === null) return null;
+  const rest = match[2];
+  // `getURL` keeps its capitals; `getNombre` becomes `nombre`.
+  const name = /^[A-ZÁÉÍÓÚÜÑ]{2}/.test(rest) ? rest : `${rest[0].toLocaleLowerCase()}${rest.slice(1)}`;
+  const type = match[1] === 'get' ? operation.returnType.trim() : '';
+  return { name, type: type.toLocaleLowerCase() === 'void' ? '' : type };
+};
+
+/** Attributes the accessors among `operations` need and `existing` lacks. */
+const accessorAttributes = (
+  operations: Pick<ImportedOperation, 'name' | 'returnType'>[],
+  existing: Pick<ClassAttribute, 'name'>[],
+): ClassAttribute[] => {
+  const taken = new Set(existing.map((attribute) => normalizeKey(attribute.name)));
+  const added = new Map<string, ClassAttribute>();
+  for (const operation of operations) {
+    const attribute = accessorAttribute(operation);
+    if (attribute === null) continue;
+    const key = normalizeKey(attribute.name);
+    if (taken.has(key)) continue;
+    const pending = added.get(key);
+    if (pending === undefined) added.set(key, { id: createId(), ...attribute });
+    // A setter seen first leaves the type empty; the getter can still fill it.
+    else if (pending.type === '') pending.type = attribute.type;
+  }
+  return [...added.values()];
 };
 
 /** One operation per name: `buscar(id)` and `buscar(nro)` are the same method. */
@@ -84,7 +121,7 @@ export const importClassesFromSequences = (
     }
   }
 
-  const summary: SequenceClassImportSummary = { createdClasses: 0, addedMethods: 0, updatedClasses: 0 };
+  const summary: SequenceClassImportSummary = { createdClasses: 0, addedAttributes: 0, addedMethods: 0, updatedClasses: 0 };
   const nodes: ClassDiagramNode[] = classContent.nodes.map((node) => {
     const key = normalizeKey(node.data.name);
     const incoming = operations.get(key);
@@ -92,15 +129,18 @@ export const importClassesFromSequences = (
 
     const missing = incoming.filter((operation) =>
       !node.data.methods.some((method) => sameOperation(method, operation)));
+    const attributes = accessorAttributes([...node.data.methods, ...incoming], node.data.attributes);
     operations.delete(key);
-    if (missing.length === 0) return node;
+    if (missing.length === 0 && attributes.length === 0) return node;
 
     summary.updatedClasses += 1;
     summary.addedMethods += missing.length;
+    summary.addedAttributes += attributes.length;
     return {
       ...node,
       data: {
         ...node.data,
+        attributes: [...node.data.attributes, ...attributes],
         methods: [...node.data.methods, ...missing.map((operation) => ({ id: createId(), visibility: '+' as const, ...operation }))],
       },
     };
@@ -123,7 +163,8 @@ export const importClassesFromSequences = (
     if (incoming === undefined) continue;
 
     const name = displayNames.get(key) ?? key;
-    const size = estimateClassSize({ name, methods: incoming });
+    const attributes = accessorAttributes(incoming, []);
+    const size = estimateClassSize({ name, attributes, methods: incoming });
     if (cursor.x > start.x && cursor.x + size.width > start.x + rowWidth) {
       cursor = { x: start.x, y: cursor.y + rowHeight + 60 };
       rowHeight = 0;
@@ -138,7 +179,7 @@ export const importClassesFromSequences = (
       position,
       data: {
         name,
-        attributes: [],
+        attributes,
         methods: incoming.map((operation) => ({ id: createId(), visibility: '+', ...operation })),
         hasParametricValuesNote: false,
         parametricValuesNoteConnectionMode: 'automatic',
@@ -147,6 +188,7 @@ export const importClassesFromSequences = (
       },
     });
     summary.createdClasses += 1;
+    summary.addedAttributes += attributes.length;
     summary.addedMethods += incoming.length;
   }
 

@@ -116,8 +116,10 @@ export const updateSequenceMessageEditModel = (
   changes: Partial<SequenceMessageEditModel>,
 ): SequenceMessageEditModel => {
   const next = { ...draft, ...changes };
-  const editsSignature = 'name' in changes || 'arguments' in changes || 'returnType' in changes;
-  if (editsSignature && !('operationMethodId' in changes)) {
+  // The arguments are the values this call passes, so filling them in keeps
+  // the linked method; only naming a different operation drops the link.
+  const renamesOperation = changes.name !== undefined && changes.name.trim() !== draft.name.trim();
+  if (renamesOperation && !('operationMethodId' in changes)) {
     next.operationMethodId = undefined;
   }
   return next;

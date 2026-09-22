@@ -57,7 +57,7 @@ describe('importClassesFromSequences', () => {
     expect(result.nodes[1].data.methods).toMatchObject([
       { name: 'buscarPermiso', parameters: '', returnType: 'Permiso' },
     ]);
-    expect(summary).toEqual({ createdClasses: 2, addedMethods: 2, updatedClasses: 0 });
+    expect(summary).toEqual({ createdClasses: 2, addedAttributes: 0, addedMethods: 2, updatedClasses: 0 });
   });
 
   it('merges into existing classes by name and is idempotent', () => {
@@ -73,10 +73,10 @@ describe('importClassesFromSequences', () => {
     expect(first.content.nodes).toHaveLength(1);
     expect(first.content.nodes[0].data.methods.map((method) => [method.name, method.parameters]))
       .toEqual([['validar', ''], ['guardar', '']]);
-    expect(first.summary).toEqual({ createdClasses: 0, addedMethods: 1, updatedClasses: 1 });
+    expect(first.summary).toEqual({ createdClasses: 0, addedAttributes: 0, addedMethods: 1, updatedClasses: 1 });
 
     const second = importClassesFromSequences(first.content, [content]);
-    expect(second.summary).toEqual({ createdClasses: 0, addedMethods: 0, updatedClasses: 0 });
+    expect(second.summary).toEqual({ createdClasses: 0, addedAttributes: 0, addedMethods: 0, updatedClasses: 0 });
     expect(second.content.nodes[0]).toBe(first.content.nodes[0]);
   });
 
@@ -113,5 +113,46 @@ describe('findFreeClassPosition', () => {
     const next = findFreeClassPosition([classNode('a', 'A', 50, 50)], { x: 50, y: 50 });
     expect(next).not.toEqual({ x: 50, y: 50 });
     expect(Math.abs(next.x - 50) >= 240 || Math.abs(next.y - 50) >= 150).toBe(true);
+  });
+});
+
+describe('accessor attributes', () => {
+  it('adds the attribute behind each get or set, typed by the getter', () => {
+    const content = sequence({
+      participants: [participant('c', 'control', '', 'Gestor', 0), participant('t', 'entity', '', 'Tramite', 200)],
+      items: [
+        call('c', 't', 'setEstado', { arguments: 'estadoNuevo' }),
+        call('c', 't', 'getEstado', { returnType: 'TramiteEstado' }),
+        call('c', 't', 'getNroTramite', { returnType: 'int' }),
+        call('c', 't', 'getURL'),
+        call('c', 't', 'buscarDocumentos'),
+        call('c', 't', 'getter'),
+      ],
+    });
+
+    const { content: result, summary } = importClassesFromSequences({ nodes: [], edges: [] }, [content]);
+    const tramite = result.nodes.find((node) => node.data.name === 'Tramite');
+    expect(tramite?.data.attributes.map((attribute) => [attribute.name, attribute.type])).toEqual([
+      ['estado', 'TramiteEstado'],
+      ['nroTramite', 'int'],
+      ['URL', ''],
+    ]);
+    expect(summary.addedAttributes).toBe(3);
+  });
+
+  it('does not repeat attributes the class already has', () => {
+    const content = sequence({
+      participants: [participant('c', 'control', '', 'Gestor', 0), participant('t', 'entity', '', 'Tramite', 200)],
+      items: [call('c', 't', 'getEstado'), call('c', 't', 'getFechaAlta')],
+    });
+    const existing = classNode('t', 'Tramite', 0, 0);
+    existing.data.attributes = [{ id: 'a1', name: 'estado', type: 'String' }];
+
+    const first = importClassesFromSequences({ nodes: [existing], edges: [] }, [content]);
+    expect(first.content.nodes[0].data.attributes.map((attribute) => attribute.name)).toEqual(['estado', 'fechaAlta']);
+    expect(first.summary.addedAttributes).toBe(1);
+
+    const second = importClassesFromSequences(first.content, [content]);
+    expect(second.summary).toEqual({ createdClasses: 0, addedAttributes: 0, addedMethods: 0, updatedClasses: 0 });
   });
 });

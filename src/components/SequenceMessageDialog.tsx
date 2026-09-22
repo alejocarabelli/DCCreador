@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { ArrowLeftRight, X } from 'lucide-react';
 import type { SequenceMessageType, SequenceParticipant } from '../types/diagram';
 import {
@@ -40,6 +40,25 @@ export function SequenceMessageDialog({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [signatureText, setSignatureText] = useState(() => formatSignatureFromDraft(draft));
+  const [suggestionIndex, setSuggestionIndex] = useState(0);
+  const [suggestionsDismissed, setSuggestionsDismissed] = useState(false);
+
+  // While the name is being typed (nothing past it yet), offer the methods the
+  // receiving class already has. Picking one links it and leaves the caret
+  // inside the parentheses, since the values passed belong to this call.
+  const methodSuggestions = useMemo(() => {
+    if (draft.type !== 'synchronous' && draft.type !== 'asynchronous') return [];
+    if (/[(:]/.test(signatureText)) return [];
+    const query = signatureText.trim().toLocaleLowerCase();
+    const matches = methodOptions.filter((method) => method.name.toLocaleLowerCase().includes(query));
+    const ranked = [
+      ...matches.filter((method) => method.name.toLocaleLowerCase().startsWith(query)),
+      ...matches.filter((method) => !method.name.toLocaleLowerCase().startsWith(query)),
+    ];
+    return ranked.length === 1 && ranked[0].name === signatureText.trim() ? [] : ranked.slice(0, 6);
+  }, [draft.type, methodOptions, signatureText]);
+  const showSuggestions = !suggestionsDismissed && methodSuggestions.length > 0;
+  const activeSuggestion = Math.min(suggestionIndex, methodSuggestions.length - 1);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -90,7 +109,27 @@ export function SequenceMessageDialog({
 
   const handleTextChange = (newText: string) => {
     setSignatureText(newText);
+    setSuggestionIndex(0);
+    setSuggestionsDismissed(false);
     onChange(commitDraft(draft.type, newText));
+  };
+
+  const pickMethod = (method: SequenceMethodOption) => {
+    const returnType = method.returnType.trim();
+    const nextText = `${method.name}()${returnType ? `: ${returnType}` : ''}`;
+    setSignatureText(nextText);
+    onChange(updateSequenceMessageEditModel(draft, {
+      operationMethodId: method.id,
+      name: method.name,
+      arguments: '',
+      parameterValues: '',
+      returnType,
+    }));
+    window.requestAnimationFrame(() => {
+      const caret = method.name.length + 1;
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(caret, caret);
+    });
   };
 
   const handleTypeSelect = (newType: SequenceMessageType) => {
@@ -164,6 +203,26 @@ export function SequenceMessageDialog({
   };
 
   const handleTextareaKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showSuggestions) {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        const step = event.key === 'ArrowDown' ? 1 : -1;
+        setSuggestionIndex((activeSuggestion + step + methodSuggestions.length) % methodSuggestions.length);
+        return;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        setSuggestionsDismissed(true);
+        return;
+      }
+      if ((event.key === 'Tab' || event.key === 'Enter') && !event.shiftKey && !event.metaKey && !event.ctrlKey) {
+        event.preventDefault();
+        event.stopPropagation();
+        pickMethod(methodSuggestions[activeSuggestion]);
+        return;
+      }
+    }
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       event.stopPropagation();
@@ -234,9 +293,36 @@ export function SequenceMessageDialog({
             }
             onChange={(e) => handleTextChange(e.target.value)}
             onKeyDown={handleTextareaKeyDown}
+            onBlur={() => setSuggestionsDismissed(true)}
+            onFocus={() => setSuggestionsDismissed(false)}
             className="sequence-dialog-textarea"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={showSuggestions}
+            aria-controls={showSuggestions ? 'sequence-dialog-method-suggestions' : undefined}
+            aria-activedescendant={showSuggestions ? `sequence-dialog-method-${activeSuggestion}` : undefined}
           />
-          <span className="sequence-dialog-textarea-hint">Ajuste automático de líneas · Enter para guardar</span>
+          {showSuggestions ? (
+            <div className="sequence-dialog-suggestions" id="sequence-dialog-method-suggestions" role="listbox" aria-label="Métodos de la clase destino">
+              {methodSuggestions.map((method, index) => (
+                <button
+                  aria-selected={index === activeSuggestion}
+                  className={index === activeSuggestion ? 'active' : undefined}
+                  id={`sequence-dialog-method-${index}`}
+                  key={method.id}
+                  role="option"
+                  tabIndex={-1}
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => pickMethod(method)}
+                >
+                  <span className="sequence-dialog-suggestion-name">{method.name}({method.parameters})</span>
+                  {method.returnType ? <span className="sequence-dialog-suggestion-type">{method.returnType}</span> : null}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <span className="sequence-dialog-textarea-hint">{showSuggestions ? '↑↓ para elegir · Enter o Tab usa el método · Esc para escribir libre' : 'Ajuste automático de líneas · Enter para guardar'}</span>
         </div> : null}
 
         {/* Segmented type pills selector */}

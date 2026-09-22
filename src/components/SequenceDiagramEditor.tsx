@@ -618,21 +618,18 @@ export function SequenceDiagramEditor({
       candidate.type === 'sequence-diagram' && candidate.id !== artifact.id
     ),
   [project.artifacts, artifact.id]);
-  const associatedClassDiagram = classDiagrams.find((candidate) => candidate.id === content.classDiagramArtifactId);
-  const classNodesById = useMemo(() => {
-    const classDiagram = project.artifacts.find(
-      (candidate): candidate is ClassModelArtifact =>
-        (candidate.type === 'class-diagram' || candidate.type === 'class-sequence-diagram')
-        && candidate.id === content.classDiagramArtifactId,
-    );
-    const map = new Map<string, { name: string }>();
-    if (!classDiagram) return map;
-    const nodes = Array.isArray(classDiagram.content?.nodes) ? classDiagram.content.nodes : [];
-    for (const node of nodes) {
-      map.set(node.id, { name: node.data.name });
-    }
-    return map;
-  }, [project.artifacts, content.classDiagramArtifactId]);
+  // With no reference chosen, a project's only class diagram is the model: its
+  // methods feed the message suggestions without a trip to the settings.
+  const plainClassDiagrams = classDiagrams.filter((candidate) => candidate.type === 'class-diagram');
+  const defaultClassDiagram = content.classDiagramArtifactId === undefined && plainClassDiagrams.length === 1
+    ? plainClassDiagrams[0]
+    : undefined;
+  const associatedClassDiagram = classDiagrams.find((candidate) => candidate.id === content.classDiagramArtifactId) ?? defaultClassDiagram;
+  // A small lookup; the React compiler memoizes it with the diagram it reads.
+  const classNodesById = new Map<string, { name: string }>(
+    (Array.isArray(associatedClassDiagram?.content?.nodes) ? associatedClassDiagram.content.nodes : [])
+      .map((node) => [node.id, { name: node.data.name }]),
+  );
   const selectedItem = selection?.kind === 'message' || selection?.kind === 'fragment'
     ? findSequenceItem(content.items, selection.id)
     : null;
@@ -4708,7 +4705,7 @@ export function SequenceDiagramEditor({
                     <span>Diagrama de clases</span>
                     <select value={content.classDiagramArtifactId ?? ''} onChange={(event) => commit({ ...content, classDiagramArtifactId: event.target.value || undefined })}>
                       {content.classDiagramArtifactId && !associatedClassDiagram ? <option value={content.classDiagramArtifactId}>Referencia no disponible</option> : null}
-                      <option value="">Sin referencia</option>
+                      <option value="">{defaultClassDiagram ? `Automático: ${defaultClassDiagram.name}` : 'Sin referencia'}</option>
                       {classDiagrams.map((diagram) => <option key={diagram.id} value={diagram.id}>{diagram.name}</option>)}
                     </select>
                     {content.classDiagramArtifactId && !associatedClassDiagram ? <small>El diagrama asociado ya no existe.</small> : null}
@@ -4860,7 +4857,7 @@ export function SequenceDiagramEditor({
           <label><span>Origen</span><select value={messageDraft.sourceId} onChange={(event) => setMessageDraft(updateSequenceMessageEditModel(messageDraft, { sourceId: event.target.value }))}>{content.participants.map((participant) => <option key={participant.id} value={participant.id}>{formatSequenceParticipantName(participant)}</option>)}</select></label>
           <button aria-label="Invertir dirección" className="icon-button sequence-route-swap" type="button" title="Invertir dirección" onClick={swapMessageDraft}><ArrowLeftRight size={14} /></button>
           {messageDraft.type === 'create' ? <label><span>Participante creado</span><input autoFocus value={messageDraft.newParticipantName ?? ''} onChange={(event) => setMessageDraft(updateSequenceMessageEditModel(messageDraft, { newParticipantName: event.target.value }))} placeholder="TramiteActual:Tramite" /></label> : <label><span>Destino</span><select value={messageDraft.targetId} onChange={(event) => setMessageDraft(updateSequenceMessageEditModel(messageDraft, { targetId: event.target.value }))}>{content.participants.map((participant) => <option key={participant.id} value={participant.id}>{formatSequenceParticipantName(participant)}</option>)}</select></label>}
-          {messageDraft.type !== 'return' ? <><label><span>Método vinculado</span><select value={messageDraft.operationMethodId ?? ''} onChange={(event) => { const method = messageDraftMethodOptions.find((candidate) => candidate.id === event.target.value); setMessageDraft(method ? updateSequenceMessageEditModel(messageDraft, { operationMethodId: method.id, name: method.name, arguments: method.parameters, parameterValues: '', returnType: method.returnType }) : updateSequenceMessageEditModel(messageDraft, { operationMethodId: undefined })); }}>{messageDraftReferenceStatus?.method === 'missing' ? <option value={messageDraft.operationMethodId}>Método no disponible</option> : null}<option value="">Texto libre</option>{messageDraftMethodOptions.map((method) => <option key={method.id} value={method.id}>{method.label}</option>)}</select></label><label><span>Operación</span><input autoFocus={messageDraft.type !== 'create'} value={messageDraft.name} onChange={(event) => setMessageDraft(updateSequenceMessageEditModel(messageDraft, { name: event.target.value }))} placeholder={messageDraft.type === 'create' ? 'create' : 'operación'} /></label><label><span>Parámetros</span><input value={messageDraft.arguments} onChange={(event) => setMessageDraft(updateSequenceMessageEditModel(messageDraft, { arguments: event.target.value }))} placeholder="idCaso" /></label><label><span>Valores concretos</span><input value={messageDraft.parameterValues} onChange={(event) => setMessageDraft(updateSequenceMessageEditModel(messageDraft, { parameterValues: event.target.value }))} placeholder="42, estado" /></label><label><span>Resultado</span><input value={messageDraft.returnType} onChange={(event) => setMessageDraft(updateSequenceMessageEditModel(messageDraft, { returnType: event.target.value }))} placeholder="Caso" /></label></> : null}
+          {messageDraft.type !== 'return' ? <><label><span>Método vinculado</span><select value={messageDraft.operationMethodId ?? ''} onChange={(event) => { const method = messageDraftMethodOptions.find((candidate) => candidate.id === event.target.value); setMessageDraft(method ? updateSequenceMessageEditModel(messageDraft, { operationMethodId: method.id, name: method.name, arguments: method.parameters, parameterValues: '', returnType: method.returnType }) : updateSequenceMessageEditModel(messageDraft, { operationMethodId: undefined })); }}>{messageDraftReferenceStatus?.method === 'missing' ? <option value={messageDraft.operationMethodId}>Método no disponible</option> : null}<option value="">Texto libre</option>{messageDraftMethodOptions.map((method) => <option key={method.id} value={method.id}>{method.label}</option>)}</select></label><label><span>Operación</span><input autoFocus={messageDraft.type !== 'create'} list="sequence-message-method-options-composer" value={messageDraft.name} onChange={(event) => { const name = event.target.value; const method = messageDraftMethodOptions.find((candidate) => candidate.name === name.trim()); setMessageDraft(updateSequenceMessageEditModel(messageDraft, method ? { name, operationMethodId: method.id, returnType: messageDraft.returnType || method.returnType } : { name })); }} placeholder={messageDraft.type === 'create' ? 'create' : 'operación'} /><datalist id="sequence-message-method-options-composer">{messageDraftMethodOptions.map((method) => <option key={method.id} value={method.name}>{method.label}</option>)}</datalist></label><label><span>Parámetros</span><input value={messageDraft.arguments} onChange={(event) => setMessageDraft(updateSequenceMessageEditModel(messageDraft, { arguments: event.target.value }))} placeholder="idCaso" /></label><label><span>Valores concretos</span><input value={messageDraft.parameterValues} onChange={(event) => setMessageDraft(updateSequenceMessageEditModel(messageDraft, { parameterValues: event.target.value }))} placeholder="42, estado" /></label><label><span>Resultado</span><input value={messageDraft.returnType} onChange={(event) => setMessageDraft(updateSequenceMessageEditModel(messageDraft, { returnType: event.target.value }))} placeholder="Caso" /></label></> : null}
           <label><span>Referencia al flujo</span><input list="sequence-message-flow-options-composer" value={messageDraft.flowReference ?? ''} onChange={(event) => setMessageDraft(updateSequenceMessageEditModel(messageDraft, { flowReference: event.target.value }))} placeholder="4.2 / CA 1" /><datalist id="sequence-message-flow-options-composer"><option value="">Sin referencia</option>{flowOptions.map((option) => <option key={`${option.flowId}:${option.stepId}`} value={option.value}>{option.label}</option>)}</datalist>{messageDraftReferenceStatus?.flow === 'missing' || messageDraftReferenceStatus?.flow === 'unavailable' ? <small className="sequence-reference-warning">El paso ya no está disponible; se conserva su referencia.</small> : null}</label>
           <label><span>Insertar</span><select value={messageDraft.placement ?? 'end'} onChange={(event) => setMessageDraft(updateSequenceMessageEditModel(messageDraft, { placement: event.target.value as MessageDraft['placement'] }))} disabled={!selectedItem}><option value="after">Después</option><option value="before">Antes</option><option value="end">Al final</option></select></label>
           <button className="primary-action" type="submit" disabled={content.participants.length === 0}><Plus size={15} /> Insertar</button><button aria-label="Cancelar" className="icon-button" type="button" title="Cancelar" onClick={() => setMessageDraft(null)}><X size={16} /></button>
