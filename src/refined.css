@@ -3935,7 +3935,11 @@
   display: flex;
   font-size: 0.73rem;
   gap: 7px;
-  margin: 0 0 14px;
+  /* Same column as the header, toolbar and list: it was the one block that
+     missed the contract, so it sat against the padding edge instead. */
+  margin: 0 auto 14px;
+  max-width: 1120px;
+  width: 100%;
 }
 
 .app-shell[data-ui-version='refined'] .project-home-backup svg {
