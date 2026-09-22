@@ -1488,107 +1488,103 @@
 
 .app-shell[data-ui-version='refined'] .project-home-row {
   align-items: center;
-  background: #ffffff;
+  background: var(--panel-background);
   border: 1px solid #d7dee5;
   border-radius: 8px;
   color: var(--panel-text);
   display: grid;
-  gap: 18px;
-  grid-template-columns: 112px minmax(0, 1fr) auto;
-  min-height: 88px;
-  padding: 9px 16px 9px 10px;
+  gap: 14px;
+  grid-template-columns: 78px minmax(0, 1fr) auto;
+  min-height: 60px;
+  padding: 6px 16px 6px 7px;
   text-align: left;
-  transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease;
+  transition: background-color 120ms ease, border-color 120ms ease;
   width: 100%;
 }
 
 .app-shell[data-ui-version='refined'] .project-home-row:hover {
   background: #fbfcfd;
   border-color: #b9c7d3;
-  transform: translateY(-1px);
 }
 
-.app-shell[data-ui-version='refined'] .project-home-row:active {
-  transform: translateY(0);
-}
-
+/* The cover is a schematic of the project's own diagram: at this size layout
+   reads faster than any label, and this is an app about diagrams. */
 .app-shell[data-ui-version='refined'] .project-home-cover {
   align-items: center;
-  background: color-mix(in srgb, var(--project-tone, #607d91) 12%, #ffffff);
-  border: 1px solid color-mix(in srgb, var(--project-tone, #607d91) 42%, #d7dee5);
-  border-radius: 6px;
+  background: color-mix(in srgb, var(--project-tone, #607d91) 9%, var(--panel-background));
+  border: 1px solid color-mix(in srgb, var(--project-tone, #607d91) 34%, #d7dee5);
+  border-radius: 5px;
   color: var(--project-tone, #607d91);
-  display: grid;
-  grid-template-columns: 1fr;
-  grid-template-rows: 1fr 1px 20px;
-  height: 68px;
-  justify-items: center;
+  display: flex;
+  height: 48px;
+  justify-content: center;
   overflow: hidden;
-  padding: 8px 12px 5px;
-  width: 102px;
+  width: 76px;
 }
 
-.app-shell[data-ui-version='refined'] .project-home-cover strong {
-  font-size: 0.92rem;
+.app-shell[data-ui-version='refined'] .project-home-cover svg {
+  display: block;
+}
+
+.app-shell[data-ui-version='refined'] .project-home-cover-node {
+  fill: color-mix(in srgb, currentColor 22%, var(--panel-background));
+  stroke: currentColor;
+  stroke-width: 0.7;
+}
+
+.app-shell[data-ui-version='refined'] .project-home-cover-line {
+  stroke: currentColor;
+  stroke-width: 0.7;
+  opacity: 0.55;
+}
+
+.app-shell[data-ui-version='refined'] .project-home-cover-empty strong {
+  font-size: 0.88rem;
   font-weight: 780;
   letter-spacing: 0.04em;
 }
 
-.app-shell[data-ui-version='refined'] .project-home-cover-rule {
-  background: currentColor;
-  height: 1px;
-  opacity: 0.4;
-  width: 60px;
-}
-
-.app-shell[data-ui-version='refined'] .project-home-artifacts {
-  align-items: center;
-  display: flex;
-  gap: 6px;
-  opacity: 0.86;
-}
-
-.app-shell[data-ui-version='refined'] .project-home-artifacts span {
-  align-items: center;
-  display: inline-flex;
-}
-
 .app-shell[data-ui-version='refined'] .project-home-copy {
   display: grid;
-  gap: 5px;
+  gap: 3px;
   min-width: 0;
 }
 
 .app-shell[data-ui-version='refined'] .project-home-copy strong {
-  font-size: 0.94rem;
+  font-size: 0.92rem;
   font-weight: 730;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.app-shell[data-ui-version='refined'] .project-home-copy > span {
+.app-shell[data-ui-version='refined'] .project-home-artifacts {
+  align-items: center;
   color: var(--panel-muted-text);
-  font-size: 0.76rem;
+  display: flex;
+  font-size: 0.75rem;
+  gap: 5px;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.app-shell[data-ui-version='refined'] .project-home-date {
-  color: var(--panel-muted-text);
-  display: grid;
-  font-size: 0.7rem;
-  gap: 3px;
-  justify-items: end;
-  line-height: 1.25;
-  white-space: nowrap;
+.app-shell[data-ui-version='refined'] .project-home-artifacts span {
+  align-items: center;
+  display: inline-flex;
+  flex: none;
+  opacity: 0.7;
 }
 
-.app-shell[data-ui-version='refined'] .project-home-date strong {
-  color: #53616d;
-  font-size: 0.72rem;
-  font-weight: 680;
+.app-shell[data-ui-version='refined'] .project-home-artifacts span:last-of-type {
+  margin-right: 3px;
+}
+
+.app-shell[data-ui-version='refined'] .project-home-date {
+  color: var(--panel-muted-text);
+  font-size: 0.73rem;
+  white-space: nowrap;
 }
 
 .app-shell[data-ui-version='refined'] .project-home-row[data-project-tone='a'] { --project-tone: var(--project-tone-a); }
