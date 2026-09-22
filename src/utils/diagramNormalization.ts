@@ -6,6 +6,9 @@ import type {
   ClassDiagramNode,
   ClassAttribute,
   ClassMethod,
+  ClassSequenceDiagramArtifact,
+  ClassSequenceDiagramContent,
+  ClassModelArtifact,
   DesignArtifact,
   DiagramProject,
   LegacyDiagramProject,
@@ -268,6 +271,31 @@ const normalizeClassDiagramArtifact = (
   content: normalizeDiagramContent(artifact?.content),
 });
 
+export const normalizeClassSequenceDiagramContent = (
+  content: Partial<ClassSequenceDiagramContent> | undefined,
+): ClassSequenceDiagramContent => ({
+  ...normalizeDiagramContent(content),
+  version: 1,
+  sourceClassDiagramArtifactId: normalizeString(content?.sourceClassDiagramArtifactId) || undefined,
+  linkedSequenceDiagramIds: Array.from(new Set(
+    Array.isArray(content?.linkedSequenceDiagramIds)
+      ? content.linkedSequenceDiagramIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+      : [],
+  )),
+});
+
+const normalizeClassSequenceDiagramArtifact = (
+  artifact: Partial<ClassSequenceDiagramArtifact> | undefined,
+  fallbackDates: Pick<DiagramProject, 'createdAt' | 'updatedAt'>,
+): ClassSequenceDiagramArtifact => ({
+  id: typeof artifact?.id === 'string' && artifact.id.length > 0 ? artifact.id : createId(),
+  type: 'class-sequence-diagram',
+  name: typeof artifact?.name === 'string' && artifact.name.length > 0 ? artifact.name : 'Diagrama de clases (Secuencia)',
+  createdAt: typeof artifact?.createdAt === 'string' ? artifact.createdAt : fallbackDates.createdAt,
+  updatedAt: typeof artifact?.updatedAt === 'string' ? artifact.updatedAt : fallbackDates.updatedAt,
+  content: normalizeClassSequenceDiagramContent(artifact?.content),
+});
+
 const normalizeUseCaseModelArtifact = (
   artifact: Partial<UseCaseModelArtifact> | undefined,
   fallbackDates: Pick<DiagramProject, 'createdAt' | 'updatedAt'>,
@@ -314,6 +342,10 @@ const normalizeArtifact = (
 
   if (artifact.type === 'class-diagram') {
     return normalizeClassDiagramArtifact(artifact as Partial<ClassDiagramArtifact>, fallbackDates);
+  }
+
+  if (artifact.type === 'class-sequence-diagram') {
+    return normalizeClassSequenceDiagramArtifact(artifact as Partial<ClassSequenceDiagramArtifact>, fallbackDates);
   }
 
   if (artifact.type === 'use-case-model') {
@@ -414,6 +446,9 @@ export const getActiveClassDiagramArtifact = (project: DiagramProject): ClassDia
     updatedAt: project.updatedAt,
   });
 };
+
+export const isClassModelArtifact = (artifact: DesignArtifact): artifact is ClassModelArtifact =>
+  artifact.type === 'class-diagram' || artifact.type === 'class-sequence-diagram';
 
 export const getActiveArtifact = (project: DiagramProject): DesignArtifact => {
   const activeArtifact = project.artifacts.find((artifact) => artifact.id === project.activeArtifactId);

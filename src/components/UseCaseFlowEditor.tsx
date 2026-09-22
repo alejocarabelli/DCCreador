@@ -19,7 +19,8 @@ import type {
   UseCaseFlowPriority,
   UseCaseFlowStep,
 } from '../types/diagram';
-import { themes, type DiagramTheme, type DiagramThemeId } from '../theme/themes';
+import { IMPORT_INVALID_MESSAGE, IMPORT_UNREADABLE_MESSAGE, isImportableProject } from '../utils/projectImport';
+import type { DiagramTheme, DiagramThemeId } from '../theme/themes';
 import { createId } from '../utils/id';
 import { normalizeDiagramProject, normalizeUseCaseFlowContent } from '../utils/diagramNormalization';
 import { buildProjectSymbolIndex } from '../utils/projectSymbolIndex';
@@ -94,12 +95,6 @@ type CompletionState =
       tableId: FlowTableId;
     };
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null;
-
-const isImportableProject = (value: unknown): value is DiagramProject =>
-  isRecord(value) && typeof value.name === 'string' && (Array.isArray(value.artifacts) || isRecord(value.content));
-
 const downloadTextFile = (filename: string, text: string, type: string): void => {
   const blob = new Blob([text], { type });
   const url = URL.createObjectURL(blob);
@@ -162,11 +157,9 @@ export function UseCaseFlowEditor({
   canRedo,
   canUndo,
   project,
-  themeId,
   onChangeContent,
   onImportProject,
   onRedo,
-  onThemeChange,
   onUndo,
 }: UseCaseFlowEditorProps) {
   const content = normalizeUseCaseFlowContent(artifact.content);
@@ -801,13 +794,14 @@ export function UseCaseFlowEditor({
         const parsed = JSON.parse(String(reader.result));
 
         if (!isImportableProject(parsed)) {
-          throw new Error('Formato inválido');
+          showFeedback(IMPORT_INVALID_MESSAGE);
+          return;
         }
 
         onImportProject(normalizeDiagramProject(parsed));
         showFeedback('JSON importado');
       } catch {
-        window.alert('No se pudo importar el JSON. Revisá que sea un proyecto válido.');
+        showFeedback(IMPORT_UNREADABLE_MESSAGE);
       }
 
       event.target.value = '';
@@ -1102,13 +1096,13 @@ export function UseCaseFlowEditor({
                 </td>
                 <td className="flow-row-actions">
                   <div className="flow-row-action-menu">
-                    <button type="button" title="Agregar fila debajo" onClick={() => actions.addRow(index, 'actor')}>
+                    <button aria-label="Agregar fila debajo" type="button" title="Agregar fila debajo" onClick={() => actions.addRow(index, 'actor')}>
                       +
                     </button>
-                    <button type="button" disabled={index === 0} onClick={() => actions.moveRow(index, -1)} title="Mover arriba">
+                    <button aria-label="Mover fila arriba" type="button" disabled={index === 0} onClick={() => actions.moveRow(index, -1)} title="Mover arriba">
                       ↑
                     </button>
-                    <button type="button" disabled={index === rows.length - 1} onClick={() => actions.moveRow(index, 1)} title="Mover abajo">
+                    <button aria-label="Mover fila abajo" type="button" disabled={index === rows.length - 1} onClick={() => actions.moveRow(index, 1)} title="Mover abajo">
                       ↓
                     </button>
                     <button type="button" onClick={() => actions.deleteRow(step.id)} title="Eliminar fila">
@@ -1165,21 +1159,6 @@ export function UseCaseFlowEditor({
                 <FileUp size={17} />
                 Importar JSON
               </button>
-            </div>
-          </details>
-          <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
-            <summary>Tema</summary>
-            <div className="toolbar-menu-content theme-menu">
-              <label className="theme-selector compact-theme-selector">
-                <span>Temas</span>
-                <select value={themeId} onChange={(event) => onThemeChange(event.target.value as DiagramThemeId)}>
-                  {themes.map((themeOption) => (
-                    <option key={themeOption.id} value={themeOption.id}>
-                      {themeOption.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
             </div>
           </details>
         </div>

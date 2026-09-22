@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ArtifactContent,
   ClassDiagramArtifact,
   ClassDiagramContent,
+  ClassSequenceDiagramArtifact,
+  ClassSequenceDiagramContent,
   DiagramContent,
   DiagramProject,
   SequenceDiagramArtifact,
@@ -14,7 +16,16 @@ import type {
 } from '../types/diagram';
 import { loadProjects, saveProjects } from '../storage/projectsStorage';
 import {
+  BACKUP_INTERVAL_MS,
+  isBackupAvailable,
+  readLastBackupAt,
+  revealBackups,
+  writeBackup,
+  type BackupState,
+} from '../storage/backup';
+import {
   getActiveClassDiagramArtifact,
+  normalizeClassSequenceDiagramContent,
   normalizeDiagramContent,
   normalizeDiagramProject,
   normalizeUseCaseFlowContent,
@@ -26,6 +37,11 @@ import { createEmptySequenceDiagramContent, normalizeSequenceDiagramContent } fr
 const createEmptyContent = (): ClassDiagramContent => ({
   nodes: [],
   edges: [],
+});
+
+const cloneClassContent = (content: ClassDiagramContent): ClassDiagramContent => normalizeDiagramContent({
+  nodes: content.nodes,
+  edges: content.edges,
 });
 
 const createEmptyUseCaseModelContent = (): UseCaseModelArtifact['content'] => ({
@@ -48,6 +64,16 @@ const createEmptyUseCaseFlowContent = (): UseCaseFlowContent => ({
   },
   basicFlow: [],
   alternativeFlows: [],
+});
+
+const createClassSequenceContent = (
+  source: ClassDiagramArtifact | undefined,
+  linkedSequenceDiagramIds: string[],
+): ClassSequenceDiagramContent => ({
+  ...cloneClassContent(source?.content ?? createEmptyContent()),
+  version: 1,
+  sourceClassDiagramArtifactId: source?.id,
+  linkedSequenceDiagramIds,
 });
 
 const buildProject = (name: string): DiagramProject => {
@@ -76,12 +102,21 @@ export type DiagramSaveStatus = 'saved' | 'saving' | 'error';
 export const useProjects = () => {
   const [initialLoad] = useState(loadProjects);
   const [projects, setProjects] = useState<DiagramProject[]>(initialLoad.projects);
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(initialLoad.projects[0]?.id ?? null);
+  // Start at the project archive so opening the app does not silently jump into
+  // an arbitrary artifact. Creating or selecting a project still opens it as before.
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [storageWarning, setStorageWarning] = useState<string | null>(initialLoad.warning);
   const [saveStatus, setSaveStatus] = useState<DiagramSaveStatus>('saved');
   const skipInitialSaveRef = useRef(initialLoad.skipInitialSave);
   const latestProjectsRef = useRef(projects);
   const hasPendingSaveRef = useRef(false);
+  const [backup, setBackup] = useState<BackupState>({
+    path: null,
+    directory: null,
+    at: readLastBackupAt(),
+    error: null,
+  });
+  const backupInFlightRef = useRef(false);
 
   useEffect(() => {
     latestProjectsRef.current = projects;
@@ -139,6 +174,42 @@ export const useProjects = () => {
       flushPendingSave();
     };
   }, []);
+
+  const runBackup = useCallback(async (force: boolean): Promise<void> => {
+    if (!isBackupAvailable() || backupInFlightRef.current) return;
+
+    const last = readLastBackupAt();
+    if (!force && last !== null && Date.now() - last < BACKUP_INTERVAL_MS) return;
+    if (latestProjectsRef.current.length === 0) return;
+
+    backupInFlightRef.current = true;
+    try {
+      const result = await writeBackup(latestProjectsRef.current);
+      if (result.at !== null || result.error !== null) setBackup(result);
+    } finally {
+      backupInFlightRef.current = false;
+    }
+  }, []);
+
+  // A snapshot rides along with editing (throttled to BACKUP_INTERVAL_MS) and
+  // one more is forced when the window goes away, which is the moment a lost
+  // localStorage would actually cost work.
+  useEffect(() => {
+    if (!isBackupAvailable()) return;
+
+    void runBackup(false);
+
+    const onHide = (): void => {
+      if (document.visibilityState === 'hidden') void runBackup(true);
+    };
+
+    window.addEventListener('pagehide', () => void runBackup(true));
+    document.addEventListener('visibilitychange', onHide);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+    };
+  }, [projects, runBackup]);
 
   const activeProject = useMemo(
     () => projects.find((project) => project.id === activeProjectId) ?? null,
@@ -212,6 +283,48 @@ export const useProjects = () => {
           : project,
       ),
     );
+  };
+
+  const createClassSequenceDiagramArtifact = (projectId: string, name: string): void => {
+    const now = new Date().toISOString();
+
+    setProjects((currentProjects) => currentProjects.map((project) => {
+      if (project.id !== projectId) {
+        return project;
+      }
+
+      const source = project.artifacts.find(
+        (candidate): candidate is ClassDiagramArtifact => candidate.type === 'class-diagram',
+      );
+      const sequenceIds = project.artifacts
+        .filter((candidate): candidate is SequenceDiagramArtifact => candidate.type === 'sequence-diagram')
+        .map((candidate) => candidate.id);
+      const artifact: ClassSequenceDiagramArtifact = {
+        id: createId(),
+        type: 'class-sequence-diagram',
+        name: name.trim() || 'Diagrama de clases (Secuencia)',
+        createdAt: now,
+        updatedAt: now,
+        content: createClassSequenceContent(source, sequenceIds),
+      };
+      const linkedArtifacts = project.artifacts.map((candidate) => candidate.type === 'sequence-diagram'
+        ? {
+            ...candidate,
+            content: {
+              ...candidate.content,
+              classDiagramArtifactId: artifact.id,
+            },
+            updatedAt: now,
+          }
+        : candidate);
+
+      return {
+        ...project,
+        activeArtifactId: artifact.id,
+        artifacts: [...linkedArtifacts, artifact],
+        updatedAt: now,
+      };
+    }));
   };
 
   const createUseCaseModelArtifact = (projectId: string, name: string): void => {
@@ -289,6 +402,35 @@ export const useProjects = () => {
       : project));
   };
 
+  const linkSequenceDiagramsToClassModel = (projectId: string, classModelArtifactId: string): void => {
+    const now = new Date().toISOString();
+
+    setProjects((currentProjects) => currentProjects.map((project) => {
+      if (project.id !== projectId) {
+        return project;
+      }
+
+      return {
+        ...project,
+        updatedAt: now,
+        artifacts: project.artifacts.map((artifact) => {
+          if (artifact.type === 'sequence-diagram') {
+            return {
+              ...artifact,
+              content: {
+                ...artifact.content,
+                classDiagramArtifactId: classModelArtifactId,
+              },
+              updatedAt: now,
+            };
+          }
+
+          return artifact;
+        }),
+      };
+    }));
+  };
+
   const renameArtifact = (projectId: string, artifactId: string, name: string): void => {
     const cleanName = name.trim();
 
@@ -347,52 +489,74 @@ export const useProjects = () => {
   ): void => {
     const now = new Date().toISOString();
 
-    setProjects((currentProjects) =>
-      currentProjects.map((project) =>
-        project.id === projectId
-          ? {
-              ...project,
-              updatedAt: now,
-              activeArtifactId: artifactId,
-              artifacts: project.artifacts.map((artifact) => {
-                if (artifact.id !== artifactId) {
-                  return artifact;
-                }
+    setProjects((currentProjects) => currentProjects.map((project) => {
+      if (project.id !== projectId) {
+        return project;
+      }
 
-                if (artifact.type === 'use-case-model') {
-                  return {
-                    ...artifact,
-                    content: options?.alreadyNormalized ? content as UseCaseModelContent : normalizeUseCaseModelContent(content as Partial<UseCaseModelContent>),
-                    updatedAt: now,
-                  };
-                }
+      const targetArtifact = project.artifacts.find((artifact) => artifact.id === artifactId);
+      if (targetArtifact === undefined) {
+        return project;
+      }
 
-                if (artifact.type === 'use-case-flow') {
-                  return {
-                    ...artifact,
-                    content: options?.alreadyNormalized ? content as UseCaseFlowContent : normalizeUseCaseFlowContent(content as Partial<UseCaseFlowContent>),
-                    updatedAt: now,
-                  };
-                }
+      const normalizedTargetContent = targetArtifact.type === 'use-case-model'
+        ? (options?.alreadyNormalized ? content as UseCaseModelContent : normalizeUseCaseModelContent(content as Partial<UseCaseModelContent>))
+        : targetArtifact.type === 'use-case-flow'
+          ? (options?.alreadyNormalized ? content as UseCaseFlowContent : normalizeUseCaseFlowContent(content as Partial<UseCaseFlowContent>))
+          : targetArtifact.type === 'sequence-diagram'
+            ? (options?.alreadyNormalized ? content as SequenceDiagramContent : normalizeSequenceDiagramContent(content as Partial<SequenceDiagramContent>))
+            : targetArtifact.type === 'class-sequence-diagram'
+              ? (options?.alreadyNormalized
+                ? content as ClassSequenceDiagramContent
+                : normalizeClassSequenceDiagramContent(content as Partial<ClassSequenceDiagramContent>))
+              : (options?.alreadyNormalized ? content as ClassDiagramContent : normalizeDiagramContent(content as Partial<ClassDiagramContent>));
 
-                if (artifact.type === 'sequence-diagram') {
-                  return {
-                    ...artifact,
-                    content: options?.alreadyNormalized ? content as SequenceDiagramContent : normalizeSequenceDiagramContent(content as Partial<SequenceDiagramContent>),
-                    updatedAt: now,
-                  };
-                }
+      const isClassModelUpdate = targetArtifact.type === 'class-diagram' || targetArtifact.type === 'class-sequence-diagram';
+      const targetClassContent = isClassModelUpdate
+        ? cloneClassContent(normalizedTargetContent as ClassDiagramContent)
+        : undefined;
+      const sourceClassDiagramArtifactId = targetArtifact.type === 'class-sequence-diagram'
+        ? targetArtifact.content.sourceClassDiagramArtifactId ?? targetArtifact.id
+        : targetArtifact.type === 'class-diagram'
+          ? targetArtifact.id
+          : undefined;
 
-                return {
-                  ...artifact,
-                  content: options?.alreadyNormalized ? content as ClassDiagramContent : normalizeDiagramContent(content as Partial<ClassDiagramContent>),
-                  updatedAt: now,
-                };
-              }),
-            }
-          : project,
-      ),
-    );
+      const artifacts = project.artifacts.map((artifact) => {
+        if (artifact.id === artifactId) {
+          return { ...artifact, content: normalizedTargetContent, updatedAt: now } as typeof artifact;
+        }
+
+        if (!isClassModelUpdate || targetClassContent === undefined || sourceClassDiagramArtifactId === undefined) {
+          return artifact;
+        }
+
+        if (artifact.type === 'class-diagram' && artifact.id === sourceClassDiagramArtifactId) {
+          return { ...artifact, content: targetClassContent, updatedAt: now };
+        }
+
+        if (artifact.type === 'class-sequence-diagram'
+          && (artifact.content.sourceClassDiagramArtifactId ?? artifact.id) === sourceClassDiagramArtifactId) {
+          return {
+            ...artifact,
+            content: {
+              ...artifact.content,
+              ...targetClassContent,
+              version: 1 as const,
+            },
+            updatedAt: now,
+          };
+        }
+
+        return artifact;
+      });
+
+      return {
+        ...project,
+        updatedAt: now,
+        activeArtifactId: artifactId,
+        artifacts,
+      };
+    }));
   };
 
   const updateProjectContent = (projectId: string, content: DiagramContent): void => {
@@ -427,10 +591,16 @@ export const useProjects = () => {
   return {
     activeProject,
     activeProjectId,
+    backup,
+    backupAvailable: isBackupAvailable(),
+    revealBackups,
+    runBackupNow: () => runBackup(true),
     createClassDiagramArtifact,
+    createClassSequenceDiagramArtifact,
     createUseCaseFlowArtifact,
     createUseCaseModelArtifact,
     createSequenceDiagramArtifact,
+    linkSequenceDiagramsToClassModel,
     createProject,
     deleteArtifact,
     deleteProject,

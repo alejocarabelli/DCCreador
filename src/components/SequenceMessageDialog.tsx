@@ -1,32 +1,16 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { ArrowLeftRight, X } from 'lucide-react';
-import type { SequenceMessage, SequenceMessageType, SequenceParticipant } from '../types/diagram';
+import type { SequenceMessageType, SequenceParticipant } from '../types/diagram';
 import {
   formatMessageSignature,
   parseMessageSignature,
-  sequenceMessageEditModelToPatch,
   updateSequenceMessageEditModel,
   type SequenceFlowOption,
-  type SequenceMessageEditModel,
   type SequenceMethodOption,
   type SequenceMessageReferenceStatus,
 } from '../utils/sequenceMessageEditing';
 import { formatSequenceParticipantName } from '../utils/sequenceDiagram';
-
-/** Kept as an exported alias for older callers and characterization tests. */
-export type QuickMessageDraft = SequenceMessageEditModel;
-
-export const messageDraftFields = (message?: SequenceMessage) => ({
-  arguments: message?.arguments ?? '',
-  parameterValues: message?.parameterValues ?? '',
-  returnType: message?.returnType ?? '',
-  operationMethodId: message?.operationMethodId,
-  replyToMessageId: message?.replyToMessageId,
-  flowReference: message?.flowReference ?? '',
-});
-
-/** Compatibility wrapper: all forms now use the shared conversion. */
-export const quickMessageValues = (draft: QuickMessageDraft) => sequenceMessageEditModelToPatch(draft);
+import type { QuickMessageDraft } from '../utils/sequenceMessageDialogCompatibility';
 
 const formatSignatureFromDraft = formatMessageSignature;
 
@@ -193,6 +177,7 @@ export function SequenceMessageDialog({
 
   return (
     <dialog
+      aria-labelledby="sequence-message-dialog-title"
       className="sequence-message-dialog"
       ref={dialogRef}
       onClick={(event) => { if (event.target === dialogRef.current) onCancel(); }}
@@ -200,7 +185,7 @@ export function SequenceMessageDialog({
     >
       <form ref={formRef} onSubmit={handleSubmit} onKeyDown={handleFormKeyDown}>
         <header className="sequence-dialog-header">
-          <h3 className="sequence-dialog-title">{draft.editId ? 'Editar mensaje' : 'Nuevo mensaje'}</h3>
+          <h3 className="sequence-dialog-title" id="sequence-message-dialog-title">{draft.editId ? 'Editar mensaje' : 'Nuevo mensaje'}</h3>
           <button
             type="button"
             className="sequence-dialog-close-btn"

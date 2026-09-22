@@ -2,14 +2,14 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type Keyboard
 import type { SequenceFragmentOperator, SequenceMessageType } from '../types/diagram';
 import type { SequenceMethodOption } from '../utils/sequenceMessageEditing';
 import type { SequenceKeyboardModeState } from '../utils/sequenceKeyboardMode';
-import { getSequenceKeyboardInstruction } from '../utils/sequenceKeyboardMode';
+import { getSequenceKeyboardInstruction, sequenceKeyboardMessageTypes } from '../utils/sequenceKeyboardMode';
 
 const typeLabels: Record<SequenceMessageType, string> = {
-  synchronous: 'Síncrono',
-  asynchronous: 'Asíncrono',
+  synchronous: 'Mensaje',
+  asynchronous: 'Mensaje',
   return: 'Retorno',
-  create: 'Create',
-  destroy: 'Destroy',
+  create: 'Crear',
+  destroy: 'Destruir',
 };
 
 const operatorLabels: Record<SequenceFragmentOperator, string> = {
@@ -108,6 +108,10 @@ export function SequenceKeyboardComposer({
   };
 
   const instruction = getSequenceKeyboardInstruction(state);
+  const visibleMessageType: SequenceMessageType = state.messageType === 'asynchronous'
+    ? 'synchronous'
+    : state.messageType;
+  const visibleMessageTypeLabel = typeLabels[visibleMessageType];
 
   return (
     <>
@@ -133,17 +137,29 @@ export function SequenceKeyboardComposer({
                 <span>{context}</span>
               </div>
             ) : (
-              <div className="sequence-keyboard-route">
+              <div
+                aria-label={`Tipo de mensaje: ${visibleMessageTypeLabel}`}
+                className="sequence-keyboard-route"
+                data-message-type={visibleMessageType}
+              >
                 <span title={sourceName}>{sourceName}</span>
-                <b>{typeLabels[state.messageType]}</b>
+                <b>{visibleMessageTypeLabel}</b>
                 <span title={targetName}>{targetName}</span>
               </div>
             )}
 
             {state.stage === 'aim' ? (
-              <div className="sequence-keyboard-type-row">
-                {Object.entries(typeLabels).map(([type, label]) => (
-                  <span className={state.messageType === type ? 'active' : ''} key={type}>{label}</span>
+              <div aria-label="Tipos de mensaje" className="sequence-keyboard-type-row" role="listbox">
+                {sequenceKeyboardMessageTypes.map((type) => (
+                  <span
+                    aria-selected={visibleMessageType === type}
+                    className={visibleMessageType === type ? 'active' : ''}
+                    data-message-type={type}
+                    key={type}
+                    role="option"
+                  >
+                    {typeLabels[type]}
+                  </span>
                 ))}
               </div>
             ) : null}
@@ -226,7 +242,7 @@ export function SequenceKeyboardComposer({
         )}
       </div>
       <div aria-live="polite" className="sequence-keyboard-live-region">
-        {`${context}. ${state.stage === 'participant' ? 'Nuevo participante.' : `Origen ${sourceName}. ${state.stage === 'aim' || state.stage === 'typing' ? `Destino ${targetName}. Tipo ${typeLabels[state.messageType]}.` : ''}`}`}
+        {`${context}. ${state.stage === 'participant' ? 'Nuevo participante.' : `Origen ${sourceName}. ${state.stage === 'aim' || state.stage === 'typing' ? `Destino ${targetName}. Tipo ${visibleMessageTypeLabel}.` : ''}`}`}
       </div>
     </>
   );

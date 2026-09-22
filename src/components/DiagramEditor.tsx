@@ -1,16 +1,17 @@
 import { ClassGroupColorPicker } from './ClassGroupColorPicker';
 import type { ClassGroupColor } from '../constants/classGroupColors';
+import { CanvasControls } from './CanvasControls';
+import { CanvasStartCard } from './CanvasStartCard';
 import { ClassAlignmentGuides } from './ClassAlignmentGuides';
 import { DiagramSelectionTools } from './DiagramSelectionTools';
 import { DiagramReviewPanel } from './DiagramReviewPanel';
 import { arrangeClasses, duplicateClasses, moveClass, type ClassArrangement, type ClassSize } from '../utils/classDiagramOperations';
 import { reviewClassDiagram, type DiagramIssue } from '../utils/classDiagramReview';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type SyntheticEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode, type SyntheticEvent } from 'react';
 import ReactFlow, {
   Background,
   BackgroundVariant,
   ConnectionMode,
-  Controls,
   MiniMap,
   addEdge,
   applyEdgeChanges,
@@ -56,7 +57,8 @@ import type {
   ParametricValuesNoteConnectionMode,
   ParametricValuesNoteHandle,
 } from '../types/diagram';
-import { themes, type DiagramTheme, type DiagramThemeId } from '../theme/themes';
+import { IMPORT_INVALID_MESSAGE, IMPORT_UNREADABLE_MESSAGE, isImportableProject } from '../utils/projectImport';
+import type { DiagramTheme, DiagramThemeId } from '../theme/themes';
 import { createId } from '../utils/id';
 import { reorderItemsByIds } from '../utils/reorder';
 import { useDiagramImageExport } from '../hooks/useDiagramImageExport';
@@ -77,9 +79,11 @@ import { EditorIdentity } from './EditorIdentity';
 
 type DiagramEditorProps = {
   artifact: ClassDiagramArtifact;
+  artifactKind?: string;
   canRedo: boolean;
   canUndo: boolean;
   project: DiagramProject;
+  toolbarContext?: ReactNode;
   theme: DiagramTheme;
   themeId: DiagramThemeId;
   onChangeContent: (content: DiagramContent, options?: ContentChangeOptions) => void;
@@ -115,21 +119,6 @@ const MINIMAP_ENABLED_KEY = 'class-diagram-minimap-enabled';
 const NOTE_NODE_OFFSET = { x: 24, y: 116 };
 const NOTE_EDGE_SUFFIX = '__values-edge';
 const NOTE_NODE_SUFFIX = '__values-note';
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null;
-
-const isImportableProject = (value: unknown): value is DiagramProject => {
-  if (!isRecord(value) || typeof value.name !== 'string') {
-    return false;
-  }
-
-  if (isRecord(value.content)) {
-    return Array.isArray(value.content.nodes) && Array.isArray(value.content.edges);
-  }
-
-  return Array.isArray(value.artifacts);
-};
 
 const downloadTextFile = (filename: string, text: string, type: string): void => {
   const blob = new Blob([text], { type });
@@ -168,15 +157,15 @@ const isEditableElement = (element: Element | null): boolean => {
 
 export function DiagramEditor({
   artifact,
+  artifactKind = 'Diagrama de clases',
   canRedo,
   canUndo,
   project,
+  toolbarContext,
   theme,
-  themeId,
   onChangeContent,
   onImportProject,
   onRedo,
-  onThemeChange,
   onUndo,
 }: DiagramEditorProps) {
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
@@ -1339,14 +1328,14 @@ export function DiagramEditor({
       const parsed = JSON.parse(await file.text()) as unknown;
 
       if (!isImportableProject(parsed)) {
-        window.alert('El archivo no tiene la estructura de un proyecto de diagrama.');
+        showFeedback(IMPORT_INVALID_MESSAGE);
         return;
       }
 
       onImportProject(normalizeDiagramProject(parsed));
       showFeedback('JSON importado');
     } catch {
-      window.alert('No se pudo importar el JSON.');
+      showFeedback(IMPORT_UNREADABLE_MESSAGE);
     } finally {
       if (fileInputRef.current !== null) {
         fileInputRef.current.value = '';
@@ -1489,7 +1478,8 @@ export function DiagramEditor({
   return (
     <main className="diagram-editor class-diagram-editor">
       <header className="editor-toolbar" ref={toolbarRef}>
-        <EditorIdentity artifactKind="Diagrama de clases" artifactName={artifact.name} projectName={project.name} />
+        <EditorIdentity artifactKind={artifactKind} artifactName={artifact.name} projectName={project.name} />
+        {toolbarContext}
         <div className="editor-toolbar-actions">
           <button className="toolbar-icon-action" aria-label="Deshacer" type="button" disabled={!canUndo} onClick={() => { closeToolbarMenus(); onUndo(); }} title="Deshacer última acción (⌘Z)">
             <Undo2 size={17} />
@@ -1501,6 +1491,8 @@ export function DiagramEditor({
           <button
             className="toolbar-primary-action"
             type="button"
+            aria-label="Crear clase"
+            title="Crear clase"
             onMouseDown={(event) => event.preventDefault()}
             onClick={(event) => {
               event.currentTarget.blur();
@@ -1620,25 +1612,6 @@ export function DiagramEditor({
               </button>
             </div>
           </details>
-          <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
-            <summary title={theme.description}>Tema</summary>
-            <div className="toolbar-menu-content theme-menu">
-              {themes.map((availableTheme) => (
-                <button
-                  aria-current={availableTheme.id === themeId ? 'true' : undefined}
-                  key={availableTheme.id}
-                  type="button"
-                  className={availableTheme.id === themeId ? 'active-tool' : ''}
-                  onClick={(event) => {
-                    onThemeChange(availableTheme.id as DiagramThemeId);
-                    event.currentTarget.closest('details')?.removeAttribute('open');
-                  }}
-                >
-                  {availableTheme.name}
-                </button>
-              ))}
-            </div>
-          </details>
           <input
             ref={fileInputRef}
             accept="application/json,.json"
@@ -1751,6 +1724,7 @@ export function DiagramEditor({
             multiSelectionKeyCode={['Meta', 'Control']}
             selectNodesOnDrag={false}
             nodeDragThreshold={3}
+            proOptions={{ hideAttribution: true }}
             selectionKeyCode="Shift"
             selectionOnDrag={false}
             snapGrid={[20, 20]}
@@ -1766,9 +1740,22 @@ export function DiagramEditor({
                 variant={BackgroundVariant.Dots}
               />
             ) : null}
+            {renderedNodes.length === 0 ? (
+              <CanvasStartCard
+                title="Empezá por una clase"
+                action={(
+                  <button className="secondary-action" type="button" onClick={() => addClassNode()}>
+                    <Plus size={14} />Crear clase
+                  </button>
+                )}
+              >
+                Agregá las clases del dominio y uní sus asociaciones. También podés hacer
+                doble clic en el lienzo para crear una donde quieras.
+              </CanvasStartCard>
+            ) : null}
             <ClassAlignmentGuides movingIds={movingNodeIds} />
-            <Controls />
-            {isMiniMapEnabled ? <MiniMap pannable zoomable /> : null}
+            <CanvasControls label="Controles del diagrama de clases" />
+            {isMiniMapEnabled ? <MiniMap aria-label="Minimapa del diagrama" pannable zoomable /> : null}
           </ReactFlow>
           {reviewOpen ? <DiagramReviewPanel issues={reviewIssues} onFocus={focusIssue} onClose={() => setReviewOpen(false)} /> : null}
           {contextMenu !== null ? (

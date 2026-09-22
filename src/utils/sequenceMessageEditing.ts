@@ -1,5 +1,5 @@
 import type {
-  ClassDiagramArtifact,
+  ClassModelArtifact,
   SequenceMessage,
   SequenceMessageType,
   SequenceParticipant,
@@ -197,7 +197,7 @@ export const getSequenceMethodOwnerId = (
 
 const resolveParticipantClassNode = (
   participant: SequenceParticipant | undefined,
-  classDiagram: ClassDiagramArtifact | undefined,
+  classDiagram: ClassModelArtifact | undefined,
 ) => {
   if (!participant || !classDiagram) return undefined;
   const nodes = Array.isArray(classDiagram.content?.nodes) ? classDiagram.content.nodes : [];
@@ -217,7 +217,7 @@ export const getSequenceMethodOptions = ({
 }: {
   model: Pick<SequenceMessageEditModel, 'type' | 'sourceId' | 'targetId'>;
   participants: SequenceParticipant[];
-  classDiagram?: ClassDiagramArtifact;
+  classDiagram?: ClassModelArtifact;
 }): SequenceMethodOption[] => {
   const participantId = getSequenceMethodOwnerId(model.type, model.targetId);
   if (!participantId) return [];

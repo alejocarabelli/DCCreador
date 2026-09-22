@@ -148,11 +148,98 @@ describe('synchronous call stack and returns', () => {
     expect(derivedFor(content, 'b', 'call-2')).toMatchObject({ endMessageId: 'return-2', level: 1 });
   });
 
+  it('aligns repeated call-return pairs instead of accumulating activation levels', () => {
+    const content = diagram([
+      message('call-1', 'a', 'b'),
+      message('return-1', 'b', 'a', 'return', 'call-1'),
+      message('call-2', 'a', 'b'),
+      message('return-2', 'b', 'a', 'return', 'call-2'),
+      message('call-3', 'a', 'b'),
+      message('return-3', 'b', 'a', 'return', 'call-3'),
+    ], [], ['a', 'b']);
+
+    const receiverActivations = analyzeSequenceDiagramSemantics(content).activations
+      .filter((activation) => activation.participantId === 'b');
+
+    expect(receiverActivations).toEqual([
+      expect.objectContaining({ startMessageId: 'call-1', endMessageId: 'return-1', level: 0 }),
+      expect.objectContaining({ startMessageId: 'call-2', endMessageId: 'return-2', level: 0 }),
+      expect.objectContaining({ startMessageId: 'call-3', endMessageId: 'return-3', level: 0 }),
+    ]);
+    const callerActivations = analyzeSequenceDiagramSemantics(content).activations
+      .filter((activation) => activation.participantId === 'a');
+    expect(callerActivations).toEqual([
+      expect.objectContaining({ startMessageId: 'call-1', endMessageId: 'return-1', level: 0 }),
+      expect.objectContaining({ startMessageId: 'call-2', endMessageId: 'return-2', level: 0 }),
+      expect.objectContaining({ startMessageId: 'call-3', endMessageId: 'return-3', level: 0 }),
+    ]);
+  });
+
+  it('implicitly completes a synchronous call even when its receiver sends a later message', () => {
+    const content = diagram([
+      message('set-name', 'a', 'b'),
+      message('callback-ba', 'b', 'a'),
+    ], [], ['a', 'b']);
+
+    expect(derivedFor(content, 'b', 'set-name')).toMatchObject({
+      endMessageId: 'set-name',
+      level: 0,
+    });
+    expect(derivedFor(content, 'a', 'callback-ba')).toMatchObject({
+      endMessageId: 'callback-ba',
+      level: 0,
+    });
+  });
+
+  it('does not infer a return from the signature and honors an explicit setter return', () => {
+    const implicitSetter = {
+      ...message('set-implicit', 'a', 'b'),
+      returnType: 'void',
+    };
+    const explicitSetter = {
+      ...message('set-explicit', 'a', 'b'),
+      returnType: 'void',
+    };
+    const explicitReturn = message('return-explicit', 'b', 'a', 'return', 'set-explicit');
+    const content = diagram([
+      implicitSetter,
+      explicitSetter,
+      explicitReturn,
+    ], [], ['a', 'b']);
+
+    expect(derivedFor(content, 'b', 'set-implicit')).toMatchObject({
+      endMessageId: 'set-implicit',
+      level: 0,
+    });
+    expect(derivedFor(content, 'b', 'set-explicit')).toMatchObject({
+      endMessageId: 'return-explicit',
+      level: 0,
+    });
+  });
+
+  it('keeps a compact setter at the nested level of a real outer activation', () => {
+    const content = diagram([
+      message('call-ab', 'a', 'b'),
+      message('set-bb', 'b', 'b'),
+      message('return-ba', 'b', 'a', 'return', 'call-ab'),
+    ], [], ['a', 'b']);
+
+    expect(derivedFor(content, 'b', 'call-ab')).toMatchObject({
+      endMessageId: 'return-ba',
+      level: 0,
+    });
+    expect(derivedFor(content, 'b', 'set-bb')).toMatchObject({
+      endMessageId: 'set-bb',
+      level: 1,
+    });
+  });
+
   it('gives an explicit replyToMessageId priority without falling back to another call', () => {
     const content = diagram([
       message('call-1', 'a', 'b'),
       message('call-2', 'a', 'b'),
       message('out-of-order-return', 'b', 'a', 'return', 'call-1'),
+      message('return-2', 'b', 'a', 'return', 'call-2'),
     ], [], ['a', 'b']);
     const analysis = analyzeSequenceDiagramSemantics(content);
 
@@ -161,7 +248,7 @@ describe('synchronous call stack and returns', () => {
       messageId: 'out-of-order-return',
     }));
     expect(derivedFor(content, 'b', 'call-1')?.endMessageId).toBeUndefined();
-    expect(derivedFor(content, 'b', 'call-2')?.endMessageId).toBeUndefined();
+    expect(derivedFor(content, 'b', 'call-2')?.endMessageId).toBe('return-2');
   });
 
   it('preserves an explicit reply link through normalization and rejects a misdirected return', () => {
@@ -175,7 +262,7 @@ describe('synchronous call stack and returns', () => {
       code: 'unmatched-return',
       messageId: 'wrong-return',
     }));
-    expect(derivedFor(content, 'b', 'call-ab')?.endMessageId).toBeUndefined();
+    expect(derivedFor(content, 'b', 'call-ab')?.endMessageId).toBe('call-ab');
   });
 
   it('reports a return with no open compatible call', () => {
@@ -204,7 +291,7 @@ describe('synchronous call stack and returns', () => {
       messageId: 'return-ba',
       operandId: 'second',
     }));
-    expect(derivedFor(content, 'b', 'call-ab')?.endMessageId).toBeUndefined();
+    expect(derivedFor(content, 'b', 'call-ab')?.endMessageId).toBe('call-ab');
   });
 });
 
@@ -231,6 +318,32 @@ describe('manual activation coherence', () => {
     }));
     expect(analysis.activations.some((activation) =>
       !activation.manual && activation.participantId === 'b' && activation.startMessageId === 'call-ab')).toBe(false);
+  });
+
+  it('projects a stale open setter activation as compact without mutating persisted content', () => {
+    const setter = message('set-name', 'a', 'b');
+    const later = message('later', 'b', 'a');
+    const legacyActivation: SequenceActivation = {
+      id: 'legacy-open-setter',
+      participantId: 'b',
+      startMessageId: 'set-name',
+      endMessageId: 'later',
+      level: 0,
+      manual: true,
+    };
+    const content = diagram([setter, later], [legacyActivation], ['a', 'b']);
+    const persistedBeforeAnalysis = structuredClone(content.activations);
+    const analysis = analyzeSequenceDiagramSemantics(content);
+
+    expect(content.activations).toEqual(persistedBeforeAnalysis);
+    expect(analysis.problems.some((problem) => problem.code === 'invalid-manual-activation')).toBe(false);
+    expect(analysis.activations).toContainEqual(expect.objectContaining({
+      id: 'legacy-open-setter',
+      manual: true,
+      participantId: 'b',
+      startMessageId: 'set-name',
+      endMessageId: 'set-name',
+    }));
   });
 
   it('rejects a manual activation whose end precedes its start and keeps the derived activation', () => {
@@ -261,7 +374,7 @@ describe('manual activation coherence', () => {
     }));
   });
 
-  it('rejects a manual activation crossing sibling operands', () => {
+  it('projects a legacy manual activation crossing sibling operands as compact when the call has no return', () => {
     const content = diagram([{
       id: 'choice',
       kind: 'fragment',
@@ -281,13 +394,9 @@ describe('manual activation coherence', () => {
     }], ['a', 'b']);
     const analysis = analyzeSequenceDiagramSemantics(content);
 
-    expect(analysis.problems).toContainEqual(expect.objectContaining({
-      code: 'invalid-manual-activation',
-      activationId: 'manual-cross-scope',
-    }));
-    expect(analysis.activations.some((activation) => activation.id === 'manual-cross-scope')).toBe(false);
     expect(analysis.activations).toContainEqual(expect.objectContaining({
-      manual: false,
+      id: 'manual-cross-scope',
+      manual: true,
       participantId: 'b',
       startMessageId: 'call-ab',
       endMessageId: 'call-ab',

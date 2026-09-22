@@ -85,7 +85,13 @@ export type ClassDiagramNode = Node<ClassNodeData, 'classNode'>;
 
 export type ConnectionSide = 'top' | 'right' | 'bottom' | 'left';
 export type AssociationNavigability = 'none' | 'source-to-target' | 'target-to-source' | 'bidirectional';
-export type AssociationRelationType = 'association' | 'generalization' | 'aggregation' | 'composition';
+export type AssociationRelationType =
+  | 'association'
+  | 'generalization'
+  | 'aggregation'
+  | 'composition'
+  | 'dependency'
+  | 'realization';
 export type AssociationDiamondEnd = 'source' | 'target';
 export type AssociationLineStyle = 'automatic' | 'straight' | 'orthogonal';
 export type AssociationConnectionSide = 'automatic' | ConnectionSide;
@@ -114,6 +120,12 @@ export type ClassDiagramEdge = Edge<AssociationEdgeData>;
 export type ClassDiagramContent = {
   nodes: ClassDiagramNode[];
   edges: ClassDiagramEdge[];
+};
+
+export type ClassSequenceDiagramContent = ClassDiagramContent & {
+  version: 1;
+  sourceClassDiagramArtifactId?: string;
+  linkedSequenceDiagramIds: string[];
 };
 
 export type UseCaseNodeKind = 'actor' | 'use-case' | 'system-boundary';
@@ -295,40 +307,40 @@ export type SequenceNoteColorScheme = {
 
 export const SEQUENCE_NOTE_COLORS: Record<SequenceNoteColor, SequenceNoteColorScheme> = {
   yellow: {
-    background: '#FFF9DB',
-    border: '#E9D37A',
-    fold: '#E5C95B',
-    text: '#2F2A1D',
-    connectionLine: '#D4B841',
-    dot: '#F59F00',
-    label: 'Amarillo',
+    background: '#FFF4CF',
+    border: '#BDA35A',
+    fold: '#D7BD6A',
+    text: '#423A27',
+    connectionLine: '#93835D',
+    dot: '#B88C26',
+    label: 'Ámbar',
   },
   red: {
-    background: '#FFE3E3',
-    border: '#FFA8A8',
-    fold: '#F08C8C',
-    text: '#491217',
-    connectionLine: '#E03131',
-    dot: '#E03131',
-    label: 'Rojo',
+    background: '#F4E8E7',
+    border: '#A9827E',
+    fold: '#C4A09D',
+    text: '#4A302F',
+    connectionLine: '#8D6A67',
+    dot: '#8D6A67',
+    label: 'Rosa mineral',
   },
   green: {
-    background: '#EBFBEE',
-    border: '#8CE99A',
-    fold: '#69DB7C',
-    text: '#1B4323',
-    connectionLine: '#2F9E44',
-    dot: '#2F9E44',
-    label: 'Verde',
+    background: '#EAF1E8',
+    border: '#849B7A',
+    fold: '#A9B99F',
+    text: '#2F4132',
+    connectionLine: '#6F866A',
+    dot: '#6F866A',
+    label: 'Salvia',
   },
   blue: {
-    background: '#E7F5FF',
-    border: '#A5D8FF',
-    fold: '#74C0FC',
-    text: '#183B56',
-    connectionLine: '#1C7ED6',
-    dot: '#1971C2',
-    label: 'Azul',
+    background: '#E8F0F2',
+    border: '#76939B',
+    fold: '#A4B9BE',
+    text: '#293E45',
+    connectionLine: '#617F87',
+    dot: '#617F87',
+    label: 'Azul grisáceo',
   },
 };
 
@@ -365,7 +377,7 @@ export type SequenceDiagramContent = {
 };
 
 export type DiagramContent = ClassDiagramContent | UseCaseModelContent;
-export type ArtifactContent = DiagramContent | UseCaseFlowContent | SequenceDiagramContent;
+export type ArtifactContent = DiagramContent | ClassSequenceDiagramContent | UseCaseFlowContent | SequenceDiagramContent;
 
 export type ClassDiagramArtifact = {
   id: string;
@@ -374,6 +386,15 @@ export type ClassDiagramArtifact = {
   createdAt: string;
   updatedAt: string;
   content: ClassDiagramContent;
+};
+
+export type ClassSequenceDiagramArtifact = {
+  id: string;
+  type: 'class-sequence-diagram';
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  content: ClassSequenceDiagramContent;
 };
 
 export type UseCaseModelArtifact = {
@@ -405,9 +426,12 @@ export type SequenceDiagramArtifact = {
 
 export type DesignArtifact =
   | ClassDiagramArtifact
+  | ClassSequenceDiagramArtifact
   | UseCaseModelArtifact
   | UseCaseFlowArtifact
   | SequenceDiagramArtifact;
+
+export type ClassModelArtifact = ClassDiagramArtifact | ClassSequenceDiagramArtifact;
 
 export type DesignProject = {
   id: string;

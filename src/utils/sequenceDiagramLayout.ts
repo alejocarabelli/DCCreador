@@ -446,7 +446,9 @@ export const buildSequenceLayout = (
     return [{
       id: activation.id,
       participantId: activation.participantId,
-      x: x + activation.level * 7 - 6,
+      // Nested executions sit beside their parent bar instead of painting over it.
+      // Keeping the 12 px rhythm also makes deep call stacks readable at a glance.
+      x: x + activation.level * 12 - 6,
       y: startY - 3,
       width: 12,
       height: Math.max(18, endY - startY + 6),

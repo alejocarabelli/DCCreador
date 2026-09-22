@@ -58,6 +58,8 @@ const relationTypes: readonly AssociationRelationType[] = [
   'generalization',
   'aggregation',
   'composition',
+  'dependency',
+  'realization',
 ];
 const diamondEnds: readonly AssociationDiamondEnd[] = ['source', 'target'];
 const lineStyles: readonly AssociationLineStyle[] = ['automatic', 'straight', 'orthogonal'];

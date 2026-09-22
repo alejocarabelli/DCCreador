@@ -3,6 +3,8 @@ import {
   Boxes,
   FileText,
   FolderKanban,
+  GitBranch,
+  Home,
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
@@ -18,6 +20,7 @@ type ProjectSidebarProps = {
   activeProjectId: string | null;
   isCollapsed: boolean;
   onCreateProject: () => void;
+  onOpenHome: () => void;
   onCreateArtifact: (projectId: string, artifactType: DesignArtifact['type']) => void;
   onDeleteArtifact: (projectId: string, artifactId: string) => void;
   onDeleteProject: (projectId: string) => void;
@@ -56,6 +59,7 @@ export function ProjectSidebar({
   isCollapsed,
   onCreateArtifact,
   onCreateProject,
+  onOpenHome,
   onDeleteArtifact,
   onDeleteProject,
   onRenameArtifact,
@@ -81,7 +85,7 @@ export function ProjectSidebar({
 
     const rect = event.currentTarget.getBoundingClientRect();
     const menuWidth = 224;
-    const menuHeight = 176;
+    const menuHeight = 224;
     const top =
       rect.bottom + 6 + menuHeight > window.innerHeight
         ? Math.max(8, rect.top - menuHeight - 6)
@@ -156,6 +160,9 @@ export function ProjectSidebar({
         <div className="sidebar-collapsed-mark" aria-hidden="true">
           <Blocks size={19} />
         </div>
+        <button aria-label="Ir al inicio" className="icon-button sidebar-toggle" type="button" onClick={onOpenHome} title="Ir al inicio">
+          <Home size={18} />
+        </button>
         <button aria-label="Expandir proyectos" className="icon-button sidebar-toggle" type="button" onClick={onToggleCollapsed} title="Expandir proyectos">
           <PanelLeftOpen size={18} />
         </button>
@@ -171,11 +178,14 @@ export function ProjectSidebar({
             <Blocks size={19} />
           </span>
           <div>
-            <h1>Modelador de Sistemas</h1>
+            <p className="sidebar-brand-name">Modelador de Sistemas</p>
             <p>Proyectos y artefactos</p>
           </div>
         </div>
         <div className="sidebar-header-actions">
+          <button aria-label="Ir al inicio" className="icon-button" type="button" onClick={onOpenHome} title="Ir al inicio">
+            <Home size={18} />
+          </button>
           <button aria-label="Contraer proyectos" className="icon-button" type="button" onClick={onToggleCollapsed} title="Contraer proyectos">
             <PanelLeftClose size={18} />
           </button>
@@ -185,7 +195,7 @@ export function ProjectSidebar({
         </div>
       </div>
 
-      <div className="project-list">
+      <nav className="project-list" aria-label="Proyectos">
         {projects.length === 0 ? (
           <div className="empty-list">
             <FolderKanban size={23} />
@@ -198,7 +208,12 @@ export function ProjectSidebar({
               key={project.id}
               onClick={() => onSelectProject(project.id)}
             >
-              <button className="project-main" type="button" title={`Creado: ${formatDate(project.createdAt)}`}>
+              <button
+                aria-current={project.id === activeProjectId ? 'page' : undefined}
+                className="project-main"
+                type="button"
+                title={`Creado: ${formatDate(project.createdAt)}`}
+              >
                 <span className="project-main-icon" aria-hidden="true"><FolderKanban size={17} /></span>
                 <span className="project-main-copy">
                   <strong>{project.name}</strong>
@@ -207,6 +222,9 @@ export function ProjectSidebar({
               </button>
               <button
                 aria-label="Opciones de proyecto"
+                aria-controls="sidebar-options-menu"
+                aria-expanded={optionsMenu?.kind === 'project' && optionsMenu.projectId === project.id}
+                aria-haspopup="menu"
                 className="artifact-options-trigger project-options-trigger"
                 type="button"
                 onClick={(event) => openOptionsMenu({ kind: 'project', projectId: project.id }, event)}
@@ -238,6 +256,7 @@ export function ProjectSidebar({
                         key={artifact.id}
                       >
                         <button
+                          aria-current={project.id === activeProjectId && artifact.id === activeArtifactId ? 'page' : undefined}
                           className="artifact-main"
                           type="button"
                           onClick={(event) => {
@@ -247,6 +266,8 @@ export function ProjectSidebar({
                         >
                           {artifact.type === 'class-diagram' ? (
                             <Boxes aria-hidden="true" size={15} />
+                          ) : artifact.type === 'class-sequence-diagram' ? (
+                            <GitBranch aria-hidden="true" size={15} />
                           ) : artifact.type === 'use-case-model' ? (
                             <UsersRound aria-hidden="true" size={15} />
                           ) : artifact.type === 'use-case-flow' ? (
@@ -258,6 +279,9 @@ export function ProjectSidebar({
                         </button>
                         <button
                           aria-label="Opciones de artefacto"
+                          aria-controls="sidebar-options-menu"
+                          aria-expanded={optionsMenu?.kind === 'artifact' && optionsMenu.artifactId === artifact.id}
+                          aria-haspopup="menu"
                           className="artifact-options-trigger"
                           type="button"
                           onClick={(event) =>
@@ -282,14 +306,18 @@ export function ProjectSidebar({
             </article>
           ))
         )}
-      </div>
+      </nav>
       {optionsMenu !== null ? (
         <div
+          id="sidebar-options-menu"
+          aria-label={optionsMenu.kind === 'project' ? 'Opciones del proyecto' : 'Opciones del artefacto'}
           className="artifact-floating-menu"
           ref={optionsMenuRef}
+          role="menu"
           style={{ left: optionsMenu.left, top: optionsMenu.top }}
         >
           <button
+            role="menuitem"
             type="button"
             onClick={() => {
               if (optionsMenu.kind === 'artifact' && optionsMenu.artifactId !== undefined) {
@@ -303,6 +331,7 @@ export function ProjectSidebar({
             Renombrar
           </button>
           <button
+            role="menuitem"
             type="button"
             disabled={optionsMenu.kind === 'artifact' && !optionsMenu.canDelete}
             onClick={() => {
@@ -336,6 +365,17 @@ export function ProjectSidebar({
           >
             <Boxes size={15} />
             Diagrama de clases
+          </button>
+          <button
+            role="menuitem"
+            type="button"
+            onClick={() => {
+              onCreateArtifact(newArtifactMenu.projectId, 'class-sequence-diagram');
+              setNewArtifactMenu(null);
+            }}
+          >
+            <GitBranch size={15} />
+            Clases (Secuencia)
           </button>
           <button
             role="menuitem"

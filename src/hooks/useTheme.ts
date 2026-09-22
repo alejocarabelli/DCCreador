@@ -1,15 +1,13 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useCallback, useMemo, type CSSProperties } from 'react';
 import { DEFAULT_THEME_ID, getThemeById, type DiagramTheme, type DiagramThemeId } from '../theme/themes';
-import { readUiPreference, writeUiPreference } from '../storage/uiPreferences';
-
-const THEME_STORAGE_KEY = 'class-diagram-ui-theme';
 
 type ThemeCssProperties = CSSProperties & Record<`--${string}`, string | number>;
 
 const buildThemeVariables = (theme: DiagramTheme): ThemeCssProperties => ({
   '--app-font-family': theme.typography.fontFamily,
   '--diagram-font-family': theme.typography.fontFamily,
-  '--ui-font-family': 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  '--ui-font-family': theme.typography.fontFamily,
+  '--app-code-font': theme.typography.codeFontFamily,
   '--canvas-background': theme.canvas.background,
   '--canvas-grid-color': theme.canvas.gridColor,
   '--canvas-grid-color-strong': theme.canvas.gridColorStrong,
@@ -44,7 +42,16 @@ const buildThemeVariables = (theme: DiagramTheme): ThemeCssProperties => ({
   '--handle-background': theme.handles.background,
   '--handle-border': theme.handles.border,
   '--handle-size': `${theme.handles.size}px`,
+  '--accent': theme.ui.accent,
+  '--accent-strong': theme.ui.accentStrong,
+  '--accent-soft': theme.ui.accentSoft,
+  '--accent-soft-strong': theme.ui.accentSoftStrong,
+  '--accent-outline': theme.ui.accentOutline,
+  '--warning-text': theme.ui.warningText,
   '--panel-background': theme.ui.panelBackground,
+  '--panel-subtle-background': theme.ui.panelSubtleBackground,
+  '--panel-muted-background': theme.ui.panelMutedBackground,
+  '--panel-strong-background': theme.ui.panelStrongBackground,
   '--panel-border': theme.ui.panelBorder,
   '--panel-text': theme.ui.panelText,
   '--panel-muted-text': theme.ui.panelMutedText,
@@ -60,18 +67,14 @@ const buildThemeVariables = (theme: DiagramTheme): ThemeCssProperties => ({
 });
 
 export const useTheme = () => {
-  const [themeId, setThemeId] = useState<DiagramThemeId>(() => {
-    const storedThemeId = readUiPreference(THEME_STORAGE_KEY);
-    return getThemeById(storedThemeId).id as DiagramThemeId;
-  });
-  const theme = getThemeById(themeId);
+  // The product intentionally has one visual language. Keep the setter in the
+  // hook shape for editor compatibility, but do not expose theme switching.
+  const themeId = DEFAULT_THEME_ID;
+  const theme = getThemeById(DEFAULT_THEME_ID);
   const themeStyle = useMemo(() => buildThemeVariables(theme), [theme]);
-
-  useEffect(() => {
-    writeUiPreference(THEME_STORAGE_KEY, themeId);
-  }, [themeId]);
+  const setThemeId: (themeId: DiagramThemeId) => void = useCallback(() => undefined, []);
 
   return { setThemeId, theme, themeId, themeStyle };
 };
 
-export { DEFAULT_THEME_ID, THEME_STORAGE_KEY };
+export { DEFAULT_THEME_ID };

@@ -1,24 +1,28 @@
-import { DiagramEditor } from './components/DiagramEditor';
+import { useDialogs } from './hooks/useDialogs';
 import { ProjectNameDialog } from './components/ProjectNameDialog';
+import { ProjectHome } from './components/ProjectHome';
 import { ProjectSidebar } from './components/ProjectSidebar';
-import { UseCaseFlowEditor } from './components/UseCaseFlowEditor';
-import { UseCaseModelEditor } from './components/UseCaseModelEditor';
-import { SequenceDiagramEditor } from './components/SequenceDiagramEditor';
-import { Blocks, Plus } from 'lucide-react';
 import { useProjects } from './hooks/useProjects';
 import { useTheme } from './hooks/useTheme';
 import { readUiPreference, writeUiPreference } from './storage/uiPreferences';
 import type { DiagramThemeId } from './theme/themes';
-import type { ArtifactContent, DesignArtifact } from './types/diagram';
+import type { ArtifactContent, ClassMethod, ClassModelArtifact, ClassSequenceDiagramContent, DesignArtifact } from './types/diagram';
 import {
   getActiveArtifact,
+  normalizeClassSequenceDiagramContent,
   normalizeDiagramContent,
   normalizeUseCaseFlowContent,
   normalizeUseCaseModelContent,
 } from './utils/diagramNormalization';
 import { normalizeSequenceDiagramContent } from './utils/sequenceDiagram';
 import { changeHistory, redoHistory, undoHistory, type ArtifactHistory } from './utils/artifactHistory';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+const DiagramEditor = lazy(() => import('./components/DiagramEditor').then(({ DiagramEditor: editor }) => ({ default: editor })));
+const UseCaseModelEditor = lazy(() => import('./components/UseCaseModelEditor').then(({ UseCaseModelEditor: editor }) => ({ default: editor })));
+const UseCaseFlowEditor = lazy(() => import('./components/UseCaseFlowEditor').then(({ UseCaseFlowEditor: editor }) => ({ default: editor })));
+const SequenceDiagramEditor = lazy(() => import('./components/SequenceDiagramEditor').then(({ SequenceDiagramEditor: editor }) => ({ default: editor })));
+const ClassSequenceDiagramEditor = lazy(() => import('./components/ClassSequenceDiagramEditor').then(({ ClassSequenceDiagramEditor: editor }) => ({ default: editor })));
 
 type ProjectDialogState =
   | { mode: 'create'; projectId?: never; initialName: string }
@@ -48,9 +52,13 @@ const cloneArtifactContent = (artifact: DesignArtifact): ArtifactContent => {
     return normalizeUseCaseFlowContent(cloned as Parameters<typeof normalizeUseCaseFlowContent>[0]);
   }
 
-  if (artifact.type === 'sequence-diagram') {
-    return cloned;
-  }
+    if (artifact.type === 'sequence-diagram') {
+      return cloned;
+    }
+
+    if (artifact.type === 'class-sequence-diagram') {
+      return normalizeClassSequenceDiagramContent(cloned as Partial<ClassSequenceDiagramContent>);
+    }
 
   return normalizeDiagramContent(cloned as Parameters<typeof normalizeDiagramContent>[0]);
 };
@@ -70,13 +78,29 @@ const cloneContentForType = (artifactType: DesignArtifact['type'], content: Arti
     return normalizeSequenceDiagramContent(cloned);
   }
 
+  if (artifactType === 'class-sequence-diagram') {
+    return normalizeClassSequenceDiagramContent(cloned as Partial<ClassSequenceDiagramContent>);
+  }
+
   return normalizeDiagramContent(cloned as Parameters<typeof normalizeDiagramContent>[0]);
 };
 
 const areArtifactContentsEqual = (left: ArtifactContent, right: ArtifactContent): boolean =>
   JSON.stringify(left) === JSON.stringify(right);
 
+function EditorLoadingState() {
+  return (
+    <main className="editor-shell editor-loading" aria-live="polite">
+      <div className="editor-loading-card">
+        <span className="editor-loading-dot" aria-hidden="true" />
+        <p>Abriendo editor…</p>
+      </div>
+    </main>
+  );
+}
+
 function App() {
+  const { confirm, notify } = useDialogs();
   const [projectDialog, setProjectDialog] = useState<ProjectDialogState | null>(null);
   const [isProjectSidebarCollapsed, setIsProjectSidebarCollapsed] = useState(
     () => readUiPreference(PROJECT_SIDEBAR_COLLAPSED_KEY) === 'true',
@@ -95,7 +119,11 @@ function App() {
   const {
     activeProject,
     activeProjectId,
+    backup,
+    backupAvailable,
+    revealBackups,
     createClassDiagramArtifact,
+    createClassSequenceDiagramArtifact,
     createUseCaseFlowArtifact,
     createUseCaseModelArtifact,
     createSequenceDiagramArtifact,
@@ -103,6 +131,7 @@ function App() {
     deleteArtifact,
     deleteProject,
     importProject,
+    linkSequenceDiagramsToClassModel,
     projects,
     renameArtifact,
     renameProject,
@@ -115,6 +144,10 @@ function App() {
 
   const handleCreateProject = (): void => {
     setProjectDialog({ mode: 'create', initialName: 'Nuevo diagrama' });
+  };
+
+  const handleOpenHome = (): void => {
+    setActiveProjectId(null);
   };
 
   const handleRenameProject = (projectId: string): void => {
@@ -138,6 +171,8 @@ function App() {
         createUseCaseFlowArtifact(projectDialog.projectId, name);
       } else if (projectDialog.artifactType === 'sequence-diagram') {
         createSequenceDiagramArtifact(projectDialog.projectId, name);
+      } else if (projectDialog.artifactType === 'class-sequence-diagram') {
+        createClassSequenceDiagramArtifact(projectDialog.projectId, name);
       } else {
         createClassDiagramArtifact(projectDialog.projectId, name);
       }
@@ -150,9 +185,12 @@ function App() {
     setProjectDialog(null);
   };
 
-  const handleDeleteProject = (projectId: string): void => {
+  const handleDeleteProject = async (projectId: string): Promise<void> => {
     const project = projects.find((currentProject) => currentProject.id === projectId);
-    const shouldDelete = window.confirm(`Eliminar "${project?.name ?? 'este proyecto'}"?`);
+    const shouldDelete = await confirm({
+      title: `¿Eliminar "${project?.name ?? 'este proyecto'}"?`,
+      description: 'Se borran todos sus artefactos y el historial de cambios. No se puede deshacer.',
+    });
 
     if (shouldDelete) {
       deleteProject(projectId);
@@ -175,6 +213,8 @@ function App() {
             ? 'Flujo de sucesos'
             : artifactType === 'sequence-diagram'
               ? 'Diagrama de secuencia'
+              : artifactType === 'class-sequence-diagram'
+                ? 'Diagrama de clases (Secuencia)'
             : 'Nuevo diagrama de clases',
     });
   };
@@ -191,16 +231,22 @@ function App() {
     });
   };
 
-  const handleDeleteArtifact = (projectId: string, artifactId: string): void => {
+  const handleDeleteArtifact = async (projectId: string, artifactId: string): Promise<void> => {
     const project = projects.find((currentProject) => currentProject.id === projectId);
     const artifact = project?.artifacts.find((currentArtifact) => currentArtifact.id === artifactId);
 
     if ((project?.artifacts.length ?? 0) <= 1) {
-      window.alert('No se puede eliminar el último artefacto del proyecto.');
+      await notify({
+        title: 'El proyecto necesita al menos un artefacto',
+        description: 'Creá otro artefacto antes de eliminar este.',
+      });
       return;
     }
 
-    const shouldDelete = window.confirm(`Eliminar "${artifact?.name ?? 'este artefacto'}"?`);
+    const shouldDelete = await confirm({
+      title: `¿Eliminar "${artifact?.name ?? 'este artefacto'}"?`,
+      description: 'Se pierde su contenido y su historial de cambios. No se puede deshacer.',
+    });
 
     if (shouldDelete) {
       deleteArtifact(projectId, artifactId);
@@ -217,12 +263,14 @@ function App() {
     historyBurstRef.current = null;
     setActiveProjectId(projectId);
     setActiveArtifactId(projectId, artifactId);
+    setIsProjectSidebarCollapsed(true);
   };
 
   const activeArtifact = useMemo(
     () => (activeProject !== null ? getActiveArtifact(activeProject) : null),
     [activeProject],
   );
+  const isProjectHome = activeProject === null || activeArtifact === null;
   const activeHistoryKey = activeProject !== null && activeArtifact !== null
     ? `${activeProject.id}:${activeArtifact.id}`
     : null;
@@ -276,6 +324,49 @@ function App() {
       updateProjectArtifactContent(activeProject.id, activeArtifact.id, nextContent, { alreadyNormalized: true });
     },
     [activeArtifact, activeHistoryKey, activeProject, updateHistory, updateProjectArtifactContent],
+  );
+
+  const handleCreateClassMethodFromSequence = useCallback(
+    (artifactId: string, nodeId: string, method: ClassMethod): void => {
+      if (activeProject === null) {
+        return;
+      }
+
+      const modelArtifact = activeProject.artifacts.find(
+        (candidate): candidate is ClassModelArtifact => candidate.id === artifactId
+          && (candidate.type === 'class-diagram' || candidate.type === 'class-sequence-diagram'),
+      );
+
+      if (modelArtifact === undefined) {
+        return;
+      }
+
+      const classNode = modelArtifact.content.nodes.find((node) => node.id === nodeId);
+      if (classNode === undefined || classNode.data.methods.some((candidate) => candidate.id === method.id)) {
+        return;
+      }
+
+      const previousContent = cloneArtifactContent(modelArtifact);
+      const nextContent = {
+        ...modelArtifact.content,
+        nodes: modelArtifact.content.nodes.map((node) => node.id === nodeId
+          ? { ...node, data: { ...node.data, methods: [...node.data.methods, method] } }
+          : node),
+      };
+      const normalizedNextContent = cloneContentForType(modelArtifact.type, nextContent);
+      const historyKey = `${activeProject.id}:${modelArtifact.id}`;
+
+      updateHistory((currentHistory) => {
+        const modelHistory = currentHistory[historyKey] ?? { past: [], future: [] };
+        return {
+          ...currentHistory,
+          [historyKey]: changeHistory(modelHistory, previousContent, true, MAX_HISTORY_ENTRIES),
+        };
+      });
+      historyBurstRef.current = null;
+      updateProjectArtifactContent(activeProject.id, modelArtifact.id, normalizedNextContent, { alreadyNormalized: true });
+    },
+    [activeProject, updateHistory, updateProjectArtifactContent],
   );
 
   const handleUndo = useCallback((): void => {
@@ -358,7 +449,7 @@ function App() {
 
   return (
     <div
-      className={`app-shell ${isProjectSidebarCollapsed ? 'project-sidebar-collapsed' : 'project-sidebar-expanded'}`}
+      className={`app-shell ${isProjectSidebarCollapsed ? 'project-sidebar-collapsed' : 'project-sidebar-expanded'} ${isProjectHome ? 'project-home-mode' : ''}`}
       data-theme={theme.id}
       data-ui-version="refined"
       style={themeStyle}
@@ -368,37 +459,37 @@ function App() {
           {storageWarning}
         </div>
       ) : null}
-      <ProjectSidebar
-        activeArtifactId={activeArtifact?.id ?? null}
-        activeProjectId={activeProjectId}
-        isCollapsed={isProjectSidebarCollapsed}
-        onCreateArtifact={handleCreateArtifact}
-        onCreateProject={handleCreateProject}
-        onDeleteArtifact={handleDeleteArtifact}
-        onDeleteProject={handleDeleteProject}
-        onRenameArtifact={handleRenameArtifact}
-        onRenameProject={handleRenameProject}
-        onSelectArtifact={handleSelectArtifact}
-        onSelectProject={setActiveProjectId}
-        onToggleCollapsed={() => setIsProjectSidebarCollapsed((isCollapsed) => !isCollapsed)}
-        projects={projects}
-      />
-      {activeProject === null || activeArtifact === null ? (
-        <main className="welcome-panel">
-          <div className="welcome-mark" aria-hidden="true">
-            <Blocks size={28} />
-          </div>
-          <p className="eyebrow">Modelador de Sistemas</p>
-          <h2>Empezá tu primer proyecto</h2>
-          <p>Organizá diagramas y especificaciones en un mismo espacio de trabajo.</p>
-          <button className="welcome-primary-action" type="button" onClick={handleCreateProject}>
-            <Plus size={17} />
-            Crear proyecto
-          </button>
-          <small>Guardado local automático</small>
-        </main>
+      {!isProjectHome ? (
+        <ProjectSidebar
+          activeArtifactId={activeArtifact.id}
+          activeProjectId={activeProjectId}
+          isCollapsed={isProjectSidebarCollapsed}
+          onCreateArtifact={handleCreateArtifact}
+          onCreateProject={handleCreateProject}
+          onOpenHome={handleOpenHome}
+          onDeleteArtifact={handleDeleteArtifact}
+          onDeleteProject={handleDeleteProject}
+          onRenameArtifact={handleRenameArtifact}
+          onRenameProject={handleRenameProject}
+          onSelectArtifact={handleSelectArtifact}
+          onSelectProject={setActiveProjectId}
+          onToggleCollapsed={() => setIsProjectSidebarCollapsed((isCollapsed) => !isCollapsed)}
+          projects={projects}
+        />
+      ) : null}
+      {isProjectHome ? (
+        <ProjectHome
+          backup={backup}
+          backupAvailable={backupAvailable}
+          onRevealBackups={() => void revealBackups()}
+          projects={projects}
+          onCreateProject={handleCreateProject}
+          onImportProject={importProject}
+          onOpenProject={setActiveProjectId}
+        />
       ) : (
-        activeArtifact.type === 'class-diagram' ? (
+        <Suspense fallback={<EditorLoadingState />}>
+          {activeArtifact.type === 'class-diagram' ? (
           <DiagramEditor
             key={`${activeProject.id}:${activeArtifact.id}`}
             artifact={activeArtifact}
@@ -407,6 +498,25 @@ function App() {
             project={activeProject}
             theme={theme}
             themeId={themeId}
+            onChangeContent={handleChangeProjectContent}
+            onRedo={handleRedo}
+            onUndo={handleUndo}
+            onImportProject={importProject}
+            onThemeChange={(nextThemeId) => setThemeId(nextThemeId as DiagramThemeId)}
+          />
+        ) : activeArtifact.type === 'class-sequence-diagram' ? (
+          <ClassSequenceDiagramEditor
+            key={`${activeProject.id}:${activeArtifact.id}`}
+            artifact={activeArtifact}
+            canRedo={canRedo}
+            canUndo={canUndo}
+            project={activeProject}
+            theme={theme}
+            themeId={themeId}
+            onNavigateToArtifact={(targetArtifactId) => setActiveArtifactId(activeProject.id, targetArtifactId)}
+            onLinkAllSequenceDiagrams={(classModelArtifactId) =>
+              linkSequenceDiagramsToClassModel(activeProject.id, classModelArtifactId)
+            }
             onChangeContent={handleChangeProjectContent}
             onRedo={handleRedo}
             onUndo={handleUndo}
@@ -456,6 +566,7 @@ function App() {
             onNavigateToArtifact={(targetArtifactId) =>
               setActiveArtifactId(activeProject.id, targetArtifactId)
             }
+            onCreateClassMethod={handleCreateClassMethodFromSequence}
             onCreateSequenceDiagramArtifact={(name, initialContent) =>
               createSequenceDiagramArtifact(activeProject.id, name, initialContent)
             }
@@ -465,7 +576,8 @@ function App() {
             onImportProject={importProject}
             onThemeChange={(nextThemeId) => setThemeId(nextThemeId as DiagramThemeId)}
           />
-        )
+          )}
+        </Suspense>
       )}
       {projectDialog !== null ? (
         <ProjectNameDialog

@@ -1,5 +1,3 @@
-import { jsPDF } from 'jspdf';
-import { svg2pdf } from 'svg2pdf.js';
 import type { SequenceDiagramContent } from '../types/diagram';
 import type { SequenceDiagramBounds } from './sequenceDiagramGeometry';
 import type { SequenceLayout } from './sequenceDiagramLayout';
@@ -9,6 +7,9 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 const EXPORT_PADDING = 36;
 const MAX_PNG_DIMENSION = 16_384;
 const MAX_PNG_PIXELS = 60_000_000;
+
+type PdfDocument = import('jspdf').jsPDF;
+type SvgToPdf = typeof import('svg2pdf.js').svg2pdf;
 
 export type SequencePdfPaperSize = 'a4' | 'a3' | 'letter';
 export type SequenceExportOrientation = 'portrait' | 'landscape';
@@ -272,7 +273,7 @@ export const buildRepeatedHeaderSvg = (
 };
 
 const drawRepeatedHeaders = async (
-  document: jsPDF,
+  document: PdfDocument,
   sourceSvg: SVGSVGElement,
   content: Pick<SequenceDiagramContent, 'participants'>,
   page: SequenceExportPage,
@@ -281,12 +282,13 @@ const drawRepeatedHeaders = async (
   scale: number,
   headerHeight: number,
   width: number,
+  svgToPdf: SvgToPdf,
 ): Promise<void> => {
   if (page.repeatedParticipantIds.length === 0) return;
   try {
     const headerSvg = buildRepeatedHeaderSvg(sourceSvg, page, layout, headerHeight);
     if (headerSvg.querySelector('[data-sequence-participant-id], [data-participant-id]')) {
-      await svg2pdf(headerSvg, document, {
+      await svgToPdf(headerSvg, document, {
         x: margin,
         y: margin,
         width: page.source.width * scale,
@@ -320,6 +322,10 @@ export const exportSequencePdf = async (
   layout?: SequenceLayout,
   options?: Partial<SequenceExportOptions> & { download?: boolean },
 ): Promise<(SequencePdfPlan & { pdfBlob?: Blob; pdfBytes?: Uint8Array }) | undefined> => {
+  const [{ jsPDF }, { svg2pdf }] = await Promise.all([
+    import('jspdf'),
+    import('svg2pdf.js'),
+  ]);
   if (!content || !layout) {
     const fallback = cleanExportSvg(source); const { width, height } = svgDimensions(fallback);
     const document = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a3', compress: true });
@@ -341,7 +347,7 @@ export const exportSequencePdf = async (
       height: page.source.height * plan.effectiveScale,
     });
     if (page.index > 0) {
-      await drawRepeatedHeaders(document, source, content, page, layout, margin, plan.effectiveScale, plan.headerHeight, paper.width - margin * 2);
+      await drawRepeatedHeaders(document, source, content, page, layout, margin, plan.effectiveScale, plan.headerHeight, paper.width - margin * 2, svg2pdf);
     }
     document.setFontSize(8); document.setTextColor('#64748b'); document.text(`Página ${page.index + 1} de ${plan.pages.length}`, paper.width - margin, paper.height - 8, { align: 'right' });
   }

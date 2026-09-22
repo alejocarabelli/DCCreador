@@ -3,7 +3,6 @@ import ReactFlow, {
   Background,
   BackgroundVariant,
   ConnectionMode,
-  Controls,
   MiniMap,
   addEdge,
   applyEdgeChanges,
@@ -16,7 +15,6 @@ import ReactFlow, {
   type ReactFlowInstance,
   type XYPosition,
 } from 'reactflow';
-import { toJpeg, toPng } from 'html-to-image';
 import {
   Crosshair,
   FileDown,
@@ -43,11 +41,14 @@ import type {
   UseCaseNodeKind,
   UseCaseRelationType,
 } from '../types/diagram';
-import { themes, type DiagramTheme, type DiagramThemeId } from '../theme/themes';
+import { IMPORT_INVALID_MESSAGE, IMPORT_UNREADABLE_MESSAGE, isImportableProject } from '../utils/projectImport';
+import type { DiagramTheme, DiagramThemeId } from '../theme/themes';
 import { createId } from '../utils/id';
 import { createPdfFromJpegDataUrl, downloadBlob, downloadDataUrl } from '../utils/pdfExport';
 import { readUiPreference, writeUiPreference } from '../storage/uiPreferences';
 import { normalizeDiagramProject, normalizeUseCaseModelContent } from '../utils/diagramNormalization';
+import { CanvasControls } from './CanvasControls';
+import { CanvasStartCard } from './CanvasStartCard';
 import { SystemBoundaryNode, UseCaseActorNode, UseCaseOvalNode } from './useCaseNodes';
 import { UseCaseRelationEdge } from './UseCaseRelationEdge';
 import { EditorIdentity } from './EditorIdentity';
@@ -89,12 +90,6 @@ const nodeTypes = {
 const edgeTypes = {
   useCaseRelation: UseCaseRelationEdge,
 };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null;
-
-const isImportableProject = (value: unknown): value is DiagramProject =>
-  isRecord(value) && typeof value.name === 'string' && (Array.isArray(value.artifacts) || isRecord(value.content));
 
 const downloadTextFile = (filename: string, text: string, type: string): void => {
   const blob = new Blob([text], { type });
@@ -160,12 +155,9 @@ export function UseCaseModelEditor({
   canRedo,
   canUndo,
   project,
-  theme,
-  themeId,
   onChangeContent,
   onImportProject,
   onRedo,
-  onThemeChange,
   onUndo,
 }: UseCaseModelEditorProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -406,13 +398,13 @@ export function UseCaseModelEditor({
     try {
       const parsed = JSON.parse(await file.text()) as unknown;
       if (!isImportableProject(parsed)) {
-        window.alert('El archivo no tiene la estructura de un proyecto.');
+        showFeedback(IMPORT_INVALID_MESSAGE);
         return;
       }
       onImportProject(normalizeDiagramProject(parsed));
       showFeedback('JSON importado');
     } catch {
-      window.alert('No se pudo importar el JSON.');
+      showFeedback(IMPORT_UNREADABLE_MESSAGE);
     } finally {
       if (fileInputRef.current !== null) {
         fileInputRef.current.value = '';
@@ -440,6 +432,7 @@ export function UseCaseModelEditor({
     );
     canvasRef.current.classList.add('exporting-png');
     try {
+      const { toJpeg, toPng } = await import('html-to-image');
       edgePathStyleBackups.forEach(({ path }) => {
         const computedStyle = window.getComputedStyle(path);
         path.style.stroke = computedStyle.stroke;
@@ -609,16 +602,6 @@ export function UseCaseModelEditor({
               <button type="button" onClick={(event) => { void exportPdf(); event.currentTarget.closest('details')?.removeAttribute('open'); }}><FileText size={17} />Exportar PDF</button>
             </div>
           </details>
-          <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
-            <summary title={theme.description}>Tema</summary>
-            <div className="toolbar-menu-content theme-menu">
-              {themes.map((availableTheme) => (
-                <button key={availableTheme.id} type="button" className={availableTheme.id === themeId ? 'active-tool' : ''} onClick={(event) => { onThemeChange(availableTheme.id as DiagramThemeId); event.currentTarget.closest('details')?.removeAttribute('open'); }}>
-                  {availableTheme.name}
-                </button>
-              ))}
-            </div>
-          </details>
           <input ref={fileInputRef} accept="application/json,.json" className="hidden-file-input" type="file" onChange={(event) => { const file = event.target.files?.[0]; if (file !== undefined) void importProjectJson(file); }} />
         </div>
       </header>
@@ -660,8 +643,26 @@ export function UseCaseModelEditor({
             {isGridEnabled ? (
               <Background color="var(--canvas-grid-color, #e3e7ee)" gap={24} size={2} variant={BackgroundVariant.Dots} />
             ) : null}
-            <Controls />
-            <MiniMap pannable zoomable />
+            {renderedNodes.length === 0 ? (
+              <CanvasStartCard
+                title="Empezá por un actor"
+                action={(
+                  <>
+                    <button className="secondary-action" type="button" onClick={() => addNode('actor', { x: 80, y: 120 })}>
+                      <UserRound size={14} />Crear actor
+                    </button>
+                    <button className="secondary-action" type="button" onClick={() => addNode('use-case', { x: 240, y: 140 })}>
+                      <Plus size={14} />Crear caso de uso
+                    </button>
+                  </>
+                )}
+              >
+                Ubicá quién usa el sistema y qué puede hacer. Después uní actores con casos
+                de uso, y agregá el límite del sistema para encerrarlos.
+              </CanvasStartCard>
+            ) : null}
+            <CanvasControls label="Controles del modelo de casos de uso" />
+            <MiniMap aria-label="Minimapa del modelo" pannable zoomable />
           </ReactFlow>
           {contextMenu !== null ? (
             <div className="canvas-context-menu" style={{ left: contextMenu.screenPosition.x, top: contextMenu.screenPosition.y }}>

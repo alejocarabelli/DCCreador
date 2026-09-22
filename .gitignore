@@ -4,3 +4,14 @@ build
 .npm-cache
 .DS_Store
 .env
+
+# Estado de herramientas y salidas de verificación generadas
+.agents/
+.impeccable/
+.claude/
+scratch/
+fixtures/advanced-review/
+fixtures/export-review/
+fixtures/full-review/
+fixtures/inspector-audit/
+fixtures/r6-academic-review/

@@ -13,7 +13,7 @@ export function EditorIdentity({ artifactKind, artifactName, projectName }: Edit
       <div className="editor-breadcrumb" title={`${projectName} / ${artifactName}`}>
         <span>{projectName}</span>
         <ChevronRight aria-hidden="true" size={14} />
-        <strong>{artifactName}</strong>
+        <h1>{artifactName}</h1>
       </div>
     </div>
   );

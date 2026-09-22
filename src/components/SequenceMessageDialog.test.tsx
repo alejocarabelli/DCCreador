@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
-import { SequenceMessageDialog, quickMessageValues } from './SequenceMessageDialog';
+import { SequenceMessageDialog } from './SequenceMessageDialog';
+import { quickMessageValues } from '../utils/sequenceMessageDialogCompatibility';
 import type { SequenceParticipant } from '../types/diagram';
 import { createSequenceMessageEditModel } from '../utils/sequenceMessageEditing';
 

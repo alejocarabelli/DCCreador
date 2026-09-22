@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import type {
   SequenceDiagramContent,
   SequenceFragment,
@@ -115,7 +115,7 @@ const ParticipantGlyph = ({ participant, x, y, stroke }: { participant: Sequence
   return null;
 };
 
-export function SequenceDiagramCanvas({
+function SequenceDiagramCanvasImpl({
   content,
   layout,
   selected,
@@ -150,12 +150,22 @@ export function SequenceDiagramCanvas({
   classNodesById,
   participantColorsEnabled,
 }: SequenceDiagramCanvasProps) {
-  const stroke = theme.association.stroke;
-  const selectedStroke = theme.association.strokeSelected;
-  const participantFill = theme.classNode.background;
-  const participantBorder = theme.classNode.border;
-  const textColor = theme.classNode.text;
-  const muted = theme.classNode.mutedText;
+  const usesTechnicalNotebook = theme.id === 'academic-light';
+  const stroke = usesTechnicalNotebook ? '#344149' : theme.association.stroke;
+  const selectedStroke = usesTechnicalNotebook ? '#2F6F9F' : theme.association.strokeSelected;
+  const participantFill = usesTechnicalNotebook ? '#F7F8F5' : theme.classNode.background;
+  const participantBorder = usesTechnicalNotebook ? '#839096' : theme.classNode.border;
+  const textColor = usesTechnicalNotebook ? '#303C43' : theme.classNode.text;
+  const muted = usesTechnicalNotebook ? '#66737B' : theme.classNode.mutedText;
+  const canvasBackground = usesTechnicalNotebook ? '#FBFAF7' : theme.canvas.background;
+  const canvasGrid = usesTechnicalNotebook ? '#D9DEDC' : theme.canvas.gridColorStrong;
+  const lifelineNeutral = usesTechnicalNotebook ? '#8B979D' : undefined;
+  const fragmentStrokeBase = usesTechnicalNotebook ? '#6D7A7E' : stroke;
+  const fragmentFill = usesTechnicalNotebook ? 'rgba(237, 242, 246, 0.44)' : 'rgba(255,255,255,0.16)';
+  const nestedFragmentFill = usesTechnicalNotebook ? 'rgba(244, 239, 226, 0.38)' : fragmentFill;
+  const fragmentTabFill = usesTechnicalNotebook ? '#E8EEF3' : participantFill;
+  const guardFill = usesTechnicalNotebook ? '#F2F1DF' : 'transparent';
+  const guardText = usesTechnicalNotebook ? '#59633E' : textColor;
 
   const participantIdentities = useMemo(() => {
     const map = new Map<string, ParticipantVisualIdentity>();
@@ -405,7 +415,8 @@ export function SequenceDiagramCanvas({
     const isSelected = isPrimarySelected || isMultiSelected;
     const isHighlighted = highlighted?.kind === 'fragment' && highlighted.id === fragment.id;
     const isInvalidResize = boundaryResizePreview?.fragmentId === fragment.id && !boundaryResizePreview.isValid;
-    const fragmentStroke = isInvalidResize ? '#ef4444' : isSelected || isHighlighted ? selectedStroke : stroke;
+    const fragmentStroke = isInvalidResize ? '#ef4444' : isSelected || isHighlighted ? selectedStroke : fragmentStrokeBase;
+    const surfaceFill = box.depth > 0 ? nestedFragmentFill : fragmentFill;
     return (
       <g
         key={fragment.id}
@@ -430,8 +441,8 @@ export function SequenceDiagramCanvas({
           onFragmentPointerDown?.(fragment, event);
         }}
       >
-        <rect x={box.x} y={box.y} width={box.width} height={box.height} fill="rgba(255,255,255,0.16)" stroke={fragmentStroke} strokeWidth={isInvalidResize ? 2.4 : isSelected ? 2 : isHighlighted ? 2.4 : 1.2} cursor="move" />
-        <path d={`M ${box.x} ${box.y} H ${box.x + 82} L ${box.x + 94} ${box.y + 22} H ${box.x} Z`} fill={participantFill} stroke={fragmentStroke} cursor="move" />
+        <rect x={box.x} y={box.y} width={box.width} height={box.height} fill={surfaceFill} stroke={fragmentStroke} strokeWidth={isInvalidResize ? 2.4 : isSelected ? 1.8 : isHighlighted ? 2.2 : 1.1} cursor="move" />
+        <path d={`M ${box.x} ${box.y} H ${box.x + 82} L ${box.x + 94} ${box.y + 22} H ${box.x} Z`} fill={fragmentTabFill} stroke={fragmentStroke} cursor="move" />
         <text x={box.x + 9} y={box.y + 16} fill={textColor} fontSize="12" fontWeight="bold" cursor="move">{fragment.operator}</text>
         {box.nameLines.length > 0 ? (
           <text
@@ -522,9 +533,12 @@ export function SequenceDiagramCanvas({
           const isEmpty = (contentOperand?.items.length ?? 0) === 0;
           const showEmptyCta = interactive && isEmpty && (onAddMessageToOperand || onAddFragmentToOperand);
           const ctaY = operand.contentTop + 11;
+          const longestGuardLine = operand.guardLines.reduce((longest, line) => Math.max(longest, line.length), 0);
+          const guardSurfaceWidth = Math.min(Math.max(48, (longestGuardLine + 2) * 6.3 + 12), Math.max(48, box.width - 24));
+          const guardSurfaceHeight = Math.max(19, operand.guardLines.length * 14 + 6);
           return (
           <g key={operand.id}>
-            {index > 0 ? <line x1={box.x} y1={operand.top} x2={box.x + box.width} y2={operand.top} stroke={stroke} strokeDasharray="7 5" /> : null}
+            {index > 0 ? <line x1={box.x} y1={operand.top} x2={box.x + box.width} y2={operand.top} stroke={fragmentStrokeBase} strokeDasharray="5 5" opacity="0.78" /> : null}
             <g
               cursor="pointer"
               className="sequence-operand-guard-group"
@@ -538,7 +552,8 @@ export function SequenceDiagramCanvas({
                 });
               }}
             >
-              <text x={box.x + 12} y={operand.top + 17} fill={textColor} fontSize="11" fontWeight="500">
+              {usesTechnicalNotebook ? <rect x={box.x + 8} y={operand.top + 3} width={guardSurfaceWidth} height={guardSurfaceHeight} rx="2" fill={guardFill} opacity="0.82" /> : null}
+              <text x={box.x + 12} y={operand.top + 17} fill={guardText} fontSize="11" fontWeight={usesTechnicalNotebook ? 650 : 500} fontStyle={usesTechnicalNotebook ? 'italic' : undefined}>
                 {operand.guardLines.map((line, lineIndex) => <tspan key={`${operand.id}:guard:${lineIndex}`} x={box.x + 12} dy={lineIndex === 0 ? 0 : 14}>{lineIndex === 0 ? `[${line}` : line}</tspan>)}
                 {operand.guardLines.length > 0 ? <tspan>]</tspan> : <tspan fill={muted} fontStyle="italic">[condición]</tspan>}
               </text>
@@ -949,7 +964,9 @@ export function SequenceDiagramCanvas({
     const targetName = content.participants.find((participant) => participant.id === message.targetId);
     const isSelf = message.sourceId === message.targetId;
     const dashed = message.type === 'return' || message.type === 'create';
-    const marker = message.type === 'synchronous' ? 'url(#sequence-arrow-filled)' : 'url(#sequence-arrow-open)';
+    const marker = message.type === 'synchronous'
+      ? (isSelected || isHighlighted ? 'url(#sequence-arrow-filled-preview)' : 'url(#sequence-arrow-filled)')
+      : (isSelected || isHighlighted ? 'url(#sequence-arrow-preview)' : 'url(#sequence-arrow-open)');
     const path = isSelf
       ? `M ${sourceX} ${box.y} H ${Math.max(sourceX, targetX) + 52} v 30 H ${targetX}`
       : `M ${sourceX} ${box.y} L ${targetX} ${box.y}`;
@@ -985,7 +1002,7 @@ export function SequenceDiagramCanvas({
           onEditMessage(message.id);
         }}
       >
-        <path d={path} fill="none" stroke={lineStroke} strokeWidth={isSelected ? 2.4 : isHighlighted ? 2.4 : 1.4} strokeDasharray={dashed ? '7 5' : undefined} markerEnd={message.type === 'destroy' ? undefined : marker} />
+        <path d={path} fill="none" stroke={lineStroke} strokeWidth={isSelected ? 2.1 : isHighlighted ? 2.2 : 1.35} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={dashed ? '7 5' : undefined} markerEnd={message.type === 'destroy' ? undefined : marker} />
         <path d={path} fill="none" stroke="transparent" strokeWidth="16" cursor={interactive ? 'grab' : undefined} />
         {message.type === 'destroy' && !layout.terminatedParticipantIds?.has(message.targetId) ? (
           <g stroke={lineStroke} strokeWidth="2">
@@ -995,8 +1012,8 @@ export function SequenceDiagramCanvas({
         ) : null}
         {box.labelLines.length > 0 ? (
           <g>
-            <rect x={box.labelCenterX - box.labelWidth / 2} y={box.labelTop - 2} width={box.labelWidth} height={box.labelBottom - box.labelTop + 4} rx="3" fill={theme.canvas.background} opacity="0.96" />
-            <text x={box.labelCenterX} y={box.labelBaselineY} fill={textColor} fontSize="11.5" textAnchor="middle">
+            <rect x={box.labelCenterX - box.labelWidth / 2} y={box.labelTop - 2} width={box.labelWidth} height={box.labelBottom - box.labelTop + 4} rx="3" fill={canvasBackground} opacity="0.92" />
+            <text x={box.labelCenterX} y={box.labelBaselineY} fill={textColor} fontSize="11.5" fontWeight={usesTechnicalNotebook ? 540 : undefined} textAnchor="middle">
               {box.labelLines.map((line, index) => <tspan key={`${message.id}:${index}`} x={box.labelCenterX} dy={index === 0 ? 0 : 14}>{line}</tspan>)}
             </text>
           </g>
@@ -1049,7 +1066,7 @@ export function SequenceDiagramCanvas({
     >
       <defs>
         <filter id="sequence-note-shadow" x="-8%" y="-8%" width="116%" height="120%">
-          <feDropShadow dx="0" dy="1.5" stdDeviation="2" floodColor="#0f172a" floodOpacity="0.11" />
+          <feDropShadow dx="0" dy="1.5" stdDeviation="1.7" floodColor="#344149" floodOpacity="0.09" />
         </filter>
         <marker id="sequence-arrow-filled" markerHeight="8" markerUnits="strokeWidth" markerWidth="10" orient="auto" refX="10" refY="4" viewBox="0 0 10 8">
           <path d="M 0 0 L 10 4 L 0 8 Z" fill={stroke} />
@@ -1063,11 +1080,11 @@ export function SequenceDiagramCanvas({
         <marker id="sequence-arrow-filled-preview" markerHeight="8" markerUnits="strokeWidth" markerWidth="10" orient="auto" refX="10" refY="4" viewBox="0 0 10 8">
           <path d="M 0 0 L 10 4 L 0 8 Z" fill={selectedStroke} />
         </marker>
-        <pattern id="sequence-paper-grid" width="24" height="24" patternUnits="userSpaceOnUse">
-          <circle cx="1" cy="1" r="0.75" fill={theme.canvas.gridColorStrong} opacity="0.48" />
+        <pattern id="sequence-paper-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+          <circle cx="1" cy="1" r="0.62" fill={canvasGrid} opacity={usesTechnicalNotebook ? 0.72 : 0.48} />
         </pattern>
       </defs>
-      <rect width={layout.width} height={layout.height} fill={theme.canvas.background} />
+      <rect width={layout.width} height={layout.height} fill={canvasBackground} />
       <rect data-export-control="true" width={layout.width} height={layout.height} fill="url(#sequence-paper-grid)" />
 
       {content.participants.map((participant) => {
@@ -1075,11 +1092,11 @@ export function SequenceDiagramCanvas({
         const startY = layout.participantStartY.get(participant.id) ?? SEQUENCE_HEADER_Y + SEQUENCE_HEADER_HEIGHT;
         const endY = layout.participantEndY.get(participant.id) ?? layout.height - 50;
         const identity = participantIdentities.get(participant.id);
-        const lifelineStroke = identity?.lifelineStroke ?? stroke;
+        const lifelineStroke = lifelineNeutral ?? identity?.lifelineStroke ?? stroke;
         const isTerminated = layout.terminatedParticipantIds?.has(participant.id) || layout.participantLayouts.get(participant.id)?.isTerminated;
         return (
           <g key={`life:${participant.id}`}>
-            <line x1={x} y1={startY} x2={x} y2={endY} stroke={lifelineStroke} strokeDasharray="6 5" strokeWidth="1.15" />
+            <line x1={x} y1={startY} x2={x} y2={endY} stroke={lifelineStroke} strokeDasharray={usesTechnicalNotebook ? '4 5' : '6 5'} strokeWidth={usesTechnicalNotebook ? 1.05 : 1.15} opacity={usesTechnicalNotebook ? 0.86 : 1} />
             {isTerminated ? (
               <g data-sequence-lifeline-cross="true" stroke={lifelineStroke} strokeWidth="2">
                 <line x1={x - 8} y1={endY - 8} x2={x + 8} y2={endY + 8} />
@@ -1092,9 +1109,9 @@ export function SequenceDiagramCanvas({
 
       {content.showActivations ? layout.activationLayouts.map((activation) => {
         const identity = participantIdentities.get(activation.participantId);
-        const fill = identity?.activationFill ?? participantFill;
+        const baseFill = identity?.activationFill ?? participantFill;
         const border = identity?.activationBorder ?? stroke;
-        return <rect key={activation.id} x={activation.x} y={activation.y} width={activation.width} height={activation.height} rx="2" fill={fill} stroke={border} strokeWidth="1" />;
+        return <rect key={activation.id} x={activation.x} y={activation.y} width={activation.width} height={activation.height} rx="1.5" fill={baseFill} fillOpacity={activation.level > 0 ? 0.68 : 0.88} stroke={border} strokeWidth="1" />;
       }) : null}
 
       {Array.from(layout.fragmentLayouts.entries())
@@ -1392,16 +1409,15 @@ export function SequenceDiagramCanvas({
                 <>
                   <ParticipantGlyph participant={participant} x={x} y={headerY} stroke={glyphStroke} />
                   <text x={x} y={nameBaselineY} fill={textColor} fontSize="11" fontWeight="bold" textAnchor="middle">
-                    {nameLines.map((line, index) => <tspan key={`${participant.id}:name:${index}`} x={x} dy={index === 0 ? 0 : 14}>{line}</tspan>)}
+                    {nameLines.map((line, index) => <tspan key={`${participant.id}:name:${index}`} x={x} dy={index === 0 ? 0 : 14} fill={index === 0 ? textColor : muted} fontWeight={index === 0 ? 720 : 580}>{line}</tspan>)}
                   </text>
                   <rect data-export-control="true" x={x - headerWidth / 2} y={headerY} width={headerWidth} height={headerHeight} fill="transparent" stroke={isSelected || isHighlighted ? selectedStroke : 'transparent'} strokeWidth={isSelected ? 2 : isHighlighted ? 2.4 : 2} />
                 </>
               ) : (
                 <>
                   <rect x={x - headerWidth / 2} y={headerY} width={headerWidth} height={headerHeight} rx="3" fill={headerFill} stroke={isSelected || isHighlighted ? selectedStroke : headerBorder} strokeWidth={isSelected ? 2 : isHighlighted ? 2.4 : 1.2} />
-                  <ParticipantGlyph participant={participant} x={x} y={headerY} stroke={glyphStroke} />
                   <text x={x} y={nameBaselineY} fill={textColor} fontSize="11" fontWeight="bold" textAnchor="middle">
-                    {nameLines.map((line, index) => <tspan key={`${participant.id}:name:${index}`} x={x} dy={index === 0 ? 0 : 14}>{line}</tspan>)}
+                    {nameLines.map((line, index) => <tspan key={`${participant.id}:name:${index}`} x={x} dy={index === 0 ? 0 : 14} fill={index === 0 ? textColor : muted} fontWeight={index === 0 ? 720 : 580}>{line}</tspan>)}
                   </text>
                 </>
               )}
@@ -1594,3 +1610,9 @@ export function SequenceDiagramCanvas({
     </svg>
   );
 }
+
+/* The canvas re-renders the whole diagram SVG. The editor above it holds 33
+   pieces of state — panel toggles, dialogs, search text — most of which do not
+   touch geometry, so memoising here keeps those out of the diagram's path. */
+export const SequenceDiagramCanvas = memo(SequenceDiagramCanvasImpl);
+SequenceDiagramCanvas.displayName = 'SequenceDiagramCanvas';

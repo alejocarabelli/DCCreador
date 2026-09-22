@@ -103,6 +103,10 @@ describe('sequence keyboard mode state', () => {
     expect(resolveKeyboardTargetMessageType(1, 2, 'return')).toBe('synchronous');
     // Self-call (same index): keeps current type
     expect(resolveKeyboardTargetMessageType(1, 1, 'asynchronous')).toBe('asynchronous');
+    // Explicit lifecycle choices stay selected while the destination moves.
+    expect(resolveKeyboardTargetMessageType(1, 0, 'destroy')).toBe('destroy');
+    expect(resolveKeyboardTargetMessageType(1, 2, 'destroy')).toBe('destroy');
+    expect(resolveKeyboardTargetMessageType(1, 0, 'create')).toBe('create');
 
     // In reducer: set-route can update messageType and returnCandidateIds atomically
     let state = sequenceKeyboardModeReducer(createInactiveSequenceKeyboardState(), { type: 'activate', slotIndex: 0, sourceId: 'b' });
@@ -191,31 +195,29 @@ describe('sequence keyboard insertion and returns', () => {
 });
 
 describe('sequence keyboard message type navigation and confirmation', () => {
-  it('allows navigating through every creatable message type including destroy', () => {
-    // Forward from synchronous
-    let current = sequenceKeyboardMessageTypes[0]; // synchronous
-    expect(current).toBe('synchronous');
+  it('offers one generic message choice plus return, create and destroy', () => {
+    expect(sequenceKeyboardMessageTypes).toEqual([
+      'synchronous',
+      'return',
+      'create',
+      'destroy',
+    ]);
 
-    current = moveCircular(sequenceKeyboardMessageTypes, current, 1)!;
-    expect(current).toBe('asynchronous');
-
+    let current = sequenceKeyboardMessageTypes[0];
     current = moveCircular(sequenceKeyboardMessageTypes, current, 1)!;
     expect(current).toBe('return');
 
     current = moveCircular(sequenceKeyboardMessageTypes, current, 1)!;
     expect(current).toBe('create');
 
-    // Destroy is a regular creatable type and then the cycle wraps.
     current = moveCircular(sequenceKeyboardMessageTypes, current, 1)!;
     expect(current).toBe('destroy');
     current = moveCircular(sequenceKeyboardMessageTypes, current, 1)!;
     expect(current).toBe('synchronous');
 
-    // Backward from create goes to return
     const prevFromCreate = moveCircular(sequenceKeyboardMessageTypes, 'create', -1);
     expect(prevFromCreate).toBe('return');
 
-    // Backward from synchronous wraps to destroy.
     const prevFromSync = moveCircular(sequenceKeyboardMessageTypes, 'synchronous', -1);
     expect(prevFromSync).toBe('destroy');
   });

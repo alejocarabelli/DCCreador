@@ -844,6 +844,7 @@ type RuntimeActivation = {
   participantId: string;
   startMessageId: string;
   level: number;
+  syntheticCaller?: boolean;
   endScope?: Required<SemanticScope>;
 };
 
@@ -941,10 +942,6 @@ export const analyzeSequenceDiagramSemantics = (
     .filter((entry): entry is SequenceFlatEntry & { item: SequenceMessage } => entry.item.kind === 'message')
     .map((entry) => entry.item);
   const messagesById = new Map(messages.map((message) => [message.id, message]));
-  const explicitlyReturnedCallIds = new Set(messages.flatMap((message) =>
-    message.type === 'return' && message.replyToMessageId !== undefined
-      ? [message.replyToMessageId]
-      : []));
   const messagePositions = new Map<string, MessageExecutionPosition>();
   let messageOrder = 0;
   const indexMessagePositions = (
@@ -964,10 +961,35 @@ export const analyzeSequenceDiagramSemantics = (
     });
   };
   indexMessagePositions(content.items);
+  const explicitlyReturnedCallIds = new Set<string>();
+  messages.forEach((message) => {
+    if (message.type !== 'return' || message.replyToMessageId === undefined) return;
+    const call = messagesById.get(message.replyToMessageId);
+    const callPosition = call === undefined ? undefined : messagePositions.get(call.id);
+    const returnPosition = messagePositions.get(message.id);
+    const sameScope = callPosition !== undefined
+      && returnPosition !== undefined
+      && callPosition.scopePath.length === returnPosition.scopePath.length
+      && callPosition.scopePath.every((scope, index) => {
+        const other = returnPosition.scopePath[index];
+        return scope.fragmentId === other.fragmentId && scope.operandId === other.operandId;
+      });
+    if (call !== undefined
+      && startsExecution(call)
+      && call.sourceId === message.targetId
+      && call.targetId === message.sourceId
+      && callPosition !== undefined
+      && returnPosition !== undefined
+      && callPosition.order < returnPosition.order
+      && sameScope) {
+      explicitlyReturnedCallIds.add(call.id);
+    }
+  });
   const participantsWithCreate = new Set(messages
     .filter((message) => message.type === 'create' && participantIdSet.has(message.targetId))
     .map((message) => message.targetId));
   const activationRecords = new Map<string, ActivationRecord>();
+  const implicitCompletionMessageIds = new Set<string>();
   const validCreates = new Map<string, Set<string>>();
   const validDestroys = new Map<string, Set<string>>();
 
@@ -1058,6 +1080,7 @@ export const analyzeSequenceDiagramSemantics = (
     participantId: string,
     messageId: string,
     scope: SemanticScope,
+    syntheticCaller = false,
   ): void => {
     const stack = state.openByParticipant.get(participantId) ?? [];
     const level = stack.length;
@@ -1065,7 +1088,14 @@ export const analyzeSequenceDiagramSemantics = (
     const endScope = scope.fragmentId !== undefined && scope.operandId !== undefined
       ? { fragmentId: scope.fragmentId, operandId: scope.operandId }
       : undefined;
-    const activation: RuntimeActivation = { key, participantId, startMessageId: messageId, level, ...(endScope ? { endScope } : {}) };
+    const activation: RuntimeActivation = {
+      key,
+      participantId,
+      startMessageId: messageId,
+      level,
+      ...(syntheticCaller ? { syntheticCaller: true } : {}),
+      ...(endScope ? { endScope } : {}),
+    };
     stack.push(activation);
     state.openByParticipant.set(participantId, stack);
     if (!activationRecords.has(key)) {
@@ -1091,28 +1121,11 @@ export const analyzeSequenceDiagramSemantics = (
     else state.openByParticipant.set(participantId, stack);
   };
 
-  const outboundParticipantsByItem = new WeakMap<SequenceTimelineItem, Set<string>>();
-  const getOutboundParticipants = (item: SequenceTimelineItem): Set<string> => {
-    const cached = outboundParticipantsByItem.get(item);
-    if (cached !== undefined) return cached;
-    const participants = new Set<string>();
-    if (item.kind === 'message') {
-      participants.add(item.sourceId);
-    } else {
-      item.operands.forEach((operand) => operand.items.forEach((child) => {
-        getOutboundParticipants(child).forEach((participantId) => participants.add(participantId));
-      }));
-    }
-    outboundParticipantsByItem.set(item, participants);
-    return participants;
-  };
-
   const processMessage = (
     state: SemanticState,
     message: SequenceMessage,
     scope: SemanticScope,
     messageIndex?: number,
-    lastOutboundIndexByParticipant?: Map<string, number>,
     lastImplicitReturnIndexByRoute?: Map<string, number>,
   ): void => {
     if (!participantIdSet.has(message.sourceId) || !participantIdSet.has(message.targetId)) {
@@ -1160,9 +1173,6 @@ export const analyzeSequenceDiagramSemantics = (
       state.lifecycle.set(message.targetId, 'alive');
       registerLifecycleEvent(validCreates, message.targetId, message.id);
       validMessageIds.add(message.id);
-      if ((state.openByParticipant.get(message.sourceId)?.length ?? 0) === 0) {
-        openActivation(state, message.sourceId, message.id, scope);
-      }
       return;
     }
 
@@ -1191,9 +1201,6 @@ export const analyzeSequenceDiagramSemantics = (
       const sourceIsAlive = requireAlive(state, message.sourceId, message, scope);
       if (!sourceIsAlive) return;
       validMessageIds.add(message.id);
-      if ((state.openByParticipant.get(message.sourceId)?.length ?? 0) === 0) {
-        openActivation(state, message.sourceId, message.id, scope);
-      }
       const targetStack = state.openByParticipant.get(message.targetId) ?? [];
       for (let index = targetStack.length - 1; index >= 0; index -= 1) {
         closeActivation(state, message.targetId, index, message.id);
@@ -1234,32 +1241,42 @@ export const analyzeSequenceDiagramSemantics = (
       }
       validMessageIds.add(message.id);
       closeActivation(state, message.sourceId, activationIndex, message.id);
+      const callerStack = state.openByParticipant.get(message.targetId) ?? [];
+      const callerIndex = callerStack.length - 1;
+      const callerActivation = callerStack[callerIndex];
+      if (callerActivation?.syntheticCaller === true
+        && callerActivation.startMessageId === call.id) {
+        closeActivation(state, message.targetId, callerIndex, message.id);
+      }
       return;
     }
 
     validMessageIds.add(message.id);
-    if ((state.openByParticipant.get(message.sourceId)?.length ?? 0) === 0) {
-      openActivation(state, message.sourceId, message.id, scope);
-    }
     const targetStack = state.openByParticipant.get(message.targetId) ?? [];
     const opensReceiverActivation = message.type === 'synchronous'
       || (message.type === 'asynchronous' && (message.sourceId === message.targetId || targetStack.length === 0));
     if (opensReceiverActivation) {
-      openActivation(state, message.targetId, message.id, scope);
-      const isIncomingSync = message.type === 'synchronous' && message.sourceId !== message.targetId;
-      const hasExplicitReturn = isIncomingSync && explicitlyReturnedCallIds.has(message.id);
-      const hasImplicitReturnInCurrentScope = isIncomingSync
+      const isSync = message.type === 'synchronous';
+      const hasExplicitReturn = isSync && explicitlyReturnedCallIds.has(message.id);
+      const hasImplicitReturnInCurrentScope = isSync
         && messageIndex !== undefined
         && (lastImplicitReturnIndexByRoute?.get(`${message.targetId}\0${message.sourceId}`) ?? -1) > messageIndex;
-      if (isIncomingSync && !hasExplicitReturn && !hasImplicitReturnInCurrentScope
-        && messageIndex !== undefined) {
-        const isLeaf = (lastOutboundIndexByParticipant?.get(message.targetId) ?? -1) <= messageIndex;
-        if (isLeaf) {
-          const updatedStack = state.openByParticipant.get(message.targetId) ?? [];
-          const actIndex = updatedStack.length - 1;
-          if (actIndex >= 0) {
-            closeActivation(state, message.targetId, actIndex, message.id);
-          }
+      // A synchronous call stays open only when a compatible return exists in
+      // this temporal scope. The signature (including returnType) and method
+      // name are intentionally irrelevant; otherwise it is an implicit
+      // completion and the receiver gets a compact activation.
+      const hasCompatibleReturn = hasExplicitReturn || hasImplicitReturnInCurrentScope;
+      if (isSync && hasCompatibleReturn
+        && (state.openByParticipant.get(message.sourceId)?.length ?? 0) === 0) {
+        openActivation(state, message.sourceId, message.id, scope, true);
+      }
+      openActivation(state, message.targetId, message.id, scope);
+      if (isSync && !hasCompatibleReturn) {
+        const updatedStack = state.openByParticipant.get(message.targetId) ?? [];
+        const actIndex = updatedStack.length - 1;
+        if (actIndex >= 0) {
+          implicitCompletionMessageIds.add(message.id);
+          closeActivation(state, message.targetId, actIndex, message.id);
         }
       }
     }
@@ -1280,10 +1297,8 @@ export const analyzeSequenceDiagramSemantics = (
 
   const processItems = (items: SequenceTimelineItem[], initial: SemanticState, scope: SemanticScope = {}): SemanticState => {
     let state = initial;
-    const lastOutboundIndexByParticipant = new Map<string, number>();
     const lastImplicitReturnIndexByRoute = new Map<string, number>();
     items.forEach((item, itemIndex) => {
-      getOutboundParticipants(item).forEach((participantId) => lastOutboundIndexByParticipant.set(participantId, itemIndex));
       if (item.kind === 'message' && item.type === 'return' && item.replyToMessageId === undefined) {
         lastImplicitReturnIndexByRoute.set(`${item.sourceId}\0${item.targetId}`, itemIndex);
       }
@@ -1295,7 +1310,6 @@ export const analyzeSequenceDiagramSemantics = (
           item,
           scope,
           itemIndex,
-          lastOutboundIndexByParticipant,
           lastImplicitReturnIndexByRoute,
         );
         return;
@@ -1478,6 +1492,24 @@ export const analyzeSequenceDiagramSemantics = (
     const endPosition = activation.endMessageId === undefined
       ? undefined
       : messagePositions.get(activation.endMessageId);
+    const matchingDerived = derivedActivationByKey.get(
+      `${activation.participantId}:${activation.startMessageId}:${activation.level}`,
+    );
+    // A legacy manual bar may have been left open on a call that is now
+    // interpreted as an implicit completion. Keep the stored activation
+    // untouched, but make its visual projection follow the compact derived
+    // interval even if the stale end reference is no longer valid.
+    if (matchingDerived !== undefined
+      && implicitCompletionMessageIds.has(activation.startMessageId)
+      && matchingDerived.endMessageId === activation.startMessageId) {
+      const { endScope, ...activationWithoutEndScope } = activation;
+      void endScope;
+      return [{
+        ...activationWithoutEndScope,
+        endMessageId: matchingDerived.endMessageId,
+        ...(matchingDerived.endScope !== undefined ? { endScope: matchingDerived.endScope } : {}),
+      }];
+    }
     const referencesAreValid = participantIdSet.has(activation.participantId)
       && startMessage !== undefined
       && startPosition !== undefined
@@ -1530,9 +1562,6 @@ export const analyzeSequenceDiagramSemantics = (
       return [];
     }
 
-    const matchingDerived = derivedActivationByKey.get(
-      `${activation.participantId}:${activation.startMessageId}:${activation.level}`,
-    );
     if (matchingDerived !== undefined) {
       const hasExplicitDifferentEnd = activation.endMessageId !== undefined
         && activation.endMessageId !== matchingDerived.endMessageId;

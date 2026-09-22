@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
+import { DialogProvider } from './ConfirmDialog';
 import { themes } from '../theme/themes';
 import type { ClassDiagramArtifact, DesignProject, SequenceDiagramArtifact } from '../types/diagram';
 import { createEmptySequenceDiagramContent, normalizeSequenceDiagramContent } from '../utils/sequenceDiagram';
@@ -37,19 +38,21 @@ describe('SequenceDiagramEditor referenced class diagram compatibility', () => {
     };
 
     expect(() => renderToString(
+      <DialogProvider>
       <SequenceDiagramEditor
         artifact={sequenceArtifact}
         canRedo={false}
         canUndo={false}
         project={project}
         theme={themes[0]}
-        themeId="legacy"
+        themeId="academic-light"
         onChangeContent={vi.fn()}
         onRedo={vi.fn()}
         onUndo={vi.fn()}
         onImportProject={vi.fn()}
         onThemeChange={vi.fn()}
-      />,
+      />
+      </DialogProvider>,
     )).not.toThrow();
   });
 
@@ -73,19 +76,21 @@ describe('SequenceDiagramEditor referenced class diagram compatibility', () => {
     };
 
     const html = renderToString(
+      <DialogProvider>
       <SequenceDiagramEditor
         artifact={sequenceArtifact}
         canRedo={false}
         canUndo={false}
         project={project}
         theme={themes[0]}
-        themeId="legacy"
+        themeId="academic-light"
         onChangeContent={vi.fn()}
         onRedo={vi.fn()}
         onUndo={vi.fn()}
         onImportProject={vi.fn()}
         onThemeChange={vi.fn()}
-      />,
+      />
+      </DialogProvider>,
     );
 
     expect((html.match(/class="sequence-diagram-svg"/g) ?? [])).toHaveLength(1);

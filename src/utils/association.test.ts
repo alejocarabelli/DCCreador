@@ -25,6 +25,11 @@ describe('association routing', () => {
     expect(normalizeAssociationData(undefined).name).toBe('');
   });
 
+  it('keeps dependency and realization as valid directed UML relations', () => {
+    expect(normalizeAssociationData({ relationType: 'dependency' }).relationType).toBe('dependency');
+    expect(normalizeAssociationData({ relationType: 'realization' }).relationType).toBe('realization');
+  });
+
   it('preserves the exact connection point selected on each class', () => {
     const edge = normalizeAssociationEdge({
       id: 'edge-1',

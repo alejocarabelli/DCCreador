@@ -1,0 +1,822 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cuaderno técnico · Iteración final</title>
+  <style>
+    :root {
+      --font-ui: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-code: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      --ink-950: #18212b;
+      --ink-800: #2c3947;
+      --ink-700: #445363;
+      --ink-600: #5f6f7e;
+      --ink-500: #788694;
+      --line-strong: #aeb9c1;
+      --line: #d5dde2;
+      --line-soft: #e7ecef;
+      --surface: #ffffff;
+      --surface-1: #f8fafb;
+      --surface-2: #f1f5f7;
+      --canvas: #fbfaf7;
+      --canvas-dot: #d9dedc;
+      --diagram-ink: #344149;
+      --diagram-muted: #66737b;
+      --lifeline: #8b979d;
+      --activation-fill: #e5efed;
+      --activation-stroke: #67877f;
+      --fragment-fill: rgba(238, 243, 241, .42);
+      --fragment-child-fill: rgba(244, 239, 226, .38);
+      --fragment-stroke: #6d7a7e;
+      --fragment-tab: #e9efec;
+      --guard-ink: #59633e;
+      --guard-fill: #f2f1df;
+      --selection: #2d7382;
+      --selection-soft: rgba(45, 115, 130, .08);
+      --participant-1: #f2ede3;
+      --participant-1-line: #9a8564;
+      --participant-2: #e9f1ef;
+      --participant-2-line: #668b82;
+      --participant-3: #edf0f4;
+      --participant-3-line: #728394;
+      --participant-4: #f3eee7;
+      --participant-4-line: #9a7f67;
+      --participant-5: #ebf0e8;
+      --participant-5-line: #758d68;
+      --blue-700: #2f6570;
+      --blue-600: #477f87;
+      --blue-100: #e5efef;
+      --blue-050: #f1f6f6;
+      --focus-ring: #7fa8ad;
+      --focus-soft: #e0eeee;
+      --green-700: #2d6a4f;
+      --green-100: #e8f5ee;
+      --amber-800: #835d16;
+      --amber-100: #fff2cd;
+      --red-700: #a53b3f;
+      --red-100: #faeaeb;
+      --note: #fff7d5;
+      --note-line: #d5b65a;
+      --outline-w: 252px;
+      --inspector-w: 328px;
+      --toolbar-h: 54px;
+      --status-h: 28px;
+      color-scheme: light;
+      font-family: var(--font-ui);
+    }
+
+    .app[data-palette="warm"] {
+      --canvas: #fcfaf5;
+      --canvas-dot: #ddd8cc;
+      --diagram-ink: #403c37;
+      --diagram-muted: #756e65;
+      --lifeline: #9a9186;
+      --activation-fill: #f0e9dd;
+      --activation-stroke: #927a5e;
+      --fragment-fill: rgba(244, 238, 226, .48);
+      --fragment-child-fill: rgba(235, 241, 232, .42);
+      --fragment-stroke: #81786d;
+      --fragment-tab: #f0e8da;
+      --guard-ink: #6f5d32;
+      --guard-fill: #f5edcf;
+      --participant-1: #f4eadc;
+      --participant-1-line: #9d7d57;
+      --participant-2: #eaf1ea;
+      --participant-2-line: #708b73;
+      --participant-3: #efede8;
+      --participant-3-line: #7f7b73;
+      --participant-4: #f3e8e2;
+      --participant-4-line: #9b7565;
+      --participant-5: #e8efed;
+      --participant-5-line: #6b8985;
+    }
+
+    .app[data-palette="contrast"] {
+      --canvas: #f7f9fa;
+      --canvas-dot: #cfd8dd;
+      --diagram-ink: #26343d;
+      --diagram-muted: #52636e;
+      --lifeline: #74858f;
+      --activation-fill: #dfeaed;
+      --activation-stroke: #557b86;
+      --fragment-fill: rgba(227, 234, 237, .48);
+      --fragment-child-fill: rgba(232, 239, 235, .44);
+      --fragment-stroke: #576a74;
+      --fragment-tab: #dfe8eb;
+      --guard-ink: #3f665d;
+      --guard-fill: #e4f0eb;
+      --participant-1: #e9eef1;
+      --participant-1-line: #667c88;
+      --participant-2: #e0efed;
+      --participant-2-line: #4f827b;
+      --participant-3: #e8ebf2;
+      --participant-3-line: #66758e;
+      --participant-4: #f2e9e3;
+      --participant-4-line: #93725f;
+      --participant-5: #e6eee2;
+      --participant-5-line: #6c865f;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body { background: #e9eef2; color: var(--ink-950); overflow: hidden; }
+    button, input, select, textarea { font: inherit; }
+    button, summary, select { -webkit-tap-highlight-color: transparent; }
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible {
+      outline: 2px solid var(--focus-ring);
+      outline-offset: 2px;
+    }
+    button { color: inherit; }
+    svg text { font-family: var(--font-ui); fill: #202a34; }
+
+    .app {
+      display: grid;
+      grid-template-rows: var(--toolbar-h) minmax(0, 1fr) var(--status-h);
+      width: 100vw;
+      height: 100vh;
+      min-width: 960px;
+      background: var(--surface);
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      padding: 7px 10px 7px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,.98);
+      z-index: 20;
+    }
+
+    .identity { flex: 0 1 244px; min-width: 155px; overflow: hidden; }
+    .identity .kind { display: block; color: var(--ink-500); font-size: 10px; font-weight: 720; letter-spacing: .06em; text-transform: uppercase; }
+    .identity .path { display: flex; gap: 5px; align-items: center; margin-top: 2px; font-size: 13px; white-space: nowrap; }
+    .identity .project { color: var(--ink-600); overflow: hidden; text-overflow: ellipsis; }
+    .identity .separator { color: #a3adb6; }
+    .identity strong { overflow: hidden; text-overflow: ellipsis; }
+
+    .toolbar { display: flex; align-items: center; gap: 5px; min-width: 0; flex: 1; }
+    .tool-group { display: flex; align-items: center; gap: 2px; padding-right: 6px; margin-right: 1px; border-right: 1px solid var(--line-soft); }
+    .tool-group:last-child { border-right: 0; margin-left: auto; padding-right: 0; }
+    .tool, .icon-tool, .primary-tool, .quiet-tool {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      min-height: 34px; border: 1px solid transparent; border-radius: 6px; padding: 0 9px;
+      background: transparent; color: var(--ink-700); font-size: 12px; font-weight: 650; white-space: nowrap; cursor: pointer;
+    }
+    .tool:hover, .icon-tool:hover, .quiet-tool:hover { background: var(--surface-2); color: var(--ink-950); }
+    .icon-tool { width: 34px; padding: 0; }
+    .tool.active, .icon-tool.active { background: var(--blue-100); color: var(--blue-700); }
+    .primary-tool { background: var(--blue-700); color: white; border-color: var(--blue-700); padding-inline: 11px; }
+    .primary-tool:hover { background: #285760; }
+    .tool[disabled], .icon-tool[disabled] { opacity: .38; cursor: default; background: transparent; }
+    .tool svg, .icon-tool svg, .primary-tool svg, .quiet-tool svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+    .save-state { display: flex; align-items: center; gap: 5px; color: var(--green-700); font-size: 11px; white-space: nowrap; margin-right: 2px; }
+    .save-state::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #3c8a67; }
+    .shortcut { min-width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; padding: 0 4px; border: 1px solid #cbd8e2; border-radius: 4px; background: #fff; color: var(--blue-700); font: 10px var(--font-code); }
+    .overflow-trigger { position: relative; }
+
+    .workspace {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: var(--outline-w) minmax(480px, 1fr) var(--inspector-w);
+      background: var(--surface);
+    }
+    .app.outline-collapsed { --outline-w: 42px; }
+    .app.inspector-collapsed { --inspector-w: 42px; }
+
+    .panel { min-height: 0; background: var(--surface-1); }
+    .outline { border-right: 1px solid var(--line); display: flex; flex-direction: column; overflow: hidden; }
+    .inspector { border-left: 1px solid var(--line); display: flex; flex-direction: column; overflow: hidden; background: var(--surface); }
+    .panel-header { min-height: 48px; padding: 9px 10px 8px 12px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .panel-title { min-width: 0; }
+    .panel-title strong { display: block; font-size: 12px; line-height: 1.2; }
+    .panel-title span { display: block; margin-top: 2px; color: var(--ink-500); font-size: 10px; }
+    .collapse-button { width: 30px; height: 30px; border: 0; border-radius: 5px; background: transparent; cursor: pointer; color: var(--ink-600); }
+    .collapse-button:hover { background: var(--surface-2); color: var(--ink-950); }
+
+    .outline-search { margin: 10px; height: 32px; display: flex; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: 6px; padding: 0 9px; background: var(--surface); color: var(--ink-500); }
+    .outline-search input { width: 100%; border: 0; outline: 0; background: transparent; font-size: 11px; color: var(--ink-800); }
+    .outline-tree { min-height: 0; flex: 1; overflow: auto; padding: 0 7px 12px; }
+    .tree-section { margin: 10px 6px 5px; color: var(--ink-500); font-size: 9px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+    .tree-item { position: relative; display: grid; grid-template-columns: 17px minmax(0,1fr) auto; gap: 5px; align-items: center; width: 100%; min-height: 38px; padding: 5px 7px; border: 0; border-radius: 5px; background: transparent; text-align: left; cursor: pointer; }
+    .tree-item:hover { background: #edf2f5; }
+    .tree-item.active { background: var(--blue-100); box-shadow: inset 2px 0 0 var(--blue-600); color: var(--blue-700); }
+    .tree-item .branch { color: var(--ink-500); font-family: var(--font-code); font-size: 11px; }
+    .tree-copy { min-width: 0; }
+    .tree-copy strong { display: block; overflow: hidden; text-overflow: ellipsis; font-size: 11px; font-weight: 670; white-space: nowrap; }
+    .tree-copy small { display: block; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; color: var(--ink-500); font-size: 9.5px; white-space: nowrap; }
+    .tree-index { color: var(--ink-500); font: 9px var(--font-code); }
+    .tree-children { position: relative; margin-left: 13px; padding-left: 7px; border-left: 1px solid #d4dde4; }
+    .operand { margin: 5px 0 3px 7px; color: var(--ink-600); font: 9px var(--font-code); }
+    .simple-tree { display: none; }
+    .state-simple .outline-tree > :not(.simple-tree) { display: none; }
+    .state-simple .simple-tree { display: block; }
+    .outline-footer { min-height: 40px; border-top: 1px solid var(--line); display: flex; align-items: center; padding: 4px 8px; gap: 3px; }
+
+    .outline-collapsed .outline .panel-title,
+    .outline-collapsed .outline-search,
+    .outline-collapsed .outline-tree,
+    .outline-collapsed .outline-footer { display: none; }
+    .outline-collapsed .outline .panel-header { padding: 8px 5px; justify-content: center; }
+    .inspector-collapsed .inspector .panel-title,
+    .inspector-collapsed .inspector .inspector-body { display: none; }
+    .inspector-collapsed .inspector .panel-header { padding: 8px 5px; justify-content: center; }
+
+    .canvas-pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: #eef2f4; }
+    .canvas-scroll { position: absolute; inset: 0; overflow: auto; overscroll-behavior: contain; }
+    .canvas-sheet { position: relative; width: 1180px; min-width: 100%; height: 1040px; background-color: var(--canvas); background-image: radial-gradient(circle, var(--canvas-dot) .62px, transparent .72px); background-size: 20px 20px; }
+    .diagram { display: block; width: 1180px; height: 1040px; }
+    .diagram .participant-head { stroke-width: 1.2; }
+    .diagram .participant-head,
+    .diagram .message,
+    .diagram .fragment,
+    .diagram .note-shape { transition: stroke 70ms ease, stroke-width 70ms ease, filter 70ms ease; }
+    .diagram .participant-head:hover { stroke-width: 1.7; cursor: grab; }
+    .diagram .message:hover { stroke-width: 1.8; cursor: grab; }
+    .diagram .fragment:hover { stroke-width: 1.45; cursor: pointer; }
+    .diagram .note-shape:hover { filter: drop-shadow(0 3px 3px rgba(52,65,73,.12)); cursor: grab; }
+    .diagram .participant-1 { fill: var(--participant-1); stroke: var(--participant-1-line); }
+    .diagram .participant-2 { fill: var(--participant-2); stroke: var(--participant-2-line); }
+    .diagram .participant-3 { fill: var(--participant-3); stroke: var(--participant-3-line); }
+    .diagram .participant-4 { fill: var(--participant-4); stroke: var(--participant-4-line); }
+    .diagram .participant-5 { fill: var(--participant-5); stroke: var(--participant-5-line); }
+    .diagram .participant-head.selected { stroke: var(--selection); stroke-width: 2; }
+    .diagram .lifeline { stroke: var(--lifeline); stroke-width: 1.05; stroke-dasharray: 4 5; opacity: .86; }
+    .diagram .message { stroke: var(--diagram-ink); stroke-width: 1.35; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    .diagram .message.secondary { stroke: var(--diagram-muted); stroke-width: 1.1; }
+    .diagram .return { stroke: var(--diagram-muted); stroke-width: 1.15; stroke-dasharray: 6 5; }
+    .diagram .async { stroke-width: 1.25; }
+    .diagram .activation { fill: var(--activation-fill); stroke: var(--activation-stroke); stroke-width: 1; }
+    .diagram .activation.nested { fill: color-mix(in srgb, var(--activation-fill) 62%, white); stroke-width: 1.1; }
+    .diagram .fragment { fill: var(--fragment-fill); stroke: var(--fragment-stroke); stroke-width: 1.1; }
+    .diagram .fragment-child { fill: var(--fragment-child-fill); }
+    .diagram .fragment.selected { fill: var(--fragment-fill); stroke: var(--selection); stroke-width: 1.8; }
+    .diagram .fragment-tab { fill: var(--fragment-tab); stroke: var(--fragment-stroke); }
+    .diagram .separator-line { stroke: var(--fragment-stroke); stroke-width: 1; stroke-dasharray: 5 5; opacity: .78; }
+    .diagram .participant-name { font-size: 12px; fill: var(--diagram-ink); }
+    .diagram .participant-instance { font-weight: 735; letter-spacing: -.01em; }
+    .diagram .participant-class { font-size: 10.5px; font-weight: 590; fill: var(--diagram-muted); }
+    .diagram .message-label { font-size: 10.5px; font-weight: 560; fill: var(--diagram-ink); paint-order: stroke; stroke: var(--canvas); stroke-width: 5px; stroke-linejoin: round; }
+    .diagram .message-number { font-family: var(--font-code); font-size: 9px; font-weight: 700; fill: var(--diagram-muted); }
+    .diagram .minor-label { font-size: 9.5px; fill: var(--diagram-muted); }
+    .diagram .fragment-label { font-family: var(--font-code); font-size: 10.5px; font-weight: 780; fill: var(--diagram-ink); }
+    .diagram .guard-surface { fill: var(--guard-fill); opacity: .82; }
+    .diagram .guard-label { font-family: var(--font-code); font-size: 9.5px; font-style: italic; font-weight: 680; fill: var(--guard-ink); }
+    .diagram .selected-message { stroke: var(--selection); stroke-width: 2; }
+    .diagram .note-shape { fill: #fff4cf; stroke: #bda35a; stroke-width: 1.05; filter: drop-shadow(0 2px 2px rgba(52,65,73,.08)); }
+    .diagram .note-connector { stroke: #93835d; stroke-width: 1; stroke-dasharray: 3 3; opacity: .8; }
+    .diagram .note-selected { stroke: var(--selection); stroke-width: 1.8; }
+    .diagram .selection-handle { fill: var(--canvas); stroke: var(--selection); stroke-width: 1.5; }
+    .diagram .multi-selected { stroke: var(--selection); stroke-width: 1.9; }
+    .diagram .invalid-target { fill: rgba(165,59,63,.07); stroke: var(--red-700); stroke-width: 1.6; stroke-dasharray: 5 4; }
+    .diagram .valid-target { fill: var(--selection-soft); stroke: var(--selection); stroke-width: 1.6; stroke-dasharray: 5 4; }
+
+    .canvas-controls { position: absolute; left: 12px; bottom: 12px; display: flex; align-items: center; height: 34px; border: 1px solid var(--line); border-radius: 7px; background: rgba(255,255,255,.96); box-shadow: 0 3px 10px rgba(24,33,43,.08); overflow: hidden; }
+    .canvas-controls button { min-width: 34px; height: 34px; border: 0; border-right: 1px solid var(--line-soft); background: transparent; color: var(--ink-700); cursor: pointer; }
+    .canvas-controls button:last-child { border-right: 0; }
+    .canvas-controls button:hover { background: var(--surface-2); }
+    .canvas-controls .zoom { min-width: 47px; font-size: 10px; font-weight: 680; }
+
+    .canvas-context { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); display: none; align-items: center; gap: 8px; max-width: calc(100% - 28px); min-height: 36px; padding: 5px 7px 5px 10px; border: 1px solid #bed0dc; border-radius: 7px; background: rgba(255,255,255,.98); box-shadow: 0 5px 16px rgba(24,33,43,.10); font-size: 11px; z-index: 9; }
+    .canvas-context.visible { display: flex; }
+    .canvas-context strong { white-space: nowrap; }
+    .canvas-context span { color: var(--ink-600); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mode-tag { padding: 3px 6px; border-radius: 4px; background: var(--blue-100); color: var(--blue-700) !important; font-size: 9px; font-weight: 760; letter-spacing: .04em; }
+
+    .popover { position: absolute; z-index: 12; display: none; width: 360px; border: 1px solid #c7d2db; border-radius: 8px; background: #fff; box-shadow: 0 14px 34px rgba(24,33,43,.16), 0 2px 6px rgba(24,33,43,.08); }
+    .popover.visible { display: block; }
+    .participant-popover { top: 10px; left: 210px; width: 340px; }
+    .message-popover { top: 148px; left: clamp(80px, 28%, 330px); width: 400px; }
+    .popover-head { display: flex; justify-content: space-between; align-items: start; gap: 10px; padding: 12px 13px 9px; border-bottom: 1px solid var(--line-soft); }
+    .popover-head strong { font-size: 13px; }
+    .popover-head small { display: block; margin-top: 3px; color: var(--ink-500); font-size: 10px; }
+    .popover-body { padding: 11px 13px 12px; }
+    .popover-actions { display: flex; justify-content: flex-end; gap: 6px; padding: 9px 13px; border-top: 1px solid var(--line-soft); background: var(--surface-1); border-radius: 0 0 8px 8px; }
+
+    .field { display: block; margin-bottom: 10px; }
+    .field:last-child { margin-bottom: 0; }
+    .field > span, .field-label { display: block; margin-bottom: 5px; color: var(--ink-600); font-size: 9.5px; font-weight: 740; letter-spacing: .045em; text-transform: uppercase; }
+    .field input, .field select, .field textarea { width: 100%; min-height: 34px; border: 1px solid #cbd5dd; border-radius: 5px; background: #fff; color: var(--ink-950); padding: 7px 9px; font-size: 12px; }
+    .field textarea { min-height: 76px; resize: vertical; font-family: var(--font-code); line-height: 1.45; }
+    .field input:hover, .field select:hover, .field textarea:hover { border-color: #aebcc7; }
+    .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--focus-ring); outline: 2px solid var(--focus-soft); }
+    .hint { display: block; margin-top: 5px; color: var(--ink-500); font-size: 10px; line-height: 1.4; }
+    .invalid-copy { color: var(--red-700); }
+    .row { display: grid; grid-template-columns: 1fr 34px 1fr; align-items: end; gap: 7px; }
+    .swap { width: 34px; height: 34px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface-1); cursor: pointer; }
+    .segmented { display: flex; min-height: 34px; padding: 2px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); }
+    .segmented button { flex: 1; min-width: 0; border: 0; border-radius: 4px; background: transparent; color: var(--ink-600); padding: 5px 7px; font-size: 10px; cursor: pointer; }
+    .segmented button:hover { color: var(--ink-950); }
+    .segmented button.active { background: #fff; color: var(--blue-700); box-shadow: 0 1px 3px rgba(24,33,43,.09); font-weight: 720; }
+    .button { min-height: 32px; padding: 0 10px; border: 1px solid #cbd5dd; border-radius: 5px; background: #fff; color: var(--ink-700); font-size: 11px; font-weight: 660; cursor: pointer; }
+    .button:hover { background: var(--surface-2); color: var(--ink-950); }
+    .button.primary { background: var(--blue-700); border-color: var(--blue-700); color: white; }
+    .button.danger { color: var(--red-700); }
+    .button.icon { width: 32px; padding: 0; }
+
+    .inspector-body { min-height: 0; flex: 1; overflow: auto; padding: 0 13px 24px; }
+    .selection-summary { position: sticky; top: 0; z-index: 2; display: flex; align-items: start; justify-content: space-between; gap: 8px; padding: 12px 0 11px; border-bottom: 1px solid var(--line); background: #fff; }
+    .selection-summary .type { display: inline-block; margin-bottom: 4px; padding: 2px 5px; border: 1px solid #cbd8e2; border-radius: 4px; background: var(--blue-050); color: var(--blue-700); font: 9px var(--font-code); font-weight: 740; letter-spacing: .05em; }
+    .selection-summary h2 { margin: 0; max-width: 244px; font-size: 14px; line-height: 1.24; overflow-wrap: anywhere; }
+    .selection-summary p { margin: 4px 0 0; color: var(--ink-500); font-size: 10px; }
+    .inspector-section { padding: 13px 0; border-bottom: 1px solid var(--line-soft); }
+    .inspector-section:last-child { border-bottom: 0; }
+    .section-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 9px; }
+    .section-label h3 { margin: 0; color: var(--ink-600); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; }
+    .section-label small { color: var(--ink-500); font-size: 9px; }
+    .action-row { display: flex; flex-wrap: wrap; gap: 5px; }
+    details.advanced { border-bottom: 1px solid var(--line-soft); }
+    details.advanced summary { display: flex; align-items: center; justify-content: space-between; min-height: 42px; color: var(--ink-600); font-size: 10px; font-weight: 700; cursor: pointer; list-style: none; }
+    details.advanced summary::-webkit-details-marker { display: none; }
+    details.advanced summary::after { content: "+"; color: var(--ink-500); font: 15px var(--font-code); }
+    details.advanced[open] summary::after { content: "−"; }
+    details.advanced .advanced-body { padding: 0 0 13px; }
+    .meta-list { display: grid; grid-template-columns: 82px minmax(0,1fr); gap: 6px 8px; margin: 0; font-size: 10.5px; }
+    .meta-list dt { color: var(--ink-500); }
+    .meta-list dd { margin: 0; color: var(--ink-800); overflow-wrap: anywhere; }
+    .route-card { display: grid; grid-template-columns: minmax(0,1fr) 24px minmax(0,1fr); gap: 5px; align-items: center; min-height: 42px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-1); font-size: 10.5px; }
+    .route-card span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .route-card b { color: var(--blue-700); text-align: center; }
+    .branch-card { padding: 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-1); margin-bottom: 7px; }
+    .branch-head { display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; }
+    .branch-card code { display: block; margin-top: 7px; padding: 6px; border: 1px solid var(--line); border-radius: 4px; background: #fff; font: 10px var(--font-code); }
+    .empty-inspector { padding: 28px 9px; color: var(--ink-600); }
+    .empty-inspector h2 { margin: 0 0 7px; font-size: 15px; color: var(--ink-950); }
+    .empty-inspector p { margin: 0; font-size: 11px; line-height: 1.55; }
+
+    .inspector-view { display: none; }
+    .inspector-view.active { display: block; }
+
+    .keyboard-composer { position: absolute; z-index: 13; top: 316px; left: 384px; display: none; width: 374px; border: 1px solid #9bb7ca; border-radius: 8px; background: white; box-shadow: 0 12px 30px rgba(24,33,43,.16); }
+    .keyboard-composer.visible { display: block; }
+    .keyboard-route { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding: 9px 11px; border-bottom: 1px solid var(--line-soft); font-size: 10px; }
+    .keyboard-route span:last-child { text-align: right; }
+    .keyboard-route b { color: var(--blue-700); font-size: 9px; text-transform: uppercase; }
+    .keyboard-input { padding: 10px 11px; }
+    .keyboard-input input { width: 100%; height: 35px; padding: 0 9px; border: 1px solid #85a9c1; border-radius: 5px; font: 11px var(--font-code); outline: 2px solid #e2eff6; }
+    .keyboard-hint { display: flex; justify-content: space-between; margin-top: 7px; color: var(--ink-500); font-size: 9px; }
+
+    .drag-feedback { position: absolute; z-index: 11; left: 344px; top: 503px; display: none; align-items: center; gap: 7px; padding: 6px 9px; border-radius: 5px; font-size: 10px; font-weight: 680; pointer-events: none; }
+    .drag-feedback.visible { display: flex; }
+    .drag-feedback.valid { background: var(--blue-100); color: var(--blue-700); border: 1px solid #9bbdc0; }
+    .drag-feedback.invalid { background: var(--red-100); color: var(--red-700); border: 1px solid #dca6a8; }
+    .drag-line { position: absolute; z-index: 10; left: 108px; right: 88px; top: 536px; display: none; border-top: 2px solid var(--blue-600); pointer-events: none; }
+    .drag-line.invalid { border-color: var(--red-700); border-top-style: dashed; }
+    .drag-line.visible { display: block; }
+
+    .statusbar { display: flex; align-items: center; gap: 12px; padding: 0 9px; border-top: 1px solid var(--line); background: #f7f9fa; color: var(--ink-600); font-size: 10px; z-index: 21; }
+    .statusbar .spacer { flex: 1; }
+    .status-item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #4b8b6d; }
+    .scenario-picker { height: 22px; max-width: 190px; border: 1px solid #cbd5dd; border-radius: 4px; background: white; color: var(--ink-700); font-size: 10px; }
+
+    .state-participant .select-participant,
+    .state-message .select-message,
+    .state-fragment .select-fragment,
+    .state-note .select-note,
+    .state-multiselect .select-multi,
+    .state-drag-valid .drag-valid-shape,
+    .state-drag-invalid .drag-invalid-shape { display: block; }
+    .selection-layer, .drag-shape { display: none; }
+    .state-participant .participant-target { stroke: var(--selection); stroke-width: 2; }
+    .state-message .message-target { stroke: var(--selection); stroke-width: 2; marker-end: url(#arrow-blue); }
+    .state-fragment .fragment-target { fill: var(--fragment-fill); stroke: var(--selection); stroke-width: 1.8; }
+    .state-note .note-target { stroke: var(--selection); stroke-width: 1.8; }
+    .state-multiselect .multi-target { stroke: var(--selection); stroke-width: 1.9; marker-end: url(#arrow-blue); }
+
+    .simple-diagram { display: none; }
+    .state-simple .dense-diagram { display: none; }
+    .state-simple .simple-diagram { display: block; }
+
+    .prototype-badge { padding: 2px 5px; border-radius: 4px; background: #e7ebee; color: var(--ink-600); font-size: 9px; font-weight: 720; letter-spacing: .04em; text-transform: uppercase; }
+
+    @media (max-width: 1440px) {
+      :root { --outline-w: 238px; --inspector-w: 312px; }
+      .identity { flex-basis: 205px; }
+      .tool { padding-inline: 7px; }
+      .optional-label { display: none; }
+    }
+
+    @media (max-width: 1320px) {
+      :root { --outline-w: 224px; --inspector-w: 296px; }
+      .identity { flex-basis: 178px; }
+      .secondary-label { display: none; }
+      .toolbar { gap: 2px; }
+      .tool-group { padding-right: 3px; }
+      .save-state span { display: none; }
+      .message-popover { left: 90px; }
+    }
+
+    @media (max-width: 1120px) {
+      .app:not(.outline-pinned) { --outline-w: 42px; }
+      .app:not(.outline-pinned) .outline .panel-title,
+      .app:not(.outline-pinned) .outline-search,
+      .app:not(.outline-pinned) .outline-tree,
+      .app:not(.outline-pinned) .outline-footer { display: none; }
+      .app:not(.outline-pinned) .outline .panel-header { padding: 8px 5px; justify-content: center; }
+      .identity { flex-basis: 150px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app state-default" id="app" data-palette="sage">
+    <header class="topbar">
+      <div class="identity">
+        <span class="kind">Diagrama de secuencia</span>
+        <div class="path"><span class="project">Proyecto Gestión de Trámites</span><span class="separator">›</span><strong>Registrar trámite</strong></div>
+      </div>
+
+      <nav class="toolbar" aria-label="Herramientas del diagrama">
+        <span class="save-state"><span>Guardado</span></span>
+        <div class="tool-group">
+          <button class="icon-tool active" id="outlineToggle" title="Mostrar u ocultar estructura" aria-label="Mostrar u ocultar estructura">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 4v16"/></svg>
+          </button>
+          <button class="icon-tool" title="Deshacer" aria-label="Deshacer"><svg viewBox="0 0 24 24"><path d="M9 7 4 12l5 5"/><path d="M4 12h9a6 6 0 0 1 6 6"/></svg></button>
+          <button class="icon-tool" title="Rehacer" aria-label="Rehacer" disabled><svg viewBox="0 0 24 24"><path d="m15 7 5 5-5 5"/><path d="M20 12h-9a6 6 0 0 0-6 6"/></svg></button>
+        </div>
+
+        <div class="tool-group">
+          <button class="primary-tool" data-show="message-creator"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/><path d="M8 10h8M12 7v6"/></svg>Mensaje</button>
+          <button class="tool" data-show="participant-creator"><svg viewBox="0 0 24 24"><circle cx="10" cy="8" r="3"/><path d="M4 20c.6-4 2.6-6 6-6s5.4 2 6 6M19 8v6M16 11h6"/></svg><span class="secondary-label">Participante</span></button>
+          <button class="tool"><svg viewBox="0 0 24 24"><path d="M5 12h12M13 8l4 4-4 4"/><circle cx="19" cy="12" r="2"/></svg><span class="optional-label">Crear</span></button>
+          <button class="tool"><svg viewBox="0 0 24 24"><path d="M5 12h12M13 8l4 4-4 4"/><path d="m17 7 4 10M21 7l-4 10"/></svg><span class="optional-label">Destruir</span></button>
+          <button class="tool"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M3 10h18M8 5l3 5"/></svg><span class="secondary-label">Fragmento</span>⌄</button>
+          <button class="icon-tool" title="Agregar nota" aria-label="Agregar nota"><svg viewBox="0 0 24 24"><path d="M5 3h11l3 3v15H5z"/><path d="M16 3v4h4"/></svg></button>
+        </div>
+
+        <div class="tool-group">
+          <button class="tool" data-show="keyboard"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M10 10h.01M13 10h.01M16 10h.01M8 14h8"/></svg><span class="secondary-label">Teclado</span><span class="shortcut">M</span></button>
+        </div>
+
+        <div class="tool-group">
+          <button class="tool"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM4 10h16M10 5v14"/></svg><span class="optional-label">Plantillas</span></button>
+          <button class="tool"><svg viewBox="0 0 24 24"><path d="m4 7 2 2 3-4M11 7h9M4 14l2 2 3-4M11 14h9"/></svg><span class="optional-label">Revisar</span><span class="shortcut">1</span></button>
+          <button class="tool"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 20h14"/></svg><span class="secondary-label">Exportar</span></button>
+          <button class="icon-tool overflow-trigger" title="Más acciones" aria-label="Más acciones"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="19" cy="12" r="1" fill="currentColor"/></svg></button>
+        </div>
+      </nav>
+    </header>
+
+    <section class="workspace">
+      <aside class="panel outline" aria-label="Estructura del diagrama">
+        <div class="panel-header">
+          <div class="panel-title"><strong>Estructura</strong><span id="outlineMeta">9 mensajes · 2 fragmentos</span></div>
+          <button class="collapse-button" id="outlineCollapse" title="Contraer estructura">‹</button>
+        </div>
+        <label class="outline-search"><span>⌕</span><input value="" placeholder="Buscar en la secuencia" /></label>
+        <div class="outline-tree">
+          <div class="simple-tree">
+            <div class="tree-section">Interacción</div>
+            <button class="tree-item"><span class="branch">·</span><span class="tree-copy"><strong>consultarEstado(numero)</strong><small>ConsultaActual → UI</small></span><span class="tree-index">1</span></button>
+            <button class="tree-item"><span class="branch">·</span><span class="tree-copy"><strong>buscar(numero)</strong><small>UI → Experto</small></span><span class="tree-index">2</span></button>
+            <button class="tree-item"><span class="branch">↩</span><span class="tree-copy"><strong>formatearEstado()</strong><small>Self-message en UI</small></span><span class="tree-index">3</span></button>
+            <button class="tree-item"><span class="branch">□</span><span class="tree-copy"><strong>Retorno sin texto</strong><small>Nota vinculada</small></span><span class="tree-index">N</span></button>
+          </div>
+          <div class="tree-section">Interacción</div>
+          <button class="tree-item" data-select="message"><span class="branch">·</span><span class="tree-copy"><strong>registrarTramite(datos)</strong><small>UI → Controlador</small></span><span class="tree-index">1</span></button>
+          <button class="tree-item" data-select="message"><span class="branch">·</span><span class="tree-copy"><strong>validarDatos(datos)</strong><small>Controlador → Experto</small></span><span class="tree-index">2</span></button>
+          <button class="tree-item" data-select="fragment"><span class="branch">⌄</span><span class="tree-copy"><strong>alt · resultado validación</strong><small>2 ramas · 4 mensajes</small></span><span class="tree-index">3–6</span></button>
+          <div class="tree-children">
+            <div class="operand">[datos válidos]</div>
+            <button class="tree-item" data-select="message"><span class="branch">·</span><span class="tree-copy"><strong>guardar(tramite)</strong><small>Experto → Persistencia</small></span><span class="tree-index">3</span></button>
+            <button class="tree-item"><span class="branch">⌄</span><span class="tree-copy"><strong>opt · auditoría habilitada</strong><small>Fragmento anidado · 2 mensajes</small></span><span class="tree-index">6–7</span></button>
+            <div class="operand">[else]</div>
+            <button class="tree-item"><span class="branch">·</span><span class="tree-copy"><strong>mostrarErrores(errores)</strong><small>Controlador → UI</small></span><span class="tree-index">5</span></button>
+          </div>
+          <button class="tree-item"><span class="branch">·</span><span class="tree-copy"><strong>confirmarRegistro()</strong><small>Controlador → UI</small></span><span class="tree-index">8</span></button>
+          <button class="tree-item" data-select="note"><span class="branch">□</span><span class="tree-copy"><strong>Regla de persistencia</strong><small>Nota vinculada al mensaje 3</small></span><span class="tree-index">N</span></button>
+        </div>
+        <div class="outline-footer">
+          <button class="icon-tool" title="Subir">↑</button><button class="icon-tool" title="Bajar">↓</button><button class="icon-tool" title="Duplicar">⧉</button><button class="icon-tool" title="Eliminar">⌫</button>
+        </div>
+      </aside>
+
+      <section class="canvas-pane" aria-label="Lienzo del diagrama">
+        <div class="canvas-scroll" id="canvasScroll">
+          <div class="canvas-sheet">
+            <svg class="diagram simple-diagram" viewBox="0 0 1180 1040" aria-label="Diagrama simple Consultar estado">
+              <defs>
+                <marker id="simple-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M1 1l8 4-8 4z" fill="var(--diagram-ink)"/></marker>
+                <marker id="simple-return" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M1.5 1.5 8.5 5l-7 3.5" fill="none" stroke="var(--diagram-muted)" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></marker>
+              </defs>
+              <rect class="participant-head participant-1" x="112" y="48" width="184" height="56" rx="2"/>
+              <text class="participant-name" x="204" y="70" text-anchor="middle"><tspan class="participant-instance" x="204">ConsultaActual</tspan><tspan class="participant-class" x="204" dy="17">: Consulta</tspan></text>
+              <line class="lifeline" x1="204" y1="104" x2="204" y2="680"/>
+              <rect class="participant-head participant-2" x="478" y="48" width="184" height="56" rx="2"/>
+              <text class="participant-name" x="570" y="70" text-anchor="middle"><tspan class="participant-instance" x="570">: UIConsulta</tspan><tspan class="participant-class" x="570" dy="17">Estado</tspan></text>
+              <line class="lifeline" x1="570" y1="104" x2="570" y2="680"/>
+              <rect class="participant-head participant-3" x="844" y="48" width="184" height="56" rx="2"/>
+              <text class="participant-name" x="936" y="70" text-anchor="middle"><tspan class="participant-instance" x="936">: ExpertoConsulta</tspan><tspan class="participant-class" x="936" dy="17">Estado</tspan></text>
+              <line class="lifeline" x1="936" y1="104" x2="936" y2="680"/>
+
+              <text class="message-label" x="387" y="176" text-anchor="middle"><tspan class="message-number">1.</tspan> consultarEstado(numero): Estado</text>
+              <line class="message" x1="204" y1="187" x2="570" y2="187" marker-end="url(#simple-arrow)"/>
+              <rect class="activation" x="564" y="184" width="12" height="308" rx="2"/>
+              <text class="message-label" x="753" y="245" text-anchor="middle"><tspan class="message-number">2.</tspan> buscar(numero): Estado</text>
+              <line class="message" x1="576" y1="256" x2="936" y2="256" marker-end="url(#simple-arrow)"/>
+              <rect class="activation" x="930" y="253" width="12" height="110" rx="2"/>
+              <line class="message return" x1="930" y1="363" x2="576" y2="363" marker-end="url(#simple-return)"/>
+
+              <text class="message-label" x="650" y="421"><tspan class="message-number">3.</tspan> formatearEstado()</text>
+              <path class="message secondary" d="M576 432H684V494H582" marker-end="url(#simple-arrow)"/>
+              <rect class="activation nested" x="570" y="429" width="12" height="68" rx="2"/>
+              <line class="message return" x1="564" y1="526" x2="204" y2="526" marker-end="url(#simple-return)"/>
+
+              <path class="note-shape" d="M760 444h190l17 17v76H760z"/>
+              <path d="M950 444v17h17" fill="none" stroke="#bda35a"/>
+              <text x="774" y="469" font-size="10.5" fill="var(--diagram-ink)"><tspan x="774">El retorno conserva la notación</tspan><tspan x="774" dy="15">UML y permanece sin texto.</tspan></text>
+              <line class="note-connector" x1="760" y1="490" x2="678" y2="463"/>
+            </svg>
+
+            <svg class="diagram dense-diagram" viewBox="0 0 1180 1040" aria-label="Diagrama Registrar trámite">
+              <defs>
+                <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M1 1l8 4-8 4z" fill="var(--diagram-ink)"/></marker>
+                <marker id="arrow-async" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M1.5 1.5 8.5 5l-7 3.5" fill="none" stroke="var(--diagram-ink)" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></marker>
+                <marker id="arrow-return" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M1.5 1.5 8.5 5l-7 3.5" fill="none" stroke="var(--diagram-muted)" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></marker>
+                <marker id="arrow-blue" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M1 1l8 4-8 4z" fill="var(--selection)"/></marker>
+              </defs>
+
+              <g aria-label="Participantes">
+                <rect class="participant-head participant-1" x="40" y="36" width="172" height="54" rx="2"/><text class="participant-name" x="126" y="58" text-anchor="middle"><tspan class="participant-instance" x="126">TramiteActual</tspan><tspan class="participant-class" x="126" dy="16">: Tramite</tspan></text>
+                <line class="lifeline" x1="126" y1="90" x2="126" y2="920"/>
+
+                <rect class="participant-head participant-2 participant-target" x="280" y="36" width="172" height="54" rx="2"/><text class="participant-name" x="366" y="58" text-anchor="middle"><tspan class="participant-instance" x="366">: UIRegistrar</tspan><tspan class="participant-class" x="366" dy="16">Tramite</tspan></text>
+                <line class="lifeline" x1="366" y1="90" x2="366" y2="920"/>
+
+                <rect class="participant-head participant-3" x="520" y="36" width="180" height="54" rx="2"/><text class="participant-name" x="610" y="58" text-anchor="middle"><tspan class="participant-instance" x="610">: ControladorRegistrar</tspan><tspan class="participant-class" x="610" dy="16">Tramite</tspan></text>
+                <line class="lifeline" x1="610" y1="90" x2="610" y2="920"/>
+
+                <rect class="participant-head participant-4" x="762" y="36" width="172" height="54" rx="2"/><text class="participant-name" x="848" y="58" text-anchor="middle"><tspan class="participant-instance" x="848">: Experto</tspan><tspan class="participant-class" x="848" dy="16">Tramite</tspan></text>
+                <line class="lifeline" x1="848" y1="90" x2="848" y2="920"/>
+
+                <rect class="participant-head participant-5" x="996" y="36" width="168" height="54" rx="2"/><text class="participant-name" x="1080" y="58" text-anchor="middle"><tspan class="participant-instance" x="1080">: Indireccion</tspan><tspan class="participant-class" x="1080" dy="16">Persistencia</tspan></text>
+                <line class="lifeline" x1="1080" y1="90" x2="1080" y2="920"/>
+              </g>
+
+              <g aria-label="Mensajes">
+                <text class="message-label" x="488" y="134" text-anchor="middle"><tspan class="message-number">1.</tspan> registrarTramite(datos): Resultado</text>
+                <line class="message message-target multi-target" x1="366" y1="144" x2="610" y2="144" marker-end="url(#arrow)"/>
+                <rect class="activation" x="604" y="141" width="12" height="718" rx="2"/>
+
+                <text class="message-label" x="729" y="184" text-anchor="middle"><tspan class="message-number">2.</tspan> validarDatos(datos): Validacion</text>
+                <line class="message multi-target" x1="616" y1="194" x2="848" y2="194" marker-end="url(#arrow)"/>
+                <rect class="activation" x="842" y="191" width="12" height="304" rx="2"/>
+
+                <rect class="fragment fragment-target" x="286" y="226" width="844" height="594"/>
+                <path class="fragment-tab" d="M286 226h68l14 22h-82z"/>
+                <text class="fragment-label" x="300" y="242">alt</text>
+                <text class="minor-label" x="376" y="242">resultado validación</text>
+                <rect class="guard-surface" x="296" y="255" width="102" height="20" rx="2"/><text class="guard-label" x="304" y="269">[datos válidos]</text>
+
+                <text class="message-label" x="964" y="310" text-anchor="middle"><tspan class="message-number">3.</tspan> guardar(tramite): IdTramite</text>
+                <line class="message multi-target" x1="854" y1="320" x2="1080" y2="320" marker-end="url(#arrow)"/>
+                <rect class="activation" x="1074" y="317" width="12" height="46" rx="2"/>
+                <line class="message return" x1="1074" y1="363" x2="854" y2="363" marker-end="url(#arrow-return)"/>
+
+                <text class="message-label" x="729" y="414" text-anchor="middle"><tspan class="message-number">4.</tspan> asociarIdentificador(id)</text>
+                <line class="message" x1="848" y1="424" x2="616" y2="424" marker-end="url(#arrow)"/>
+                <line class="message return" x1="616" y1="466" x2="842" y2="466" marker-end="url(#arrow-return)"/>
+
+                <rect class="fragment fragment-child" x="516" y="506" width="374" height="166"/>
+                <path class="fragment-tab" d="M516 506h66l14 22h-80z"/>
+                <text class="fragment-label" x="529" y="522">opt</text>
+                <rect class="guard-surface" x="526" y="534" width="143" height="20" rx="2"/><text class="guard-label" x="534" y="548">[auditoría habilitada]</text>
+                <text class="message-label" x="729" y="586" text-anchor="middle"><tspan class="message-number">6.</tspan> registrarAuditoria()</text>
+                <line class="message async" x1="616" y1="596" x2="848" y2="596" marker-end="url(#arrow-async)"/>
+
+                <text class="message-label" x="654" y="628"><tspan class="message-number">7.</tspan> registrarMarcaTemporal()</text>
+                <path class="message secondary" d="M622 638H708V674H622" marker-end="url(#arrow)"/>
+                <rect class="activation nested" x="610" y="633" width="12" height="47" rx="2"/>
+
+                <line class="separator-line" x1="286" y1="704" x2="1130" y2="704"/>
+                <rect class="guard-surface" x="296" y="711" width="50" height="20" rx="2"/><text class="guard-label" x="304" y="725">[else]</text>
+                <text class="message-label" x="488" y="762" text-anchor="middle"><tspan class="message-number">5.</tspan> mostrarErrores(errores)</text>
+                <line class="message" x1="604" y1="772" x2="366" y2="772" marker-end="url(#arrow)"/>
+
+                <text class="message-label" x="488" y="846" text-anchor="middle"><tspan class="message-number">8.</tspan> confirmarRegistro()</text>
+                <line class="message" x1="604" y1="856" x2="366" y2="856" marker-end="url(#arrow)"/>
+                <line class="message return" x1="366" y1="906" x2="126" y2="906" marker-end="url(#arrow-return)"/>
+              </g>
+
+              <g aria-label="Nota">
+                <path class="note-shape note-target" d="M884 394h188l18 18v72H884z"/><path d="M1072 394v18h18" fill="none" stroke="#bda35a"/>
+                <text x="897" y="418" font-size="10.5" fill="var(--diagram-ink)"><tspan x="897">Persistir únicamente después</tspan><tspan x="897" dy="15">de validar la consistencia.</tspan><tspan x="897" dy="15">Regla del flujo 4.2.</tspan></text>
+                <line class="note-connector" x1="884" y1="438" x2="854" y2="424"/>
+              </g>
+
+              <g class="selection-layer select-participant">
+                <rect x="276" y="32" width="180" height="62" rx="3" fill="none" stroke="var(--selection)" stroke-width="1.5"/>
+                <circle class="selection-handle" cx="276" cy="32" r="4"/><circle class="selection-handle" cx="456" cy="94" r="4"/>
+              </g>
+              <g class="selection-layer select-message">
+                <circle class="selection-handle" cx="366" cy="144" r="4"/><circle class="selection-handle" cx="610" cy="144" r="4"/>
+              </g>
+              <g class="selection-layer select-fragment">
+                <circle class="selection-handle" cx="286" cy="226" r="4"/><circle class="selection-handle" cx="1130" cy="226" r="4"/><circle class="selection-handle" cx="286" cy="820" r="4"/><circle class="selection-handle" cx="1130" cy="820" r="4"/>
+              </g>
+              <g class="selection-layer select-note">
+                <circle class="selection-handle" cx="884" cy="394" r="4"/><circle class="selection-handle" cx="1090" cy="484" r="4"/>
+              </g>
+              <g class="selection-layer select-multi">
+                <rect x="345" y="123" width="523" height="92" rx="3" fill="var(--selection-soft)" stroke="var(--selection)" stroke-dasharray="4 3"/>
+              </g>
+              <g class="drag-shape drag-valid-shape"><rect class="valid-target" x="516" y="506" width="374" height="166" rx="3"/></g>
+              <g class="drag-shape drag-invalid-shape"><rect class="invalid-target" x="286" y="226" width="844" height="594" rx="3"/></g>
+            </svg>
+          </div>
+        </div>
+
+        <div class="canvas-context" id="canvasContext"><span class="mode-tag">MODO TECLADO</span><strong>Secuencia principal</strong><span>↑↓ cambia el punto · ←→ el participante · Enter conecta · Esc sale</span><button class="button">Salir <span class="shortcut">Esc</span></button></div>
+
+        <div class="popover participant-popover" id="participantPopover">
+          <div class="popover-head"><div><strong>Nuevo participante</strong><small>Identificación visible en el diagrama</small></div><button class="button icon" data-show="default">×</button></div>
+          <div class="popover-body">
+            <label class="field"><span>Instancia y clase</span><input value="TramiteActual:Tramite"/><small class="hint">Usá <b>instancia:Clase</b> o <b>:Clase</b>. El tipo interno no es necesario para crear.</small></label>
+            <label class="field"><span>Vincular con clase (opcional)</span><select><option>Tramite · Diagrama de clases</option><option>Sin vínculo</option></select></label>
+          </div>
+          <div class="popover-actions"><button class="button" data-show="default">Cancelar</button><button class="button primary">Crear participante</button></div>
+        </div>
+
+        <div class="popover message-popover" id="messagePopover">
+          <div class="popover-head"><div><strong>Nuevo mensaje</strong><small>Se insertará en la posición marcada</small></div><button class="button icon" data-show="default">×</button></div>
+          <div class="popover-body">
+            <div class="segmented" style="margin-bottom:10px"><button class="active">Síncrono</button><button>Asíncrono</button><button>Retorno</button><button>Crear</button><button>Destruir</button></div>
+            <div class="row">
+              <label class="field"><span>Origen</span><select><option>:ControladorRegistrarTramite</option></select></label>
+              <button class="swap" title="Invertir">⇄</button>
+              <label class="field"><span>Destino</span><select><option>:ExpertoTramite</option></select></label>
+            </div>
+            <label class="field"><span>Firma del mensaje</span><input style="font-family:var(--font-code)" value="validarDatos(datos): Validacion"/><small class="hint">operación(parámetros): Retorno</small></label>
+            <details class="advanced"><summary>Vínculos y opciones</summary><div class="advanced-body"><label class="field"><span>Referencia al flujo</span><input value="4.2"/></label></div></details>
+          </div>
+          <div class="popover-actions"><button class="button" data-show="default">Cancelar</button><button class="button primary">Insertar mensaje</button></div>
+        </div>
+
+        <div class="keyboard-composer" id="keyboardComposer">
+          <div class="keyboard-route"><span>:ControladorRegistrarTramite</span><b>Síncrono →</b><span>:ExpertoTramite</span></div>
+          <div class="keyboard-input"><input value="validarDatos(datos): Validacion"/><div class="keyboard-hint"><span><b>Enter</b> inserta · <b>⇧Enter</b> agrega retorno</span><span><b>Esc</b> vuelve</span></div></div>
+        </div>
+
+        <div class="canvas-context" id="multiBar"><span class="mode-tag">2 SELECCIONADOS</span><strong>Mensajes contiguos</strong><button class="button">Envolver en… ⌄</button><button class="button">Mover a… ⌄</button><button class="button">Deseleccionar</button></div>
+        <div class="drag-line" id="dragLine"></div>
+        <div class="drag-feedback" id="dragFeedback"></div>
+
+        <div class="canvas-controls"><button title="Alejar">−</button><button class="zoom">100%</button><button title="Acercar">+</button><button title="Ajustar a la vista">⌗</button></div>
+      </section>
+
+      <aside class="panel inspector" aria-label="Inspector contextual">
+        <div class="panel-header">
+          <button class="collapse-button" id="inspectorCollapse" title="Contraer inspector">›</button>
+          <div class="panel-title" style="flex:1"><strong>Inspector</strong><span>Edición contextual</span></div>
+        </div>
+        <div class="inspector-body">
+          <section class="inspector-view active" data-view="default">
+            <div class="empty-inspector"><h2>Seleccioná un elemento</h2><p>El inspector muestra primero lo que editás con frecuencia. Las referencias, geometría y compatibilidad técnica quedan en secciones secundarias.</p></div>
+            <div class="inspector-section"><div class="section-label"><h3>Diagrama</h3></div><dl class="meta-list"><dt>Participantes</dt><dd>5</dd><dt>Mensajes</dt><dd>9</dd><dt>Fragmentos</dt><dd>2</dd><dt>Revisión</dt><dd><span style="color:var(--amber-800)">1 advertencia</span></dd></dl></div>
+          </section>
+
+          <section class="inspector-view" data-view="participant">
+            <div class="selection-summary"><div><span class="type">PARTICIPANTE</span><h2>TramiteActual:Tramite</h2><p>Línea de vida inicial</p></div><button class="button icon danger">⌫</button></div>
+            <div class="inspector-section"><label class="field"><span>Identificación UML</span><input value="TramiteActual:Tramite"/><small class="hint">La instancia puede quedar vacía antes de “:”.</small></label></div>
+            <div class="inspector-section"><div class="section-label"><h3>Orden</h3></div><div class="action-row"><button class="button">← Mover</button><button class="button">Mover →</button></div></div>
+            <details class="advanced"><summary>Vínculo con el modelo</summary><div class="advanced-body"><label class="field"><span>Clase vinculada</span><select><option>Tramite</option><option>Sin vínculo</option></select></label></div></details>
+            <details class="advanced"><summary>Opciones técnicas</summary><div class="advanced-body"><label class="field"><span>Tipo interno de compatibilidad</span><select><option>Object</option><option>Boundary</option><option>Control</option><option>Entity</option></select><small class="hint">No se muestra como estereotipo en el canvas.</small></label><label class="field"><span>Fin de línea de vida</span><select><option>Automático</option><option>Mostrar cruz al final</option></select></label></div></details>
+          </section>
+
+          <section class="inspector-view" data-view="message">
+            <div class="selection-summary"><div><span class="type">MENSAJE SÍNCRONO</span><h2>registrarTramite(datos): Resultado</h2><p>Mensaje 1 · Secuencia principal</p></div><button class="button icon danger">⌫</button></div>
+            <div class="inspector-section"><label class="field"><span>Firma del mensaje</span><textarea>registrarTramite(datos): Resultado</textarea><small class="hint">Se ajusta en el canvas sin perder la firma completa.</small></label></div>
+            <div class="inspector-section"><div class="section-label"><h3>Tipo</h3></div><div class="segmented"><button class="active">Síncrono</button><button>Asíncrono</button><button>Retorno</button><button>Más ⌄</button></div></div>
+            <div class="inspector-section"><div class="section-label"><h3>Ruta</h3><button class="button">⇄ Invertir</button></div><div class="route-card"><span>:UIRegistrarTramite</span><b>→</b><span>:ControladorRegistrarTramite</span></div></div>
+            <div class="inspector-section"><div class="action-row"><button class="button">↑ Subir</button><button class="button">↓ Bajar</button><button class="button">⧉ Duplicar</button><button class="button">+ Retorno</button></div></div>
+            <details class="advanced"><summary>Ubicación y fragmento</summary><div class="advanced-body"><label class="field"><span>Contenedor</span><select><option>Secuencia principal</option><option>alt · datos válidos</option></select></label></div></details>
+            <details class="advanced"><summary>Referencias avanzadas</summary><div class="advanced-body"><label class="field"><span>Método vinculado</span><select><option>registrarTramite(datos): Resultado</option></select></label><label class="field"><span>Flujo de sucesos</span><input value="4.2"/></label></div></details>
+          </section>
+
+          <section class="inspector-view" data-view="fragment">
+            <div class="selection-summary"><div><span class="type">FRAGMENTO ALT</span><h2>resultado validación</h2><p>2 ramas · 4 mensajes</p></div><button class="button icon danger">⌫</button></div>
+            <div class="inspector-section"><div class="section-label"><h3>Operador</h3></div><div class="segmented"><button class="active">alt</button><button>opt</button><button>loop</button><button>Más ⌄</button></div></div>
+            <div class="inspector-section"><label class="field"><span>Nombre opcional</span><input value="resultado validación"/></label></div>
+            <div class="inspector-section"><div class="section-label"><h3>Ramas</h3><button class="button">+ Rama</button></div><div class="branch-card"><div class="branch-head"><span>Rama 1</span><span>3 mensajes</span></div><code>[datos válidos]</code></div><div class="branch-card"><div class="branch-head"><span>Rama 2</span><span>1 mensaje</span></div><code>[else]</code></div></div>
+            <div class="inspector-section"><div class="action-row"><button class="button">↑ Subir</button><button class="button">↓ Bajar</button><button class="button">⧉ Duplicar</button><button class="button">Desempaquetar</button></div></div>
+            <details class="advanced"><summary>Límites y geometría</summary><div class="advanced-body"><p class="hint">Los límites automáticos siguen la secuencia temporal. La geometría manual sólo se usa al ajustar el marco.</p></div></details>
+          </section>
+
+          <section class="inspector-view" data-view="note">
+            <div class="selection-summary"><div><span class="type">NOTA</span><h2>Regla de persistencia</h2><p>Vinculada al mensaje 3</p></div><button class="button icon danger">⌫</button></div>
+            <div class="inspector-section"><label class="field"><span>Texto de la nota</span><textarea>Persistir únicamente después de validar la consistencia.
+Regla del flujo 4.2.</textarea><small class="hint">Doble clic en el canvas para editar en contexto.</small></label></div>
+            <div class="inspector-section"><div class="section-label"><h3>Vínculo</h3></div><label class="field"><span>Anclada a</span><select><option>Mensaje 3 · guardar(tramite)</option><option>Nota libre</option></select></label></div>
+            <details class="advanced"><summary>Apariencia</summary><div class="advanced-body"><div class="segmented"><button class="active">Ámbar</button><button>Sage</button><button>Azul</button><button>Rosa</button></div></div></details>
+            <details class="advanced"><summary>Posición y tamaño</summary><div class="advanced-body"><p class="hint">X 884 · Y 394 · 206 × 90 px</p></div></details>
+          </section>
+        </div>
+      </aside>
+    </section>
+
+    <footer class="statusbar">
+      <span class="prototype-badge">Prototipo</span>
+      <label class="status-item">Escenario
+        <select class="scenario-picker" id="scenarioPicker">
+          <option value="simple">Diagrama simple</option>
+          <option value="default">Diagrama denso · vista general</option>
+          <option value="participant">Participante seleccionado</option>
+          <option value="message">Mensaje seleccionado</option>
+          <option value="fragment">Fragmento seleccionado</option>
+          <option value="note">Nota seleccionada</option>
+          <option value="participant-creator">Crear participante</option>
+          <option value="message-creator">Crear mensaje</option>
+          <option value="keyboard">Modo teclado</option>
+          <option value="multiselect">Multiselección</option>
+          <option value="drag-valid">Drag válido</option>
+          <option value="drag-invalid">Drag inválido</option>
+        </select>
+      </label>
+      <label class="status-item">Paleta
+        <select class="scenario-picker" id="palettePicker">
+          <option value="sage">Slate + Sage · recomendada</option>
+          <option value="warm">Graphite cálido</option>
+          <option value="contrast">Tinta técnica</option>
+        </select>
+      </label>
+      <span class="spacer"></span>
+      <span class="status-item"><span class="status-dot"></span> UML correcto</span>
+      <span class="status-item" id="statusMeta">5 participantes · 9 mensajes</span>
+      <span class="status-item">100%</span>
+    </footer>
+  </main>
+
+  <script>
+    const app = document.getElementById('app');
+    const picker = document.getElementById('scenarioPicker');
+    const palettePicker = document.getElementById('palettePicker');
+    const participantPopover = document.getElementById('participantPopover');
+    const messagePopover = document.getElementById('messagePopover');
+    const keyboardComposer = document.getElementById('keyboardComposer');
+    const canvasContext = document.getElementById('canvasContext');
+    const multiBar = document.getElementById('multiBar');
+    const dragLine = document.getElementById('dragLine');
+    const dragFeedback = document.getElementById('dragFeedback');
+    const outlineMeta = document.getElementById('outlineMeta');
+    const statusMeta = document.getElementById('statusMeta');
+    const scenarioClasses = ['state-simple','state-default','state-participant','state-message','state-fragment','state-note','state-participant-creator','state-message-creator','state-keyboard','state-multiselect','state-drag-valid','state-drag-invalid'];
+
+    function showScenario(state, syncUrl = true) {
+      scenarioClasses.forEach((name) => app.classList.remove(name));
+      app.classList.add(`state-${state}`);
+      picker.value = state;
+
+      participantPopover.classList.toggle('visible', state === 'participant-creator');
+      messagePopover.classList.toggle('visible', state === 'message-creator');
+      keyboardComposer.classList.toggle('visible', state === 'keyboard');
+      canvasContext.classList.toggle('visible', state === 'keyboard');
+      multiBar.classList.toggle('visible', state === 'multiselect');
+      dragLine.className = `drag-line${state === 'drag-valid' || state === 'drag-invalid' ? ' visible' : ''}${state === 'drag-invalid' ? ' invalid' : ''}`;
+      dragFeedback.className = `drag-feedback${state === 'drag-valid' || state === 'drag-invalid' ? ' visible' : ''}${state === 'drag-invalid' ? ' invalid' : ' valid'}`;
+      dragFeedback.textContent = state === 'drag-invalid' ? 'No se puede mover un bloque dentro de sí mismo' : state === 'drag-valid' ? 'Mover a opt · auditoría habilitada' : '';
+      outlineMeta.textContent = state === 'simple' ? '3 mensajes · sin fragmentos' : '9 mensajes · 2 fragmentos';
+      statusMeta.textContent = state === 'simple' ? '3 participantes · 3 mensajes' : '5 participantes · 9 mensajes';
+
+      document.querySelectorAll('.inspector-view').forEach((view) => view.classList.remove('active'));
+      const inspectorState = ['participant','message','fragment','note'].includes(state) ? state : state === 'multiselect' ? 'default' : 'default';
+      document.querySelector(`[data-view="${inspectorState}"]`)?.classList.add('active');
+      document.querySelectorAll('.tree-item').forEach((item) => item.classList.toggle('active', item.dataset.select === inspectorState));
+
+      if (syncUrl) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('state', state);
+        history.replaceState({}, '', url);
+      }
+    }
+
+    picker.addEventListener('change', () => showScenario(picker.value));
+    palettePicker.addEventListener('change', () => {
+      app.dataset.palette = palettePicker.value;
+      const url = new URL(window.location.href);
+      url.searchParams.set('palette', palettePicker.value);
+      history.replaceState({}, '', url);
+    });
+    document.querySelectorAll('[data-show]').forEach((button) => button.addEventListener('click', () => showScenario(button.dataset.show)));
+    document.querySelectorAll('[data-select]').forEach((button) => button.addEventListener('click', () => showScenario(button.dataset.select)));
+
+    document.getElementById('outlineCollapse').addEventListener('click', () => app.classList.toggle('outline-collapsed'));
+    document.getElementById('outlineToggle').addEventListener('click', () => app.classList.toggle('outline-collapsed'));
+    document.getElementById('inspectorCollapse').addEventListener('click', () => app.classList.toggle('inspector-collapsed'));
+
+    window.addEventListener('keydown', (event) => {
+      if (event.key.toLowerCase() === 'm' && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) showScenario('keyboard');
+      if (event.key === 'Escape') showScenario('default');
+    });
+
+    const params = new URLSearchParams(location.search);
+    const initialPalette = ['sage','warm','contrast'].includes(params.get('palette')) ? params.get('palette') : 'sage';
+    app.dataset.palette = initialPalette;
+    palettePicker.value = initialPalette;
+    const initial = params.get('state') || 'default';
+    showScenario(scenarioClasses.includes(`state-${initial}`) ? initial : 'default', false);
+  </script>
+</body>
+</html>

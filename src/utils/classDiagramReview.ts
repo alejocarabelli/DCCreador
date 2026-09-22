@@ -38,7 +38,10 @@ export function reviewClassDiagram(content: ClassDiagramContent): DiagramIssue[]
       const parent = edge.data.diamondEnd === 'source' ? edge.source : edge.target;
       const child = parent === edge.source ? edge.target : edge.source;
       parents.set(child, [...(parents.get(child) ?? []), { parent, edgeId: edge.id }]);
-    } else {
+    } else if (edge.data?.relationType === 'association'
+      || edge.data?.relationType === 'aggregation'
+      || edge.data?.relationType === 'composition'
+      || edge.data?.relationType === undefined) {
       for (const end of ['source', 'target'] as const) {
         const value = edge.data?.[`${end}Multiplicity`]?.trim() ?? '';
         const label = end === 'source' ? 'origen' : 'destino';

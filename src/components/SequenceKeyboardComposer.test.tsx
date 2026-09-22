@@ -3,6 +3,7 @@ import { renderToString } from 'react-dom/server';
 import { SequenceKeyboardComposer } from './SequenceKeyboardComposer';
 import {
   createInactiveSequenceKeyboardState,
+  sequenceKeyboardMessageTypes,
   sequenceKeyboardModeReducer,
 } from '../utils/sequenceKeyboardMode';
 
@@ -63,6 +64,55 @@ describe('SequenceKeyboardComposer participant flow', () => {
     expect(html).not.toContain('<input');
     expect(html).not.toContain('resultado / valor');
     expect(html).toContain('Retorno');
+  });
+
+  it('shows only the four keyboard choices and highlights return without a create ghost state', () => {
+    let state = sequenceKeyboardModeReducer(
+      createInactiveSequenceKeyboardState(),
+      { type: 'activate', slotIndex: 0, sourceId: 'b' },
+    );
+    state = sequenceKeyboardModeReducer(state, {
+      type: 'begin', messageType: 'return', targetId: 'a', returnCandidateIds: ['call-1'],
+    });
+
+    const html = renderComposer(state);
+    expect(html).toContain('Mensaje');
+    expect(html).toContain('Retorno');
+    expect(html).toContain('Crear');
+    expect(html).toContain('Destruir');
+    expect(html).not.toContain('Síncrono');
+    expect(html).not.toContain('Asíncrono');
+    expect(html).toContain('aria-selected="true" class="active" data-message-type="return"');
+    expect(html).not.toContain('aria-selected="true" class="active" data-message-type="create"');
+  });
+
+  it('keeps the route label and the single highlighted choice synchronized for every type', () => {
+    for (const messageType of sequenceKeyboardMessageTypes) {
+      let state = sequenceKeyboardModeReducer(
+        createInactiveSequenceKeyboardState(),
+        { type: 'activate', slotIndex: 0, sourceId: 'a' },
+      );
+      state = sequenceKeyboardModeReducer(state, { type: 'begin', messageType, targetId: 'b' });
+
+      const html = renderComposer(state);
+      expect(html).toContain(`class="sequence-keyboard-route" data-message-type="${messageType}"`);
+      expect(html).toContain(`aria-selected="true" class="active" data-message-type="${messageType}"`);
+      expect((html.match(/aria-selected="true"/g) ?? [])).toHaveLength(1);
+    }
+  });
+
+  it('presents a legacy asynchronous message as the single generic message choice', () => {
+    let state = sequenceKeyboardModeReducer(
+      createInactiveSequenceKeyboardState(),
+      { type: 'activate', slotIndex: 0, sourceId: 'a' },
+    );
+    state = sequenceKeyboardModeReducer(state, { type: 'begin', messageType: 'asynchronous', targetId: 'b' });
+
+    const html = renderComposer(state);
+    expect(html).toContain('aria-label="Tipo de mensaje: Mensaje"');
+    expect(html).toContain('class="sequence-keyboard-route" data-message-type="synchronous"');
+    expect(html).toContain('aria-selected="true" class="active" data-message-type="synchronous"');
+    expect((html.match(/aria-selected="true"/g) ?? [])).toHaveLength(1);
   });
 
   it('does not render a signature input when editing an existing return by keyboard', () => {

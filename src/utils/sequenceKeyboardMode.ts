@@ -35,7 +35,6 @@ export type SequenceKeyboardModeState = {
 
 export const sequenceKeyboardMessageTypes: SequenceMessageType[] = [
   'synchronous',
-  'asynchronous',
   'return',
   'create',
   'destroy',
@@ -103,6 +102,7 @@ export const resolveKeyboardTargetMessageType = (
   targetIndex: number,
   currentType: SequenceMessageType = 'synchronous',
 ): SequenceMessageType => {
+  if (currentType === 'create' || currentType === 'destroy') return currentType;
   if (sourceIndex >= 0 && targetIndex >= 0) {
     if (targetIndex < sourceIndex) return 'return';
     if (targetIndex > sourceIndex) return 'synchronous';

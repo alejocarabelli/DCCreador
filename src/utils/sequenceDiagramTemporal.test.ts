@@ -45,7 +45,7 @@ const hasProblem = (content: ReturnType<typeof normalizeSequenceDiagramContent>,
   content.problems.some((problem) => problem.code === code && problem.messageId === messageId);
 
 describe('sequence temporal semantics', () => {
-  it('isolates open activations in sibling alt operands and caps them at their operand', () => {
+  it('keeps no-return calls isolated in sibling alt operands', () => {
     const content = normalizeSequenceDiagramContent({
       ...createEmptySequenceDiagramContent(),
       participants: [participant('a', 120), participant('b', 360)],
@@ -65,11 +65,8 @@ describe('sequence temporal semantics', () => {
     });
 
     const activations = buildDerivedActivations(content);
-    expect(activations).toContainEqual(expect.objectContaining({
-      participantId: 'b',
-      startMessageId: 'call-in-second',
-      endScope: { fragmentId: 'alt', operandId: 'second' },
-    }));
+    expect(activations.some((activation) =>
+      activation.participantId === 'b' && activation.startMessageId === 'call-in-second')).toBe(false);
     expect(activations).toContainEqual(expect.objectContaining({
       participantId: 'a',
       startMessageId: 'call-in-second',
@@ -87,7 +84,7 @@ describe('sequence temporal semantics', () => {
     expect(secondActivation.y + secondActivation.height).toBeLessThanOrEqual(secondOperand.bottom + 3);
   });
 
-  it('bounds activations opened inside loop fragments to the loop and treats leaf setter calls as self-closing', () => {
+  it('bounds activations opened inside loop fragments to the loop and treats no-return calls as self-closing', () => {
     const content = normalizeSequenceDiagramContent({
       ...createEmptySequenceDiagramContent(),
       participants: [
@@ -118,12 +115,12 @@ describe('sequence temporal semantics', () => {
     });
 
     const activations = buildDerivedActivations(content);
-    // DTO activation is a leaf call, so it closes on set-name itself
+    // The setter has no compatible return, so it closes on its own message.
     const dtoActivation = activations.find((a) => a.participantId === 'dto' && a.startMessageId === 'set-name');
     expect(dtoActivation).toBeDefined();
     expect(dtoActivation?.endMessageId).toBe('set-name');
 
-    // In layout, DTO activation is a compact leaf box (height: 16) centered at message Y
+    // In layout, the implicit-completion activation is a compact box (height: 16) centered at message Y
     const layout = buildSequenceLayout(content);
     const loopOp = layout.fragmentLayouts.get('loop-frag')!.operands[0];
     const dtoBar = layout.activationLayouts.find((a) => a.participantId === 'dto')!;
@@ -198,10 +195,10 @@ describe('sequence temporal semantics', () => {
 
     expect(hasProblem(content, 'unmatched-return', 'second-return')).toBe(true);
     expect(buildDerivedActivations(content).find((activation) =>
-      activation.participantId === 'b' && activation.startMessageId === 'first-call')?.endMessageId).toBeUndefined();
+      activation.participantId === 'b' && activation.startMessageId === 'first-call')?.endMessageId).toBe('first-call');
   });
 
-  it('keeps a branch-dependent close as an ambiguity instead of inventing one endpoint', () => {
+  it('implicitly completes a call whose only explicit return lives in another scope', () => {
     const call = message('pre-alt-call', 'a', 'b');
     const returnedInOnePath = {
       ...message('return-in-first-path', 'b', 'a', 'return'),
@@ -225,15 +222,15 @@ describe('sequence temporal semantics', () => {
       ],
     });
 
-    expect(buildDerivedActivations(content)).not.toContainEqual(expect.objectContaining({
+    expect(buildDerivedActivations(content)).toContainEqual(expect.objectContaining({
       participantId: 'b',
       startMessageId: 'pre-alt-call',
+      endMessageId: 'pre-alt-call',
     }));
     expect(content.problems).toContainEqual(expect.objectContaining({
-      code: 'ambiguous-activation',
-      messageId: 'pre-alt-call',
-      participantId: 'b',
-      severity: 'warning',
+      code: 'unmatched-return',
+      messageId: 'return-in-first-path',
+      operandId: 'first',
     }));
   });
 
@@ -507,7 +504,7 @@ describe('sequence temporal semantics', () => {
     ).toHaveLength(0);
   });
 
-  it('creates independent compact leaf activations for sequential setters on the same participant without keeping the bar open across calls', () => {
+  it('creates independent compact activations for sequential setters on the same participant without keeping the bar open across calls', () => {
     const content = normalizeSequenceDiagramContent({
       ...createEmptySequenceDiagramContent(),
       showActivations: true,
@@ -531,10 +528,9 @@ describe('sequence temporal semantics', () => {
     expect(tramiteActs[1]).toMatchObject({ startMessageId: 'set-nom', endMessageId: 'set-nom' });
     expect(tramiteActs[2]).toMatchObject({ startMessageId: 'set-desc', endMessageId: 'set-desc' });
 
-    // ctrl caller activation stays open across the calls
+    // Sending does not invent a long-running caller activation.
     const ctrlActs = activations.filter((a) => a.participantId === 'ctrl');
-    expect(ctrlActs).toHaveLength(1);
-    expect(ctrlActs[0].startMessageId).toBe('m-create');
+    expect(ctrlActs).toHaveLength(0);
 
     const layout = buildSequenceLayout(content);
     const setCodY = layout.messageLayouts.get('set-cod')!.y;
@@ -549,7 +545,7 @@ describe('sequence temporal semantics', () => {
     expect(bar2).toBeDefined();
     expect(bar3).toBeDefined();
 
-    // Each leaf activation is a compact 12x16 rectangle centered at message Y
+    // Each implicit-completion activation is a compact 12x16 rectangle centered at message Y
     expect(bar1.height).toBe(16);
     expect(bar1.width).toBe(12);
     expect(bar1.y).toBe(setCodY - 8);
@@ -563,7 +559,7 @@ describe('sequence temporal semantics', () => {
     expect(bar3.y).toBe(setDescY - 8);
   });
 
-  it('isolates leaf calls inside alt branches without leaking activation state into subsequent branches', () => {
+  it('isolates no-return calls inside alt branches without leaking activation state into subsequent branches', () => {
     const content = normalizeSequenceDiagramContent({
       ...createEmptySequenceDiagramContent(),
       showActivations: true,
@@ -604,7 +600,7 @@ describe('sequence temporal semantics', () => {
     expect(targetActs[1]).toMatchObject({ startMessageId: 'msg-branch-2', endMessageId: 'msg-branch-2' });
   });
 
-  it('terminates ephemeral participant lifeline with X after its leaf setter activations', () => {
+  it('terminates ephemeral participant lifeline with X after its compact setter activations', () => {
     const caller = participant('caller', 120);
     const service = participant('service', 380);
     const dto = participant('dto', 640);

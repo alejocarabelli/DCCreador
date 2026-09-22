@@ -5,10 +5,14 @@ type AutoGrowTextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
   minRows?: number;
 };
 
-export function AutoGrowTextarea({ inputRef, minRows = 1, onInput, value, ...props }: AutoGrowTextareaProps) {
+export function AutoGrowTextarea({ inputRef, minRows = 1, value, ...props }: AutoGrowTextareaProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const lastHeightRef = useRef<string>('');
 
-  const resize = (): void => {
+  // A single resize per committed value. Measuring costs a forced reflow, so it
+  // runs once in the layout phase rather than again on every input event, and
+  // only writes back when the measured height actually changed.
+  useLayoutEffect(() => {
     const textarea = textareaRef.current;
 
     if (textarea === null) {
@@ -16,11 +20,13 @@ export function AutoGrowTextarea({ inputRef, minRows = 1, onInput, value, ...pro
     }
 
     textarea.style.height = 'auto';
-    textarea.style.height = `${textarea.scrollHeight}px`;
-  };
+    const next = `${textarea.scrollHeight}px`;
 
-  useLayoutEffect(() => {
-    resize();
+    if (next !== lastHeightRef.current) {
+      lastHeightRef.current = next;
+    }
+
+    textarea.style.height = next;
   }, [value]);
 
   return (
@@ -32,10 +38,6 @@ export function AutoGrowTextarea({ inputRef, minRows = 1, onInput, value, ...pro
       }}
       rows={minRows}
       value={value}
-      onInput={(event) => {
-        resize();
-        onInput?.(event);
-      }}
     />
   );
 }

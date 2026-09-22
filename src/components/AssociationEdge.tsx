@@ -121,6 +121,9 @@ export function AssociationEdge({
     targetSide: 'automatic',
   };
   const relationType = edgeData.relationType ?? 'association';
+  const supportsEndpoints = relationType === 'association'
+    || relationType === 'aggregation'
+    || relationType === 'composition';
   const lineStyle = edgeData.lineStyle ?? 'automatic';
   const effectiveSourcePosition =
     edgeData.sourceSide !== undefined && edgeData.sourceSide !== 'automatic'
@@ -131,8 +134,8 @@ export function AssociationEdge({
       ? sideToPosition[edgeData.targetSide]
       : targetPosition;
   const markerEndPosition =
-    relationType === 'generalization'
-      ? edgeData.diamondEnd ?? 'target'
+    relationType === 'generalization' || relationType === 'realization' || relationType === 'dependency'
+      ? 'target'
       : edgeData.diamondEnd === 'target'
         ? 'target'
         : 'source';
@@ -164,6 +167,7 @@ export function AssociationEdge({
   const hasTargetNavigationArrow =
     relationType === 'association' &&
     (edgeData.navigability === 'source-to-target' || edgeData.navigability === 'bidirectional');
+  const hasDependencyArrow = relationType === 'dependency';
   const adjustedSourceX =
     relationType !== 'association' && markerEndPosition === 'source'
       ? sourceEndpoint.x + sourcePathOutward.x * lineInset
@@ -263,6 +267,7 @@ export function AssociationEdge({
         style={{
           stroke: selected ? 'var(--association-stroke-selected)' : 'var(--association-stroke)',
           strokeWidth: selected ? 'calc(var(--association-stroke-width) + 0.9)' : 'var(--association-stroke-width)',
+          strokeDasharray: relationType === 'dependency' || relationType === 'realization' ? '8 6' : undefined,
         }}
       />
       <path
@@ -281,7 +286,19 @@ export function AssociationEdge({
           d={getOpenChevronPath(targetEndpoint, targetPathOutward)}
         />
       ) : null}
+      {hasDependencyArrow ? (
+        <path
+          className="association-navigation-chevron"
+          d={getOpenChevronPath(targetEndpoint, targetPathOutward)}
+        />
+      ) : null}
       {relationType === 'generalization' ? (
+        <polygon
+          className="association-uml-marker association-uml-marker-open"
+          points={getTrianglePoints(markerEndpoint, markerOutward)}
+        />
+      ) : null}
+      {relationType === 'realization' ? (
         <polygon
           className="association-uml-marker association-uml-marker-open"
           points={getTrianglePoints(markerEndpoint, markerOutward)}
@@ -296,23 +313,25 @@ export function AssociationEdge({
         />
       ) : null}
       <EdgeLabelRenderer>
-        {relationType !== 'generalization' ? <>
+      {relationType !== 'generalization' ? <>
           <AssociationTextLabel value={edgeData.name} placeholder="Nombre de relación" selected={Boolean(selected)}
             x={centerLabelPosition.x} y={centerLabelPosition.y} offset={edgeData.labelOffset}
             className="association-label-center association-relation-label"
             onCommit={name => edgeData.onUpdateLabel?.(id, { name })}
             onMove={labelOffset => edgeData.onUpdateLabel?.(id, { labelOffset })} />
-          <AssociationTextLabel value={edgeData.sourceRole} placeholder="Rol de origen" selected={Boolean(selected)}
-            x={sourceLabelPosition.x} y={sourceLabelPosition.y + 26} className="association-role-label"
-            onCommit={sourceRole => edgeData.onUpdateLabel?.(id, { sourceRole })} />
-          <AssociationTextLabel value={edgeData.targetRole} placeholder="Rol de destino" selected={Boolean(selected)}
-            x={targetLabelPosition.x} y={targetLabelPosition.y + 26} className="association-role-label"
-            onCommit={targetRole => edgeData.onUpdateLabel?.(id, { targetRole })} />
+          {supportsEndpoints ? <>
+            <AssociationTextLabel value={edgeData.sourceRole} placeholder="Rol de origen" selected={Boolean(selected)}
+              x={sourceLabelPosition.x} y={sourceLabelPosition.y + 26} className="association-role-label"
+              onCommit={sourceRole => edgeData.onUpdateLabel?.(id, { sourceRole })} />
+            <AssociationTextLabel value={edgeData.targetRole} placeholder="Rol de destino" selected={Boolean(selected)}
+              x={targetLabelPosition.x} y={targetLabelPosition.y + 26} className="association-role-label"
+              onCommit={targetRole => edgeData.onUpdateLabel?.(id, { targetRole })} />
+          </> : null}
         </> : null}
-        {relationType !== 'generalization'
+        {supportsEndpoints
           ? renderMultiplicity('source', edgeData.sourceMultiplicity, sourceLabelPosition.x, sourceLabelPosition.y)
           : null}
-        {relationType !== 'generalization'
+        {supportsEndpoints
           ? renderMultiplicity('target', edgeData.targetMultiplicity, targetLabelPosition.x, targetLabelPosition.y)
           : null}
       </EdgeLabelRenderer>

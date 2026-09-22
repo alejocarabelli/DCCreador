@@ -43,6 +43,9 @@ const describeHandle = (handleId: string | null | undefined): string => {
 
 export function AssociationInspector({ edge, onUpdateAssociation }: AssociationInspectorProps) {
   const data = normalizeAssociationData(edge.data);
+  const supportsEndpoints = data.relationType === 'association'
+    || data.relationType === 'aggregation'
+    || data.relationType === 'composition';
   return (
     <div className="inspector-content">
       <div className="inspector-heading">
@@ -62,6 +65,8 @@ export function AssociationInspector({ edge, onUpdateAssociation }: AssociationI
           <option value="generalization">Herencia / generalización</option>
           <option value="aggregation">Agregación</option>
           <option value="composition">Composición</option>
+          <option value="dependency">Dependencia</option>
+          <option value="realization">Realización</option>
         </select>
       </label>
 
@@ -107,45 +112,51 @@ export function AssociationInspector({ edge, onUpdateAssociation }: AssociationI
             </span>
           </label>
 
-          <div className="inspector-section-header compact-section-header">
-            <h2>Extremos</h2>
-          </div>
+          {supportsEndpoints ? (
+            <>
+              <div className="inspector-section-header compact-section-header">
+                <h2>Extremos</h2>
+              </div>
 
-          <div className="association-fields compact-association-fields">
-            <label className="field compact-field">
-              Origen
-              <MultiplicityInput
-                ariaLabel="Multiplicidad origen"
-                value={data.sourceMultiplicity}
-                onChange={(value) => onUpdateAssociation(edge.id, { sourceMultiplicity: value })}
-                placeholder="0..1"
-              />
-            </label>
-            <label className="field compact-field">
-              Destino
-              <MultiplicityInput
-                ariaLabel="Multiplicidad destino"
-                value={data.targetMultiplicity}
-                onChange={(value) => onUpdateAssociation(edge.id, { targetMultiplicity: value })}
-                placeholder="*"
-              />
-            </label>
-          </div>
+              <div className="association-fields compact-association-fields">
+                <label className="field compact-field">
+                  Origen
+                  <MultiplicityInput
+                    ariaLabel="Multiplicidad origen"
+                    value={data.sourceMultiplicity}
+                    onChange={(value) => onUpdateAssociation(edge.id, { sourceMultiplicity: value })}
+                    placeholder="0..1"
+                  />
+                </label>
+                <label className="field compact-field">
+                  Destino
+                  <MultiplicityInput
+                    ariaLabel="Multiplicidad destino"
+                    value={data.targetMultiplicity}
+                    onChange={(value) => onUpdateAssociation(edge.id, { targetMultiplicity: value })}
+                    placeholder="*"
+                  />
+                </label>
+              </div>
 
-          <label className="field compact-field">
-            Navegabilidad
-            <select
-              value={data.navigability}
-              onChange={(event) =>
-                onUpdateAssociation(edge.id, { navigability: event.target.value as AssociationNavigability })
-              }
-            >
-              <option value="none">Ninguna</option>
-              <option value="source-to-target">Origen hacia destino</option>
-              <option value="target-to-source">Destino hacia origen</option>
-              <option value="bidirectional">Bidireccional</option>
-            </select>
-          </label>
+              <label className="field compact-field">
+                Navegabilidad
+                <select
+                  value={data.navigability}
+                  onChange={(event) =>
+                    onUpdateAssociation(edge.id, { navigability: event.target.value as AssociationNavigability })
+                  }
+                >
+                  <option value="none">Ninguna</option>
+                  <option value="source-to-target">Origen hacia destino</option>
+                  <option value="target-to-source">Destino hacia origen</option>
+                  <option value="bidirectional">Bidireccional</option>
+                </select>
+              </label>
+            </>
+          ) : (
+            <p className="helper-text">Esta relación es dirigida y se representa con flecha hacia el destino.</p>
+          )}
         </>
       ) : null}
 

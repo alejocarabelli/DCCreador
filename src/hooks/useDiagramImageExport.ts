@@ -1,6 +1,5 @@
 import { useState, type RefObject } from 'react';
 import { getViewportForBounds, type Rect } from 'reactflow';
-import { toJpeg, toPng } from 'html-to-image';
 import { createPdfFromJpegDataUrl, downloadBlob, downloadDataUrl } from '../utils/pdfExport';
 
 const PNG_WIDTH = 1600;
@@ -66,6 +65,7 @@ export function useDiagramImageExport({
     canvasRef.current.classList.add('exporting-png');
 
     try {
+      const { toJpeg, toPng } = await import('html-to-image');
       edgePathStyleBackups.forEach(({ path }) => {
         const computedStyle = window.getComputedStyle(path);
         path.style.stroke = computedStyle.stroke;

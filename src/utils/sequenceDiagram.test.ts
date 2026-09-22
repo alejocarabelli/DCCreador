@@ -267,7 +267,7 @@ describe('sequence diagram model', () => {
     expect(activations.find((activation) => activation.startMessageId === 'bc')?.endMessageId).not.toBe('unmatched');
   });
 
-  it('does not create a receiver execution for create and keeps open bars temporal', () => {
+  it('does not create an execution for create without an incoming call', () => {
     const create = { ...message('create', 'a', 'b', 'create') };
     const content = normalizeSequenceDiagramContent({
       ...createEmptySequenceDiagramContent(),
@@ -278,8 +278,7 @@ describe('sequence diagram model', () => {
     const activations = buildDerivedActivations(content);
 
     expect(activations.some((activation) => activation.participantId === 'b')).toBe(false);
-    const sourceActivation = layout.activationLayouts.find((activation) => activation.participantId === 'a');
-    expect(sourceActivation?.height).toBeLessThan(layout.height - 100);
+    expect(layout.activationLayouts.some((activation) => activation.participantId === 'a')).toBe(false);
     expect(getSequenceMessageEndpoints(content, layout, create)?.targetX).toBe(270);
   });
 

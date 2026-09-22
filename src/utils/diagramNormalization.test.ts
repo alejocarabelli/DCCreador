@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ClassDiagramContent, ClassDiagramNode, LegacyDiagramProject, UseCaseFlowContent } from '../types/diagram';
 import {
   normalizeClassNode,
+  normalizeClassSequenceDiagramContent,
   normalizeDiagramContent,
   normalizeDiagramProject,
   normalizeUseCaseFlowContent,
@@ -176,5 +177,18 @@ describe('diagram normalization', () => {
     expect(normalized.edges[0].data?.relationType).toBe('association');
     expect(normalized.edges[0].data?.sourceMultiplicity).toBe('');
     expect(normalized.edges[0]).not.toHaveProperty('selected');
+  });
+
+  it('normalizes the class-sequence bridge without losing shared references', () => {
+    const normalized = normalizeClassSequenceDiagramContent({
+      sourceClassDiagramArtifactId: 'classes',
+      linkedSequenceDiagramIds: ['sequence-a', 'sequence-a', 42 as unknown as string],
+      nodes: [],
+      edges: [],
+    });
+
+    expect(normalized.version).toBe(1);
+    expect(normalized.sourceClassDiagramArtifactId).toBe('classes');
+    expect(normalized.linkedSequenceDiagramIds).toEqual(['sequence-a']);
   });
 });

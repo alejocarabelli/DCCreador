@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SequenceFragment, SequenceMessage, SequenceParticipant } from '../types/diagram';
-import { quickMessageValues } from '../components/SequenceMessageDialog';
+import { quickMessageValues } from './sequenceMessageDialogCompatibility';
 import { buildDerivedActivations, clampParticipantX, createEmptySequenceDiagramContent, normalizeSequenceDiagramContent } from './sequenceDiagram';
 import { buildSequenceLayout } from './sequenceDiagramLayout';
 
