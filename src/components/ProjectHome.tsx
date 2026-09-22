@@ -13,7 +13,6 @@ import { useMemo, useRef, useState } from 'react';
 import type { DesignArtifact, DesignProject } from '../types/diagram';
 import { IMPORT_INVALID_MESSAGE, IMPORT_UNREADABLE_MESSAGE, isImportableProject } from '../utils/projectImport';
 import type { BackupState } from '../storage/backup';
-import { ProjectThumbnail } from './ProjectThumbnail';
 import { normalizeDiagramProject } from '../utils/diagramNormalization';
 
 type ProjectHomeProps = {
@@ -49,33 +48,38 @@ const artifactLabels: Record<ArtifactKind, [singular: string, plural: string]> =
   'sequence-diagram': ['secuencia', 'secuencias'],
 };
 
-/** The row shows one date, so the time of day is dropped: it never decides
-    which project you are looking for. */
-const formatProjectDate = (isoDate: string): string => {
+const formatProjectDate = (isoDate: string): { label: string; time: string } => {
   const date = new Date(isoDate);
   const now = new Date();
-  if (date.toDateString() === now.toDateString()) return 'Editado hoy';
-
+  const sameDay = date.toDateString() === now.toDateString();
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
-  if (date.toDateString() === yesterday.toDateString()) return 'Editado ayer';
 
-  return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }).format(date);
+  if (sameDay) {
+    return {
+      label: 'Editado hoy',
+      time: new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit' }).format(date),
+    };
+  }
+
+  if (date.toDateString() === yesterday.toDateString()) {
+    return {
+      label: 'Editado ayer',
+      time: new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit' }).format(date),
+    };
+  }
+
+  return {
+    label: new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }).format(date),
+    time: new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit' }).format(date),
+  };
 };
-
-/** Connectors carry no identity: "Rescate de animales" must not read as RD.
-    Two letters still cannot separate twenty projects, which is why the cover is
-    a schematic of the diagram and these initials are only the fallback. */
-const CONNECTORS = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'y', 'e', 'a', 'al', 'en', 'para', 'por', 'con', 'un', 'una']);
 
 const projectInitials = (name: string): string => {
   const words = name.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return '—';
-
-  const meaningful = words.filter((word) => !CONNECTORS.has(word.toLocaleLowerCase()));
-  const source = meaningful.length > 0 ? meaningful : words;
-  if (source.length === 1) return source[0].slice(0, 2).toUpperCase();
-  return `${source[0][0]}${source[1][0]}`.toUpperCase();
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return `${words[0][0]}${words[1][0]}`.toUpperCase();
 };
 
 const stableProjectTone = (id: string): string => {
@@ -115,12 +119,8 @@ export function ProjectHome({ projects, onCreateProject, onImportProject, onOpen
 
   const filteredProjects = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase();
-    const matching = normalizedQuery
-      ? projects.filter((project) => `${project.name} ${formatArtifactSummary(project)}`.toLocaleLowerCase().includes(normalizedQuery))
-      : projects;
-
-    // The header claims this order, so it has to be true.
-    return [...matching].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    if (!normalizedQuery) return projects;
+    return projects.filter((project) => `${project.name} ${formatArtifactSummary(project)}`.toLocaleLowerCase().includes(normalizedQuery));
   }, [projects, query]);
 
   const handleImport = async (file: File): Promise<void> => {
@@ -199,7 +199,7 @@ export function ProjectHome({ projects, onCreateProject, onImportProject, onOpen
       {filteredProjects.length > 0 ? (
         <div className="project-home-list" role="list" aria-label="Proyectos">
           {filteredProjects.map((project) => {
-            const dateLabel = formatProjectDate(project.updatedAt);
+            const date = formatProjectDate(project.updatedAt);
             const artifactTypes = Array.from(countArtifactKinds(project).keys());
             return (
               <button
@@ -210,16 +210,19 @@ export function ProjectHome({ projects, onCreateProject, onImportProject, onOpen
                 aria-label={`Abrir proyecto ${project.name}`}
                 onClick={() => onOpenProject(project.id)}
               >
-                <ProjectThumbnail fallback={projectInitials(project.name)} project={project} />
-                <span className="project-home-copy">
-                  <strong>{project.name}</strong>
+                <span className="project-home-cover" aria-hidden="true">
+                  <strong>{projectInitials(project.name)}</strong>
+                  <span className="project-home-cover-rule" />
                   <span className="project-home-artifacts">
                     {artifactTypes.slice(0, 3).map((type) => <span key={type}>{artifactIcon(type)}</span>)}
                     {artifactTypes.length === 0 ? <span><StickyNote size={14} /></span> : null}
-                    {formatArtifactSummary(project)}
                   </span>
                 </span>
-                <span className="project-home-date">{dateLabel}</span>
+                <span className="project-home-copy">
+                  <strong>{project.name}</strong>
+                  <span>{formatArtifactSummary(project)}</span>
+                </span>
+                <span className="project-home-date"><strong>{date.label}</strong>{date.time}</span>
               </button>
             );
           })}
