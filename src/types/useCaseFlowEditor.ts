@@ -13,6 +13,8 @@ export type CompletionSuggestion = {
   detail?: string;
   id: string;
   label: string;
+  /** Multi-line snippets renumber the cell once inserted. */
+  normalizeNumbering?: boolean;
   apply: (value: string, position: number) => TextInsertion;
 };
 

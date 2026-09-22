@@ -25,9 +25,7 @@ import {
   Magnet,
   Maximize2,
   Plus,
-  Redo2,
   SquareDashed,
-  Undo2,
   UserRound,
 } from 'lucide-react';
 import type {
@@ -52,6 +50,9 @@ import { CanvasStartCard } from './CanvasStartCard';
 import { SystemBoundaryNode, UseCaseActorNode, UseCaseOvalNode } from './useCaseNodes';
 import { UseCaseRelationEdge } from './UseCaseRelationEdge';
 import { EditorIdentity } from './EditorIdentity';
+import { ToolbarHistory } from './ToolbarHistory';
+import type { DiagramSaveStatus } from '../hooks/useProjects';
+import { findFreeClassPosition } from '../utils/classPlacement';
 
 const GRID_ENABLED_KEY = 'class-diagram-grid-enabled';
 const SNAP_ENABLED_KEY = 'class-diagram-snap-enabled';
@@ -64,6 +65,7 @@ const isEditableElement = (element: Element | null): boolean =>
 type UseCaseModelEditorProps = {
   artifact: UseCaseModelArtifact;
   canRedo: boolean;
+  saveStatus?: DiagramSaveStatus;
   canUndo: boolean;
   project: DiagramProject;
   theme: DiagramTheme;
@@ -153,6 +155,7 @@ const allowedRelationTypes = (
 export function UseCaseModelEditor({
   artifact,
   canRedo,
+  saveStatus = 'saved',
   canUndo,
   project,
   onChangeContent,
@@ -265,6 +268,16 @@ export function UseCaseModelEditor({
     commitContent({ nodes: [...nodes, nextNode], edges });
     setSelectedNodeId(id);
     setSelectedEdgeId(null);
+  };
+
+  // Toolbar additions used fixed points, so a second actor landed exactly on the
+  // first. Boundaries are containers and are meant to hold other nodes, so they
+  // never count as occupied.
+  const freeSlotFor = (kind: UseCaseNodeKind, preferred: XYPosition): XYPosition => {
+    if (kind === 'system-boundary') return preferred;
+    const size = kind === 'actor' ? { width: 90, height: 120 } : { width: 180, height: 80 };
+    const occupied = nodes.filter((node) => node.data.kind !== 'system-boundary');
+    return findFreeClassPosition(occupied, preferred, size);
   };
 
   const duplicateNode = (nodeId: string): void => {
@@ -571,21 +584,22 @@ export function UseCaseModelEditor({
   return (
     <main className="diagram-editor use-case-editor">
       <header className="editor-toolbar" ref={toolbarRef}>
-        <EditorIdentity artifactKind="Modelo de casos de uso" artifactName={artifact.name} projectName={project.name} />
+        <EditorIdentity artifactKind="Modelo de casos de uso" artifactType={'use-case-model'} artifactName={artifact.name} projectName={project.name} />
         <div className="editor-toolbar-actions">
-          <button className="toolbar-icon-action" aria-label="Deshacer" title="Deshacer última acción" type="button" disabled={!canUndo} onClick={onUndo}><Undo2 size={17} /></button>
-          <button className="toolbar-icon-action" aria-label="Rehacer" title="Rehacer acción deshecha" type="button" disabled={!canRedo} onClick={onRedo}><Redo2 size={17} /></button>
-          <span className="toolbar-divider" aria-hidden="true" />
+          <ToolbarHistory canRedo={canRedo} canUndo={canUndo} saveStatus={saveStatus} onRedo={onRedo} onUndo={onUndo} />
+          <div className="toolbar-group">
           <details className="toolbar-menu add-element-menu" onToggle={handleToolbarMenuToggle}>
             <summary><Plus size={16} />Agregar elemento</summary>
             <div className="toolbar-menu-content">
-              <button type="button" onClick={(event) => { addNode('actor', { x: 80, y: 120 }); event.currentTarget.closest('details')?.removeAttribute('open'); }}><UserRound size={16} />Actor</button>
-              <button type="button" onClick={(event) => { addNode('use-case', { x: 240, y: 140 }); event.currentTarget.closest('details')?.removeAttribute('open'); }}><Plus size={16} />Caso de uso</button>
+              <button type="button" onClick={(event) => { addNode('actor', freeSlotFor('actor', { x: 80, y: 120 })); event.currentTarget.closest('details')?.removeAttribute('open'); }}><UserRound size={16} />Actor</button>
+              <button type="button" onClick={(event) => { addNode('use-case', freeSlotFor('use-case', { x: 240, y: 140 })); event.currentTarget.closest('details')?.removeAttribute('open'); }}><Plus size={16} />Caso de uso</button>
               <button type="button" onClick={(event) => { addNode('system-boundary', { x: 180, y: 90 }); event.currentTarget.closest('details')?.removeAttribute('open'); }}><SquareDashed size={16} />Límite del sistema</button>
             </div>
           </details>
-          <button className="toolbar-icon-action" aria-label="Centrar vista" title="Centrar vista" type="button" onClick={centerDiagram}><Crosshair size={17} /></button>
-          <button className="toolbar-icon-action" aria-label="Ver todo" title="Ajustar para ver todo" type="button" onClick={fitDiagram}><Maximize2 size={17} /></button>
+          </div>
+          <div className="toolbar-group">
+          <button className="toolbar-icon-action" aria-label="Centrar vista" title="Centrar vista" type="button" onClick={centerDiagram}><Crosshair size={16} /></button>
+          <button className="toolbar-icon-action" aria-label="Ver todo" title="Ajustar para ver todo" type="button" onClick={fitDiagram}><Maximize2 size={16} /></button>
           <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
             <summary>Vista</summary>
             <div className="toolbar-menu-content">
@@ -593,6 +607,8 @@ export function UseCaseModelEditor({
               <button type="button" className={isSnapEnabled ? 'active-tool' : ''} onClick={(event) => { setIsSnapEnabled((enabled) => !enabled); event.currentTarget.closest('details')?.removeAttribute('open'); }}><Magnet size={17} />Ajustar a la grilla</button>
             </div>
           </details>
+          </div>
+          <div className="toolbar-group">
           <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
             <summary>Archivo</summary>
             <div className="toolbar-menu-content file-menu">
@@ -602,6 +618,7 @@ export function UseCaseModelEditor({
               <button type="button" onClick={(event) => { void exportPdf(); event.currentTarget.closest('details')?.removeAttribute('open'); }}><FileText size={17} />Exportar PDF</button>
             </div>
           </details>
+          </div>
           <input ref={fileInputRef} accept="application/json,.json" className="hidden-file-input" type="file" onChange={(event) => { const file = event.target.files?.[0]; if (file !== undefined) void importProjectJson(file); }} />
         </div>
       </header>

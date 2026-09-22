@@ -44,7 +44,7 @@ const flows = [
     createdAt: '',
     updatedAt: '',
     content: {
-      description: { useCaseName: '', actor: '', description: '', priority: 'A', inputParameters: '', precondition: '', postcondition: '', initialState: '', finalState: '' },
+      description: { useCaseNumber: '', useCaseName: '', actor: '', description: '', priority: 'A', inputParameters: '', precondition: '', postcondition: '', initialState: '', finalState: '' },
       basicFlow: [{ id: 'step-1', actor: 'Usuario', system: 'Sistema', ref: '1' }],
       alternativeFlows: [{ id: 'alt-1', code: 'A1', name: 'Alternativa', steps: [{ id: 'step-a1', actor: 'Usuario', system: 'Error', ref: 'A1.1' }] }],
     },
@@ -56,7 +56,7 @@ const flows = [
     createdAt: '',
     updatedAt: '',
     content: {
-      description: { useCaseName: '', actor: '', description: '', priority: 'A', inputParameters: '', precondition: '', postcondition: '', initialState: '', finalState: '' },
+      description: { useCaseNumber: '', useCaseName: '', actor: '', description: '', priority: 'A', inputParameters: '', precondition: '', postcondition: '', initialState: '', finalState: '' },
       basicFlow: [{ id: 'other-step', actor: 'Otro actor', system: 'Otro sistema', ref: '9' }],
       alternativeFlows: [],
     },

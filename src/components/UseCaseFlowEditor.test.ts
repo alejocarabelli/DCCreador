@@ -38,7 +38,7 @@ describe('use case flow numbering', () => {
   it('numbers alternative flows independently from the basic flow', () => {
     const content = {
       description: {
-        useCaseName: '', actor: '', description: '', priority: 'A', inputParameters: '', precondition: '',
+        useCaseNumber: '', useCaseName: '', actor: '', description: '', priority: 'A', inputParameters: '', precondition: '',
         postcondition: '', initialState: '', finalState: '',
       },
       basicFlow: [{ id: 'basic', actor: '9. Básico', system: '', ref: '' }],

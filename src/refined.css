@@ -281,13 +281,6 @@
   gap: 1px;
 }
 
-.app-shell[data-ui-version='refined'] .editor-artifact-kind {
-  color: var(--panel-muted-text);
-  font-size: 0.7rem;
-  font-weight: 680;
-  letter-spacing: 0.02em;
-  text-transform: none;
-}
 
 .app-shell[data-ui-version='refined'] .editor-breadcrumb {
   color: var(--panel-muted-text);
@@ -301,6 +294,58 @@
   font-weight: 700;
   line-height: 1.2;
   margin: 0;
+}
+
+/* Single-line identity. The project name gives way first; the artifact name,
+   which is what the person is editing, keeps its width the longest. */
+.app-shell[data-ui-version='refined'] .editor-identity {
+  align-items: center;
+  display: flex;
+}
+
+.app-shell[data-ui-version='refined'] .editor-breadcrumb {
+  font-size: 0.82rem;
+  gap: 4px;
+  min-width: 0;
+}
+
+.app-shell[data-ui-version='refined'] .editor-breadcrumb > svg {
+  color: #9aa5b1;
+  flex: 0 0 auto;
+}
+
+.app-shell[data-ui-version='refined'] .editor-breadcrumb-project {
+  flex: 0 3 auto;
+  max-width: 180px;
+  min-width: 3.5em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-shell[data-ui-version='refined'] .editor-breadcrumb-type {
+  color: var(--button-active-background);
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin-left: 2px;
+}
+
+.app-shell[data-ui-version='refined'] .editor-breadcrumb h1 {
+  flex: 0 1 auto;
+  min-width: 4em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.visually-hidden {
+  border: 0;
+  clip: rect(0 0 0 0);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
 }
 
 .app-shell[data-ui-version='refined'] .editor-toolbar-actions {
@@ -451,6 +496,10 @@
   border: 1px solid #dce2e8;
   border-radius: 6px;
   box-shadow: 0 6px 18px rgba(31, 41, 51, 0.1);
+  /* React Flow's own panel rule loads with the lazy editor chunk, after this
+     sheet, and pinned the minimap flush to the canvas corner. */
+  bottom: 16px;
+  right: 16px;
 }
 
 /* Edge reconnection anchors: keep the hit area generous, but show the affordance
@@ -1202,16 +1251,28 @@
 
 .app-shell[data-ui-version='refined'] .class-sequence-sync-context {
   align-items: center;
+  /* Its own strip under the header row: the bridge to the sequences is context
+     for the whole canvas, and sharing the toolbar row pushed the controls onto
+     a second line and truncated the artifact name. */
+  border-top: 1px solid var(--panel-border);
   color: var(--panel-muted-text);
   display: flex;
-  flex: 1 1 auto;
+  flex: 1 1 100%;
   gap: 8px;
+  margin: 0 -10px -6px -14px;
+  min-height: 38px;
   min-width: 0;
-  overflow: hidden;
+  order: 3;
+  padding: 0 10px 0 14px;
+  /* Visible so the import menu can drop below the header; the source label
+     truncates on its own. */
+  overflow: visible;
+  position: relative;
 }
 
 .app-shell[data-ui-version='refined'] .class-sequence-sync-status {
   align-items: center;
+  font-size: 0.72rem;
   background: color-mix(in srgb, var(--button-active-background) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--button-active-background) 22%, var(--panel-border));
   border-radius: 999px;
@@ -1258,6 +1319,59 @@
 
 .app-shell[data-ui-version='refined'] .class-sequence-sync-button-secondary {
   color: var(--button-active-background);
+}
+
+.app-shell[data-ui-version='refined'] .class-sequence-import-menu {
+  flex: 0 0 auto;
+  position: relative;
+}
+
+.app-shell[data-ui-version='refined'] .class-sequence-import-menu > summary.class-sequence-sync-button-primary {
+  background: color-mix(in srgb, var(--button-active-background) 9%, transparent);
+  border-color: color-mix(in srgb, var(--button-active-background) 30%, var(--panel-border));
+  color: var(--button-active-background);
+  cursor: pointer;
+  font-weight: 650;
+  list-style: none;
+  min-height: 28px;
+  padding: 0 8px;
+}
+
+.app-shell[data-ui-version='refined'] .class-sequence-import-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.app-shell[data-ui-version='refined'] .class-sequence-import-menu[open] > summary {
+  background: color-mix(in srgb, var(--button-active-background) 16%, transparent);
+}
+
+.app-shell[data-ui-version='refined'] .class-sequence-import-list {
+  left: 0;
+  max-width: 320px;
+  min-width: 260px;
+  right: auto;
+}
+
+.app-shell[data-ui-version='refined'] .class-sequence-import-hint,
+.app-shell[data-ui-version='refined'] .class-sequence-import-empty {
+  color: var(--panel-muted-text);
+  font-size: 0.72rem;
+  line-height: 1.4;
+  margin: 2px 8px 6px;
+}
+
+.app-shell[data-ui-version='refined'] .class-sequence-import-list button {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell[data-ui-version='refined'] .class-sequence-import-feedback {
+  color: var(--panel-text);
+  font-size: 0.72rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .app-shell[data-ui-version='refined'] .sequence-sync-class-method-button {
@@ -1826,7 +1940,7 @@
 .sequence-start-card > div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
 .sequence-outline-item { border-radius: 6px; margin: 2px 5px; width: calc(100% - 10px); }
 @media (max-width: 1180px) {
-  .sequence-workspace:not(.sequence-workspace-focused):not(.sequence-inspector-collapsed) { grid-template-columns: 210px minmax(0, 1fr) var(--sequence-inspector-width, 260px); }
+  .sequence-workspace:not(.sequence-workspace-focused):not(.sequence-inspector-collapsed):not(.sequence-inspector-idle) { grid-template-columns: 210px minmax(0, 1fr) var(--sequence-inspector-width, 260px); }
   .sequence-workspace:not(.sequence-workspace-focused).sequence-inspector-collapsed { grid-template-columns: 210px minmax(0, 1fr) 44px; }
 }
 
@@ -1856,7 +1970,7 @@
 
   .sequence-workspace.sequence-workspace-focused { grid-template-columns: minmax(0, 1fr) var(--sequence-inspector-width, 250px); }
   .sequence-workspace.sequence-workspace-focused.sequence-inspector-collapsed { grid-template-columns: minmax(0, 1fr) 44px; }
-  .sequence-workspace:not(.sequence-workspace-focused):not(.sequence-inspector-collapsed) { grid-template-columns: minmax(0, 1fr) var(--sequence-inspector-width, 250px); }
+  .sequence-workspace:not(.sequence-workspace-focused):not(.sequence-inspector-collapsed):not(.sequence-inspector-idle) { grid-template-columns: minmax(0, 1fr) var(--sequence-inspector-width, 250px); }
   .sequence-workspace:not(.sequence-workspace-focused).sequence-inspector-collapsed { grid-template-columns: minmax(0, 1fr) 44px; }
   .sequence-inspector-content { padding: 11px; }
 }
@@ -2313,7 +2427,6 @@
 }
 
 .sequence-inspector-panel.collapsed .sequence-inspector-content,
-.sequence-inspector-panel.collapsed .sequence-empty-inspector,
 .sequence-inspector-panel.collapsed .sequence-inspector-resizer {
   display: none !important;
 }
@@ -3684,7 +3797,7 @@
 }
 
 @media (max-width: 1440px) {
-  .app-shell[data-ui-version='refined'] .sequence-workspace:not(.sequence-workspace-focused):not(.sequence-inspector-collapsed) {
+  .app-shell[data-ui-version='refined'] .sequence-workspace:not(.sequence-workspace-focused):not(.sequence-inspector-collapsed):not(.sequence-inspector-idle) {
     grid-template-columns: 224px minmax(0, 1fr) minmax(276px, var(--sequence-inspector-width, 300px));
   }
 
@@ -3712,36 +3825,36 @@
     padding-inline: 6px;
   }
 
-  /* The breadcrumb truncates before the controls wrap; it carries a title. */
+  /* The breadcrumb takes whatever the controls leave and truncates before they
+     wrap; it carries a title. */
   .app-shell[data-ui-version='refined'] .sequence-editor-shell .editor-identity {
-    flex: 0 1 216px;
+    flex: 1 1 160px;
+  }
+
+  .app-shell[data-ui-version='refined'] .sequence-editor-shell .editor-toolbar-actions {
+    flex: 0 1 auto;
   }
 }
 
-/* Step 1 (<=1520px): the secondary groups — quality and export/settings — drop
-   their labels first. The app ships in a 1380px window, so this step is the one
-   that actually runs on most desks. */
-@media (max-width: 1520px) {
-  .app-shell[data-ui-version='refined'] .sequence-toolbar-quality-group .toolbar-label,
-  .app-shell[data-ui-version='refined'] .sequence-toolbar-settings-group .toolbar-label {
+/* Step 2 is measured on the header itself, not the window: the rail being open
+   or closed changes the room by 218px. Below 1240px of header the keyboard
+   toggle keeps its key cap and Participante / Fragmento keep their icons, which
+   is what lets the toolbar sit on one row beside the breadcrumb in the shipped
+   1380px window with the rail open. */
+.app-shell[data-ui-version='refined'] .sequence-editor-shell > .editor-toolbar {
+  container-name: sequence-toolbar;
+  container-type: inline-size;
+}
+
+@container sequence-toolbar (max-width: 1240px) {
+  .app-shell[data-ui-version='refined'] .sequence-keyboard-toggle .toolbar-label,
+  .app-shell[data-ui-version='refined'] .sequence-toolbar-participant-btn .toolbar-label,
+  .app-shell[data-ui-version='refined'] .sequence-toolbar-fragment-menu > summary .toolbar-label {
     display: none;
   }
-
-  .app-shell[data-ui-version='refined'] .sequence-toolbar-quality-group .sequence-toolbar-btn,
-  .app-shell[data-ui-version='refined'] .sequence-toolbar-quality-group .toolbar-review-action,
-  .app-shell[data-ui-version='refined'] .sequence-toolbar-settings-group .sequence-toolbar-btn,
-  .app-shell[data-ui-version='refined'] .sequence-toolbar-settings-group .toolbar-menu summary {
-    gap: 4px;
-    min-width: 28px;
-    padding-inline: 6px;
-  }
 }
 
-/* Step 2 (<=1380px): the keyboard-mode toggle keeps its key cap, loses its word. */
 @media (max-width: 1380px) {
-  .app-shell[data-ui-version='refined'] .sequence-keyboard-toggle .toolbar-label {
-    display: none;
-  }
 
   .app-shell[data-ui-version='refined'] .sequence-toolbar-group .sequence-keyboard-toggle {
     gap: 4px;
@@ -3750,16 +3863,8 @@
 }
 
 @media (max-width: 1280px) {
-  .app-shell[data-ui-version='refined'] .sequence-workspace:not(.sequence-workspace-focused):not(.sequence-inspector-collapsed) {
+  .app-shell[data-ui-version='refined'] .sequence-workspace:not(.sequence-workspace-focused):not(.sequence-inspector-collapsed):not(.sequence-inspector-idle) {
     grid-template-columns: 204px minmax(0, 1fr) minmax(252px, var(--sequence-inspector-width, 276px));
-  }
-
-  /* Step 3: the UML literals go; the icons in group 2 still read. */
-  .app-shell[data-ui-version='refined'] .sequence-toolbar-create-btn .toolbar-label,
-  .app-shell[data-ui-version='refined'] .sequence-toolbar-destroy-btn .toolbar-label,
-  .app-shell[data-ui-version='refined'] .sequence-toolbar-participant-btn .toolbar-label,
-  .app-shell[data-ui-version='refined'] .sequence-toolbar-fragment-menu > summary .toolbar-label {
-    display: none;
   }
 }
 
@@ -3780,11 +3885,6 @@
     flex: 1 1 auto;
     justify-content: flex-end;
     gap: 3px;
-  }
-
-  .app-shell[data-ui-version='refined'] .sequence-toolbar-create-btn,
-  .app-shell[data-ui-version='refined'] .sequence-toolbar-destroy-btn {
-    display: none;
   }
 
   /* Step 4: the last labels go, including the primary insert action. */
@@ -4037,4 +4137,206 @@
 
 .app-shell[data-ui-version='refined'] .danger-action:active {
   background: #7a2421;
+}
+
+/* Idle inspector: nothing selected, so the column does not exist. The attribute
+   alone loses to the panel's own display rule. */
+.sequence-inspector-panel[hidden] {
+  display: none !important;
+}
+
+/* ---- Shared editor toolbar -------------------------------------------------
+   Every editor reads left to right in the same order: history (saved state,
+   undo, redo) · create · view · review · file. Only the create group changes
+   between editors. Groups are flat and separated by a hairline, which is the
+   sequence toolbar's own grammar, now shared. */
+.app-shell[data-ui-version='refined'] .editor-toolbar-actions {
+  align-items: center;
+  column-gap: 6px;
+}
+
+.app-shell[data-ui-version='refined'] .toolbar-group {
+  align-items: center;
+  border-right: 1px solid var(--panel-border);
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  height: 34px;
+  padding-right: 6px;
+}
+
+.app-shell[data-ui-version='refined'] .editor-toolbar-actions > .toolbar-group:last-of-type {
+  border-right: 0;
+  padding-right: 0;
+}
+
+.app-shell[data-ui-version='refined'] .toolbar-group .toolbar-primary-action {
+  gap: 5px;
+}
+
+.app-shell[data-ui-version='refined'] .toolbar-label-static {
+  white-space: nowrap;
+}
+
+.app-shell[data-ui-version='refined'] .toolbar-menu > summary {
+  align-items: center;
+  display: inline-flex;
+  gap: 4px;
+}
+
+/* Revisar carries its count as a quiet badge instead of "(3)" in the label. */
+.app-shell[data-ui-version='refined'] .toolbar-review-action {
+  align-items: center;
+  display: inline-flex;
+  gap: 5px;
+}
+
+.app-shell[data-ui-version='refined'] .toolbar-count {
+  background: var(--panel-strong-background);
+  border-radius: 999px;
+  color: var(--panel-text);
+  font-size: 0.69rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1;
+  min-width: 18px;
+  padding: 3px 5px;
+  text-align: center;
+}
+
+.app-shell[data-ui-version='refined'] .toolbar-review-action.has-warnings .toolbar-count {
+  background: #fbedd0;
+  color: #7a4a06;
+}
+
+.app-shell[data-ui-version='refined'] .toolbar-review-action.has-errors .toolbar-count {
+  background: color-mix(in srgb, var(--ui-danger) 14%, #ffffff);
+  color: var(--ui-danger);
+}
+
+/* Saved state speaks quietly: it is reassurance, not an event. Only saving and
+   failing earn color, and both stay inside the app's hue band except danger. */
+.app-shell[data-ui-version='refined'] .toolbar-save-status {
+  background: transparent;
+  border-radius: 6px;
+  color: var(--panel-muted-text);
+  font-size: 0.72rem;
+  font-weight: 560;
+  gap: 5px;
+  height: 26px;
+  padding: 0 6px;
+}
+
+.app-shell[data-ui-version='refined'] .toolbar-save-status.sequence-save-saving {
+  background: transparent;
+  color: var(--accent);
+}
+
+.app-shell[data-ui-version='refined'] .toolbar-save-status.sequence-save-error {
+  background: color-mix(in srgb, var(--ui-danger) 10%, #ffffff);
+  color: var(--ui-danger);
+}
+
+.app-shell[data-ui-version='refined'] .toolbar-save-status .save-spinner {
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+  border-top-color: var(--accent);
+}
+
+/* Save state keeps its word only where the header has room for it. */
+@media (max-width: 1460px) {
+  .app-shell[data-ui-version='refined'] .toolbar-save-status .toolbar-label {
+    display: none;
+  }
+}
+
+/* Use-case flow, refined: the rich textareas must stay transparent over their
+   formatted copy, so these outrank the field and cell rules above. */
+.app-shell[data-ui-version='refined'] .rich-text textarea.rich-text-input,
+.app-shell[data-ui-version='refined'] .rich-text textarea.rich-text-input:focus {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: transparent;
+}
+
+.app-shell[data-ui-version='refined'] .rich-text-flow:focus-within {
+  background: #f7fafc;
+  box-shadow: inset 2px 0 0 var(--button-active-background);
+}
+
+.app-shell[data-ui-version='refined'] .rich-text-state {
+  background: #ffffff;
+  border-color: #d4dce3;
+  border-radius: 5px;
+}
+
+.app-shell[data-ui-version='refined'] .rich-text-state:focus-within {
+  border-color: #7fa2c3;
+}
+
+.app-shell[data-ui-version='refined'] .rich-text-state .state-bullet-editor {
+  color: var(--panel-text);
+  font-size: 0.8rem;
+}
+
+.app-shell[data-ui-version='refined'] .flow-section-nav {
+  background: color-mix(in srgb, var(--ui-app-background) 92%, transparent);
+  border-bottom-color: #dce2e8;
+  top: -20px;
+}
+
+.app-shell[data-ui-version='refined'] .flow-section-nav a span {
+  background: #e4e9ee;
+  color: #53616d;
+}
+
+.app-shell[data-ui-version='refined'] .flow-meta-row input,
+.app-shell[data-ui-version='refined'] .flow-meta-row select {
+  background: #ffffff;
+  border-color: #d4dce3;
+  border-radius: 5px;
+}
+
+.app-shell[data-ui-version='refined'] .flow-meta-row input:focus,
+.app-shell[data-ui-version='refined'] .flow-meta-row select:focus {
+  border-color: #7fa2c3;
+  outline: none;
+}
+
+.app-shell[data-ui-version='refined'] .flow-field-label {
+  color: #697681;
+  font-size: 0.71rem;
+  font-weight: 650;
+}
+
+.app-shell[data-ui-version='refined'] .flow-priority {
+  border-color: #d4dce3;
+  border-radius: 5px;
+}
+
+.app-shell[data-ui-version='refined'] .flow-priority button {
+  background: #ffffff;
+}
+
+.app-shell[data-ui-version='refined'] .flow-priority button + button {
+  border-left-color: #d4dce3;
+}
+
+.app-shell[data-ui-version='refined'] .flow-priority button:hover {
+  background: var(--ui-hover-background);
+}
+
+.app-shell[data-ui-version='refined'] .flow-priority button.active {
+  background: var(--button-active-background);
+  color: var(--button-active-text);
+}
+
+.app-shell[data-ui-version='refined'] .flow-row-collapsed td {
+  background: #f8fafb;
+}
+
+.app-shell[data-ui-version='refined'] .flow-fold-count {
+  background: #e9eef2;
+  color: #53616d;
 }

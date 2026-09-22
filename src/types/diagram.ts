@@ -155,6 +155,7 @@ export type UseCaseModelContent = {
 export type UseCaseFlowPriority = 'A' | 'B' | 'C';
 
 export type UseCaseFlowDescription = {
+  useCaseNumber: string;
   useCaseName: string;
   actor: string;
   description: string;
@@ -177,6 +178,8 @@ export type AlternativeUseCaseFlow = {
   id: string;
   code: string;
   name: string;
+  /** First step number; when absent it follows the step that references the path. */
+  firstStepNumber?: number;
   steps: UseCaseFlowStep[];
 };
 

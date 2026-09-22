@@ -4,11 +4,13 @@ import { useFocusTrap } from '../hooks/useFocusTrap';
 type ProjectNameDialogProps = {
   initialName: string;
   title: string;
+  description: string;
+  confirmLabel: string;
   onCancel: () => void;
   onConfirm: (name: string) => void;
 };
 
-export function ProjectNameDialog({ initialName, title, onCancel, onConfirm }: ProjectNameDialogProps) {
+export function ProjectNameDialog({ initialName, title, description, confirmLabel, onCancel, onConfirm }: ProjectNameDialogProps) {
   const [name, setName] = useState(initialName);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -58,7 +60,7 @@ export function ProjectNameDialog({ initialName, title, onCancel, onConfirm }: P
       >
         <h2 id={titleId}>{title}</h2>
         <p className="dialog-description" id={descriptionId}>
-          El nombre te ayuda a reconocer este archivo técnico después.
+          {description}
         </p>
         <label className="field" htmlFor={`${titleId}-name`}>
           Nombre
@@ -82,7 +84,7 @@ export function ProjectNameDialog({ initialName, title, onCancel, onConfirm }: P
             Cancelar
           </button>
           <button className="primary-action" type="submit">
-            Guardar
+            {confirmLabel}
           </button>
         </div>
       </form>

@@ -52,6 +52,7 @@ const createEmptyUseCaseModelContent = (): UseCaseModelArtifact['content'] => ({
 const createEmptyUseCaseFlowContent = (): UseCaseFlowContent => ({
   classDiagramArtifactId: undefined,
   description: {
+    useCaseNumber: '',
     useCaseName: '',
     actor: '',
     description: '',
@@ -217,7 +218,7 @@ export const useProjects = () => {
   );
 
   const createProject = (name: string): void => {
-    const project = buildProject(name.trim() || 'Nuevo diagrama');
+    const project = buildProject(name.trim() || 'Nuevo proyecto');
     setProjects((currentProjects) => [project, ...currentProjects]);
     setActiveProjectId(project.id);
   };

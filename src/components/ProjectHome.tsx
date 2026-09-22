@@ -14,6 +14,7 @@ import type { DesignArtifact, DesignProject } from '../types/diagram';
 import { IMPORT_INVALID_MESSAGE, IMPORT_UNREADABLE_MESSAGE, isImportableProject } from '../utils/projectImport';
 import type { BackupState } from '../storage/backup';
 import { normalizeDiagramProject } from '../utils/diagramNormalization';
+import { projectInitials } from '../utils/projectInitials';
 
 type ProjectHomeProps = {
   projects: DesignProject[];
@@ -73,13 +74,6 @@ const formatProjectDate = (isoDate: string): { label: string; time: string } => 
     label: new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }).format(date),
     time: new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit' }).format(date),
   };
-};
-
-const projectInitials = (name: string): string => {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return '—';
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return `${words[0][0]}${words[1][0]}`.toUpperCase();
 };
 
 const stableProjectTone = (id: string): string => {

@@ -143,7 +143,7 @@ function App() {
   } = useProjects();
 
   const handleCreateProject = (): void => {
-    setProjectDialog({ mode: 'create', initialName: 'Nuevo diagrama' });
+    setProjectDialog({ mode: 'create', initialName: 'Nuevo proyecto' });
   };
 
   const handleOpenHome = (): void => {
@@ -214,8 +214,8 @@ function App() {
             : artifactType === 'sequence-diagram'
               ? 'Diagrama de secuencia'
               : artifactType === 'class-sequence-diagram'
-                ? 'Diagrama de clases (Secuencia)'
-            : 'Nuevo diagrama de clases',
+                ? 'Clases de secuencias'
+            : 'Diagrama de clases',
     });
   };
 
@@ -495,6 +495,7 @@ function App() {
             artifact={activeArtifact}
             canRedo={canRedo}
             canUndo={canUndo}
+            saveStatus={saveStatus}
             project={activeProject}
             theme={theme}
             themeId={themeId}
@@ -510,6 +511,7 @@ function App() {
             artifact={activeArtifact}
             canRedo={canRedo}
             canUndo={canUndo}
+            saveStatus={saveStatus}
             project={activeProject}
             theme={theme}
             themeId={themeId}
@@ -529,6 +531,7 @@ function App() {
             artifact={activeArtifact}
             canRedo={canRedo}
             canUndo={canUndo}
+            saveStatus={saveStatus}
             project={activeProject}
             theme={theme}
             themeId={themeId}
@@ -544,6 +547,7 @@ function App() {
             artifact={activeArtifact}
             canRedo={canRedo}
             canUndo={canUndo}
+            saveStatus={saveStatus}
             project={activeProject}
             theme={theme}
             themeId={themeId}
@@ -559,10 +563,10 @@ function App() {
             artifact={activeArtifact}
             canRedo={canRedo}
             canUndo={canUndo}
+            saveStatus={saveStatus}
             project={activeProject}
             theme={theme}
             themeId={themeId}
-            saveStatus={saveStatus}
             onNavigateToArtifact={(targetArtifactId) =>
               setActiveArtifactId(activeProject.id, targetArtifactId)
             }
@@ -591,6 +595,12 @@ function App() {
                   ? 'Crear artefacto'
                   : 'Renombrar artefacto'
           }
+          description={
+            projectDialog.mode === 'create' || projectDialog.mode === 'rename'
+              ? 'Un proyecto reúne todos los diagramas y especificaciones de un sistema.'
+              : 'El nombre distingue este artefacto de los otros del proyecto.'
+          }
+          confirmLabel={projectDialog.mode === 'create' || projectDialog.mode === 'createArtifact' ? 'Crear' : 'Guardar'}
           onCancel={() => setProjectDialog(null)}
           onConfirm={handleConfirmProjectDialog}
         />

@@ -35,14 +35,13 @@ import {
   FileUp,
   Grid3X3,
   ImageDown,
+  ListChecks,
   Magnet,
   Map,
   Maximize2,
   PanelRightClose,
   PanelRightOpen,
   Plus,
-  Redo2,
-  Undo2,
 } from 'lucide-react';
 import type {
   AssociationEdgeData,
@@ -76,10 +75,15 @@ import { ClassInspector } from './ClassInspector';
 import { ClassNode } from './ClassNode';
 import { ParametricValuesNote } from './ParametricValuesNote';
 import { EditorIdentity } from './EditorIdentity';
+import { ToolbarHistory } from './ToolbarHistory';
+import type { DiagramSaveStatus } from '../hooks/useProjects';
+import { DEFAULT_CLASS_SIZE, findFreeClassPosition } from '../utils/classPlacement';
 
 type DiagramEditorProps = {
   artifact: ClassDiagramArtifact;
   artifactKind?: string;
+  saveStatus?: DiagramSaveStatus;
+  artifactType?: 'class-diagram' | 'class-sequence-diagram';
   canRedo: boolean;
   canUndo: boolean;
   project: DiagramProject;
@@ -158,6 +162,8 @@ const isEditableElement = (element: Element | null): boolean => {
 export function DiagramEditor({
   artifact,
   artifactKind = 'Diagrama de clases',
+  saveStatus = 'saved',
+  artifactType = 'class-diagram',
   canRedo,
   canUndo,
   project,
@@ -417,11 +423,25 @@ export function DiagramEditor({
     [normalizedEdges, updateEdges],
   );
 
+  // Without an explicit point (toolbar, empty-state card), the class lands in
+  // the free slot nearest the middle of what the person is looking at.
+  const nextClassPosition = (): XYPosition => {
+    const bounds = canvasRef.current?.getBoundingClientRect();
+    const center = reactFlowInstance !== null && bounds !== undefined
+      ? reactFlowInstance.screenToFlowPosition({ x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 })
+      : { x: 240, y: 195 };
+    const preferred = {
+      x: Math.round(center.x - DEFAULT_CLASS_SIZE.width / 2),
+      y: Math.round(center.y - DEFAULT_CLASS_SIZE.height / 2),
+    };
+    return findFreeClassPosition(reactFlowInstance?.getNodes() ?? nodes, preferred);
+  };
+
   const addClassNode = (position?: XYPosition): void => {
     const newNode: ClassDiagramNode = {
       id: createId(),
       type: 'classNode',
-      position: position ?? { x: 120 + nodes.length * 28, y: 120 + nodes.length * 28 },
+      position: position ?? nextClassPosition(),
       data: {
         name: '',
         attributes: [],
@@ -1478,42 +1498,45 @@ export function DiagramEditor({
   return (
     <main className="diagram-editor class-diagram-editor">
       <header className="editor-toolbar" ref={toolbarRef}>
-        <EditorIdentity artifactKind={artifactKind} artifactName={artifact.name} projectName={project.name} />
+        <EditorIdentity artifactKind={artifactKind} artifactType={artifactType} artifactName={artifact.name} projectName={project.name} />
         {toolbarContext}
         <div className="editor-toolbar-actions">
-          <button className="toolbar-icon-action" aria-label="Deshacer" type="button" disabled={!canUndo} onClick={() => { closeToolbarMenus(); onUndo(); }} title="Deshacer última acción (⌘Z)">
-            <Undo2 size={17} />
-          </button>
-          <button className="toolbar-icon-action" aria-label="Rehacer" type="button" disabled={!canRedo} onClick={() => { closeToolbarMenus(); onRedo(); }} title="Rehacer acción deshecha (⇧⌘Z)">
-            <Redo2 size={17} />
-          </button>
-          <span className="toolbar-divider" aria-hidden="true" />
-          <button
-            className="toolbar-primary-action"
-            type="button"
-            aria-label="Crear clase"
-            title="Crear clase"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={(event) => {
-              event.currentTarget.blur();
-              closeToolbarMenus();
-              addClassNode();
-            }}
-          >
-            <Plus size={18} />
-            Crear clase
-          </button>
-          <button className="toolbar-icon-action" aria-label="Centrar vista" type="button" onClick={() => { closeToolbarMenus(); centerDiagram(); }} title="Centrar vista">
-            <Crosshair size={17} />
-          </button>
-          <button className="toolbar-icon-action" aria-label="Ver todo" type="button" onClick={() => { closeToolbarMenus(); fitDiagram(); }} title="Ajustar para ver todo">
-            <Maximize2 size={17} />
-          </button>
-          <DiagramSelectionTools count={activeSelectedIds.length} onArrange={arrangeSelection}
-            onDuplicate={() => { duplicateSelection(); closeToolbarMenus(); }}
-            onSelectAll={() => { setSelectedNodeIds(nodes.map(node => node.id)); setSelectedEdgeId(null); setSelectedNoteNodeId(null); closeToolbarMenus(); }}
-            onToggle={handleToolbarMenuToggle} />
-          <button type="button" aria-pressed={reviewOpen} onClick={() => { closeToolbarMenus(); setReviewOpen(open => !open); }}>Revisar</button>
+          <ToolbarHistory
+            canRedo={canRedo}
+            canUndo={canUndo}
+            saveStatus={saveStatus}
+            onBeforeAction={closeToolbarMenus}
+            onRedo={onRedo}
+            onUndo={onUndo}
+          />
+          <div className="toolbar-group">
+            <button
+              className="toolbar-primary-action"
+              type="button"
+              aria-label="Crear clase"
+              title="Crear clase (o doble clic en el lienzo)"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={(event) => {
+                event.currentTarget.blur();
+                closeToolbarMenus();
+                addClassNode();
+              }}
+            >
+              <Plus size={16} />
+              <span className="toolbar-label-static">Crear clase</span>
+            </button>
+            <DiagramSelectionTools count={activeSelectedIds.length} onArrange={arrangeSelection}
+              onDuplicate={() => { duplicateSelection(); closeToolbarMenus(); }}
+              onSelectAll={() => { setSelectedNodeIds(nodes.map(node => node.id)); setSelectedEdgeId(null); setSelectedNoteNodeId(null); closeToolbarMenus(); }}
+              onToggle={handleToolbarMenuToggle} />
+          </div>
+          <div className="toolbar-group">
+            <button className="toolbar-icon-action" aria-label="Centrar vista" type="button" onClick={() => { closeToolbarMenus(); centerDiagram(); }} title="Centrar vista">
+              <Crosshair size={16} />
+            </button>
+            <button className="toolbar-icon-action" aria-label="Ver todo" type="button" onClick={() => { closeToolbarMenus(); fitDiagram(); }} title="Ajustar para ver todo">
+              <Maximize2 size={16} />
+            </button>
           <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
             <summary>Vista</summary>
             <div className="toolbar-menu-content">
@@ -1565,6 +1588,21 @@ export function DiagramEditor({
               </button>
             </div>
           </details>
+          </div>
+          <div className="toolbar-group">
+            <button
+              aria-label={`Revisar el diagrama${reviewIssues.length > 0 ? `: ${reviewIssues.length} observaciones` : ''}`}
+              aria-pressed={reviewOpen}
+              className={`toolbar-review-action ${reviewIssues.length > 0 ? 'has-warnings' : ''}`}
+              type="button"
+              title="Revisar el diagrama"
+              onClick={() => { closeToolbarMenus(); setReviewOpen(open => !open); }}
+            >
+              <ListChecks size={15} /> <span className="toolbar-label-static">Revisar</span>
+              {reviewIssues.length > 0 ? <span className="toolbar-count">{reviewIssues.length}</span> : null}
+            </button>
+          </div>
+          <div className="toolbar-group">
           <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
             <summary>Archivo</summary>
             <div className="toolbar-menu-content file-menu">
@@ -1612,6 +1650,7 @@ export function DiagramEditor({
               </button>
             </div>
           </details>
+          </div>
           <input
             ref={fileInputRef}
             accept="application/json,.json"
@@ -1755,7 +1794,7 @@ export function DiagramEditor({
             ) : null}
             <ClassAlignmentGuides movingIds={movingNodeIds} />
             <CanvasControls label="Controles del diagrama de clases" />
-            {isMiniMapEnabled ? <MiniMap aria-label="Minimapa del diagrama" pannable zoomable /> : null}
+            {isMiniMapEnabled && nodes.length > 0 ? <MiniMap aria-label="Minimapa del diagrama" pannable zoomable /> : null}
           </ReactFlow>
           {reviewOpen ? <DiagramReviewPanel issues={reviewIssues} onFocus={focusIssue} onClose={() => setReviewOpen(false)} /> : null}
           {contextMenu !== null ? (

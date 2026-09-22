@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import type { DesignArtifact, DiagramProject } from '../types/diagram';
+import { ArtifactTypeIcon } from './ArtifactTypeIcon';
 
 type ProjectSidebarProps = {
   activeArtifactId: string | null;
@@ -179,7 +180,6 @@ export function ProjectSidebar({
           </span>
           <div>
             <p className="sidebar-brand-name">Modelador de Sistemas</p>
-            <p>Proyectos y artefactos</p>
           </div>
         </div>
         <div className="sidebar-header-actions">
@@ -264,17 +264,7 @@ export function ProjectSidebar({
                             onSelectArtifact(project.id, artifact.id);
                           }}
                         >
-                          {artifact.type === 'class-diagram' ? (
-                            <Boxes aria-hidden="true" size={15} />
-                          ) : artifact.type === 'class-sequence-diagram' ? (
-                            <GitBranch aria-hidden="true" size={15} />
-                          ) : artifact.type === 'use-case-model' ? (
-                            <UsersRound aria-hidden="true" size={15} />
-                          ) : artifact.type === 'use-case-flow' ? (
-                            <FileText aria-hidden="true" size={15} />
-                          ) : (
-                            <Workflow aria-hidden="true" size={15} />
-                          )}
+                          <ArtifactTypeIcon type={artifact.type} />
                           {artifact.name}
                         </button>
                         <button
@@ -375,7 +365,7 @@ export function ProjectSidebar({
             }}
           >
             <GitBranch size={15} />
-            Clases (Secuencia)
+            Clases de secuencias
           </button>
           <button
             role="menuitem"

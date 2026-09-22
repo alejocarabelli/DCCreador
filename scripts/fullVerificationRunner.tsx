@@ -96,6 +96,7 @@ export function FullVerificationRunner() {
     updatedAt: new Date().toISOString(),
     content: {
       description: {
+        useCaseNumber: "1",
         useCaseName: "Iniciar Sesión",
         actor: "Usuario",
         description: "Flujo de autenticación del sistema",

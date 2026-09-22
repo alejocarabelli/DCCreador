@@ -1804,7 +1804,8 @@ textarea {
   inset: 0;
   justify-content: center;
   position: fixed;
-  z-index: 40;
+  /* Above the editor header (60) and its menus (100): a dialog dims the whole app. */
+  z-index: 200;
 }
 
 .project-dialog {
@@ -2511,12 +2512,6 @@ textarea {
   overflow: hidden;
 }
 
-.editor-artifact-kind {
-  color: var(--panel-muted-text);
-  font-size: 0.74rem;
-  font-weight: 750;
-  text-transform: uppercase;
-}
 
 .editor-breadcrumb {
   align-items: center;
@@ -2905,9 +2900,6 @@ textarea {
     gap: 7px;
   }
 
-  .editor-artifact-kind {
-    display: none;
-  }
 
   .editor-body {
     grid-template-columns: minmax(0, 1fr) minmax(260px, 36vw);
@@ -3064,7 +3056,6 @@ textarea {
 
 .sequence-inspector-panel.collapsed .sequence-inspector-content,
 .sequence-inspector-content[hidden],
-.sequence-inspector-panel.collapsed .sequence-empty-inspector,
 .sequence-inspector-panel.collapsed .sequence-inspector-resizer {
   display: none !important;
 }
@@ -3375,9 +3366,7 @@ textarea {
 .sequence-inspector-section { border-top: 1px solid var(--panel-border); display: grid; gap: 8px; padding-top: 12px; }
 .sequence-inspector-section h4 { margin: 0; }
 .sequence-inspector-hint,
-.sequence-empty-inspector p { color: var(--panel-muted-text); font-size: 0.73rem; line-height: 1.5; margin: 0; }
 .sequence-reference-warning { color: #a45d22; font-size: 0.73rem; line-height: 1.35; }
-.sequence-empty-inspector h3 { font-size: 1rem; margin: 5px 0; }
 .sequence-inspector-actions { display: flex; flex-wrap: wrap; gap: 5px; }
 .sequence-inspector-actions button,
 .sequence-inspector-section > button { font-size: 0.7rem; min-height: 31px; padding: 0 8px; }
@@ -3571,4 +3560,450 @@ textarea {
   .sequence-workspace.sequence-inspector-collapsed { grid-template-columns: minmax(0, 1fr) var(--sequence-inspector-width, 250px); }
   .sequence-workspace.sequence-inspector-collapsed { grid-template-columns: minmax(0, 1fr) 44px; }
   .sequence-outline-panel { display: none; }
+}
+
+/* Use-case flow: live formatting.
+   A transparent textarea sits over a formatted copy of its own text. Both
+   share every metric that affects line breaks (font, padding, wrapping), and
+   the copy never changes a glyph's width: main steps are thickened with a
+   stroke instead of a bold face. */
+.rich-text {
+  min-width: 0;
+  position: relative;
+}
+
+.rich-text-mirror {
+  inset: 0;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  pointer-events: none;
+  position: absolute;
+  white-space: pre-wrap;
+}
+
+.rich-text .rich-text-input {
+  background: transparent;
+  caret-color: var(--panel-text);
+  color: transparent;
+  overflow-wrap: break-word;
+  position: relative;
+  white-space: pre-wrap;
+}
+
+.rich-text .rich-text-input::placeholder {
+  color: var(--panel-muted-text);
+}
+
+.rich-text .rich-text-input::selection {
+  background: color-mix(in srgb, var(--button-active-background) 26%, transparent);
+  color: transparent;
+}
+
+.rich-text:focus-within {
+  background: color-mix(in srgb, var(--button-background) 32%, transparent);
+}
+
+.rt-main {
+  -webkit-text-stroke: 0.45px currentColor;
+}
+
+.rt-number {
+  color: var(--panel-text);
+}
+
+.rt-class {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 55%, transparent);
+  text-underline-offset: 2px;
+}
+
+.rt-attribute {
+  font-style: italic;
+}
+
+.rt-keyword {
+  color: color-mix(in srgb, var(--button-active-background) 78%, var(--panel-text));
+}
+
+.rt-step-ref,
+.rt-path-ref {
+  color: var(--button-active-background);
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.rt-literal {
+  color: var(--panel-muted-text);
+}
+
+.rt-bullet {
+  color: transparent;
+  position: relative;
+}
+
+.rt-bullet::before {
+  color: var(--panel-muted-text);
+  content: '•';
+  left: 0;
+  position: absolute;
+  -webkit-text-stroke: 0;
+}
+
+.rt-bullet[data-depth='1']::before {
+  content: '◦';
+}
+
+.rt-bullet[data-depth='2']::before {
+  content: '▪';
+}
+
+/* The state variant carries the field chrome on its container. */
+.rich-text-state {
+  background: var(--input-background);
+  border: 1px solid var(--input-border);
+  border-radius: 7px;
+}
+
+.rich-text-state:focus-within {
+  border-color: var(--button-active-background);
+}
+
+.rich-text-state .state-bullet-editor {
+  border: 0;
+  color: var(--input-text);
+  font: inherit;
+  line-height: 1.5;
+  margin: 0;
+  padding: 8px 10px;
+  tab-size: 4;
+}
+
+/* Editor frame */
+.flow-document {
+  grid-auto-rows: max-content;
+}
+
+.flow-editor-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+  position: relative;
+}
+
+.flow-editor-body.review-open {
+  grid-template-columns: minmax(0, 1fr) min(340px, 40vw);
+}
+
+.flow-editor-body.review-open .diagram-review-panel {
+  border-radius: 0;
+  border-width: 0 0 0 1px;
+  box-shadow: none;
+  max-height: none;
+  position: static;
+  width: auto;
+}
+
+.flow-section-nav {
+  backdrop-filter: blur(6px);
+  background: color-mix(in srgb, var(--canvas-background) 92%, transparent);
+  border-bottom: 1px solid var(--panel-border);
+  position: sticky;
+  top: -18px;
+  z-index: 8;
+}
+
+.flow-section-nav a span {
+  background: color-mix(in srgb, var(--button-background) 80%, transparent);
+  border-radius: 999px;
+  font-size: 0.69rem;
+  font-variant-numeric: tabular-nums;
+  margin-left: 4px;
+  padding: 1px 6px;
+}
+
+.flow-sheet-title {
+  display: flex;
+}
+
+.flow-title-input {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  color: var(--panel-text);
+  font: inherit;
+  font-size: 1.4rem;
+  font-weight: 720;
+  letter-spacing: -0.01em;
+  padding: 2px 0 4px;
+  width: 100%;
+}
+
+.flow-title-input:hover {
+  border-bottom-color: var(--panel-border);
+}
+
+.flow-title-input:focus {
+  border-bottom-color: var(--button-active-background);
+  outline: none;
+}
+
+.flow-meta-row {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+}
+
+.flow-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.flow-field-label {
+  color: var(--panel-muted-text);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.flow-field-number {
+  flex: 0 0 86px;
+}
+
+.flow-field-actor {
+  flex: 1 1 180px;
+}
+
+.flow-field-diagram {
+  flex: 1.3 1 220px;
+}
+
+.flow-field-diagram small {
+  color: var(--panel-muted-text);
+  font-size: 0.72rem;
+}
+
+.flow-meta-row input,
+.flow-meta-row select {
+  background: var(--input-background);
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  color: var(--input-text);
+  font: inherit;
+  min-height: 34px;
+  padding: 6px 9px;
+  width: 100%;
+}
+
+.flow-priority {
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  display: inline-flex;
+  overflow: hidden;
+}
+
+.flow-priority button {
+  background: var(--input-background);
+  border: 0;
+  color: var(--panel-text);
+  font: inherit;
+  font-weight: 700;
+  min-height: 32px;
+  min-width: 36px;
+}
+
+.flow-priority button + button {
+  border-left: 1px solid var(--input-border);
+}
+
+.flow-priority button:hover {
+  background: var(--button-background);
+}
+
+.flow-priority button.active {
+  background: var(--button-active-background);
+  color: var(--button-active-text);
+}
+
+.flow-state-editor {
+  position: relative;
+}
+
+.flow-inline-hint {
+  color: var(--panel-muted-text);
+  font-size: 0.69rem;
+  margin-left: auto;
+  padding: 0 6px;
+}
+
+.flow-editor-shell kbd {
+  background: color-mix(in srgb, currentColor 7%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 4px;
+  font: inherit;
+  font-size: 0.69rem;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+.flow-shortcuts {
+  min-width: 300px;
+  padding: 10px 12px;
+}
+
+.flow-shortcuts dl {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.flow-shortcuts dl div {
+  align-items: baseline;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 96px minmax(0, 1fr);
+}
+
+.flow-shortcuts dd {
+  color: var(--panel-text);
+  font-size: 0.76rem;
+  margin: 0;
+}
+
+/* Folded steps */
+.flow-fold-summary {
+  align-items: baseline;
+  background: transparent;
+  border: 0;
+  color: var(--panel-text);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: 0.8rem;
+  gap: 6px;
+  min-height: 42px;
+  padding: 10px 11px;
+  text-align: left;
+  width: 100%;
+}
+
+.flow-fold-summary svg {
+  align-self: center;
+  color: var(--panel-muted-text);
+  flex: none;
+}
+
+.flow-fold-summary:hover,
+.flow-fold-summary:focus-visible {
+  background: color-mix(in srgb, var(--button-background) 40%, transparent);
+  outline: none;
+}
+
+.flow-fold-number {
+  font-weight: 700;
+}
+
+.flow-fold-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flow-fold-count {
+  background: color-mix(in srgb, var(--button-background) 80%, transparent);
+  border-radius: 999px;
+  color: var(--panel-muted-text);
+  flex: none;
+  font-size: 0.69rem;
+  padding: 1px 7px;
+}
+
+.flow-fold-empty {
+  min-height: 42px;
+}
+
+/* Alternative path header */
+.alternative-flow-header {
+  grid-template-columns: auto auto minmax(160px, 1fr) auto auto auto;
+}
+
+.alternative-flow-header .alternative-branch {
+  background: transparent;
+  border: 0;
+  color: var(--button-active-background);
+  font-size: 0.74rem;
+  font-weight: 650;
+  min-height: 28px;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+.alternative-flow-header button.alternative-branch:hover {
+  background: transparent;
+  text-decoration: underline;
+}
+
+.alternative-branch-missing {
+  color: var(--panel-muted-text);
+  font-style: italic;
+}
+
+.alternative-flow-header .alternative-first-step {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.alternative-flow-header .alternative-first-step span {
+  white-space: nowrap;
+}
+
+.alternative-flow-header .alternative-first-step input {
+  min-height: 30px;
+  padding: 4px 6px;
+  width: 58px;
+}
+
+.alternative-collapsed-summary {
+  color: var(--panel-muted-text);
+  font-size: 0.8rem;
+  margin: 0;
+  overflow: hidden;
+  padding-left: 4px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-menu hr {
+  border: 0;
+  border-top: 1px solid var(--panel-border);
+  margin: 4px 0;
+}
+
+@media (max-width: 900px) {
+  .alternative-flow-header {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .alternative-flow-header .alternative-name-input {
+    flex: 1 1 100%;
+    order: 5;
+  }
+
+  .flow-editor-body.review-open {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .flow-editor-body.review-open .diagram-review-panel {
+    border-radius: 10px;
+    border-width: 1px;
+    max-height: calc(100% - 24px);
+    position: absolute;
+    width: min(330px, calc(100% - 24px));
+  }
 }

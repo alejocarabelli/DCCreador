@@ -1,19 +1,17 @@
 import {
-  AlertCircle,
   ArrowDown,
   ArrowLeft,
   ArrowLeftRight,
   ArrowRight,
   ArrowUp,
   BoxSelect,
-  Check,
   ChevronDown,
   ChevronRight,
   Copy,
-  Download,
   ExternalLink,
   FileDown,
   FileUp,
+  ImageDown,
   Focus,
   Keyboard,
   Link2,
@@ -25,13 +23,10 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Plus,
-  Redo2,
   Search,
-  Settings,
   SlidersHorizontal,
   StickyNote,
   Trash2,
-  Undo2,
   Ungroup,
   UserRoundPlus,
   X,
@@ -156,6 +151,7 @@ import {
   participantLabelIsValid,
 } from '../utils/sequenceParticipantEditing';
 import { EditorIdentity } from './EditorIdentity';
+import { ToolbarHistory } from './ToolbarHistory';
 import { SequenceDiagramCanvas } from './SequenceDiagramCanvas';
 import { SequenceExportDialog } from './SequenceExportDialog';
 import { SequenceKeyboardComposer } from './SequenceKeyboardComposer';
@@ -4594,61 +4590,20 @@ export function SequenceDiagramEditor({
     </>
   ) : null;
 
+  // Like the class editor, the inspector exists only while something is
+  // selected: an empty "Seleccioná un elemento" column cost the diagram ~300px.
+  const selectedInspector = participantInspector ?? messageInspector ?? fragmentInspector ?? noteInspector;
+  const inspectorIdle = selectedInspector === null || selectedInspector === undefined;
+
   return (
     <main className="editor-shell sequence-editor-shell" ref={editorRootRef}>
       <header className="editor-toolbar" ref={toolbarRef}>
-        <EditorIdentity artifactKind="Diagrama de secuencia" artifactName={artifact.name} projectName={project.name} />
+        <EditorIdentity artifactKind="Diagrama de secuencia" artifactType={'sequence-diagram'} artifactName={artifact.name} projectName={project.name} />
         <div className="editor-toolbar-actions sequence-toolbar-actions-refined">
-          <div
-            aria-live="polite"
-            className={`sequence-save-status sequence-save-${saveStatus}`}
-            data-testid="sequence-save-status"
-            role="status"
-          >
-            {saveStatus === 'saving' ? (
-              <><span className="save-spinner" /> <span className="toolbar-label">Guardando…</span></>
-            ) : saveStatus === 'error' ? (
-              <><AlertCircle size={14} /> <span className="toolbar-label">Error al guardar</span></>
-            ) : (
-              <><Check size={14} /> <span className="toolbar-label">Guardado</span></>
-            )}
-          </div>
+          <ToolbarHistory canRedo={canRedo} canUndo={canUndo} saveStatus={saveStatus} onRedo={onRedo} onUndo={onUndo} />
 
-          {/* Group 1: Panels & History */}
-          <div className="sequence-toolbar-group">
-            <button
-              aria-label={outlineVisible ? 'Ocultar panel de estructura' : 'Mostrar panel de estructura'}
-              className={`toolbar-icon-action ${outlineVisible ? 'active' : ''}`}
-              type="button"
-              title={outlineVisible ? 'Ocultar panel de estructura' : 'Mostrar panel de estructura'}
-              onClick={() => updateOutlineVisibility(!outlineVisible)}
-            >
-              {outlineVisible ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
-            </button>
-            <button
-              aria-label="Deshacer"
-              className="toolbar-icon-action"
-              disabled={!canUndo}
-              type="button"
-              title="Deshacer (⌘Z)"
-              onClick={onUndo}
-            >
-              <Undo2 size={16} />
-            </button>
-            <button
-              aria-label="Rehacer"
-              className="toolbar-icon-action"
-              disabled={!canRedo}
-              type="button"
-              title="Rehacer (⇧⌘Z)"
-              onClick={onRedo}
-            >
-              <Redo2 size={16} />
-            </button>
-          </div>
-
-          {/* Group 2: Elements (Insert UML) */}
-          <div className="sequence-toolbar-group">
+          {/* Create: the only group that differs between editors. */}
+          <div className="toolbar-group sequence-toolbar-group sequence-toolbar-create-group">
             <button
               aria-label="Insertar mensaje"
               className="toolbar-primary-action"
@@ -4666,26 +4621,6 @@ export function SequenceDiagramEditor({
               onClick={beginParticipantCreation}
             >
               <UserRoundPlus size={15} /> <span className="toolbar-label">Participante</span>
-            </button>
-            <button
-              className="secondary-action sequence-toolbar-btn sequence-toolbar-create-btn"
-              type="button"
-              disabled={content.participants.length === 0}
-              title="Crear un objeto o DTO en este punto de la secuencia (create)"
-              aria-label="Crear objeto (create)"
-              onClick={() => beginMessage('create')}
-            >
-              <span className="toolbar-label">create()</span>
-            </button>
-            <button
-              className="secondary-action sequence-toolbar-btn sequence-toolbar-destroy-btn"
-              type="button"
-              disabled={content.participants.length === 0}
-              title="Finalizar una línea de vida con un mensaje destroy"
-              aria-label="Destruir línea de vida (destroy)"
-              onClick={() => beginMessage('destroy')}
-            >
-              <span className="toolbar-label">destroy</span>
             </button>
             <details className="toolbar-menu sequence-toolbar-fragment-menu" onToggle={handleToolbarMenuToggle}>
               <summary aria-label="Agregar fragmento combinado" title="Agregar fragmento combinado (alt, loop, opt...)"><BoxSelect size={15} /> <span className="toolbar-label">Fragmento</span></summary>
@@ -4715,8 +4650,7 @@ export function SequenceDiagramEditor({
             </button>
           </div>
 
-          {/* Group 3: Keyboard Mode */}
-          <div className="sequence-toolbar-group">
+          <div className="toolbar-group sequence-toolbar-group sequence-toolbar-keyboard-group">
             <button
               aria-label="Modo ágil por teclado"
               aria-pressed={keyboardMode.stage !== 'off'}
@@ -4729,41 +4663,22 @@ export function SequenceDiagramEditor({
             </button>
           </div>
 
-          {/* Group 4: Quality & Education */}
-          <div className="sequence-toolbar-group sequence-toolbar-quality-group">
+          {/* View */}
+          <div className="toolbar-group sequence-toolbar-group sequence-toolbar-view-group">
             <button
-              aria-label="Explorar plantillas educativas"
-              className="secondary-action sequence-toolbar-btn"
+              aria-label={outlineVisible ? 'Ocultar panel de estructura' : 'Mostrar panel de estructura'}
+              aria-pressed={outlineVisible}
+              className={`toolbar-icon-action ${outlineVisible ? 'active' : ''}`}
               type="button"
-              title="Explorar plantillas educativas"
-              onClick={() => setIsTemplatesOpen(true)}
+              title={outlineVisible ? 'Ocultar panel de estructura' : 'Mostrar panel de estructura'}
+              onClick={() => updateOutlineVisibility(!outlineVisible)}
             >
-              <LayoutTemplate size={15} /> <span className="toolbar-label">Plantillas</span>
-            </button>
-            <button
-              aria-label={`Revisión semántica del diagrama${semantics.problems.length > 0 ? `: ${semantics.problems.length} observaciones` : ''}`}
-              className={`toolbar-review-action ${semantics.problems.some((p) => p.severity === 'error') ? 'has-errors' : semantics.problems.length > 0 ? 'has-warnings' : ''}`}
-              type="button"
-              title="Revisión semántica del diagrama"
-              onClick={() => setIsReviewPanelOpen(!isReviewPanelOpen)}
-            >
-              <ListChecks size={15} /> <span className="toolbar-label">Revisar</span> {semantics.problems.length > 0 ? `(${semantics.problems.length})` : ''}
-            </button>
-          </div>
-
-          {/* Group 5: Export & Settings */}
-          <div className="sequence-toolbar-group sequence-toolbar-settings-group">
-            <button
-              aria-label="Exportar diagrama a PNG o PDF"
-              className="secondary-action sequence-toolbar-btn sequence-toolbar-export-btn"
-              type="button"
-              title="Exportar diagrama a PNG o PDF"
-              onClick={() => setExportDialogOpen(true)}
-            >
-              <Download size={15} /> <span className="toolbar-label">Exportar</span>
+              {outlineVisible ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
             </button>
             <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
-              <summary aria-label="Ajustes de visualización y referencias" title="Ajustes de visualización y referencias"><Settings size={15} /> <span className="toolbar-label">Ajustes</span></summary>
+              <summary aria-label="Opciones de vista y referencias" title="Opciones de vista y referencias">
+                <span className="toolbar-label-static">Vista</span>
+              </summary>
               <div className="toolbar-menu-content sequence-settings-menu">
                 <div className="sequence-settings-section">
                   <span className="sequence-settings-title">Visualización</span>
@@ -4807,12 +4722,45 @@ export function SequenceDiagramEditor({
                     {content.flowArtifactId && !flows.some((flow) => flow.id === content.flowArtifactId) ? <small>El flujo asociado ya no existe.</small> : null}
                   </label>
                 </div>
-                <div className="sequence-settings-section">
-                  <span className="sequence-settings-title">Archivo</span>
-                  <button type="button" onClick={() => downloadProjectJson(project)}><FileDown size={16} /> Exportar JSON</button>
-                  <button type="button" onClick={() => setExportDialogOpen(true)}><FileDown size={16} /> Exportar PNG o PDF</button>
-                  <button type="button" onClick={() => fileInputRef.current?.click()}><FileUp size={16} /> Importar JSON</button>
-                </div>
+              </div>
+            </details>
+          </div>
+
+          {/* Review */}
+          <div className="toolbar-group sequence-toolbar-group sequence-toolbar-quality-group">
+            <button
+              aria-label={`Revisión semántica del diagrama${semantics.problems.length > 0 ? `: ${semantics.problems.length} observaciones` : ''}`}
+              aria-pressed={isReviewPanelOpen}
+              className={`toolbar-review-action ${semantics.problems.some((p) => p.severity === 'error') ? 'has-errors' : semantics.problems.length > 0 ? 'has-warnings' : ''}`}
+              type="button"
+              title="Revisión semántica del diagrama"
+              onClick={() => setIsReviewPanelOpen(!isReviewPanelOpen)}
+            >
+              <ListChecks size={15} /> <span className="toolbar-label-static">Revisar</span>
+              {semantics.problems.length > 0 ? <span className="toolbar-count">{semantics.problems.length}</span> : null}
+            </button>
+          </div>
+
+          {/* File */}
+          <div className="toolbar-group sequence-toolbar-group sequence-toolbar-settings-group">
+            <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
+              <summary aria-label="Archivo: plantillas, exportar e importar" title="Plantillas, exportar e importar">
+                <span className="toolbar-label-static">Archivo</span>
+              </summary>
+              <div className="toolbar-menu-content file-menu">
+                <button type="button" onClick={(event) => { setIsTemplatesOpen(true); event.currentTarget.closest('details')?.removeAttribute('open'); }}>
+                  <LayoutTemplate size={16} /> Plantillas educativas…
+                </button>
+                <hr />
+                <button type="button" onClick={(event) => { setExportDialogOpen(true); event.currentTarget.closest('details')?.removeAttribute('open'); }}>
+                  <ImageDown size={16} /> Exportar PNG o PDF…
+                </button>
+                <button type="button" onClick={(event) => { downloadProjectJson(project); event.currentTarget.closest('details')?.removeAttribute('open'); }}>
+                  <FileDown size={16} /> Exportar JSON
+                </button>
+                <button type="button" onClick={(event) => { fileInputRef.current?.click(); event.currentTarget.closest('details')?.removeAttribute('open'); }}>
+                  <FileUp size={16} /> Importar JSON
+                </button>
               </div>
             </details>
           </div>
@@ -4918,8 +4866,8 @@ export function SequenceDiagramEditor({
         </form>
       ) : null}
       <section
-        className={`sequence-workspace ${outlineVisible ? '' : 'sequence-workspace-focused'} ${inspectorCollapsed ? 'sequence-inspector-collapsed' : ''}`}
-        style={{ '--sequence-inspector-width': `${inspectorCollapsed ? 44 : inspectorWidth}px` } as CSSProperties}
+        className={`sequence-workspace ${outlineVisible ? '' : 'sequence-workspace-focused'} ${inspectorIdle ? 'sequence-inspector-idle' : inspectorCollapsed ? 'sequence-inspector-collapsed' : ''}`}
+        style={{ '--sequence-inspector-width': `${inspectorIdle ? 0 : inspectorCollapsed ? 44 : inspectorWidth}px` } as CSSProperties}
       >
         <aside className="sequence-outline-panel" hidden={!outlineVisible}>
           <div className="sequence-panel-title">
@@ -5202,6 +5150,7 @@ export function SequenceDiagramEditor({
         <aside
           aria-label="Inspector del elemento seleccionado"
           className={`sequence-inspector-panel ${inspectorCollapsed ? 'collapsed' : ''}`}
+          hidden={inspectorIdle}
         >
           {!inspectorCollapsed ? (
             <div
@@ -5231,13 +5180,7 @@ export function SequenceDiagramEditor({
           </div>
           {!inspectorCollapsed ? (
             <div id="sequence-inspector-content" className="sequence-inspector-content">
-              {participantInspector ?? messageInspector ?? fragmentInspector ?? noteInspector ?? (
-                <div className="sequence-empty-inspector">
-                  <p className="eyebrow">Propiedades</p>
-                  <h3>Seleccioná un elemento</h3>
-                  <p>Editá participantes, mensajes, bloques y notas sin perder el contexto del diagrama.</p>
-                </div>
-              )}
+              {selectedInspector}
             </div>
           ) : null}
         </aside>

@@ -214,6 +214,7 @@ const normalizeUseCaseFlowPriority = (value: unknown): UseCaseFlowPriority =>
 const normalizeUseCaseFlowDescription = (
   description: Partial<UseCaseFlowDescription> | undefined,
 ): UseCaseFlowDescription => ({
+  useCaseNumber: normalizeString(description?.useCaseNumber),
   useCaseName: normalizeString(description?.useCaseName),
   actor: normalizeString(description?.actor),
   description: normalizeString(description?.description),
@@ -243,6 +244,9 @@ export const normalizeUseCaseFlowContent = (
         id: typeof flow?.id === 'string' && flow.id.length > 0 ? flow.id : createId(),
         code: normalizeString(flow?.code) || `CA ${index + 1}`,
         name: normalizeString(flow?.name),
+        ...(typeof flow?.firstStepNumber === 'number' && Number.isInteger(flow.firstStepNumber) && flow.firstStepNumber > 0
+          ? { firstStepNumber: flow.firstStepNumber }
+          : {}),
         steps: ensureUniqueIds(
           Array.isArray(flow?.steps)
             ? (flow.steps as Partial<UseCaseFlowStep>[]).map(normalizeUseCaseFlowStep)
@@ -369,7 +373,7 @@ const isLegacyProject = (project: unknown): project is Partial<LegacyDiagramProj
 export const normalizeDiagramProject = (project: Partial<DiagramProject> | Partial<LegacyDiagramProject>): DiagramProject => {
   const now = new Date().toISOString();
   const id = typeof project.id === 'string' && project.id.length > 0 ? project.id : createId();
-  const name = typeof project.name === 'string' && project.name.length > 0 ? project.name : 'Nuevo diagrama';
+  const name = typeof project.name === 'string' && project.name.length > 0 ? project.name : 'Nuevo proyecto';
   const createdAt = typeof project.createdAt === 'string' ? project.createdAt : now;
   const updatedAt = typeof project.updatedAt === 'string' ? project.updatedAt : now;
 
