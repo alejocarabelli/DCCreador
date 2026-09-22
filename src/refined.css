@@ -3437,24 +3437,19 @@
   margin: 0;
 }
 
-/* Sequence editor — Cuaderno técnico. The canvas keeps the diagram dominant;
-   petrol is reserved for interaction while UML ink stays charcoal. */
+/* Sequence editor. Petrol is reserved for interaction and UML ink stays
+   charcoal; every surface here uses the app's own cool neutrals, because a
+   sequence diagram is no more "paper" than a class diagram is. */
 .app-shell[data-ui-version='refined'] .sequence-editor-shell {
   --button-active-background: var(--accent);
   --button-active-text: #ffffff;
-  --canvas-background: #fbfaf7;
-  --input-border: #cbd5d8;
-  --panel-background: #ffffff;
-  --panel-border: #d5dde0;
-  --panel-muted-text: #66737b;
-  --panel-text: #26343b;
   position: relative;
 }
 
 .app-shell[data-ui-version='refined'] .sequence-editor-shell .editor-toolbar {
   min-height: 54px;
-  border-bottom-color: #d5dde0;
-  background: #fcfdfc;
+  border-bottom-color: var(--panel-border);
+  background: var(--panel-background);
 }
 
 .app-shell[data-ui-version='refined'] .sequence-toolbar-actions-refined {
@@ -3508,8 +3503,8 @@
 
 .app-shell[data-ui-version='refined'] .sequence-keyboard-toggle kbd {
   border-color: var(--accent-outline);
-  background: #f5f8f7;
-  color: #2f648f;
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .app-shell[data-ui-version='refined'] .sequence-outline-panel {
@@ -3518,7 +3513,7 @@
 
 .app-shell[data-ui-version='refined'] .sequence-inspector-panel,
 .app-shell[data-ui-version='refined'] .sequence-inspector-toolbar {
-  background: #fcfdfc;
+  background: var(--panel-background);
 }
 
 .app-shell[data-ui-version='refined'] .sequence-panel-title,
@@ -3538,7 +3533,7 @@
 }
 
 .app-shell[data-ui-version='refined'] .sequence-canvas-panel {
-  background: #fbfaf7;
+  background: var(--canvas-background);
 }
 
 .app-shell[data-ui-version='refined'] .sequence-canvas-panel .sequence-canvas-scroll {
@@ -3551,8 +3546,8 @@
 
 .app-shell[data-ui-version='refined'] .sequence-canvas-panel .sequence-sticky-participants {
   top: 0;
-  background: color-mix(in srgb, #fbfaf7 94%, transparent);
-  border-bottom-color: #d9dfdd;
+  background: color-mix(in srgb, var(--canvas-background) 94%, transparent);
+  border-bottom-color: var(--panel-border);
 }
 
 .app-shell[data-ui-version='refined'] .sequence-canvas-panel.keyboard-mode-active .sequence-sticky-participants {

@@ -80,6 +80,19 @@ The sequence editor scopes its own accent (`--button-active-background:
 #2f648f`) on `.sequence-editor-shell`. That is a deliberate per-surface
 variation, not drift.
 
+**Everything sits in one hue band, 196°–220° (cool blue-grey).** The sequence
+canvas used to sit at 45° — yellow, the opposite side of the wheel — because a
+whole warm palette was hardcoded in `SequenceDiagramCanvas.tsx` behind
+`usesTechnicalNotebook`, a flag that was always true once the other themes were
+deleted. Those sixteen values now live in `academicLightTheme.sequence` and the
+flag is gone. When adding a colour, check its hue before its beauty: one
+surface in the wrong band is what makes an app feel assembled.
+
+Two warm things survive on purpose. The nine participant families vary hue so
+participants are told apart at a glance, and three of them are warm. Note
+colours are chosen per note, and Ámbar is the default because a UML sticky note
+is yellow. Neither is drift; both are choices.
+
 **No fallback values in `var()`.** `var(--panel-text, #0f172a)` is a second
 palette hiding in the stylesheet: it never fires while the theme is applied, and
 when it does fire it ships a colour nobody chose. Every token in this document is

@@ -150,22 +150,22 @@ function SequenceDiagramCanvasImpl({
   classNodesById,
   participantColorsEnabled,
 }: SequenceDiagramCanvasProps) {
-  const usesTechnicalNotebook = theme.id === 'academic-light';
-  const stroke = usesTechnicalNotebook ? '#344149' : theme.association.stroke;
-  const selectedStroke = usesTechnicalNotebook ? '#2F6F9F' : theme.association.strokeSelected;
-  const participantFill = usesTechnicalNotebook ? '#F7F8F5' : theme.classNode.background;
-  const participantBorder = usesTechnicalNotebook ? '#839096' : theme.classNode.border;
-  const textColor = usesTechnicalNotebook ? '#303C43' : theme.classNode.text;
-  const muted = usesTechnicalNotebook ? '#66737B' : theme.classNode.mutedText;
-  const canvasBackground = usesTechnicalNotebook ? '#FBFAF7' : theme.canvas.background;
-  const canvasGrid = usesTechnicalNotebook ? '#D9DEDC' : theme.canvas.gridColorStrong;
-  const lifelineNeutral = usesTechnicalNotebook ? '#8B979D' : undefined;
-  const fragmentStrokeBase = usesTechnicalNotebook ? '#6D7A7E' : stroke;
-  const fragmentFill = usesTechnicalNotebook ? 'rgba(237, 242, 246, 0.44)' : 'rgba(255,255,255,0.16)';
-  const nestedFragmentFill = usesTechnicalNotebook ? 'rgba(244, 239, 226, 0.38)' : fragmentFill;
-  const fragmentTabFill = usesTechnicalNotebook ? '#E8EEF3' : participantFill;
-  const guardFill = usesTechnicalNotebook ? '#F2F1DF' : 'transparent';
-  const guardText = usesTechnicalNotebook ? '#59633E' : textColor;
+  const ink = theme.sequence;
+  const stroke = ink.stroke;
+  const selectedStroke = ink.strokeSelected;
+  const participantFill = ink.participantFill;
+  const participantBorder = ink.participantBorder;
+  const textColor = ink.text;
+  const muted = ink.mutedText;
+  const canvasBackground = ink.canvasBackground;
+  const canvasGrid = ink.canvasGrid;
+  const lifelineNeutral = ink.lifeline;
+  const fragmentStrokeBase = ink.fragmentStroke;
+  const fragmentFill = ink.fragmentFill;
+  const nestedFragmentFill = ink.nestedFragmentFill;
+  const fragmentTabFill = ink.fragmentTabFill;
+  const guardFill = ink.guardFill;
+  const guardText = ink.guardText;
 
   const participantIdentities = useMemo(() => {
     const map = new Map<string, ParticipantVisualIdentity>();
@@ -552,8 +552,8 @@ function SequenceDiagramCanvasImpl({
                 });
               }}
             >
-              {usesTechnicalNotebook ? <rect x={box.x + 8} y={operand.top + 3} width={guardSurfaceWidth} height={guardSurfaceHeight} rx="2" fill={guardFill} opacity="0.82" /> : null}
-              <text x={box.x + 12} y={operand.top + 17} fill={guardText} fontSize="11" fontWeight={usesTechnicalNotebook ? 650 : 500} fontStyle={usesTechnicalNotebook ? 'italic' : undefined}>
+              <rect x={box.x + 8} y={operand.top + 3} width={guardSurfaceWidth} height={guardSurfaceHeight} rx="2" fill={guardFill} opacity="0.82" />
+              <text x={box.x + 12} y={operand.top + 17} fill={guardText} fontSize="11" fontWeight={650} fontStyle="italic">
                 {operand.guardLines.map((line, lineIndex) => <tspan key={`${operand.id}:guard:${lineIndex}`} x={box.x + 12} dy={lineIndex === 0 ? 0 : 14}>{lineIndex === 0 ? `[${line}` : line}</tspan>)}
                 {operand.guardLines.length > 0 ? <tspan>]</tspan> : <tspan fill={muted} fontStyle="italic">[condición]</tspan>}
               </text>
@@ -1013,7 +1013,7 @@ function SequenceDiagramCanvasImpl({
         {box.labelLines.length > 0 ? (
           <g>
             <rect x={box.labelCenterX - box.labelWidth / 2} y={box.labelTop - 2} width={box.labelWidth} height={box.labelBottom - box.labelTop + 4} rx="3" fill={canvasBackground} opacity="0.92" />
-            <text x={box.labelCenterX} y={box.labelBaselineY} fill={textColor} fontSize="11.5" fontWeight={usesTechnicalNotebook ? 540 : undefined} textAnchor="middle">
+            <text x={box.labelCenterX} y={box.labelBaselineY} fill={textColor} fontSize="11.5" fontWeight={540} textAnchor="middle">
               {box.labelLines.map((line, index) => <tspan key={`${message.id}:${index}`} x={box.labelCenterX} dy={index === 0 ? 0 : 14}>{line}</tspan>)}
             </text>
           </g>
@@ -1081,7 +1081,7 @@ function SequenceDiagramCanvasImpl({
           <path d="M 0 0 L 10 4 L 0 8 Z" fill={selectedStroke} />
         </marker>
         <pattern id="sequence-paper-grid" width="20" height="20" patternUnits="userSpaceOnUse">
-          <circle cx="1" cy="1" r="0.62" fill={canvasGrid} opacity={usesTechnicalNotebook ? 0.72 : 0.48} />
+          <circle cx="1" cy="1" r="0.62" fill={canvasGrid} opacity={0.72} />
         </pattern>
       </defs>
       <rect width={layout.width} height={layout.height} fill={canvasBackground} />
@@ -1096,7 +1096,7 @@ function SequenceDiagramCanvasImpl({
         const isTerminated = layout.terminatedParticipantIds?.has(participant.id) || layout.participantLayouts.get(participant.id)?.isTerminated;
         return (
           <g key={`life:${participant.id}`}>
-            <line x1={x} y1={startY} x2={x} y2={endY} stroke={lifelineStroke} strokeDasharray={usesTechnicalNotebook ? '4 5' : '6 5'} strokeWidth={usesTechnicalNotebook ? 1.05 : 1.15} opacity={usesTechnicalNotebook ? 0.86 : 1} />
+            <line x1={x} y1={startY} x2={x} y2={endY} stroke={lifelineStroke} strokeDasharray="4 5" strokeWidth={1.05} opacity={0.86} />
             {isTerminated ? (
               <g data-sequence-lifeline-cross="true" stroke={lifelineStroke} strokeWidth="2">
                 <line x1={x - 8} y1={endY - 8} x2={x + 8} y2={endY + 8} />

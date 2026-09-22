@@ -50,6 +50,26 @@ export type DiagramTheme = {
     fontWeightClassName: number;
     fontWeightNormal: number;
   };
+  /** Sequence canvas ink. These used to be hardcoded in the component behind a
+      flag that was always true, which kept a whole warm palette out of the
+      system and out of this file. Every hue here sits in the app's cool band. */
+  sequence: {
+    stroke: string;
+    strokeSelected: string;
+    participantFill: string;
+    participantBorder: string;
+    text: string;
+    mutedText: string;
+    canvasBackground: string;
+    canvasGrid: string;
+    lifeline: string;
+    fragmentStroke: string;
+    fragmentFill: string;
+    nestedFragmentFill: string;
+    fragmentTabFill: string;
+    guardFill: string;
+    guardText: string;
+  };
   ui: {
     accent: string;
     /** Accent ramp: pressed state, two tints for hover/active chrome, and a hairline. */
@@ -124,6 +144,23 @@ export const academicLightTheme: DiagramTheme = {
     noteSize: '13px',
     fontWeightClassName: 650,
     fontWeightNormal: 400,
+  },
+  sequence: {
+    stroke: '#344149',
+    strokeSelected: '#2F6F9F',
+    participantFill: '#F8FAFB',
+    participantBorder: '#839096',
+    text: '#303C43',
+    mutedText: '#66737B',
+    canvasBackground: '#F7F8FA',
+    canvasGrid: '#D8DEE6',
+    lifeline: '#8B979D',
+    fragmentStroke: '#6D7A7E',
+    fragmentFill: 'rgba(237, 242, 246, 0.44)',
+    nestedFragmentFill: 'rgba(233, 238, 244, 0.38)',
+    fragmentTabFill: '#E8EEF3',
+    guardFill: '#EAF0F6',
+    guardText: '#3D5166',
   },
   ui: {
     accent: '#2F648F',
