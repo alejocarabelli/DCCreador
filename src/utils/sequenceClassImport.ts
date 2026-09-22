@@ -24,28 +24,23 @@ export const participantClassName = (classifierName: string, name: string): stri
   classifierName.replace(/^:+/, '').trim() || name.trim();
 
 /**
- * Same rule the sequence editor uses when it adds a single method to the model:
- * only calls (synchronous or asynchronous) become operations, and the message's
- * arguments are its parameters. A name typed as `buscar(id)` is split so the
- * parentheses never end up inside the operation name.
+ * Only calls (synchronous or asynchronous) become operations. A message's
+ * arguments are what that call passes at that moment, not the operation's
+ * signature, so they are left out: the import brings the name alone. A name
+ * typed as `buscar(id)` is cut at the parenthesis for the same reason.
  */
 const operationFromMessage = (message: SequenceMessage): ImportedOperation | null => {
   if (message.type !== 'synchronous' && message.type !== 'asynchronous') return null;
 
-  let name = message.name.trim();
-  let parameters = message.arguments.trim();
-  const inlineCall = /^([^()]+)\((.*)\)$/.exec(name);
-  if (inlineCall !== null) {
-    name = inlineCall[1].trim();
-    if (parameters.length === 0) parameters = inlineCall[2].trim();
-  }
+  const name = message.name.replace(/\(.*$/, '').trim();
   if (name.length === 0) return null;
 
-  return { name, parameters, returnType: message.returnType.trim() };
+  return { name, parameters: '', returnType: message.returnType.trim() };
 };
 
-const sameOperation = (a: ImportedOperation, b: ImportedOperation): boolean =>
-  normalizeKey(a.name) === normalizeKey(b.name) && normalizeKey(a.parameters) === normalizeKey(b.parameters);
+/** One operation per name: `buscar(id)` and `buscar(nro)` are the same method. */
+const sameOperation = (a: Pick<ImportedOperation, 'name'>, b: Pick<ImportedOperation, 'name'>): boolean =>
+  normalizeKey(a.name) === normalizeKey(b.name);
 
 /**
  * Brings every non-actor participant of the given sequence diagrams into the

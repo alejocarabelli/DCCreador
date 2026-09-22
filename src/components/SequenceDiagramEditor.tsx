@@ -3042,7 +3042,9 @@ export function SequenceDiagramEditor({
       || (participant?.classifierNodeId === undefined
         && participant?.classifierName.trim().toLocaleLowerCase() === candidate.data.name.trim().toLocaleLowerCase()),
     );
-    const methodName = selectedItem.name.trim();
+    // The message's arguments are what this call passes, not the method's
+    // signature: the method is matched and created by name alone.
+    const methodName = selectedItem.name.replace(/\(.*$/, '').trim();
 
     if (classNode === undefined || methodName.length === 0) {
       showFeedback('Seleccioná una clase y escribí una operación antes de sincronizar.');
@@ -3050,8 +3052,7 @@ export function SequenceDiagramEditor({
     }
 
     const matchingMethod = classNode.data.methods.find((method) =>
-      method.name.trim() === methodName
-      && method.parameters.trim() === selectedItem.arguments.trim(),
+      method.name.trim().toLocaleLowerCase() === methodName.toLocaleLowerCase(),
     );
 
     if (matchingMethod !== undefined) {
@@ -3064,7 +3065,7 @@ export function SequenceDiagramEditor({
       id: createId(),
       visibility: '+',
       name: methodName,
-      parameters: selectedItem.arguments.trim(),
+      parameters: '',
       returnType: selectedItem.returnType.trim(),
     };
     onCreateClassMethod(associatedClassDiagram.id, classNode.id, method);

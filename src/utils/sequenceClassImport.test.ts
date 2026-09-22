@@ -52,10 +52,10 @@ describe('importClassesFromSequences', () => {
 
     expect(result.nodes.map((node) => node.data.name)).toEqual(['Portal', 'Repositorio']);
     expect(result.nodes[0].data.methods).toMatchObject([
-      { name: 'iniciarSesion', parameters: 'usuario, clave', returnType: 'void', visibility: '+' },
+      { name: 'iniciarSesion', parameters: '', returnType: 'void', visibility: '+' },
     ]);
     expect(result.nodes[1].data.methods).toMatchObject([
-      { name: 'buscarPermiso', parameters: 'rolId', returnType: 'Permiso' },
+      { name: 'buscarPermiso', parameters: '', returnType: 'Permiso' },
     ]);
     expect(summary).toEqual({ createdClasses: 2, addedMethods: 2, updatedClasses: 0 });
   });
@@ -72,12 +72,31 @@ describe('importClassesFromSequences', () => {
     const first = importClassesFromSequences({ nodes: [existing], edges: [] }, [content]);
     expect(first.content.nodes).toHaveLength(1);
     expect(first.content.nodes[0].data.methods.map((method) => [method.name, method.parameters]))
-      .toEqual([['validar', ''], ['guardar', 'dato']]);
+      .toEqual([['validar', ''], ['guardar', '']]);
     expect(first.summary).toEqual({ createdClasses: 0, addedMethods: 1, updatedClasses: 1 });
 
     const second = importClassesFromSequences(first.content, [content]);
     expect(second.summary).toEqual({ createdClasses: 0, addedMethods: 0, updatedClasses: 0 });
     expect(second.content.nodes[0]).toBe(first.content.nodes[0]);
+  });
+
+  it('brings each method once, without the arguments passed in the messages', () => {
+    const content = sequence({
+      participants: [participant('p', 'control', '', 'Gestor', 0), participant('t', 'entity', '', 'Tramite', 200)],
+      items: [
+        call('p', 't', 'buscar', { arguments: 'nroTramite' }),
+        call('p', 't', 'buscar(codConsultor)'),
+        call('p', 't', 'getEstado', { arguments: 'fechaActual' }),
+      ],
+    });
+    const existing = classNode('t', 'Tramite', 0, 0, [
+      { id: 'm1', visibility: '+', name: 'getEstado', parameters: 'fecha: Date', returnType: '' },
+    ]);
+
+    const { content: result, summary } = importClassesFromSequences({ nodes: [existing], edges: [] }, [content]);
+    expect(result.nodes[0].data.methods.map((method) => [method.name, method.parameters]))
+      .toEqual([['getEstado', 'fecha: Date'], ['buscar', '']]);
+    expect(summary.addedMethods).toBe(1);
   });
 
   it('places new classes beside the existing diagram without overlapping it', () => {
