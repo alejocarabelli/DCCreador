@@ -127,6 +127,14 @@ export function AssociationInspector({ edge, onUpdateAssociation }: AssociationI
                     onChange={(value) => onUpdateAssociation(edge.id, { sourceMultiplicity: value })}
                     placeholder="0..1"
                   />
+                  <input
+                    type="text"
+                    aria-label="Rol de origen"
+                    value={data.sourceRole}
+                    maxLength={80}
+                    onChange={(event) => onUpdateAssociation(edge.id, { sourceRole: event.target.value })}
+                    placeholder="Rol (opcional)"
+                  />
                 </label>
                 <label className="field compact-field">
                   Destino
@@ -135,6 +143,14 @@ export function AssociationInspector({ edge, onUpdateAssociation }: AssociationI
                     value={data.targetMultiplicity}
                     onChange={(value) => onUpdateAssociation(edge.id, { targetMultiplicity: value })}
                     placeholder="*"
+                  />
+                  <input
+                    type="text"
+                    aria-label="Rol de destino"
+                    value={data.targetRole}
+                    maxLength={80}
+                    onChange={(event) => onUpdateAssociation(edge.id, { targetRole: event.target.value })}
+                    placeholder="Rol (opcional)"
                   />
                 </label>
               </div>
