@@ -183,12 +183,7 @@ export const useTheme = () => {
     writeUiPreference(THEME_PREFERENCE_KEY, next);
   }, []);
 
-  const setThemeId = useCallback(
-    (nextThemeId: DiagramThemeId) => setPreference(getThemeById(nextThemeId).appearance),
-    [setPreference],
-  );
-
-  return { preference, setPreference, setThemeId, theme, themeId, themeStyle };
+  return { preference, setPreference, theme, themeStyle };
 };
 
 export { DEFAULT_THEME_ID };

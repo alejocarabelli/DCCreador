@@ -5,7 +5,6 @@ import { ProjectSidebar } from './components/ProjectSidebar';
 import { useProjects } from './hooks/useProjects';
 import { useTheme } from './hooks/useTheme';
 import { readUiPreference, writeUiPreference } from './storage/uiPreferences';
-import type { DiagramThemeId } from './theme/themes';
 import type { ArtifactContent, ClassMethod, ClassModelArtifact, ClassSequenceDiagramContent, DesignArtifact } from './types/diagram';
 import {
   getActiveArtifact,
@@ -115,7 +114,7 @@ function App() {
     });
   }, []);
   const historyBurstRef = useRef<{ key: string; updatedAt: number } | null>(null);
-  const { preference: themePreference, setPreference: setThemePreference, setThemeId, theme, themeId, themeStyle } = useTheme();
+  const { preference: themePreference, setPreference: setThemePreference, theme, themeStyle } = useTheme();
   const {
     activeProject,
     activeProjectId,
@@ -502,12 +501,10 @@ function App() {
             saveStatus={saveStatus}
             project={activeProject}
             theme={theme}
-            themeId={themeId}
             onChangeContent={handleChangeProjectContent}
             onRedo={handleRedo}
             onUndo={handleUndo}
             onImportProject={importProject}
-            onThemeChange={(nextThemeId) => setThemeId(nextThemeId as DiagramThemeId)}
           />
         ) : activeArtifact.type === 'class-sequence-diagram' ? (
           <ClassSequenceDiagramEditor
@@ -518,7 +515,6 @@ function App() {
             saveStatus={saveStatus}
             project={activeProject}
             theme={theme}
-            themeId={themeId}
             onNavigateToArtifact={(targetArtifactId) => setActiveArtifactId(activeProject.id, targetArtifactId)}
             onLinkAllSequenceDiagrams={(classModelArtifactId) =>
               linkSequenceDiagramsToClassModel(activeProject.id, classModelArtifactId)
@@ -527,7 +523,6 @@ function App() {
             onRedo={handleRedo}
             onUndo={handleUndo}
             onImportProject={importProject}
-            onThemeChange={(nextThemeId) => setThemeId(nextThemeId as DiagramThemeId)}
           />
         ) : activeArtifact.type === 'use-case-model' ? (
           <UseCaseModelEditor
@@ -538,12 +533,10 @@ function App() {
             saveStatus={saveStatus}
             project={activeProject}
             theme={theme}
-            themeId={themeId}
             onChangeContent={handleChangeProjectContent}
             onRedo={handleRedo}
             onUndo={handleUndo}
             onImportProject={importProject}
-            onThemeChange={(nextThemeId) => setThemeId(nextThemeId as DiagramThemeId)}
           />
         ) : activeArtifact.type === 'use-case-flow' ? (
           <UseCaseFlowEditor
@@ -554,12 +547,10 @@ function App() {
             saveStatus={saveStatus}
             project={activeProject}
             theme={theme}
-            themeId={themeId}
             onChangeContent={handleChangeProjectContent}
             onRedo={handleRedo}
             onUndo={handleUndo}
             onImportProject={importProject}
-            onThemeChange={(nextThemeId) => setThemeId(nextThemeId as DiagramThemeId)}
           />
         ) : (
           <SequenceDiagramEditor
@@ -570,7 +561,6 @@ function App() {
             saveStatus={saveStatus}
             project={activeProject}
             theme={theme}
-            themeId={themeId}
             onNavigateToArtifact={(targetArtifactId) =>
               setActiveArtifactId(activeProject.id, targetArtifactId)
             }
@@ -582,7 +572,6 @@ function App() {
             onRedo={handleRedo}
             onUndo={handleUndo}
             onImportProject={importProject}
-            onThemeChange={(nextThemeId) => setThemeId(nextThemeId as DiagramThemeId)}
           />
           )}
         </Suspense>

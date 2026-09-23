@@ -1,6 +1,6 @@
 import { Import, Link2, RefreshCw, Workflow } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { DiagramTheme, DiagramThemeId } from '../theme/themes';
+import type { DiagramTheme } from '../theme/themes';
 import type {
   ArtifactContent,
   ClassDiagramArtifact,
@@ -21,14 +21,12 @@ type ClassSequenceDiagramEditorProps = {
   canUndo: boolean;
   project: DesignProject;
   theme: DiagramTheme;
-  themeId: DiagramThemeId;
   onNavigateToArtifact?: (artifactId: string) => void;
   onLinkAllSequenceDiagrams?: (classModelArtifactId: string) => void;
   onChangeContent: (content: ArtifactContent, options?: { separateHistoryEntry?: boolean; alreadyNormalized?: boolean }) => void;
   onRedo: () => void;
   onUndo: () => void;
   onImportProject: (project: DesignProject) => void;
-  onThemeChange: (themeId: DiagramThemeId) => void;
 };
 
 const asClassContent = (content: DiagramContent): ClassDiagramContent => ({
@@ -43,14 +41,12 @@ export function ClassSequenceDiagramEditor({
   canUndo,
   project,
   theme,
-  themeId,
   onNavigateToArtifact,
   onLinkAllSequenceDiagrams,
   onChangeContent,
   onRedo,
   onUndo,
   onImportProject,
-  onThemeChange,
 }: ClassSequenceDiagramEditorProps) {
   const [importFeedback, setImportFeedback] = useState<string | null>(null);
   const sequenceDiagrams = useMemo(
@@ -230,13 +226,11 @@ export function ClassSequenceDiagramEditor({
       saveStatus={saveStatus}
       project={project}
       theme={theme}
-      themeId={themeId}
       toolbarContext={toolbarContext}
       onChangeContent={handleChangeContent}
       onRedo={onRedo}
       onUndo={onUndo}
       onImportProject={onImportProject}
-      onThemeChange={onThemeChange}
     />
   );
 }

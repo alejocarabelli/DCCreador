@@ -34,7 +34,7 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import { useCallback, useEffect, useEffectEvent, useMemo, useReducer, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction, type SyntheticEvent } from 'react';
-import { EXPORT_THEME, type DiagramTheme, type DiagramThemeId } from '../theme/themes';
+import { EXPORT_THEME, type DiagramTheme } from '../theme/themes';
 import { CanvasStartCard } from './CanvasStartCard';
 import { useDialogs } from '../hooks/useDialogs';
 import { normalizeDiagramProject } from '../utils/diagramNormalization';
@@ -179,7 +179,6 @@ type SequenceDiagramEditorProps = {
   canUndo: boolean;
   project: DesignProject;
   theme: DiagramTheme;
-  themeId: DiagramThemeId;
   saveStatus?: DiagramSaveStatus;
   onNavigateToArtifact?: (artifactId: string) => void;
   onCreateClassMethod?: (artifactId: string, nodeId: string, method: ClassMethod) => void;
@@ -188,7 +187,6 @@ type SequenceDiagramEditorProps = {
   onRedo: () => void;
   onUndo: () => void;
   onImportProject: (project: DesignProject) => void;
-  onThemeChange: (themeId: DiagramThemeId) => void;
 };
 
 type MessageDraft = SequenceMessageEditModel;

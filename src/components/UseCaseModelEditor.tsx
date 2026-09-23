@@ -40,7 +40,7 @@ import type {
   UseCaseRelationType,
 } from '../types/diagram';
 import { IMPORT_INVALID_MESSAGE, IMPORT_UNREADABLE_MESSAGE, isImportableProject } from '../utils/projectImport';
-import type { DiagramTheme, DiagramThemeId } from '../theme/themes';
+import type { DiagramTheme } from '../theme/themes';
 import { createId } from '../utils/id';
 import { createPdfFromJpegDataUrl, downloadBlob, downloadDataUrl } from '../utils/pdfExport';
 import { applyExportThemeVariables } from '../hooks/useTheme';
@@ -70,11 +70,9 @@ type UseCaseModelEditorProps = {
   canUndo: boolean;
   project: DiagramProject;
   theme: DiagramTheme;
-  themeId: DiagramThemeId;
   onChangeContent: (content: DiagramContent) => void;
   onImportProject: (project: DiagramProject) => void;
   onRedo: () => void;
-  onThemeChange: (themeId: DiagramThemeId) => void;
   onUndo: () => void;
 };
 
