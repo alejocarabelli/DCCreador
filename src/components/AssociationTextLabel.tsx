@@ -11,9 +11,11 @@ type Props = {
   className?: string;
   onCommit: (value: string) => void;
   onMove?: (offset: XYPosition) => void;
+  /** When false an empty label stays hidden even while the edge is selected. */
+  showPlaceholder?: boolean;
 };
 
-export function AssociationTextLabel({ value, placeholder, selected, x, y, offset, className = '', onCommit, onMove }: Props) {
+export function AssociationTextLabel({ value, placeholder, selected, x, y, offset, className = '', onCommit, onMove, showPlaceholder = true }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [dragOffset, setDragOffset] = useState<XYPosition | null>(null);
@@ -21,7 +23,7 @@ export function AssociationTextLabel({ value, placeholder, selected, x, y, offse
   const cancelled = useRef(false);
   const { getZoom } = useReactFlow();
   const displayedOffset = dragOffset ?? offset ?? { x: 0, y: 0 };
-  if (!value && !selected && !editing) return null;
+  if (!value && !(selected && showPlaceholder) && !editing) return null;
   const style: CSSProperties = {
     position: 'absolute', left: x + displayedOffset.x, top: y + displayedOffset.y,
     transform: 'translate(-50%, -50%)', pointerEvents: 'all',

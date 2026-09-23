@@ -1187,6 +1187,8 @@ export function DiagramEditor({
             ...edge.data,
             onUpdateMultiplicity: updateAssociationMultiplicity,
             onUpdateLabel: updateAssociation,
+            // Sequence class models show associations bare; names stay editable in the inspector.
+            hideLabelPlaceholders: artifactType === 'class-sequence-diagram',
             routingObstacles: nodes.map(node => {
               // Handles sit one pixel inside the class border. Other classes get an 8px clearance.
               const inset = node.id === edge.source || node.id === edge.target ? 2 : -8;
@@ -1237,7 +1239,7 @@ export function DiagramEditor({
 
       return [...associationEdges, ...noteEdges];
     },
-    [nodes, nodeSizes, normalizedEdges, reactFlowInstance, selectedEdgeId, updateAssociationMultiplicity, updateAssociation],
+    [artifactType, nodes, nodeSizes, normalizedEdges, reactFlowInstance, selectedEdgeId, updateAssociationMultiplicity, updateAssociation],
   );
 
   useEffect(() => { writeUiPreference('class-diagram-hide-attributes', String(hideAttributes)); }, [hideAttributes]);

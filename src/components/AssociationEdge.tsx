@@ -314,16 +314,16 @@ export function AssociationEdge({
       ) : null}
       <EdgeLabelRenderer>
       {relationType !== 'generalization' ? <>
-          <AssociationTextLabel value={edgeData.name} placeholder="Nombre de relación" selected={Boolean(selected)}
+          <AssociationTextLabel value={edgeData.name} placeholder="Nombre de relación" selected={Boolean(selected)} showPlaceholder={!edgeData.hideLabelPlaceholders}
             x={centerLabelPosition.x} y={centerLabelPosition.y} offset={edgeData.labelOffset}
             className="association-label-center association-relation-label"
             onCommit={name => edgeData.onUpdateLabel?.(id, { name })}
             onMove={labelOffset => edgeData.onUpdateLabel?.(id, { labelOffset })} />
           {supportsEndpoints ? <>
-            <AssociationTextLabel value={edgeData.sourceRole} placeholder="Rol de origen" selected={Boolean(selected)}
+            <AssociationTextLabel value={edgeData.sourceRole} placeholder="Rol de origen" selected={Boolean(selected)} showPlaceholder={!edgeData.hideLabelPlaceholders}
               x={sourceLabelPosition.x} y={sourceLabelPosition.y + 26} className="association-role-label"
               onCommit={sourceRole => edgeData.onUpdateLabel?.(id, { sourceRole })} />
-            <AssociationTextLabel value={edgeData.targetRole} placeholder="Rol de destino" selected={Boolean(selected)}
+            <AssociationTextLabel value={edgeData.targetRole} placeholder="Rol de destino" selected={Boolean(selected)} showPlaceholder={!edgeData.hideLabelPlaceholders}
               x={targetLabelPosition.x} y={targetLabelPosition.y + 26} className="association-role-label"
               onCommit={targetRole => edgeData.onUpdateLabel?.(id, { targetRole })} />
           </> : null}
