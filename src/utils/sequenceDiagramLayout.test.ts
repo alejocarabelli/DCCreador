@@ -278,6 +278,27 @@ describe('sequence diagram geometry contract', () => {
     expect(layout.bounds.bottom).toBeGreaterThanOrEqual(manual.y + manual.height);
   });
 
+  it('lets the text-driven note height follow the width both ways without touching the stored height', () => {
+    const note = {
+      id: 'resizable-note',
+      text: 'Una nota con suficiente texto como para ocupar varias líneas cuando se angosta la caja. '.repeat(3),
+      x: 100,
+      y: 100,
+      width: 320,
+      height: 90,
+      anchorKind: 'free' as const,
+    };
+    const heightAt = (width: number) => buildSequenceLayout(content([], [{ ...note, width }])).noteLayouts.get(note.id)!.height;
+
+    const wide = heightAt(320);
+    const narrow = heightAt(130);
+    expect(narrow).toBeGreaterThan(wide);
+    // Widening again returns to the same box: nothing about the narrow pass stuck.
+    expect(heightAt(320)).toBe(wide);
+    expect(note.height).toBe(90);
+    expect(heightAt(2000)).toBe(90);
+  });
+
   it('returns one shared real bounds union for distant fragments and notes', () => {
     const fragment: SequenceFragment = {
       id: 'distant-fragment',

@@ -92,16 +92,109 @@ export const getSequenceParticipantHeaderWidth = (
   return Math.max(participant.kind === 'actor' ? 112 : 160, Math.ceil(measured.width + 28));
 };
 
-export const getSequenceNoteMinimumHeight = (note: Pick<SequenceNote, 'text' | 'width'>): number => {
-  const width = Math.max(120, note.width);
-  const text = measureSequenceText(note.text || 'Nota', Math.max(12, Math.floor((width - 24) / 7)), 6.3, 15);
-  return Math.max(70, Math.ceil(text.height + 34));
+/**
+ * Note typography, shared by the SVG body and the inline textarea so both wrap
+ * the same words onto the same lines.
+ */
+export const SEQUENCE_NOTE_FONT_SIZE = 11;
+export const SEQUENCE_NOTE_FONT_FAMILY = 'Inter, Arial, sans-serif';
+export const SEQUENCE_NOTE_LINE_HEIGHT = 15;
+/** Horizontal inset of the text; the textarea adds a 1px border on each side. */
+export const SEQUENCE_NOTE_PADDING_X = 12;
+export const SEQUENCE_NOTE_PADDING_TOP = 10;
+export const SEQUENCE_NOTE_MIN_WIDTH = 120;
+export const SEQUENCE_NOTE_MIN_HEIGHT = 70;
+const SEQUENCE_NOTE_VERTICAL_CHROME = 34;
+
+type TextMeasurer = (text: string) => number;
+let noteMeasurer: TextMeasurer | null | undefined;
+
+/** Real glyph widths when a 2D canvas exists; tests and SSR fall back to null. */
+const getNoteMeasurer = (): TextMeasurer | null => {
+  if (noteMeasurer !== undefined) return noteMeasurer;
+  noteMeasurer = null;
+  try {
+    if (typeof OffscreenCanvas === 'undefined') return noteMeasurer;
+    const context = new OffscreenCanvas(1, 1).getContext('2d');
+    if (!context) return noteMeasurer;
+    context.font = `${SEQUENCE_NOTE_FONT_SIZE}px ${SEQUENCE_NOTE_FONT_FAMILY}`;
+    const cache = new Map<string, number>();
+    noteMeasurer = (text) => {
+      let width = cache.get(text);
+      if (width === undefined) {
+        width = context.measureText(text).width;
+        if (cache.size > 4000) cache.clear();
+        cache.set(text, width);
+      }
+      return width;
+    };
+  } catch {
+    noteMeasurer = null;
+  }
+  return noteMeasurer;
 };
 
+/** Greedy pixel wrap that, like a textarea, only splits words that cannot fit a line. */
+const wrapTextToWidth = (text: string, maxWidth: number, measure: TextMeasurer): string[] => {
+  const lines: string[] = [];
+  const splitWord = (word: string): string[] => {
+    const parts: string[] = [];
+    let part = '';
+    Array.from(word).forEach((character) => {
+      if (part.length > 0 && measure(part + character) > maxWidth) {
+        parts.push(part);
+        part = character;
+      } else {
+        part += character;
+      }
+    });
+    if (part.length > 0) parts.push(part);
+    return parts;
+  };
+  text.split('\n').forEach((paragraph) => {
+    const words = paragraph.split(/\s+/).filter(Boolean).flatMap((word) => (measure(word) <= maxWidth ? [word] : splitWord(word)));
+    if (words.length === 0) {
+      lines.push('');
+      return;
+    }
+    let line = '';
+    words.forEach((word) => {
+      const candidate = line.length === 0 ? word : `${line} ${word}`;
+      if (line.length === 0 || measure(candidate) <= maxWidth) {
+        line = candidate;
+        return;
+      }
+      lines.push(line);
+      line = word;
+    });
+    lines.push(line);
+  });
+  return lines.length > 0 ? lines : [''];
+};
+
+export const wrapSequenceNoteText = (text: string, width: number): string[] => {
+  const noteWidth = Math.max(SEQUENCE_NOTE_MIN_WIDTH, width);
+  const measure = getNoteMeasurer();
+  if (measure === null) {
+    return wrapSequenceText(text, Math.max(12, Math.floor((noteWidth - SEQUENCE_NOTE_PADDING_X * 2) / 7)));
+  }
+  // Same content box as the textarea: padding on both sides plus its 1px borders.
+  return wrapTextToWidth(text, noteWidth - SEQUENCE_NOTE_PADDING_X * 2 - 2, measure);
+};
+
+export const getSequenceNoteMinimumHeight = (note: Pick<SequenceNote, 'text' | 'width'>): number => {
+  const lines = wrapSequenceNoteText(note.text || 'Nota', note.width);
+  return Math.max(SEQUENCE_NOTE_MIN_HEIGHT, Math.ceil(lines.length * SEQUENCE_NOTE_LINE_HEIGHT + SEQUENCE_NOTE_VERTICAL_CHROME));
+};
+
+/**
+ * `note.height` is the height the user chose; the rendered box only grows past
+ * it while the text needs more room, and never writes that growth back.
+ */
 export const resolveSequenceNoteRect = (note: SequenceNote): SequenceRect => ({
   x: note.x,
   y: note.y,
-  width: Math.max(120, note.width),
+  width: Math.max(SEQUENCE_NOTE_MIN_WIDTH, note.width),
   height: Math.max(note.height, getSequenceNoteMinimumHeight(note)),
 });
 
