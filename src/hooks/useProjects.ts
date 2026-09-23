@@ -31,6 +31,12 @@ import {
   normalizeUseCaseFlowContent,
   normalizeUseCaseModelContent,
 } from '../utils/diagramNormalization';
+import {
+  applyClassModelRenamesToSequence,
+  findClassModelRenames,
+  hasClassModelRenames,
+  isSequenceUsingClassModel,
+} from '../utils/classRenamePropagation';
 import { createId } from '../utils/id';
 import { createEmptySequenceDiagramContent, normalizeSequenceDiagramContent } from '../utils/sequenceDiagram';
 
@@ -522,9 +528,28 @@ export const useProjects = () => {
           ? targetArtifact.id
           : undefined;
 
+      // Renamed classes and methods reach the sequence diagrams drawn on this
+      // model. Undo replays through here, so it carries the old names back.
+      const renames = isClassModelUpdate && targetClassContent !== undefined
+        ? findClassModelRenames(targetArtifact.content as ClassDiagramContent, targetClassContent)
+        : undefined;
+      const modelArtifactIds = renames !== undefined && hasClassModelRenames(renames) && sourceClassDiagramArtifactId !== undefined
+        ? new Set(project.artifacts
+          .filter((artifact) => (artifact.type === 'class-diagram' && artifact.id === sourceClassDiagramArtifactId)
+            || (artifact.type === 'class-sequence-diagram'
+              && (artifact.content.sourceClassDiagramArtifactId ?? artifact.id) === sourceClassDiagramArtifactId))
+          .map((artifact) => artifact.id))
+        : undefined;
+
       const artifacts = project.artifacts.map((artifact) => {
         if (artifact.id === artifactId) {
           return { ...artifact, content: normalizedTargetContent, updatedAt: now } as typeof artifact;
+        }
+
+        if (artifact.type === 'sequence-diagram' && renames !== undefined && modelArtifactIds !== undefined
+          && isSequenceUsingClassModel(artifact.content, modelArtifactIds, project.artifacts)) {
+          const renamedContent = applyClassModelRenamesToSequence(artifact.content, renames);
+          return renamedContent === null ? artifact : { ...artifact, content: renamedContent, updatedAt: now };
         }
 
         if (!isClassModelUpdate || targetClassContent === undefined || sourceClassDiagramArtifactId === undefined) {
