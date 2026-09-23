@@ -15,6 +15,8 @@ import { IMPORT_INVALID_MESSAGE, IMPORT_UNREADABLE_MESSAGE, isImportableProject 
 import type { BackupState } from '../storage/backup';
 import { normalizeDiagramProject } from '../utils/diagramNormalization';
 import { projectInitials } from '../utils/projectInitials';
+import type { ThemePreference } from '../hooks/useTheme';
+import { ThemeToggle } from './ThemeToggle';
 
 type ProjectHomeProps = {
   projects: DesignProject[];
@@ -24,6 +26,8 @@ type ProjectHomeProps = {
   backup: BackupState;
   backupAvailable: boolean;
   onRevealBackups: () => void;
+  themePreference: ThemePreference;
+  onThemePreferenceChange: (preference: ThemePreference) => void;
 };
 
 /** The shell mirrors projects to ~/Documents; this says so without alarming. */
@@ -106,7 +110,7 @@ const artifactIcon = (type: ArtifactKind) => {
   return <GitBranch aria-hidden="true" size={14} />;
 };
 
-export function ProjectHome({ projects, onCreateProject, onImportProject, onOpenProject, backup, backupAvailable, onRevealBackups }: ProjectHomeProps) {
+export function ProjectHome({ projects, onCreateProject, onImportProject, onOpenProject, backup, backupAvailable, onRevealBackups, themePreference, onThemePreferenceChange }: ProjectHomeProps) {
   const [query, setQuery] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -144,6 +148,7 @@ export function ProjectHome({ projects, onCreateProject, onImportProject, onOpen
         </div>
         <div className="project-home-actions">
           <span className="project-home-count" aria-live="polite">{query ? `${filteredProjects.length} de ${countLabel}` : countLabel}</span>
+          <ThemeToggle className="home-button" preference={themePreference} onChange={onThemePreferenceChange} showLabel />
           <button className="home-button" type="button" onClick={() => fileInputRef.current?.click()}>
             <Upload aria-hidden="true" size={15} />
             Importar

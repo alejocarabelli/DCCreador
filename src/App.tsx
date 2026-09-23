@@ -115,7 +115,7 @@ function App() {
     });
   }, []);
   const historyBurstRef = useRef<{ key: string; updatedAt: number } | null>(null);
-  const { setThemeId, theme, themeId, themeStyle } = useTheme();
+  const { preference: themePreference, setPreference: setThemePreference, setThemeId, theme, themeId, themeStyle } = useTheme();
   const {
     activeProject,
     activeProjectId,
@@ -474,7 +474,9 @@ function App() {
           onSelectArtifact={handleSelectArtifact}
           onSelectProject={setActiveProjectId}
           onToggleCollapsed={() => setIsProjectSidebarCollapsed((isCollapsed) => !isCollapsed)}
+          onThemePreferenceChange={setThemePreference}
           projects={projects}
+          themePreference={themePreference}
         />
       ) : null}
       {isProjectHome ? (
@@ -486,6 +488,8 @@ function App() {
           onCreateProject={handleCreateProject}
           onImportProject={importProject}
           onOpenProject={setActiveProjectId}
+          onThemePreferenceChange={setThemePreference}
+          themePreference={themePreference}
         />
       ) : (
         <Suspense fallback={<EditorLoadingState />}>

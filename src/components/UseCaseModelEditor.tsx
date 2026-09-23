@@ -43,6 +43,7 @@ import { IMPORT_INVALID_MESSAGE, IMPORT_UNREADABLE_MESSAGE, isImportableProject 
 import type { DiagramTheme, DiagramThemeId } from '../theme/themes';
 import { createId } from '../utils/id';
 import { createPdfFromJpegDataUrl, downloadBlob, downloadDataUrl } from '../utils/pdfExport';
+import { applyExportThemeVariables } from '../hooks/useTheme';
 import { readUiPreference, writeUiPreference } from '../storage/uiPreferences';
 import { normalizeDiagramProject, normalizeUseCaseModelContent } from '../utils/diagramNormalization';
 import { CanvasControls } from './CanvasControls';
@@ -435,6 +436,8 @@ export function UseCaseModelEditor({
     if (viewport === null || flowRoot === null) {
       return null;
     }
+    // Exports are documents: capture them on the light palette even in dark mode.
+    const restoreTheme = applyExportThemeVariables(canvasRef.current);
     const transform = getViewportForBounds(getNodesBounds(renderedNodes), PNG_WIDTH, PNG_HEIGHT, 0.5, 2, 0.16);
     const backgroundColor = getEffectiveBackgroundColor(flowRoot);
     const edgePathStyleBackups = Array.from(viewport.querySelectorAll<SVGPathElement>('.react-flow__edge-path')).map(
@@ -487,6 +490,7 @@ export function UseCaseModelEditor({
         }
       });
       canvasRef.current.classList.remove('exporting-png');
+      restoreTheme();
     }
   };
 

@@ -34,7 +34,7 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import { useCallback, useEffect, useEffectEvent, useMemo, useReducer, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction, type SyntheticEvent } from 'react';
-import type { DiagramTheme, DiagramThemeId } from '../theme/themes';
+import { EXPORT_THEME, type DiagramTheme, type DiagramThemeId } from '../theme/themes';
 import { CanvasStartCard } from './CanvasStartCard';
 import { useDialogs } from '../hooks/useDialogs';
 import { normalizeDiagramProject } from '../utils/diagramNormalization';
@@ -5272,7 +5272,7 @@ export function SequenceDiagramEditor({
             layout={layout}
             selected={null}
             interactive={false}
-            theme={theme}
+            theme={EXPORT_THEME}
             classNodesById={classNodesById}
             participantColorsEnabled={content.participantColors !== 'disabled'}
             onSelect={() => undefined}

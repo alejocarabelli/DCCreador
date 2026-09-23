@@ -166,6 +166,7 @@ function SequenceDiagramCanvasImpl({
   const fragmentTabFill = ink.fragmentTabFill;
   const guardFill = ink.guardFill;
   const guardText = ink.guardText;
+  const handleFill = theme.ui.panelBackground;
 
   const participantIdentities = useMemo(() => {
     const map = new Map<string, ParticipantVisualIdentity>();
@@ -725,7 +726,7 @@ function SequenceDiagramCanvasImpl({
                 width="44"
                 height="10"
                 rx="5"
-                fill="#ffffff"
+                fill={handleFill}
                 stroke={selectedStroke}
                 strokeWidth="1.5"
                 filter="drop-shadow(0 1px 3px rgba(0,0,0,0.18))"
@@ -755,7 +756,7 @@ function SequenceDiagramCanvasImpl({
                 width="44"
                 height="10"
                 rx="5"
-                fill="#ffffff"
+                fill={handleFill}
                 stroke={selectedStroke}
                 strokeWidth="1.5"
                 filter="drop-shadow(0 1px 3px rgba(0,0,0,0.18))"
@@ -785,7 +786,7 @@ function SequenceDiagramCanvasImpl({
                 width="10"
                 height="32"
                 rx="5"
-                fill="#ffffff"
+                fill={handleFill}
                 stroke={selectedStroke}
                 strokeWidth="1.5"
                 filter="drop-shadow(0 1px 3px rgba(0,0,0,0.18))"
@@ -815,7 +816,7 @@ function SequenceDiagramCanvasImpl({
                 width="10"
                 height="32"
                 rx="5"
-                fill="#ffffff"
+                fill={handleFill}
                 stroke={selectedStroke}
                 strokeWidth="1.5"
                 filter="drop-shadow(0 1px 3px rgba(0,0,0,0.18))"
@@ -838,7 +839,7 @@ function SequenceDiagramCanvasImpl({
               width="10"
               height="10"
               rx="2.5"
-              fill="#ffffff"
+              fill={handleFill}
               stroke={selectedStroke}
               strokeWidth="1.5"
               cursor="nwse-resize"
@@ -854,7 +855,7 @@ function SequenceDiagramCanvasImpl({
               width="10"
               height="10"
               rx="2.5"
-              fill="#ffffff"
+              fill={handleFill}
               stroke={selectedStroke}
               strokeWidth="1.5"
               cursor="nesw-resize"
@@ -870,7 +871,7 @@ function SequenceDiagramCanvasImpl({
               width="10"
               height="10"
               rx="2.5"
-              fill="#ffffff"
+              fill={handleFill}
               stroke={selectedStroke}
               strokeWidth="1.5"
               cursor="nwse-resize"
@@ -886,7 +887,7 @@ function SequenceDiagramCanvasImpl({
               width="10"
               height="10"
               rx="2.5"
-              fill="#ffffff"
+              fill={handleFill}
               stroke={selectedStroke}
               strokeWidth="1.5"
               cursor="nesw-resize"
