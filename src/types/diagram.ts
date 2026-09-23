@@ -100,8 +100,6 @@ export type AssociationEdgeData = {
   labelOffset?: XYPosition;
   routingObstacles?: Array<{ x: number; y: number; width: number; height: number }>;
   onUpdateLabel?: (edgeId: string, values: Partial<AssociationEdgeData>) => void;
-  /** Runtime only: the editor hides the empty name/role prompts on the canvas. */
-  hideLabelPlaceholders?: boolean;
   name: string;
   sourceMultiplicity: string;
   targetMultiplicity: string;
