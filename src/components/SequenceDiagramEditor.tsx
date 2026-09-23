@@ -34,7 +34,7 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import { useCallback, useEffect, useEffectEvent, useMemo, useReducer, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction, type SyntheticEvent } from 'react';
-import type { DiagramTheme, DiagramThemeId } from '../theme/themes';
+import { EXPORT_THEME, type DiagramTheme } from '../theme/themes';
 import { CanvasStartCard } from './CanvasStartCard';
 import { useDialogs } from '../hooks/useDialogs';
 import { normalizeDiagramProject } from '../utils/diagramNormalization';
@@ -84,7 +84,18 @@ import {
   reconcileRemovedSequenceReferences,
   updateSequenceItem,
 } from '../utils/sequenceDiagram';
-import { getSequenceNoteMinimumHeight, reorderSequenceParticipants, resolveSequenceNoteRect } from '../utils/sequenceDiagramGeometry';
+import {
+  getSequenceNoteMinimumHeight,
+  reorderSequenceParticipants,
+  resolveSequenceNoteRect,
+  SEQUENCE_NOTE_FONT_FAMILY,
+  SEQUENCE_NOTE_FONT_SIZE,
+  SEQUENCE_NOTE_LINE_HEIGHT,
+  SEQUENCE_NOTE_MIN_HEIGHT,
+  SEQUENCE_NOTE_MIN_WIDTH,
+  SEQUENCE_NOTE_PADDING_TOP,
+  SEQUENCE_NOTE_PADDING_X,
+} from '../utils/sequenceDiagramGeometry';
 import { hasMeaningfulSequenceNoteDrag, resolveSequenceNoteDragPosition } from '../utils/sequenceNoteInteraction';
 import { sequencePointerToCanvas } from '../utils/sequencePointer';
 import { buildSequenceLayout, SEQUENCE_HEADER_HEIGHT } from '../utils/sequenceDiagramLayout';
@@ -168,7 +179,6 @@ type SequenceDiagramEditorProps = {
   canUndo: boolean;
   project: DesignProject;
   theme: DiagramTheme;
-  themeId: DiagramThemeId;
   saveStatus?: DiagramSaveStatus;
   onNavigateToArtifact?: (artifactId: string) => void;
   onCreateClassMethod?: (artifactId: string, nodeId: string, method: ClassMethod) => void;
@@ -177,7 +187,6 @@ type SequenceDiagramEditorProps = {
   onRedo: () => void;
   onUndo: () => void;
   onImportProject: (project: DesignProject) => void;
-  onThemeChange: (themeId: DiagramThemeId) => void;
 };
 
 type MessageDraft = SequenceMessageEditModel;
@@ -2364,9 +2373,12 @@ export function SequenceDiagramEditor({
     const startScrollLeft = scrollRef.current?.scrollLeft ?? 0;
     const startScrollTop = scrollRef.current?.scrollTop ?? 0;
     const startWidth = currentBox.width;
+    // Dragging height starts from what is on screen; a width-only drag keeps the
+    // user's own height so the text-driven growth follows the width both ways.
     const startHeight = currentBox.height;
+    const storedHeight = note.height;
 
-    let size = { width: startWidth, height: startHeight };
+    let size = { width: note.width, height: storedHeight };
     let didMove = false;
 
     const move = (pointerEvent: PointerEvent): void => {
@@ -2384,7 +2396,7 @@ export function SequenceDiagramEditor({
 
       const nextHeight = (handle === 'corner' || handle === 'bottom')
         ? Math.max(minH, Math.round(startHeight + dy))
-        : Math.max(minH, startHeight);
+        : storedHeight;
 
       size = { width: nextWidth, height: nextHeight };
       setNotePreview({ [note.id]: size });
@@ -2393,7 +2405,14 @@ export function SequenceDiagramEditor({
     const finish = (): void => {
       window.removeEventListener('pointermove', move);
       setNotePreview({});
-      if (!didMove || (size.width === startWidth && size.height === startHeight)) return;
+      if (didMove) {
+        // The box can shrink out from under the pointer; the click that follows
+        // would then land on the canvas and drop the selection.
+        const swallowClick = (clickEvent: MouseEvent): void => clickEvent.stopPropagation();
+        window.addEventListener('click', swallowClick, { capture: true, once: true });
+        window.setTimeout(() => window.removeEventListener('click', swallowClick, { capture: true }), 0);
+      }
+      if (!didMove || (size.width === note.width && size.height === storedHeight)) return;
       commit({
         ...content,
         notes: content.notes.map((candidate) =>
@@ -2429,13 +2448,9 @@ export function SequenceDiagramEditor({
       setNotePreview({});
       return;
     }
-    const nextText = value;
-    const minHeight = getSequenceNoteMinimumHeight({ text: nextText, width: targetNote.width });
-    const nextNotes = content.notes.map((n) =>
-      n.id === noteId
-        ? { ...n, text: nextText, height: Math.max(n.height, minHeight) }
-        : n
-    );
+    // Only the text is saved: the box grows to fit it on render and shrinks
+    // back to the user's height when the text gets shorter.
+    const nextNotes = content.notes.map((n) => (n.id === noteId ? { ...n, text: value } : n));
     commit({ ...content, notes: nextNotes }, true);
     setNotePreview({});
     setInlineNoteEditor(null);
@@ -2974,8 +2989,8 @@ export function SequenceDiagramEditor({
     ...content,
     notes: content.notes.map((note) => {
       if (note.id !== id) return note;
-      const next = { ...note, ...values };
-      return { ...next, height: Math.max(next.height, getSequenceNoteMinimumHeight(next)) };
+      // The stored height is the user's; the layout grows the box for the text.
+      return { ...note, ...values };
     }),
   }, false); };
   const updateItem = (id: string, values: Partial<SequenceMessage> | Partial<SequenceFragment>): void => { void commit(keepAnchoredNotesWithTimeline({
@@ -4394,12 +4409,7 @@ export function SequenceDiagramEditor({
           rows={5}
           value={selectedNote.text}
           onChange={(event) => {
-            const nextText = event.target.value;
-            const minHeight = getSequenceNoteMinimumHeight({ text: nextText, width: selectedNote.width });
-            updateNote(selectedNote.id, {
-              text: nextText,
-              height: Math.max(selectedNote.height, minHeight),
-            });
+            updateNote(selectedNote.id, { text: event.target.value });
           }}
           placeholder="Escribí aquí una nota de apoyo o aclaración..."
         />
@@ -4565,10 +4575,10 @@ export function SequenceDiagramEditor({
             <span>Ancho</span>
             <input
               type="number"
-              value={selectedNote.width}
+              value={Math.round(layout.noteLayouts.get(selectedNote.id)?.width ?? selectedNote.width)}
               onChange={(event) => {
                 const val = parseFloat(event.target.value);
-                if (Number.isFinite(val)) updateNote(selectedNote.id, { width: Math.max(80, Math.round(val)) });
+                if (Number.isFinite(val)) updateNote(selectedNote.id, { width: Math.max(SEQUENCE_NOTE_MIN_WIDTH, Math.round(val)) });
               }}
             />
           </label>
@@ -4576,10 +4586,10 @@ export function SequenceDiagramEditor({
             <span>Alto</span>
             <input
               type="number"
-              value={selectedNote.height}
+              value={Math.round(layout.noteLayouts.get(selectedNote.id)?.height ?? selectedNote.height)}
               onChange={(event) => {
                 const val = parseFloat(event.target.value);
-                if (Number.isFinite(val)) updateNote(selectedNote.id, { height: Math.max(50, Math.round(val)) });
+                if (Number.isFinite(val)) updateNote(selectedNote.id, { height: Math.max(SEQUENCE_NOTE_MIN_HEIGHT, Math.round(val)) });
               }}
             />
           </label>
@@ -5090,30 +5100,26 @@ export function SequenceDiagramEditor({
                           boxShadow: '0 2px 8px rgba(15, 23, 42, 0.12)',
                           outline: 'none',
                           resize: 'none',
-                          padding: '10px 12px',
-                          fontSize: '11px',
-                          lineHeight: '15px',
-                          fontFamily: 'Inter, Arial, sans-serif',
+                          padding: `${SEQUENCE_NOTE_PADDING_TOP}px ${SEQUENCE_NOTE_PADDING_X}px`,
+                          fontSize: `${SEQUENCE_NOTE_FONT_SIZE}px`,
+                          lineHeight: `${SEQUENCE_NOTE_LINE_HEIGHT}px`,
+                          fontFamily: SEQUENCE_NOTE_FONT_FAMILY,
                           boxSizing: 'border-box',
+                          overflow: 'hidden',
+                          overflowWrap: 'break-word',
                         }}
                         value={inlineNoteEditor.value}
                         placeholder="Escribe el texto de la nota..."
                         onChange={(e) => {
                           const val = e.target.value;
                           const minH = getSequenceNoteMinimumHeight({ text: val, width: inlineNoteEditor.width });
-                          const newHeight = Math.max(inlineNoteEditor.height, minH);
                           setInlineNoteEditor({
                             ...inlineNoteEditor,
                             value: val,
-                            height: newHeight,
+                            height: Math.max(targetNote?.height ?? 0, minH),
                           });
                           if (targetNote) {
-                            setNotePreview({
-                              [targetNote.id]: {
-                                text: val,
-                                height: Math.max(targetNote.height, newHeight),
-                              },
-                            });
+                            setNotePreview({ [targetNote.id]: { text: val } });
                           }
                         }}
                         onKeyDown={(e) => {
@@ -5272,7 +5278,7 @@ export function SequenceDiagramEditor({
             layout={layout}
             selected={null}
             interactive={false}
-            theme={theme}
+            theme={EXPORT_THEME}
             classNodesById={classNodesById}
             participantColorsEnabled={content.participantColors !== 'disabled'}
             onSelect={() => undefined}

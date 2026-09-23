@@ -1,6 +1,7 @@
 import { useState, type RefObject } from 'react';
 import { getViewportForBounds, type Rect } from 'reactflow';
 import { createPdfFromJpegDataUrl, downloadBlob, downloadDataUrl } from '../utils/pdfExport';
+import { applyExportThemeVariables } from './useTheme';
 
 const PNG_WIDTH = 1600;
 const PNG_HEIGHT = 1000;
@@ -53,6 +54,8 @@ export function useDiagramImageExport({
       return null;
     }
 
+    // Exports are documents: capture them on the light palette even in dark mode.
+    const restoreTheme = applyExportThemeVariables(canvasRef.current);
     const nodesBounds = getDiagramBounds();
     const transform = getViewportForBounds(nodesBounds, PNG_WIDTH, PNG_HEIGHT, 0.01, 2, 0.16);
     const backgroundColor = getEffectiveBackgroundColor(flowRoot);
@@ -114,6 +117,7 @@ export function useDiagramImageExport({
         }
       });
       canvasRef.current.classList.remove('exporting-png');
+      restoreTheme();
     }
   };
 

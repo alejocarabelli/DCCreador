@@ -14,9 +14,13 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import type { DesignArtifact, DiagramProject } from '../types/diagram';
+import type { ThemePreference } from '../hooks/useTheme';
 import { ArtifactTypeIcon } from './ArtifactTypeIcon';
+import { ThemeToggle } from './ThemeToggle';
 
 type ProjectSidebarProps = {
+  themePreference: ThemePreference;
+  onThemePreferenceChange: (preference: ThemePreference) => void;
   activeArtifactId: string | null;
   activeProjectId: string | null;
   isCollapsed: boolean;
@@ -68,7 +72,9 @@ export function ProjectSidebar({
   onSelectArtifact,
   onSelectProject,
   onToggleCollapsed,
+  onThemePreferenceChange,
   projects,
+  themePreference,
 }: ProjectSidebarProps) {
   const sidebarRef = useRef<HTMLElement | null>(null);
   const optionsMenuRef = useRef<HTMLDivElement | null>(null);
@@ -167,6 +173,7 @@ export function ProjectSidebar({
         <button aria-label="Expandir proyectos" className="icon-button sidebar-toggle" type="button" onClick={onToggleCollapsed} title="Expandir proyectos">
           <PanelLeftOpen size={18} />
         </button>
+        <ThemeToggle className="icon-button sidebar-toggle sidebar-theme-toggle" preference={themePreference} onChange={onThemePreferenceChange} />
       </aside>
     );
   }
@@ -297,6 +304,9 @@ export function ProjectSidebar({
           ))
         )}
       </nav>
+      <div className="sidebar-footer">
+        <ThemeToggle className="sidebar-footer-button" preference={themePreference} onChange={onThemePreferenceChange} showLabel />
+      </div>
       {optionsMenu !== null ? (
         <div
           id="sidebar-options-menu"

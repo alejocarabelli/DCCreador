@@ -45,12 +45,10 @@ describe('SequenceDiagramEditor referenced class diagram compatibility', () => {
         canUndo={false}
         project={project}
         theme={themes[0]}
-        themeId="academic-light"
         onChangeContent={vi.fn()}
         onRedo={vi.fn()}
         onUndo={vi.fn()}
         onImportProject={vi.fn()}
-        onThemeChange={vi.fn()}
       />
       </DialogProvider>,
     )).not.toThrow();
@@ -83,12 +81,10 @@ describe('SequenceDiagramEditor referenced class diagram compatibility', () => {
         canUndo={false}
         project={project}
         theme={themes[0]}
-        themeId="academic-light"
         onChangeContent={vi.fn()}
         onRedo={vi.fn()}
         onUndo={vi.fn()}
         onImportProject={vi.fn()}
-        onThemeChange={vi.fn()}
       />
       </DialogProvider>,
     );

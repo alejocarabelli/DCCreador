@@ -14,6 +14,12 @@ import { findSequenceItem, formatSequenceParticipantName } from '../utils/sequen
 import { findMarqueeHits } from '../utils/sequenceDiagramSelection';
 import type { SequenceLayout } from '../utils/sequenceDiagramLayout';
 import { getSequenceMessageEndpoints, SEQUENCE_HEADER_HEIGHT, SEQUENCE_HEADER_Y } from '../utils/sequenceDiagramLayout';
+import {
+  SEQUENCE_NOTE_FONT_FAMILY,
+  SEQUENCE_NOTE_FONT_SIZE,
+  SEQUENCE_NOTE_LINE_HEIGHT,
+  SEQUENCE_NOTE_PADDING_X,
+} from '../utils/sequenceDiagramGeometry';
 import { resolveParticipantVisualIdentity, type ParticipantVisualIdentity } from '../utils/sequenceParticipantColors';
 
 type Selection = { kind: 'participant' | 'message' | 'fragment' | 'note'; id: string } | null;
@@ -166,6 +172,7 @@ function SequenceDiagramCanvasImpl({
   const fragmentTabFill = ink.fragmentTabFill;
   const guardFill = ink.guardFill;
   const guardText = ink.guardText;
+  const handleFill = theme.ui.panelBackground;
 
   const participantIdentities = useMemo(() => {
     const map = new Map<string, ParticipantVisualIdentity>();
@@ -725,7 +732,7 @@ function SequenceDiagramCanvasImpl({
                 width="44"
                 height="10"
                 rx="5"
-                fill="#ffffff"
+                fill={handleFill}
                 stroke={selectedStroke}
                 strokeWidth="1.5"
                 filter="drop-shadow(0 1px 3px rgba(0,0,0,0.18))"
@@ -755,7 +762,7 @@ function SequenceDiagramCanvasImpl({
                 width="44"
                 height="10"
                 rx="5"
-                fill="#ffffff"
+                fill={handleFill}
                 stroke={selectedStroke}
                 strokeWidth="1.5"
                 filter="drop-shadow(0 1px 3px rgba(0,0,0,0.18))"
@@ -785,7 +792,7 @@ function SequenceDiagramCanvasImpl({
                 width="10"
                 height="32"
                 rx="5"
-                fill="#ffffff"
+                fill={handleFill}
                 stroke={selectedStroke}
                 strokeWidth="1.5"
                 filter="drop-shadow(0 1px 3px rgba(0,0,0,0.18))"
@@ -815,7 +822,7 @@ function SequenceDiagramCanvasImpl({
                 width="10"
                 height="32"
                 rx="5"
-                fill="#ffffff"
+                fill={handleFill}
                 stroke={selectedStroke}
                 strokeWidth="1.5"
                 filter="drop-shadow(0 1px 3px rgba(0,0,0,0.18))"
@@ -838,7 +845,7 @@ function SequenceDiagramCanvasImpl({
               width="10"
               height="10"
               rx="2.5"
-              fill="#ffffff"
+              fill={handleFill}
               stroke={selectedStroke}
               strokeWidth="1.5"
               cursor="nwse-resize"
@@ -854,7 +861,7 @@ function SequenceDiagramCanvasImpl({
               width="10"
               height="10"
               rx="2.5"
-              fill="#ffffff"
+              fill={handleFill}
               stroke={selectedStroke}
               strokeWidth="1.5"
               cursor="nesw-resize"
@@ -870,7 +877,7 @@ function SequenceDiagramCanvasImpl({
               width="10"
               height="10"
               rx="2.5"
-              fill="#ffffff"
+              fill={handleFill}
               stroke={selectedStroke}
               strokeWidth="1.5"
               cursor="nwse-resize"
@@ -886,7 +893,7 @@ function SequenceDiagramCanvasImpl({
               width="10"
               height="10"
               rx="2.5"
-              fill="#ffffff"
+              fill={handleFill}
               stroke={selectedStroke}
               strokeWidth="1.5"
               cursor="nesw-resize"
@@ -1434,6 +1441,8 @@ function SequenceDiagramCanvasImpl({
         const noteBox = layout.noteLayouts.get(note.id);
         if (noteBox === undefined) return null;
         const noteScheme = SEQUENCE_NOTE_COLORS[note.color ?? 'yellow'];
+        // Matches the inline textarea: its 1px border plus the shared padding.
+        const noteTextX = noteBox.x + SEQUENCE_NOTE_PADDING_X + 1;
         const anchorPoint = note.anchorKind === 'message' && note.anchorId
           ? (() => {
               const message = layout.orderedMessages.find((candidate) => candidate.id === note.anchorId);
@@ -1508,11 +1517,11 @@ function SequenceDiagramCanvasImpl({
                   />
                 </g>
                 {note.text ? (
-                  <text x={noteBox.x + 12} y={noteBox.y + 22} fill={noteScheme.text} fontSize="11" fontFamily="Inter, Arial, sans-serif" style={{ pointerEvents: 'none', userSelect: 'none' }}>
-                    {noteBox.lines.map((line, index) => <tspan key={`${note.id}:${index}`} x={noteBox.x + 12} dy={index === 0 ? 0 : 15}>{line}</tspan>)}
+                  <text x={noteTextX} y={noteBox.y + 22} fill={noteScheme.text} fontSize={SEQUENCE_NOTE_FONT_SIZE} fontFamily={SEQUENCE_NOTE_FONT_FAMILY} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                    {noteBox.lines.map((line, index) => <tspan key={`${note.id}:${index}`} x={noteTextX} dy={index === 0 ? 0 : SEQUENCE_NOTE_LINE_HEIGHT}>{line}</tspan>)}
                   </text>
                 ) : (
-                  <text x={noteBox.x + 12} y={noteBox.y + 22} fill={noteScheme.text} opacity={0.45} fontStyle="italic" fontSize="11" fontFamily="Inter, Arial, sans-serif" style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                  <text x={noteTextX} y={noteBox.y + 22} fill={noteScheme.text} opacity={0.45} fontStyle="italic" fontSize={SEQUENCE_NOTE_FONT_SIZE} fontFamily={SEQUENCE_NOTE_FONT_FAMILY} style={{ pointerEvents: 'none', userSelect: 'none' }}>
                     (Doble clic para escribir)
                   </text>
                 )}

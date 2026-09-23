@@ -33,7 +33,7 @@ import type {
   UseCaseFlowStep,
 } from '../types/diagram';
 import { IMPORT_INVALID_MESSAGE, IMPORT_UNREADABLE_MESSAGE, isImportableProject } from '../utils/projectImport';
-import type { DiagramTheme, DiagramThemeId } from '../theme/themes';
+import type { DiagramTheme } from '../theme/themes';
 import { createId } from '../utils/id';
 import { normalizeDiagramProject, normalizeUseCaseFlowContent } from '../utils/diagramNormalization';
 import { buildProjectSymbolIndex } from '../utils/projectSymbolIndex';
@@ -93,11 +93,9 @@ type UseCaseFlowEditorProps = {
   canUndo: boolean;
   project: DiagramProject;
   theme: DiagramTheme;
-  themeId: DiagramThemeId;
   onChangeContent: (content: UseCaseFlowContent) => void;
   onImportProject: (project: DiagramProject) => void;
   onRedo: () => void;
-  onThemeChange: (themeId: DiagramThemeId) => void;
   onUndo: () => void;
 };
 

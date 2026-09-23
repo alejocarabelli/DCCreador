@@ -206,6 +206,33 @@ export const hashParticipantIdentity = (identityKey: string): number => {
   return hash >>> 0;
 };
 
+const parseHex = (hex: string): [number, number, number] => {
+  const value = hex.replace('#', '');
+  return [0, 2, 4].map((offset) => Number.parseInt(value.slice(offset, offset + 2), 16)) as [number, number, number];
+};
+
+/** Linear sRGB mix of two #RRGGBB colors; `weight` is the share of `from`. */
+export const mixHexColors = (from: string, to: string, weight: number): string => {
+  const a = parseHex(from);
+  const b = parseHex(to);
+  return `#${a.map((channel, index) => Math.round(channel * weight + b[index] * (1 - weight)).toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+};
+
+/**
+ * Las familias están pensadas para fondos claros. En modo oscuro se conserva el
+ * tono (derivado del borde) y se invierte la luminosidad: rellenos profundos,
+ * bordes y trazos aclarados para que el texto claro siga siendo legible.
+ */
+export const toDarkParticipantFamily = (family: ParticipantVisualFamily, canvasBackground: string): ParticipantVisualFamily => ({
+  ...family,
+  headerFill: mixHexColors(family.headerBorder, canvasBackground, 0.24),
+  headerBorder: mixHexColors(family.headerBorder, '#FFFFFF', 0.82),
+  lifelineStroke: mixHexColors(family.lifelineStroke, '#FFFFFF', 0.9),
+  activationFill: mixHexColors(family.activationBorder, canvasBackground, 0.3),
+  activationBorder: mixHexColors(family.activationBorder, '#FFFFFF', 0.8),
+  glyphStroke: mixHexColors(family.glyphStroke, '#FFFFFF', 0.55),
+});
+
 export type ResolveParticipantVisualIdentityOptions = ResolveParticipantIdentityOptions & {
   enabled?: boolean;
   theme?: DiagramTheme;
@@ -248,7 +275,10 @@ export const resolveParticipantVisualIdentity = (
 
   const hash = hashParticipantIdentity(identityKey);
   const familyIndex = hash % SEQUENCE_PARTICIPANT_PALETTE.length;
-  const family = SEQUENCE_PARTICIPANT_PALETTE[familyIndex];
+  const paletteFamily = SEQUENCE_PARTICIPANT_PALETTE[familyIndex];
+  const family = options?.theme?.appearance === 'dark'
+    ? toDarkParticipantFamily(paletteFamily, options.theme.sequence.canvasBackground)
+    : paletteFamily;
 
   return {
     identityKey,

@@ -17,6 +17,7 @@ import {
   getSequenceParticipantHeaderWidth,
   getSequenceNoteMinimumHeight,
   measureSequenceText,
+  wrapSequenceNoteText,
   resolveSequenceNoteRect,
   type SequenceDiagramBounds,
   type SequenceRect,
@@ -535,12 +536,11 @@ export const buildSequenceLayout = (
   const noteLayouts = new Map<string, SequenceNoteLayout>();
   content.notes.forEach((note) => {
     const rect = resolveSequenceNoteRect(note);
-    const text = measureSequenceText(note.text || 'Nota', Math.max(12, Math.floor((rect.width - 24) / 7)), 6.3, 15);
     noteLayouts.set(note.id, {
       id: note.id,
       ...rect,
       minimumHeight: getSequenceNoteMinimumHeight({ text: note.text, width: rect.width }),
-      lines: text.lines,
+      lines: wrapSequenceNoteText(note.text || 'Nota', rect.width),
     });
   });
 
