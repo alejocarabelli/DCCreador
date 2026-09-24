@@ -15,6 +15,7 @@ import {
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import type { DesignArtifact, DiagramProject } from '../types/diagram';
 import type { ThemePreference } from '../hooks/useTheme';
+import { APP_CHANNEL_LABEL, APP_NAME } from '../constants/appInfo';
 import { ArtifactTypeIcon } from './ArtifactTypeIcon';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -186,7 +187,7 @@ export function ProjectSidebar({
             <Blocks size={19} />
           </span>
           <div>
-            <p className="sidebar-brand-name">Modelador de Sistemas</p>
+            <p className="sidebar-brand-name">{APP_NAME} <span className="app-channel-badge">{APP_CHANNEL_LABEL}</span></p>
           </div>
         </div>
         <div className="sidebar-header-actions">

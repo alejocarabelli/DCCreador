@@ -1,6 +1,14 @@
 #import <Cocoa/Cocoa.h>
 #import <WebKit/WebKit.h>
 
+/*
+ * Beta 2.0: convive con la v1 instalada. Nombre, esquema de URL (origen web)
+ * y carpeta de respaldos son propios, y el bundle id del Info.plist también,
+ * así que el almacenamiento de WebKit queda separado del de la v1.
+ */
+static NSString *const kAppName = @"Modelador de Sistemas 2.0 Beta";
+static NSString *const kAppScheme = @"modeladorbeta";
+
 @interface AppSchemeHandler : NSObject <WKURLSchemeHandler>
 @property(nonatomic, strong) NSURL *resourceDirectory;
 - (instancetype)initWithResourceDirectory:(NSURL *)resourceDirectory;
@@ -168,7 +176,7 @@
     initiatedByFrame:(WKFrameInfo *)frame
     completionHandler:(void (^)(void))completionHandler {
     NSAlert *alert = [[NSAlert alloc] init];
-    alert.messageText = @"Modelador de Sistemas";
+    alert.messageText = kAppName;
     alert.informativeText = message;
     [alert addButtonWithTitle:@"Aceptar"];
     [alert beginSheetModalForWindow:self.window completionHandler:^(__unused NSModalResponse result) {
@@ -181,7 +189,7 @@
     initiatedByFrame:(WKFrameInfo *)frame
     completionHandler:(void (^)(BOOL result))completionHandler {
     NSAlert *alert = [[NSAlert alloc] init];
-    alert.messageText = @"Modelador de Sistemas";
+    alert.messageText = kAppName;
     alert.informativeText = message;
     [alert addButtonWithTitle:@"Aceptar"];
     [alert addButtonWithTitle:@"Cancelar"];
@@ -213,7 +221,7 @@
 /**
  * Los proyectos viven en el localStorage del WKWebView, que macOS puede vaciar
  * sin aviso. Este puente escribe una copia rotativa en
- * ~/Documents/Modelador de Sistemas/Respaldos, que además se sincroniza sola si
+ * ~/Documents/Modelador de Sistemas 2.0 Beta/Respaldos, que además se sincroniza sola si
  * el usuario tiene iCloud Drive activado sobre Documentos.
  */
 static NSUInteger const kBackupsToKeep = 10;
@@ -232,7 +240,7 @@ static NSUInteger const kBackupsToKeep = 10;
     if (!documents) {
         return nil;
     }
-    NSURL *directory = [[documents URLByAppendingPathComponent:@"Modelador de Sistemas" isDirectory:YES]
+    NSURL *directory = [[documents URLByAppendingPathComponent:kAppName isDirectory:YES]
         URLByAppendingPathComponent:@"Respaldos" isDirectory:YES];
     if (![[NSFileManager defaultManager] createDirectoryAtURL:directory
                                   withIntermediateDirectories:YES
@@ -340,7 +348,7 @@ static NSUInteger const kBackupsToKeep = 10;
                    NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable)
         backing:NSBackingStoreBuffered
         defer:NO];
-    self.window.title = @"Modelador de Sistemas";
+    self.window.title = kAppName;
     self.window.backgroundColor = [NSColor colorWithWhite:0.96 alpha:1.0];
     self.window.minSize = NSMakeSize(900, 600);
     self.window.collectionBehavior = NSWindowCollectionBehaviorFullScreenPrimary;
@@ -358,7 +366,7 @@ static NSUInteger const kBackupsToKeep = 10;
     configuration.websiteDataStore = WKWebsiteDataStore.defaultDataStore;
     configuration.preferences.javaScriptCanOpenWindowsAutomatically = NO;
     self.schemeHandler = [[AppSchemeHandler alloc] initWithResourceDirectory:resourceDirectory];
-    [configuration setURLSchemeHandler:self.schemeHandler forURLScheme:@"disenosistemas"];
+    [configuration setURLSchemeHandler:self.schemeHandler forURLScheme:kAppScheme];
 
     self.backupBridge = [[BackupBridge alloc] init];
     WKUserContentController *contentController = [[WKUserContentController alloc] init];
@@ -379,7 +387,7 @@ static NSUInteger const kBackupsToKeep = 10;
     webView.UIDelegate = self.coordinator;
 
     self.window.contentView = webView;
-    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"disenosistemas://app/index.html"]]];
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:[kAppScheme stringByAppendingString:@"://app/index.html"]]]];
     [self.window makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];
 }
@@ -394,7 +402,7 @@ static NSUInteger const kBackupsToKeep = 10;
 
 - (void)presentStartupError:(NSString *)message {
     NSAlert *alert = [[NSAlert alloc] init];
-    alert.messageText = @"No se pudo abrir Modelador de Sistemas";
+    alert.messageText = [@"No se pudo abrir " stringByAppendingString:kAppName];
     alert.informativeText = message;
     [alert runModal];
     [NSApp terminate:nil];
@@ -405,11 +413,11 @@ static NSUInteger const kBackupsToKeep = 10;
 
     NSMenuItem *applicationMenuItem = [[NSMenuItem alloc] init];
     NSMenu *applicationMenu = [[NSMenu alloc] initWithTitle:@"Aplicación"];
-    [applicationMenu addItemWithTitle:@"Acerca de Modelador de Sistemas"
+    [applicationMenu addItemWithTitle:[@"Acerca de " stringByAppendingString:kAppName]
                                action:@selector(orderFrontStandardAboutPanel:)
                         keyEquivalent:@""];
     [applicationMenu addItem:NSMenuItem.separatorItem];
-    [applicationMenu addItemWithTitle:@"Salir de Modelador de Sistemas"
+    [applicationMenu addItemWithTitle:[@"Salir de " stringByAppendingString:kAppName]
                                action:@selector(terminate:)
                         keyEquivalent:@"q"];
     applicationMenuItem.submenu = applicationMenu;
