@@ -322,3 +322,14 @@ No se quitó ninguna función: todo lo que hacían los encabezados viejos (plega
 | Avisos del editor | Arriba a la derecha, tapando el encabezado del inspector (todos los editores) | Abajo al centro, como dice DESIGN.md | Tapaban el panel |
 
 Compatibilidad: los archivos no cambian. Las relaciones nuevas guardan el lado que mira al otro nodo (derecha, izquierda…) para que la versión anterior las siga dibujando bien.
+
+## La 2.0 reemplaza a la v1
+
+- La app instalada es una sola: `/Applications/Modelador de Sistemas.app`, con
+  nombre "Modelador de Sistemas" (sin "2.0") y un ícono nuevo al estilo
+  Cuaderno técnico (`macos/CreateIcon.m`).
+- El bundle id (`com.alejocarabelli.disenosistemas.v2`) y el esquema
+  (`modeladorv2://`) no cambian: ahí están guardados los proyectos.
+- Los respaldos van a `~/Documents/Modelador de Sistemas/Respaldos`; el último
+  respaldo de la v1 queda ahí como `v1-ultimo-respaldo-2026-09-23.json`.
+- La v1 queda en la rama `version-1` y en la release `v1.1.0`.

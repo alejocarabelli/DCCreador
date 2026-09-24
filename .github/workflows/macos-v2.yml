@@ -1,12 +1,12 @@
 name: macOS 2.0
 
-# Compila "Modelador de Sistemas 2.0" en un Mac de GitHub.
-# - Cada push a rediseno-v2: compila y guarda el .dmg y el .zip como artefacto.
+# Compila "Modelador de Sistemas" (2.x) en un Mac de GitHub.
+# - Cada push a main: compila y guarda el .dmg y el .zip como artefacto.
 # - Una etiqueta v2.*: además publica ambos en una release (pre-release si la
 #   etiqueta lleva sufijo, como v2.0.0-rc.1).
 on:
   push:
-    branches: [rediseno-v2]
+    branches: [main]
     tags: ['v2.*']
 
 permissions:

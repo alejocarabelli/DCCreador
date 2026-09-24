@@ -5,9 +5,9 @@
   <key>CFBundleDevelopmentRegion</key>
   <string>es</string>
   <key>CFBundleDisplayName</key>
-  <string>Modelador de Sistemas 2.0</string>
+  <string>Modelador de Sistemas</string>
   <key>CFBundleExecutable</key>
-  <string>ModeladorV2</string>
+  <string>ModeladorDeSistemas</string>
   <key>CFBundleIconFile</key>
   <string>AppIcon.png</string>
   <key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
-  <string>Modelador de Sistemas 2.0</string>
+  <string>Modelador de Sistemas</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>

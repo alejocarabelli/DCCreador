@@ -6,10 +6,10 @@ if [[ -d "/Library/Developer/CommandLineTools" ]]; then
 fi
 
 ROOT_DIR="${0:A:h:h}"
-# 2.0: nombre, ejecutable, carpeta de compilación y ruta de instalación
-# propios, para convivir con /Applications/Modelador de Sistemas.app (v1).
-APP_NAME="Modelador de Sistemas 2.0"
-EXECUTABLE="ModeladorV2"
+# La 2.0 reemplaza a la v1 en /Applications/Modelador de Sistemas.app.
+# La v1 queda en la rama version-1 y en la release v1.1.0 de GitHub.
+APP_NAME="Modelador de Sistemas"
+EXECUTABLE="ModeladorDeSistemas"
 BUILD_DIR="/private/tmp/modelador-sistemas-v2-build"
 APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
 INSTALL_PATH="/Applications/$APP_NAME.app"
@@ -54,9 +54,9 @@ codesign --verify --deep --strict "$APP_BUNDLE"
 rm -f "$DELIVERY_ZIP"
 ditto -c -k --norsrc --noextattr --noqtn --noacl --keepParent "$APP_BUNDLE" "$DELIVERY_ZIP"
 
-# Nunca toca la v1: solo reemplaza una 2.0 instalada antes en su propia ruta.
+# Reemplaza la app instalada y quita la "2.0" que convivía con la v1.
 if [[ "${SKIP_INSTALL:-0}" != "1" ]] && [[ -w "/Applications" || -w "$INSTALL_PATH" ]]; then
-  rm -rf "$INSTALL_PATH"
+  rm -rf "$INSTALL_PATH" "/Applications/Modelador de Sistemas 2.0.app"
   ditto --norsrc --noextattr --noqtn --noacl "$APP_BUNDLE" "$INSTALL_PATH"
   echo "Instalado/Actualizado en $INSTALL_PATH"
 fi
