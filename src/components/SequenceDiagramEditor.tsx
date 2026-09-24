@@ -17,8 +17,6 @@ import {
   LayoutTemplate,
   MessageSquarePlus,
   PanelLeftClose,
-  PanelRightClose,
-  PanelRightOpen,
   Plus,
   Search,
   SlidersHorizontal,
@@ -31,6 +29,7 @@ import {
 import { useCallback, useEffect, useEffectEvent, useMemo, useReducer, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction, type SyntheticEvent } from 'react';
 import { CanvasZoom } from './ui/CanvasZoom';
 import { EditorToolbar, MenuField, MenuItem, MenuLabel, MenuSeparator, ReviewButton, ToolbarDivider, ToolButton, ToolMenu } from './ui/Toolbar';
+import { InspectorDeleteButton, InspectorPanel, type InspectorTone } from './ui/Panel';
 import { EXPORT_THEME, type DiagramTheme } from '../theme/themes';
 import { CanvasStartCard } from './CanvasStartCard';
 import { useDialogs } from '../hooks/useDialogs';
@@ -198,6 +197,23 @@ const messageTypeLabels: Record<SequenceMessageType, string> = {
   return: 'Retorno',
   create: 'create() · Crear objeto / DTO',
   destroy: 'Destruir línea de vida',
+};
+
+/** How the inspector header names each kind of message. */
+const messageKindLabels: Record<SequenceMessageType, string> = {
+  synchronous: 'Mensaje síncrono',
+  asynchronous: 'Mensaje asíncrono',
+  return: 'Retorno',
+  create: 'Creación',
+  destroy: 'Destrucción',
+};
+
+const messageKindTones: Record<SequenceMessageType, InspectorTone> = {
+  synchronous: 'accent',
+  asynchronous: 'info',
+  return: 'neutral',
+  create: 'success',
+  destroy: 'danger',
 };
 
 const fragmentLabels: Record<SequenceFragmentOperator, string> = {
@@ -3225,21 +3241,6 @@ export function SequenceDiagramEditor({
 
   const participantInspector = selectedParticipant ? (
     <>
-      <div className="sequence-inspector-heading">
-        <div>
-          <span className="sequence-inspector-badge participant-badge">PARTICIPANTE</span>
-          <h3>{formatSequenceParticipantName(selectedParticipant)}</h3>
-        </div>
-        <button
-          aria-label="Eliminar participante"
-          className="icon-button danger"
-          type="button"
-          title="Eliminar participante"
-          onClick={deleteSelection}
-        >
-          <Trash2 size={16} />
-        </button>
-      </div>
 
       <div className="sequence-compact-action-row" style={{ marginTop: 2, marginBottom: 10 }}>
         <button
@@ -3349,7 +3350,7 @@ export function SequenceDiagramEditor({
 
       {/* Activaciones manuales */}
       <details className="sequence-inspector-section sequence-collapsible-section" style={{ marginTop: 8 }}>
-        <summary style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <summary>
           <h4>Activaciones manuales ({content.activations.filter((a) => a.manual && a.participantId === selectedParticipant.id).length})</h4>
         </summary>
         <div style={{ marginTop: 8 }}>
@@ -3487,16 +3488,6 @@ export function SequenceDiagramEditor({
 
     return (
       <div className="sequence-message-inspector-root">
-        {/* Header with badge and 1-line action toolbar */}
-        <div className="sequence-inspector-heading">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span className={`sequence-inspector-badge message-badge ${selectedItem.type}`}>
-              {selectedItem.type === 'synchronous' ? 'SÍNCRONO' : selectedItem.type === 'asynchronous' ? 'ASÍNCRONO' : selectedItem.type === 'return' ? 'RETORNO' : selectedItem.type.toUpperCase()}
-            </span>
-            <h3>{selectedItem.type === 'return' ? 'Retorno' : selectedItem.name || 'Mensaje sin nombre'}</h3>
-          </div>
-          <button aria-label="Eliminar mensaje" className="icon-button danger" type="button" title="Eliminar mensaje" onClick={deleteSelection}><Trash2 size={16} /></button>
-        </div>
 
         <div className="sequence-compact-action-row" style={{ marginTop: 4 }}>
           <button className="secondary-action" type="button" onClick={() => moveSelectedItem(-1)} title="Mover arriba (Alt+↑)"><ArrowUp size={13} /> Subir</button>
@@ -3509,7 +3500,7 @@ export function SequenceDiagramEditor({
         {selectedItem.type !== 'return' ? <div style={{ marginTop: 10 }}>
           <label>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <span style={{ fontWeight: 600, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--panel-muted-text, #60717f)' }}>
+              <span className="v2-inspector-label">
                 Firma del mensaje
               </span>
               <span style={{ fontSize: '0.65rem', color: 'var(--panel-muted-text, #60717f)' }}>auto-wrap</span>
@@ -3533,7 +3524,7 @@ export function SequenceDiagramEditor({
 
         {/* 2. Type Selector (Segmented Pills) */}
         <div style={{ marginTop: 10 }}>
-          <span style={{ display: 'block', fontWeight: 600, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--panel-muted-text, #60717f)', marginBottom: 5 }}>
+          <span className="v2-inspector-label">
             Tipo
           </span>
           <div className="sequence-msg-type-pills-row">
@@ -3637,7 +3628,7 @@ export function SequenceDiagramEditor({
         {/* 4. Location in flow */}
         <div style={{ marginTop: 10 }}>
           <label>
-            <span style={{ fontWeight: 600, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--panel-muted-text, #60717f)', display: 'block', marginBottom: 4 }}>
+            <span className="v2-inspector-label">
               Ubicación en el flujo
             </span>
             <select
@@ -3669,7 +3660,7 @@ export function SequenceDiagramEditor({
 
         {/* 5. Wrap in fragment */}
         <div style={{ marginTop: 10 }}>
-          <span style={{ fontWeight: 600, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--panel-muted-text, #60717f)', display: 'block', marginBottom: 5 }}>
+          <span className="v2-inspector-label">
             Envolver en fragmento
           </span>
           <div className="sequence-quick-wrap-pills">
@@ -3810,22 +3801,6 @@ export function SequenceDiagramEditor({
 
     return (
       <>
-        {/* 1. Header with Badge, Title, and 1-Line Action Bar */}
-        <div className="sequence-inspector-heading">
-          <div>
-            <span className="sequence-inspector-badge fragment-badge">FRAGMENTO {selectedItem.operator.toUpperCase()}</span>
-            <h3>{fragmentLabels[selectedItem.operator]}</h3>
-          </div>
-          <button
-            aria-label="Eliminar fragmento"
-            className="icon-button danger"
-            type="button"
-            title="Eliminar fragmento"
-            onClick={deleteSelection}
-          >
-            <Trash2 size={16} />
-          </button>
-        </div>
 
         <div className="sequence-compact-action-row" style={{ marginTop: 2, marginBottom: 10 }}>
           <button
@@ -4346,21 +4321,6 @@ export function SequenceDiagramEditor({
 
   const noteInspector = selectedNote ? (
     <>
-      <div className="sequence-inspector-heading">
-        <div>
-          <span className="sequence-inspector-badge note-badge">NOTA</span>
-          <h3>{selectedNote.text.trim().split('\n')[0].slice(0, 24) || 'Nota sin texto'}</h3>
-        </div>
-        <button
-          aria-label="Eliminar nota"
-          className="icon-button danger"
-          type="button"
-          title="Eliminar nota"
-          onClick={deleteSelection}
-        >
-          <Trash2 size={16} />
-        </button>
-      </div>
 
       <label style={{ marginBottom: 10 }}>
         <span>Texto de la nota</span>
@@ -4561,6 +4521,20 @@ export function SequenceDiagramEditor({
   // Like the class editor, the inspector exists only while something is
   // selected: an empty "Seleccioná un elemento" column cost the diagram ~300px.
   const selectedInspector = participantInspector ?? messageInspector ?? fragmentInspector ?? noteInspector;
+  const inspectorHeader: { kind: string; title: string; tone: InspectorTone; deleteLabel: string } | null = selectedParticipant
+    ? { kind: 'Participante', title: formatSequenceParticipantName(selectedParticipant), tone: 'accent', deleteLabel: 'Eliminar participante' }
+    : selectedItem?.kind === 'message'
+      ? {
+          kind: messageKindLabels[selectedItem.type],
+          title: selectedItem.type === 'return' ? selectedItem.name || 'Retorno' : selectedItem.name || 'Mensaje sin nombre',
+          tone: messageKindTones[selectedItem.type],
+          deleteLabel: 'Eliminar mensaje',
+        }
+      : selectedItem?.kind === 'fragment'
+        ? { kind: `Fragmento ${selectedItem.operator}`, title: fragmentLabels[selectedItem.operator], tone: 'violet', deleteLabel: 'Eliminar fragmento' }
+        : selectedNote
+          ? { kind: 'Nota', title: selectedNote.text.trim().split('\n')[0] || 'Nota sin texto', tone: 'warning', deleteLabel: 'Eliminar nota' }
+          : null;
   const inspectorIdle = selectedInspector === null || selectedInspector === undefined;
 
   return (
@@ -5043,43 +5017,28 @@ export function SequenceDiagramEditor({
             onClose={() => setIsReviewPanelOpen(false)}
           />
         ) : null}
-        <aside
-          aria-label="Inspector del elemento seleccionado"
-          className={`sequence-inspector-panel ${inspectorCollapsed ? 'collapsed' : ''}`}
-          hidden={inspectorIdle}
-        >
-          {!inspectorCollapsed ? (
+        <InspectorPanel
+          actions={<InspectorDeleteButton label={inspectorHeader?.deleteLabel ?? 'Eliminar'} onClick={deleteSelection} />}
+          bodyClassName="sequence-inspector-content"
+          bodyId="sequence-inspector-content"
+          className="sequence-inspector-panel"
+          collapsed={inspectorCollapsed}
+          edge={(
             <div
+              aria-hidden="true"
               className="sequence-inspector-resizer"
               onPointerDown={startInspectorResize}
-              title="Arrastrar para cambiar ancho del panel"
+              title="Arrastrar para cambiar el ancho del panel"
             />
-          ) : null}
-          <div className="sequence-inspector-toolbar">
-            <button
-              aria-controls="sequence-inspector-content"
-              aria-expanded={!inspectorCollapsed}
-              aria-label={inspectorCollapsed ? 'Expandir inspector' : 'Contraer inspector'}
-              className="icon-button"
-              type="button"
-              title={inspectorCollapsed ? 'Expandir inspector' : 'Contraer inspector'}
-              onClick={() => setInspectorCollapsed((current) => !current)}
-            >
-              {inspectorCollapsed ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}
-            </button>
-            {!inspectorCollapsed ? (
-              <div className="sequence-inspector-title-group">
-                <SlidersHorizontal size={14} />
-                <h2 className="sequence-inspector-panel-title">Propiedades</h2>
-              </div>
-            ) : null}
-          </div>
-          {!inspectorCollapsed ? (
-            <div id="sequence-inspector-content" className="sequence-inspector-content">
-              {selectedInspector}
-            </div>
-          ) : null}
-        </aside>
+          )}
+          hidden={inspectorIdle}
+          kind={inspectorHeader?.kind ?? ''}
+          title={inspectorHeader?.title ?? ''}
+          tone={inspectorHeader?.tone}
+          onToggleCollapsed={() => setInspectorCollapsed((current) => !current)}
+        >
+          {selectedInspector}
+        </InspectorPanel>
       </section>
       <div id="sequence-structured-description" className="sequence-structured-description" role="region" aria-label="Descripción estructurada del diagrama">
         <p>Diagrama de secuencia con {content.participants.length} participante{content.participants.length === 1 ? '' : 's'}, {messageCount} mensaje{messageCount === 1 ? '' : 's'} y {content.notes.length} nota{content.notes.length === 1 ? '' : 's'}.</p>

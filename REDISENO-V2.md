@@ -240,3 +240,24 @@ Usa el mismo editor que el diagrama de clases (5.2), más lo propio:
 | Botón de invertir origen/destino (nuevo mensaje) | Posición fija que tapaba el rótulo "Origen" con la tipografía nueva | Alineado con la primera fila de campos | Se superponía |
 
 **Exportaciones verificadas** desde el modo oscuro (salen siempre en el tema claro): clases PNG y PDF, casos de uso PNG y PDF, flujo PDF y Word (3 tablas, 17 filas, mismo formato), secuencia PNG y PDF paginado. Ninguna pierde contenido; ahora usan Plex y la paleta Cuaderno.
+
+### 5.8 Paneles y desplegables
+
+Había tres inspectores distintos: el de clases con un botón de plegar suelto arriba a la izquierda, el de casos de uso sin forma de plegarse, y el de secuencia con una barra propia que solo decía "Propiedades" y repetía el nombre más abajo con una etiqueta de color. Ahora los tres son el mismo componente (`InspectorPanel`, en `src/components/ui/Panel.tsx`).
+
+| Control (v1) | Dónde estaba | Ahora | Por qué |
+|---|---|---|---|
+| Encabezado del inspector | Tres formas: "Propiedades / nombre / Clase" (clases), "Propiedades / Relación" (casos de uso), barra "Propiedades" + insignia en mayúsculas (secuencia) | Una fila fija arriba del panel: **plegar · qué es · nombre · eliminar**. El tipo lleva un punto de color (clase y participante en petróleo, retorno neutro, asíncrono azul, creación verde, destrucción roja, fragmento violeta, nota ámbar) | El mismo lugar para lo mismo en todos los editores; el encabezado no se va con el scroll |
+| Botón de plegar el inspector | Clases: arriba a la izquierda sobre el contenido. Secuencia: en su barra. Casos de uso: **no existía** | Siempre el primer botón del encabezado; plegado queda un riel de 44 px en todos los editores (antes 48 o 52 px según el editor) | Casos de uso ganó la opción; clases y casos de uso comparten la preferencia |
+| Eliminar desde el inspector | Solo en secuencia (papelera en la insignia) | Papelera en el encabezado de los tres inspectores (clase, relación, actor, caso de uso, participante, mensaje, fragmento, nota) | Antes en clases y casos de uso solo se podía borrar con ⌫ o el menú contextual |
+| Título de una relación de clases | "Relación" | El tipo ("Asociación", "Composición"…) como rótulo y los extremos como título: "Tramite — TipoTramite" | Se sabe qué relación se está editando |
+| Inspector de casos de uso con nodo y relación seleccionados | Mostraba las dos secciones apiladas | Muestra la relación, que es lo que borra ⌫ | El panel y el atajo apuntan a lo mismo |
+| "Invertir dirección" (casos de uso) | Botón de texto sin estilo | Botón secundario a lo ancho | Coherencia |
+| Rótulos del inspector de secuencia ("FIRMA DEL MENSAJE", "TIPO", "UBICACIÓN…", "ENVOLVER…", "RUTA") | Mayúsculas pequeñas con estilos escritos a mano en cada elemento | Rótulos en tipo oración como los de clases ("Firma del mensaje", "Tipo"); "Ruta" es un título de sección como "Atributos" | Un solo lenguaje de rótulos |
+| Secciones plegables (Opciones técnicas, Activaciones manuales, Opciones avanzadas…) | Triángulo "▶" de texto; en una el título quedaba empujado a la derecha | Chevron fino, título a la izquierda, fila con estado hover y foco visible, separador arriba | Iguales en todo el inspector; `PanelSection` queda para las secciones nuevas |
+| Casilla "Terminar línea de vida con cruz" | Se estiraba hasta ~35 px | 16 px con el color de acento | Error visual |
+| Selects nativos (todos los paneles y menús) | Flecha del sistema, gruesa y negra también en modo oscuro | Siguen siendo selects nativos (teclado, VoiceOver y menú de macOS intactos) con un chevron fino en el gris del tema, claro y oscuro | En Pizarra la flecha negra casi no se veía |
+| Panel de estructura (secuencia) | — | Sin cambios de lugar: sigue a la izquierda del lienzo, con el mismo botón de plegar que ya tenía | Ya compartía la lógica de la barra lateral; moverlo no aportaba |
+| Paneles de revisión | Clases y secuencia flotando sobre el lienzo; flujo acoplado al documento | Se mantiene | En el flujo la revisión señala renglones del documento y necesita estar al lado; en los lienzos flotar no le quita espacio al diagrama |
+
+No se quitó ninguna función: todo lo que hacían los encabezados viejos (plegar, eliminar, ver el tipo y el nombre) sigue en el encabezado nuevo, y ahora también en los editores que no lo tenían.

@@ -514,6 +514,25 @@
   outline: none;
 }
 
+/* Native selects keep their native menu (keyboard, VoiceOver, macOS look)
+   but lose the heavy system chevron: one thin chevron in the muted text
+   colour, the same in every panel. The image properties are !important
+   because dozens of legacy rules reset `background` with the shorthand. */
+.app-shell select:not([multiple], [size]) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235F6668' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+  background-position: right 9px center !important;
+  background-repeat: no-repeat !important;
+  background-size: 12px 12px !important;
+  padding-right: 28px !important;
+  text-overflow: ellipsis;
+}
+
+.app-shell[data-theme='academic-dark'] select:not([multiple], [size]) {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23A3A7A2' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+}
+
 :where(.app-shell) ::placeholder {
   color: var(--panel-placeholder-text);
   opacity: 1;

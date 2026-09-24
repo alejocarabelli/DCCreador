@@ -43,6 +43,7 @@ import { readUiPreference, writeUiPreference } from '../storage/uiPreferences';
 import { normalizeUseCaseModelContent } from '../utils/diagramNormalization';
 import { CanvasControls } from './CanvasControls';
 import { EditorToolbar, MenuItem, ToolButton, ToolMenu } from './ui/Toolbar';
+import { InspectorDeleteButton, InspectorPanel } from './ui/Panel';
 import { CanvasStartCard } from './CanvasStartCard';
 import { SystemBoundaryNode, UseCaseActorNode, UseCaseOvalNode } from './useCaseNodes';
 import { UseCaseRelationEdge } from './UseCaseRelationEdge';
@@ -55,6 +56,14 @@ const GRID_ENABLED_KEY = 'class-diagram-grid-enabled';
 const SNAP_ENABLED_KEY = 'class-diagram-snap-enabled';
 /** Shared with the class editor: the minimap is a preference of the person, not of the diagram. */
 const MINIMAP_ENABLED_KEY = 'class-diagram-minimap-enabled';
+/** Shared with the class editor: folding the inspector is one preference for every canvas. */
+const INSPECTOR_COLLAPSED_KEY = 'class-diagram-inspector-collapsed';
+
+const labelForUseCaseNode = (node: { data: { kind?: string } } | null): string =>
+  node?.data.kind === 'actor' ? 'Actor' : node?.data.kind === 'system-boundary' ? 'Límite del sistema' : 'Caso de uso';
+
+const labelForUseCaseRelation = (relationType: UseCaseRelationType): string =>
+  relationType === 'association' ? 'Asociación' : relationType === 'include' ? 'Include' : relationType === 'extend' ? 'Extend' : 'Generalización';
 const PNG_WIDTH = 1600;
 const PNG_HEIGHT = 1000;
 
@@ -153,6 +162,13 @@ export function UseCaseModelEditor({
   const [isGridEnabled, setIsGridEnabled] = useState(() => readUiPreference(GRID_ENABLED_KEY) !== 'false');
   const [isSnapEnabled, setIsSnapEnabled] = useState(() => readUiPreference(SNAP_ENABLED_KEY) === 'true');
   const [isMiniMapEnabled, setIsMiniMapEnabled] = useState(() => readUiPreference(MINIMAP_ENABLED_KEY) !== 'false');
+  const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(() => readUiPreference(INSPECTOR_COLLAPSED_KEY) === 'true');
+  const toggleInspectorCollapsed = (): void => {
+    setIsInspectorCollapsed((current) => {
+      writeUiPreference(INSPECTOR_COLLAPSED_KEY, String(!current));
+      return !current;
+    });
+  };
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
@@ -517,6 +533,9 @@ export function UseCaseModelEditor({
         )
       : [];
 
+  // The inspector follows what Suprimir would delete: the relation first.
+  const inspectedNode = selectedEdge !== null ? null : selectedNode;
+
   return (
     <main className="diagram-editor use-case-editor">
       <EditorToolbar
@@ -556,7 +575,7 @@ export function UseCaseModelEditor({
         )}
       />
 
-      <div className={`editor-body ${selectedNode === null && selectedEdge === null ? 'inspector-hidden' : ''}`}>
+      <div className={`editor-body ${selectedNode === null && selectedEdge === null ? 'inspector-hidden' : isInspectorCollapsed ? 'inspector-collapsed' : ''}`}>
         <div className="flow-canvas" ref={canvasRef}>
           <ReactFlow
             connectionMode={ConnectionMode.Loose}
@@ -633,23 +652,24 @@ export function UseCaseModelEditor({
         </div>
 
         {selectedNode !== null || selectedEdge !== null ? (
-          <aside className="inspector">
-            {selectedNode !== null ? (
-              <section className="inspector-section">
-                <p className="eyebrow">Propiedades</p>
-                <h2>
-                  {selectedNode.data.kind === 'actor' ? 'Actor' : selectedNode.data.kind === 'system-boundary' ? 'Límite del sistema' : 'Caso de uso'}
-                </h2>
-                <label className="field">
-                  Nombre
-                  <input value={selectedNode.data.name} onChange={(event) => renameNode(selectedNode.id, event.target.value)} />
-                </label>
-              </section>
+          <InspectorPanel
+            actions={<InspectorDeleteButton label={inspectedNode === null ? 'Eliminar relación' : `Eliminar ${labelForUseCaseNode(inspectedNode).toLocaleLowerCase()}`} onClick={deleteSelectedElement} />}
+            bodyId="use-case-inspector-body"
+            className="inspector"
+            collapsed={isInspectorCollapsed}
+            kind={inspectedNode !== null ? labelForUseCaseNode(inspectedNode) : 'Relación'}
+            title={inspectedNode !== null ? inspectedNode.data.name.trim() || 'Sin nombre' : labelForUseCaseRelation(selectedEdge?.data?.relationType ?? 'association')}
+            tone={inspectedNode !== null ? 'accent' : 'neutral'}
+            onToggleCollapsed={toggleInspectorCollapsed}
+          >
+            {inspectedNode !== null ? (
+              <label className="field">
+                Nombre
+                <input value={inspectedNode.data.name} onChange={(event) => renameNode(inspectedNode.id, event.target.value)} />
+              </label>
             ) : null}
-            {selectedEdge !== null ? (
-              <section className="inspector-section">
-                <p className="eyebrow">Propiedades</p>
-                <h2>Relación</h2>
+            {selectedEdge !== null && selectedNode === null ? (
+              <>
                 <label className="field">
                   Tipo
                   <select
@@ -657,9 +677,7 @@ export function UseCaseModelEditor({
                     onChange={(event) => updateSelectedEdge({ relationType: event.target.value as UseCaseRelationType })}
                   >
                     {relationOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option === 'association' ? 'Asociación' : option === 'include' ? 'Include' : option === 'extend' ? 'Extend' : 'Generalización'}
-                      </option>
+                      <option key={option} value={option}>{labelForUseCaseRelation(option)}</option>
                     ))}
                   </select>
                 </label>
@@ -669,10 +687,10 @@ export function UseCaseModelEditor({
                     <input value={selectedEdge.data?.label ?? ''} onChange={(event) => updateSelectedEdge({ label: event.target.value })} placeholder="<i>" />
                   </label>
                 ) : null}
-                <button type="button" onClick={invertSelectedEdge}>Invertir dirección</button>
-              </section>
+                <button className="secondary-action v2-inspector-block-action" type="button" onClick={invertSelectedEdge}>Invertir dirección</button>
+              </>
             ) : null}
-          </aside>
+          </InspectorPanel>
         ) : null}
       </div>
       {feedbackMessage !== null ? <div className="editor-feedback">{feedbackMessage}</div> : null}

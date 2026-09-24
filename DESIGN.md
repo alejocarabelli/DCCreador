@@ -124,6 +124,17 @@ icon column; toggles use `role="menuitemcheckbox"` and a check mark; sections
 use mono uppercase labels. Canvas context menus and the sidebar's floating
 menus share the same panel and item styles.
 
+### Inspector — `InspectorPanel`, `InspectorDeleteButton`, `PanelSection`
+
+Every editor's right-hand panel. A fixed 56px header — fold · kind · name ·
+delete — over a scrolling body; folded it is a 44px rail with only the fold
+button. The kind is a mono uppercase label with a tone dot (accent for the
+main element, status tones for message kinds, violet fragments, amber notes).
+Field labels inside are sentence case (`--text-sm`, secondary text); section
+titles are `--text-md` 600. Collapsible sections are native `<details>` with a
+thin chevron, closed by default. Native selects keep the system menu but draw
+a thin chevron in the muted text colour.
+
 ### Canvas zoom — `CanvasZoom`
 
 The only zoom control: bottom-left of every canvas, `− 100% + | ⤢`. The

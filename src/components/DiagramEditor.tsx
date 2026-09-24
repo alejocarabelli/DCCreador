@@ -34,8 +34,6 @@ import {
   EyeOff,
   FileText,
   ImageDown,
-  PanelRightClose,
-  PanelRightOpen,
   Plus,
 } from 'lucide-react';
 import type {
@@ -65,6 +63,8 @@ import { normalizeClassNode, normalizeDiagramContent } from '../utils/diagramNor
 import { AssociationEdge } from './AssociationEdge';
 import { AssociationConnectionPreview } from './AssociationConnectionPreview';
 import { AssociationInspector } from './AssociationInspector';
+import { ASSOCIATION_RELATION_LABELS } from '../constants/associationLabels';
+import { InspectorDeleteButton, InspectorPanel } from './ui/Panel';
 import { ClassInspector } from './ClassInspector';
 import { ClassNode } from './ClassNode';
 import { ParametricValuesNote } from './ParametricValuesNote';
@@ -210,6 +210,10 @@ export function DiagramEditor({
     [normalizedEdges, selectedEdgeId],
   );
   const hasInspectorSelection = selectedNode !== null || selectedEdge !== null;
+  const relationTitle = (edge: ClassDiagramEdge): string => {
+    const nameOf = (nodeId: string): string => nodes.find((node) => node.id === nodeId)?.data.name.trim() || 'Clase sin nombre';
+    return `${nameOf(edge.source)} — ${nameOf(edge.target)}`;
+  };
 
   const updateNodes = useCallback(
     (nextNodes: ClassDiagramNode[], options?: ContentChangeOptions): void => {
@@ -1674,16 +1678,22 @@ export function DiagramEditor({
           ) : null}
         </div>
         {hasInspectorSelection ? (
-          <aside className={`inspector ${isInspectorCollapsed ? 'collapsed' : ''}`}>
-            <button
-              className="icon-button inspector-toggle"
-              type="button"
-              onClick={() => setIsInspectorCollapsed((isCollapsed) => !isCollapsed)}
-              title={isInspectorCollapsed ? 'Expandir inspector' : 'Contraer inspector'}
-            >
-              {isInspectorCollapsed ? <PanelRightOpen size={18} /> : <PanelRightClose size={18} />}
-            </button>
-            {isInspectorCollapsed ? null : selectedEdge !== null ? (
+          <InspectorPanel
+            actions={selectedNoteNodeId === null ? (
+              <InspectorDeleteButton
+                label={selectedEdge !== null ? 'Eliminar relación' : 'Eliminar clase'}
+                onClick={deleteSelectedElement}
+              />
+            ) : null}
+            bodyId="class-inspector-body"
+            className="inspector"
+            collapsed={isInspectorCollapsed}
+            kind={selectedEdge !== null ? ASSOCIATION_RELATION_LABELS[selectedEdge.data?.relationType ?? 'association'] : 'Clase'}
+            title={selectedEdge !== null ? relationTitle(selectedEdge) : selectedNode?.data.name.trim() || 'Clase sin nombre'}
+            tone={selectedEdge !== null ? 'neutral' : 'accent'}
+            onToggleCollapsed={() => setIsInspectorCollapsed((isCollapsed) => !isCollapsed)}
+          >
+            {selectedEdge !== null ? (
               <AssociationInspector edge={selectedEdge} onUpdateAssociation={updateAssociation} />
             ) : (
               <ClassInspector
@@ -1708,7 +1718,7 @@ export function DiagramEditor({
                 onUpdateParametricValuesNoteConnection={updateParametricValuesNoteConnection}
               />
             )}
-          </aside>
+          </InspectorPanel>
         ) : null}
       </div>
     </main>

@@ -111,11 +111,6 @@ export function ClassInspector({
 
   return (
     <div className="inspector-content">
-      <div className="inspector-heading">
-        <p className="eyebrow">Propiedades</p>
-        <h2>{node.data.name.trim() || 'Clase sin nombre'}</h2>
-        <span>Clase</span>
-      </div>
       <label className="field">
         Nombre
         <input value={node.data.name} onChange={handleNameChange} />

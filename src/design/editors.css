@@ -5,6 +5,235 @@
 
 /* ─── Inspector ─────────────────────────────────────────────────────────── */
 
+/* One panel for every editor: a fixed header (plegar · qué es · nombre ·
+   eliminar) over a scrolling body, folding to the same 44px rail. The legacy
+   class names (.inspector, .sequence-inspector-panel) stay only for the grid
+   that places the panel; everything visual lives here. */
+
+.app-shell[data-ui-version='refined'] .v2-inspector {
+  background: var(--panel-background);
+  border-left: 1px solid var(--panel-border);
+  color: var(--panel-text);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  position: relative;
+}
+
+.app-shell[data-ui-version='refined'] .v2-inspector[hidden] { display: none; }
+
+.app-shell[data-ui-version='refined'] .v2-inspector-header {
+  align-items: center;
+  border-bottom: 1px solid var(--panel-border);
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-2);
+  min-height: 56px;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-2);
+}
+
+.app-shell[data-ui-version='refined'] .v2-inspector-title {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 1px;
+  min-width: 0;
+}
+
+.app-shell[data-ui-version='refined'] .v2-inspector-title h2 {
+  color: var(--panel-text);
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1.3;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell[data-ui-version='refined'] .v2-inspector-kind {
+  align-items: center;
+  color: var(--panel-faint-text);
+  display: inline-flex;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  gap: 6px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-shell[data-ui-version='refined'] .v2-inspector-kind::before {
+  background: var(--panel-border-strong);
+  border-radius: 2px;
+  content: '';
+  flex: 0 0 auto;
+  height: 8px;
+  width: 8px;
+}
+
+.app-shell[data-ui-version='refined'] .v2-inspector-kind[data-tone='accent']::before { background: var(--accent); }
+.app-shell[data-ui-version='refined'] .v2-inspector-kind[data-tone='info']::before { background: var(--status-info-border-strong); }
+.app-shell[data-ui-version='refined'] .v2-inspector-kind[data-tone='success']::before { background: var(--status-success-border-strong); }
+.app-shell[data-ui-version='refined'] .v2-inspector-kind[data-tone='warning']::before { background: var(--status-warning-border-strong); }
+.app-shell[data-ui-version='refined'] .v2-inspector-kind[data-tone='violet']::before { background: var(--status-violet-border-strong); }
+.app-shell[data-ui-version='refined'] .v2-inspector-kind[data-tone='danger']::before { background: var(--status-danger-border-strong); }
+
+.app-shell[data-ui-version='refined'] .v2-inspector-actions {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 2px;
+}
+
+.app-shell .v2-tool.is-danger:hover:not(:disabled) {
+  background: var(--status-danger-soft);
+  color: var(--status-danger-text);
+}
+
+.app-shell[data-ui-version='refined'] .v2-inspector-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-1) var(--space-4) var(--space-6);
+}
+
+.app-shell[data-ui-version='refined'] .v2-inspector-body.sequence-inspector-content {
+  align-content: start;
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+}
+
+.app-shell[data-ui-version='refined'] .v2-inspector.is-collapsed {
+  align-items: stretch;
+}
+
+.app-shell[data-ui-version='refined'] .v2-inspector.is-collapsed .v2-inspector-header {
+  border-bottom: 0;
+  justify-content: center;
+  padding: var(--space-2) 0;
+}
+
+/* Same rail width in every editor. */
+.app-shell[data-ui-version='refined'] .editor-body.inspector-collapsed {
+  grid-template-columns: minmax(0, 1fr) 44px;
+}
+
+.app-shell[data-ui-version='refined'] .v2-inspector-block-action {
+  margin-top: var(--space-4);
+  width: 100%;
+}
+
+/* Field labels and section titles inside any inspector read the same way:
+   sentence case, not the old shouting small caps. */
+.app-shell[data-ui-version='refined'] .v2-inspector-body label > span:first-child,
+.app-shell[data-ui-version='refined'] .v2-inspector-body .v2-inspector-label {
+  color: var(--panel-secondary-text);
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  letter-spacing: 0;
+  margin-bottom: 4px;
+  text-transform: none;
+}
+
+.app-shell[data-ui-version='refined'] .v2-inspector-body .sequence-inspector-section > h4,
+.app-shell[data-ui-version='refined'] .v2-inspector-body .sequence-inspector-section > div > h4 {
+  color: var(--panel-text);
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Checkboxes inside panels stay checkbox-sized whatever the row does. */
+.app-shell[data-ui-version='refined'] .v2-inspector-body input[type='checkbox'] {
+  accent-color: var(--accent);
+  flex: 0 0 auto;
+  height: 16px;
+  margin: 0;
+  min-height: 0;
+  width: 16px;
+}
+
+/* ─── Panel sections ────────────────────────────────────────────────────── */
+
+.app-shell[data-ui-version='refined'] :is(.v2-panel-section, .sequence-collapsible-section) {
+  border-top: 1px solid var(--panel-border);
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) 0 0;
+}
+
+.app-shell[data-ui-version='refined'] .v2-panel-section > header,
+.app-shell[data-ui-version='refined'] :is(.v2-panel-section, .sequence-collapsible-section) > summary {
+  align-items: center;
+  display: flex;
+  gap: var(--space-1);
+  min-height: var(--control-sm);
+}
+
+.app-shell[data-ui-version='refined'] :is(.v2-panel-section, .sequence-collapsible-section) > summary {
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  list-style: none;
+  margin: 0 calc(-1 * var(--space-1));
+  padding: 0 var(--space-1);
+}
+
+.app-shell[data-ui-version='refined'] :is(.v2-panel-section, .sequence-collapsible-section) > summary::-webkit-details-marker { display: none; }
+
+.app-shell[data-ui-version='refined'] :is(.v2-panel-section, .sequence-collapsible-section) > summary:hover {
+  background: var(--ui-hover-background);
+}
+
+.app-shell[data-ui-version='refined'] :is(.v2-panel-section, .sequence-collapsible-section) > summary:focus-visible {
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+
+/* The chevron: drawn for the legacy sections, an icon for PanelSection. */
+.app-shell[data-ui-version='refined'] .sequence-collapsible-section > summary::before {
+  border-bottom: 1.5px solid currentColor;
+  border-right: 1.5px solid currentColor;
+  color: var(--panel-faint-text);
+  content: '';
+  flex: 0 0 auto;
+  height: 6px;
+  margin: 0 5px 0 3px;
+  transform: rotate(-45deg);
+  transition: transform var(--duration-fast) var(--ease-out);
+  width: 6px;
+}
+
+.app-shell[data-ui-version='refined'] .sequence-collapsible-section[open] > summary::before { transform: rotate(45deg); }
+.app-shell[data-ui-version='refined'] .sequence-collapsible-section > summary::after { content: none; display: none; }
+
+.app-shell[data-ui-version='refined'] .v2-panel-section-chevron {
+  color: var(--panel-faint-text);
+  flex: 0 0 auto;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.app-shell[data-ui-version='refined'] .v2-panel-section[open] .v2-panel-section-chevron { transform: rotate(90deg); }
+
+.app-shell[data-ui-version='refined'] :is(.v2-panel-section, .sequence-collapsible-section) :is(h3, h4) {
+  color: var(--panel-secondary-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0;
+  margin: 0;
+  text-transform: none;
+}
+
+.app-shell[data-ui-version='refined'] .sequence-collapsible-section[open] > summary { margin-bottom: var(--space-2); }
+
+
 .app-shell[data-ui-version='refined'] .inspector {
   background: var(--panel-background);
   border-left: 1px solid var(--panel-border);
