@@ -82,6 +82,8 @@ type DiagramEditorProps = {
   canUndo: boolean;
   project: DiagramProject;
   toolbarContext?: ReactNode;
+  /** A message raised by the wrapping editor (e.g. an import summary), shown like the editor's own. */
+  externalFeedback?: string | null;
   theme: DiagramTheme;
   onChangeContent: (content: DiagramContent, options?: ContentChangeOptions) => void;
   onRedo: () => void;
@@ -149,6 +151,7 @@ export function DiagramEditor({
   canUndo,
   project,
   toolbarContext,
+  externalFeedback = null,
   theme,
   onChangeContent,
   onRedo,
@@ -1447,11 +1450,11 @@ export function DiagramEditor({
               onDuplicate={() => { duplicateSelection(); closeToolbarMenus(); }}
               onSelectAll={() => { setSelectedNodeIds(nodes.map(node => node.id)); setSelectedEdgeId(null); setSelectedNoteNodeId(null); closeToolbarMenus(); }}
             />
+            {toolbarContext}
           </>
         )}
         end={(
           <>
-            {toolbarContext}
             <ReviewButton
               count={reviewIssues.length}
               open={reviewOpen}
@@ -1479,9 +1482,9 @@ export function DiagramEditor({
           </>
         )}
       />
-      {feedbackMessage !== null ? (
+      {(feedbackMessage ?? externalFeedback) !== null ? (
         <div className="editor-feedback" role="status" aria-live="polite">
-          {feedbackMessage}
+          {feedbackMessage ?? externalFeedback}
         </div>
       ) : null}
 

@@ -108,6 +108,7 @@ export function ToolMenu({
   panelClassName = '',
   disabled,
   title,
+  badge,
   children,
 }: {
   icon?: IconComponent;
@@ -118,6 +119,8 @@ export function ToolMenu({
   panelClassName?: string;
   disabled?: boolean;
   title?: string;
+  /** A small count after the label (e.g. linked sequences). */
+  badge?: number;
   children: ReactNode;
 }) {
   const detailsRef = useRef<HTMLDetailsElement | null>(null);
@@ -163,6 +166,7 @@ export function ToolMenu({
       >
         {Icon ? <Icon size={16} aria-hidden="true" /> : null}
         {showLabel ? <span className="v2-tool-label">{label}</span> : null}
+        {badge !== undefined ? <span className="v2-count">{badge}</span> : null}
         <ChevronDown className="v2-menu-chevron" size={13} aria-hidden="true" />
       </summary>
       <div

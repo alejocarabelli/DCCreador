@@ -12,6 +12,7 @@ import type {
 } from '../types/diagram';
 import { importClassesFromSequences } from '../utils/sequenceClassImport';
 import { DiagramEditor } from './DiagramEditor';
+import { MenuItem, MenuLabel, MenuSeparator, ToolMenu } from './ui/Toolbar';
 import type { DiagramSaveStatus } from '../hooks/useProjects';
 
 type ClassSequenceDiagramEditorProps = {
@@ -135,83 +136,52 @@ export function ClassSequenceDiagramEditor({
   }), [artifact.createdAt, artifact.content.edges, artifact.content.nodes, artifact.id, artifact.name, artifact.updatedAt]);
 
   const toolbarContext = (
-    <div className="class-sequence-sync-context" aria-label="Estado de sincronización">
-      <span className="class-sequence-sync-status">
-        <Link2 aria-hidden="true" size={14} />
-        <strong>{linkedSequenceDiagrams.length}</strong>
-        <span>{linkedSequenceDiagrams.length === 1 ? 'secuencia vinculada' : 'secuencias vinculadas'}</span>
-      </span>
-      <span className="class-sequence-sync-source">
-        {sourceClassDiagram ? `Modelo compartido · ${sourceClassDiagram.name}` : 'Modelo local sin fuente'}
-      </span>
-      <details className="toolbar-menu class-sequence-import-menu">
-        <summary
-          className="class-sequence-sync-button class-sequence-sync-button-primary"
-          aria-label="Importar clases desde un diagrama de secuencia"
-          title="Crea una clase por participante (sin actores) con los métodos que recibe"
-        >
-          <Import aria-hidden="true" size={14} />
-          Importar desde secuencia
-        </summary>
-        <div className="toolbar-menu-content class-sequence-import-list">
-          {sequenceDiagrams.length === 0 ? (
-            <p className="class-sequence-import-empty">Este proyecto todavía no tiene diagramas de secuencia.</p>
-          ) : (
-            <>
-              <p className="class-sequence-import-hint">
-                Una clase por participante, sin actores, con los métodos que recibe.
-              </p>
-              {sequenceDiagrams.map((sequence) => (
-                <button
-                  key={sequence.id}
-                  type="button"
-                  onClick={(event) => {
-                    importFromSequences([sequence]);
-                    event.currentTarget.closest('details')?.removeAttribute('open');
-                  }}
-                >
-                  <Workflow aria-hidden="true" size={15} />
-                  {sequence.name}
-                </button>
-              ))}
-              {sequenceDiagrams.length > 1 ? (
-                <>
-                  <hr />
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      importFromSequences(sequenceDiagrams);
-                      event.currentTarget.closest('details')?.removeAttribute('open');
-                    }}
-                  >
-                    <Import aria-hidden="true" size={15} />
-                    Todas las secuencias ({sequenceDiagrams.length})
-                  </button>
-                </>
-              ) : null}
-            </>
-          )}
-        </div>
-      </details>
-      <button className="class-sequence-sync-button" type="button" onClick={refreshLinks} title="Actualizar vínculos con todas las secuencias">
-        <RefreshCw aria-hidden="true" size={14} />
-        Actualizar vínculos
-      </button>
-      {linkedSequenceDiagrams[0] !== undefined ? (
-        <button
-          className="class-sequence-sync-button class-sequence-sync-button-secondary"
-          type="button"
-          onClick={() => onNavigateToArtifact?.(linkedSequenceDiagrams[0].id)}
-          title="Abrir la primera secuencia vinculada"
-        >
-          <Workflow aria-hidden="true" size={14} />
-          Abrir secuencia
-        </button>
+    <ToolMenu
+      icon={RefreshCw}
+      label="Sincronizar"
+      align="start"
+      badge={linkedSequenceDiagrams.length > 0 ? linkedSequenceDiagrams.length : undefined}
+      title="Importar clases desde las secuencias y abrir las secuencias vinculadas"
+    >
+      <p className="v2-menu-note">
+        <Link2 aria-hidden="true" size={13} />
+        {linkedSequenceDiagrams.length} {linkedSequenceDiagrams.length === 1 ? 'secuencia vinculada' : 'secuencias vinculadas'}
+        {' · '}
+        {sourceClassDiagram ? `modelo compartido con «${sourceClassDiagram.name}»` : 'modelo propio'}
+      </p>
+      <MenuSeparator />
+      <MenuLabel>Importar clases y métodos</MenuLabel>
+      {sequenceDiagrams.length === 0 ? (
+        <p className="v2-menu-note">Este proyecto todavía no tiene diagramas de secuencia.</p>
+      ) : (
+        <>
+          {sequenceDiagrams.map((sequence) => (
+            <MenuItem key={sequence.id} icon={Import} onSelect={() => importFromSequences([sequence])}>
+              Desde «{sequence.name}»
+            </MenuItem>
+          ))}
+          {sequenceDiagrams.length > 1 ? (
+            <MenuItem icon={Import} onSelect={() => importFromSequences(sequenceDiagrams)}>
+              Desde todas las secuencias ({sequenceDiagrams.length})
+            </MenuItem>
+          ) : null}
+        </>
+      )}
+      <MenuItem icon={Link2} disabled={sequenceDiagrams.length === 0} onSelect={refreshLinks}>
+        Vincular todas las secuencias
+      </MenuItem>
+      {linkedSequenceDiagrams.length > 0 ? (
+        <>
+          <MenuSeparator />
+          <MenuLabel>Abrir secuencia vinculada</MenuLabel>
+          {linkedSequenceDiagrams.map((sequence) => (
+            <MenuItem key={sequence.id} icon={Workflow} onSelect={() => onNavigateToArtifact?.(sequence.id)}>
+              {sequence.name}
+            </MenuItem>
+          ))}
+        </>
       ) : null}
-      {importFeedback !== null ? (
-        <span className="class-sequence-import-feedback" role="status" aria-live="polite">{importFeedback}</span>
-      ) : null}
-    </div>
+    </ToolMenu>
   );
 
   return (
@@ -225,6 +195,7 @@ export function ClassSequenceDiagramEditor({
       project={project}
       theme={theme}
       toolbarContext={toolbarContext}
+      externalFeedback={importFeedback}
       onChangeContent={handleChangeContent}
       onRedo={onRedo}
       onUndo={onUndo}

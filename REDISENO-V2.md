@@ -214,3 +214,16 @@ Cada fila dice dónde estaba el control en la v1, qué pasó y por qué.
 | Minimapa | Siempre visible, también vacío | Casilla "Minimapa" en Vista (nueva; comparte la preferencia con clases) y solo aparece si hay elementos | El recuadro vacío no aportaba nada |
 | Archivo → PNG / PDF | Menú "Archivo" | Menú Exportar: Imagen PNG, Documento PDF | Igual que en clases |
 | Archivo → Exportar/Importar JSON | Menú "Archivo" | Proyecto (barra lateral) e inicio | Eran acciones del proyecto |
+
+### 5.6 Clases de secuencias
+
+Usa el mismo editor que el diagrama de clases (5.2), más lo propio:
+
+| Control (v1) | Dónde estaba | Ahora | Por qué |
+|---|---|---|---|
+| Segunda fila de barra (contador, fuente del modelo, Importar ▾, Actualizar vínculos, Abrir secuencia) | Debajo de la barra normal | Un menú **Sincronizar** en la zona de agregar, con el número de secuencias vinculadas en el botón | Una fila de barra menos; todo lo de sincronizar en un lugar |
+| "N secuencias vinculadas · Modelo compartido · …" | Texto en la segunda fila | Primera línea del menú Sincronizar y contador en el botón | Sigue a la vista sin ocupar una fila |
+| Importar desde secuencia ▾ | Menú en la segunda fila | Sección "Importar clases y métodos": "Desde «Secuencia…»" y "Desde todas las secuencias (N)" | Mismo comportamiento |
+| Actualizar vínculos | Botón | "Vincular todas las secuencias" dentro de Sincronizar | El nombre dice lo que hace: vincula todas las secuencias del proyecto |
+| Abrir secuencia | Botón que abría solo la primera vinculada | Sección "Abrir secuencia vinculada" con **todas** las vinculadas | Antes no se podía llegar a la segunda o tercera desde acá |
+| Resultado de la importación | Texto al lado de los botones | Aviso (toast) como el resto de los mensajes del editor | Coherencia |

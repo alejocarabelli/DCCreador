@@ -751,3 +751,18 @@
 }
 
 .app-shell[data-ui-version='refined'] .v2-selection-bar > span { margin-right: auto; }
+
+/* A line of context inside a menu (not an action). */
+.app-shell .v2-menu-note {
+  align-items: center;
+  color: var(--panel-muted-text);
+  display: flex;
+  font-size: var(--text-sm);
+  gap: 6px;
+  line-height: 1.4;
+  margin: 0;
+  max-width: 320px;
+  padding: var(--space-2);
+}
+
+.app-shell .v2-menu-note svg { color: var(--accent); flex: 0 0 auto; }
