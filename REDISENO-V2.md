@@ -35,3 +35,63 @@ barra lateral muestra una etiqueta "Beta" junto al nombre.
 de GitHub Actions en cada push a `rediseno-v2` (el `.dmg` y el `.zip` quedan como
 artefacto de la ejecución). Al subir una etiqueta `v2.*-beta.*` además los
 publica como pre-release.
+
+## 2. Diagnóstico de la v1
+
+Recorrido completo en el navegador (capturas en `docs/rediseno-v2/v1-*.png`) y
+en el código. Lo que encontré:
+
+**Cada editor arma su barra a su manera.** La acción principal es un botón en
+clases ("Crear clase") y secuencia ("Mensaje"), un menú en casos de uso
+("Agregar elemento") y no existe en el flujo. "Revisar" es un botón resaltado
+en clases, un icono con texto en secuencia, una acción secundaria en el flujo y
+no está en casos de uso. El menú de vista se llama "Vista" en tres editores y
+"Opciones de vista y referencias" en secuencia, donde además mezcla vista con
+referencias a otros artefactos.
+
+**Controles duplicados:**
+- Zoom y encuadre en la barra ("Centrar vista", "Ver todo") y otra vez en el
+  lienzo ("Acercar", "Alejar", "Ajustar a la vista"). "Ver todo" y "Ajustar a
+  la vista" hacen lo mismo.
+- Secuencia: "Insertar mensaje" en la barra y un "+" con la misma acción en el
+  panel de estructura. "Ocultar panel de estructura" en la barra y "Ocultar
+  estructura" en el propio panel.
+- "Exportar JSON" e "Importar JSON" en el menú Archivo de los cinco editores,
+  aunque exportan e importan el **proyecto entero**, no el diagrama. Importar
+  también está en el inicio.
+- Clases de secuencias: una segunda fila de barra con cuatro controles de
+  sincronización (contador, fuente del modelo, importar, actualizar vínculos,
+  abrir secuencia) debajo de la barra normal.
+
+**Tipografía sin escala.** En la misma tarjeta o diálogo conviven 11, 13 y 17 px
+(los botones heredan 16-17 px, las etiquetas usan 11 px). El nombre de la app
+ocupa tres líneas en la barra lateral.
+
+**Detalles:** el minimapa se muestra como un recuadro vacío en un diagrama sin
+elementos; "Desplegar" aparece deshabilitado todo el tiempo en el flujo; los
+atajos del flujo viven en un menú propio y los de secuencia solo se descubren
+por el título de un botón.
+
+**Lo que funciona y se conserva:** el lienzo y el render UML, el inspector
+contextual, los estados vacíos con acción directa, el modo teclado de
+secuencia, la revisión semántica, los respaldos y el modo oscuro.
+
+### Decisiones
+
+1. **Una sola barra de editor, con zonas fijas** en los cinco editores:
+   `Proyecto › Artefacto · estado de guardado` · `Deshacer Rehacer` ·
+   `acción principal + herramientas de inserción` · `Revisar` · `Vista ▾` ·
+   `Exportar ▾`. Mismo componente, mismo orden, mismos iconos.
+2. **"Archivo" pasa a llamarse "Exportar"** y solo contiene los formatos del
+   artefacto (PNG, PDF, Word). Exportar/Importar proyecto van al menú del
+   proyecto y al inicio.
+3. **Zoom y encuadre solo en el lienzo**, con el mismo control flotante en
+   clases, casos de uso, clases de secuencias y secuencia.
+4. **"Vista" reúne todo lo que cambia cómo se ve** (grilla, minimapa, atributos,
+   activaciones, numeración, plegar pasos). Las referencias de secuencia se
+   separan en su propia sección.
+5. **Un solo panel de atajos** para toda la app (tecla `?` o botón en la barra
+   lateral) en lugar del menú "Atajos" del flujo.
+6. **Clases de secuencias integra la sincronización en un menú** "Sincronizar"
+   dentro de la barra única.
+7. **Escala tipográfica cerrada** y tipografías empaquetadas en la app.
