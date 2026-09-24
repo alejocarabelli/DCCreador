@@ -579,3 +579,202 @@
 .sequence-keyboard-popover::after {
   left: clamp(18px, calc(50% - var(--keyboard-nudge, 0px)), calc(100% - 18px)) !important;
 }
+
+/* ─── Use case model ───────────────────────────────────────────────────────
+   Relations float from outline to outline. To connect: the round nub that
+   shows on hover (or when selected), dropped anywhere on the other node. */
+
+.app-shell .use-case-canvas .use-case-handle-legacy {
+  height: 1px;
+  min-height: 0;
+  min-width: 0;
+  opacity: 0;
+  pointer-events: none;
+  width: 1px;
+}
+
+/* The whole node is the drop target, but only while a relation is being
+   dragged — otherwise it would steal the node's own drag. */
+.app-shell .use-case-canvas .use-case-drop-zone {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  height: 100%;
+  inset: 0;
+  left: 0;
+  min-height: 0;
+  min-width: 0;
+  opacity: 0;
+  pointer-events: none;
+  top: 0;
+  transform: none;
+  width: 100%;
+}
+
+.app-shell .use-case-canvas.is-connecting .use-case-drop-zone { pointer-events: all; }
+.app-shell .use-case-oval-node .use-case-drop-zone { border-radius: 50%; }
+
+.app-shell .use-case-canvas .use-case-connect-nub {
+  align-items: center;
+  background: var(--panel-background);
+  border: 1.5px solid var(--accent);
+  border-radius: 50%;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.12));
+  color: var(--accent);
+  cursor: crosshair;
+  display: flex;
+  height: 20px;
+  justify-content: center;
+  opacity: 0;
+  right: -12px;
+  transition: opacity var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
+  width: 20px;
+  z-index: 5;
+}
+
+.app-shell .use-case-canvas .use-case-connect-nub svg {
+  fill: none;
+  height: 12px;
+  pointer-events: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  width: 12px;
+}
+
+/* The actor's nub sits by its hand, not by its name. */
+.app-shell .use-case-canvas .use-case-connect-nub.is-actor { right: 6px; top: 40px; }
+
+.app-shell .use-case-canvas .react-flow__node:hover .use-case-connect-nub,
+.app-shell .use-case-canvas .react-flow__node.selected .use-case-connect-nub {
+  opacity: 1;
+}
+
+.app-shell .use-case-canvas .use-case-connect-nub:hover {
+  background: var(--accent);
+  color: var(--button-active-text, #fff);
+  transform: translateY(-50%) scale(1.12);
+}
+
+.app-shell .use-case-canvas.is-connecting .use-case-connect-nub { opacity: 0; }
+
+/* Selection: the same accent ring as a selected class. */
+.app-shell .use-case-canvas .react-flow__node.selected .use-case-oval-node {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.app-shell .use-case-canvas .react-flow__node.selected .actor-symbol { stroke: var(--accent); }
+.app-shell .use-case-canvas .react-flow__node.selected .use-case-actor-name { color: var(--accent); }
+
+.app-shell .use-case-canvas .react-flow__node.selected .system-boundary-node {
+  border-color: var(--accent);
+}
+
+/* While dragging a relation: where it can land, and where it cannot. */
+.app-shell .use-case-oval-node.is-connect-valid {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.app-shell .use-case-actor-node.is-connect-valid .actor-symbol { stroke: var(--accent); }
+.app-shell .is-connect-invalid { opacity: 0.4; }
+.app-shell .use-case-canvas .react-flow__node .is-connect-valid:hover { background-color: color-mix(in srgb, var(--accent) 8%, var(--class-background)); }
+
+/* Labels sit on the canvas colour so the dashed line never cuts «include». */
+.app-shell .use-case-canvas .use-case-edge-label {
+  background: var(--canvas-background);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px 5px;
+}
+
+.app-shell .use-case-canvas .use-case-edge-label.is-selected { color: var(--accent); }
+
+/* Inspector: participation checklist and relation list. */
+.app-shell .use-case-checklist,
+.app-shell .use-case-relation-list {
+  display: grid;
+  gap: 1px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.app-shell .use-case-checklist label {
+  align-items: center;
+  border-radius: var(--radius-sm);
+  color: var(--panel-text);
+  cursor: pointer;
+  display: flex;
+  font-size: var(--text-md);
+  gap: var(--space-2);
+  min-height: 30px;
+  padding: 0 var(--space-2);
+}
+
+.app-shell .use-case-checklist label:hover { background: var(--ui-hover-background); }
+
+.app-shell .use-case-checklist input[type='checkbox'] {
+  accent-color: var(--accent);
+  flex: 0 0 auto;
+  height: 16px;
+  margin: 0;
+  min-height: 0;
+  width: 16px;
+}
+
+.app-shell .use-case-relation-list button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--panel-text);
+  cursor: pointer;
+  display: flex;
+  font-size: var(--text-md);
+  gap: var(--space-2);
+  min-height: 30px;
+  padding: 0 var(--space-2);
+  text-align: left;
+  width: 100%;
+}
+
+.app-shell .use-case-relation-list button:hover { background: var(--ui-hover-background); }
+
+.app-shell .use-case-relation-ends {
+  align-items: baseline;
+  color: var(--panel-secondary-text);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--text-md);
+  gap: 6px;
+  margin: var(--space-3) 0 var(--space-3);
+}
+
+.app-shell .use-case-relation-ends strong { color: var(--panel-text); font-weight: 600; }
+
+/* Flat paper ovals: the old white sheen read as a stain on Pizarra. */
+.app-shell .use-case-oval-node {
+  background: var(--class-background);
+}
+
+.app-shell .system-boundary-node {
+  background: color-mix(in srgb, var(--class-background) 22%, transparent);
+  border-color: color-mix(in srgb, var(--association-stroke) 70%, transparent);
+}
+
+/* Exports show the model, not the selection. */
+.app-shell .exporting-png .use-case-edge-label.is-selected { color: var(--multiplicity-text); }
+
+/* Three relation types fit the inspector's width. */
+.app-shell .v2-inspector-body .v2-segmented > button {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 6px;
+  text-overflow: ellipsis;
+}

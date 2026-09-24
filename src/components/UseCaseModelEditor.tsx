@@ -51,6 +51,7 @@ import { EditorIdentity } from './EditorIdentity';
 import { ToolbarHistory } from './ToolbarHistory';
 import type { DiagramSaveStatus } from '../hooks/useProjects';
 import { findFreeClassPosition } from '../utils/classPlacement';
+import { facingSide, isInside, type Box } from '../utils/useCaseGeometry';
 
 const GRID_ENABLED_KEY = 'class-diagram-grid-enabled';
 const SNAP_ENABLED_KEY = 'class-diagram-snap-enabled';
@@ -64,6 +65,15 @@ const labelForUseCaseNode = (node: { data: { kind?: string } } | null): string =
 
 const labelForUseCaseRelation = (relationType: UseCaseRelationType): string =>
   relationType === 'association' ? 'Asociación' : relationType === 'include' ? 'Include' : relationType === 'extend' ? 'Extend' : 'Generalización';
+/** One line on what each relation means, under the choice in the inspector. */
+const relationHelp = (relationType: UseCaseRelationType): string =>
+  relationType === 'association'
+    ? 'El actor participa en el caso de uso.'
+    : relationType === 'include'
+      ? 'El caso de origen siempre ejecuta el de destino.'
+      : relationType === 'extend'
+        ? 'El caso de origen agrega comportamiento opcional al de destino.'
+        : 'El origen es un caso particular del destino.';
 const PNG_WIDTH = 1600;
 const PNG_HEIGHT = 1000;
 
@@ -171,6 +181,11 @@ export function UseCaseModelEditor({
   };
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  // While a relation is being dragged: the node it starts from.
+  const [connectingFromId, setConnectingFromId] = useState<string | null>(null);
+  const connectedRef = useRef(false);
+  // Nodes that travel with the system boundary being dragged.
+  const carriedByBoundaryRef = useRef<{ boundaryId: string; ids: string[] } | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const toolbarRef = useRef<HTMLElement | null>(null);
@@ -181,6 +196,51 @@ export function UseCaseModelEditor({
   const selectedNode = useMemo(() => nodes.find((node) => node.id === selectedNodeId) ?? null, [nodes, selectedNodeId]);
   const selectedEdge = useMemo(() => edges.find((edge) => edge.id === selectedEdgeId) ?? null, [edges, selectedEdgeId]);
 
+  const relationBetween = useCallback((firstId: string, secondId: string): UseCaseModelEdge | undefined =>
+    edges.find((edge) => (edge.source === firstId && edge.target === secondId) || (edge.source === secondId && edge.target === firstId)),
+  [edges]);
+
+  /** Why a relation between two nodes is not possible, or null when it is. */
+  const connectionProblem = useCallback((sourceId: string | null | undefined, targetId: string | null | undefined): string | null => {
+    const sourceNode = nodes.find((node) => node.id === sourceId);
+    const targetNode = nodes.find((node) => node.id === targetId);
+    if (sourceNode === undefined || targetNode === undefined || sourceNode.id === targetNode.id) return 'Soltá la relación sobre otro actor o caso de uso.';
+    if (sourceNode.data.kind === 'system-boundary' || targetNode.data.kind === 'system-boundary') {
+      return 'El límite del sistema no se relaciona: poné los casos de uso adentro.';
+    }
+    if (relationBetween(sourceNode.id, targetNode.id) !== undefined) return 'Esos dos ya están relacionados.';
+    return null;
+  }, [nodes, relationBetween]);
+
+  const measuredBox = useCallback((nodeId: string): Box | null => {
+    const node = reactFlowInstance?.getNode(nodeId);
+    if (!node) return null;
+    const width = node.width ?? Number(node.style?.width ?? 0);
+    const height = node.height ?? Number(node.style?.height ?? 0);
+    const position = node.positionAbsolute ?? node.position;
+    return { x: position.x, y: position.y, width, height };
+  }, [reactFlowInstance]);
+
+  /**
+   * A new relation. Lines are drawn floating, but the edge still records the
+   * sides facing each other so the first version of the app draws it well.
+   */
+  const buildRelation = useCallback((sourceId: string, targetId: string, relationType: UseCaseRelationType): UseCaseModelEdge => {
+    const sourceBox = measuredBox(sourceId);
+    const targetBox = measuredBox(targetId);
+    const sourceSide = sourceBox && targetBox ? facingSide(sourceBox, targetBox) : 'right';
+    const targetSide = sourceBox && targetBox ? facingSide(targetBox, sourceBox) : 'left';
+    return {
+      id: createId(),
+      source: sourceId,
+      sourceHandle: sourceSide,
+      target: targetId,
+      targetHandle: targetSide,
+      type: 'useCaseRelation',
+      data: { relationType, label: relationType === 'association' ? '' : undefined },
+    };
+  }, [measuredBox]);
+
   const showFeedback = (message: string): void => {
     setFeedbackMessage(message);
     if (feedbackTimeoutRef.current !== null) {
@@ -189,9 +249,20 @@ export function UseCaseModelEditor({
     feedbackTimeoutRef.current = window.setTimeout(() => setFeedbackMessage(null), 1800);
   };
 
+  // React Flow reports a node change and an edge change in the same tick
+  // (select this node, deselect that relation). Both used to apply over the
+  // same rendered content, so the second wiped the first. Each change now
+  // builds on the latest committed content.
+  const latestContentRef = useRef(normalizedContent);
+  useEffect(() => {
+    latestContentRef.current = normalizedContent;
+  }, [normalizedContent]);
+
   const commitContent = useCallback(
     (content: UseCaseModelContent): void => {
-      onChangeContent(normalizeUseCaseModelContent(content));
+      const normalized = normalizeUseCaseModelContent(content);
+      latestContentRef.current = normalized;
+      onChangeContent(normalized);
     },
     [onChangeContent],
   );
@@ -244,10 +315,15 @@ export function UseCaseModelEditor({
           ...node.data,
           onOpenContextMenu: openNodeContextMenu,
           onRename: renameNode,
+          connectState: connectingFromId === null || node.data.kind === 'system-boundary'
+            ? undefined
+            : node.id === connectingFromId
+              ? 'source' as const
+              : connectionProblem(connectingFromId, node.id) === null ? 'valid' as const : 'invalid' as const,
         },
         zIndex: node.data.kind === 'system-boundary' ? 0 : 10,
       })),
-    [nodes, openNodeContextMenu, renameNode],
+    [connectingFromId, connectionProblem, nodes, openNodeContextMenu, renameNode],
   );
 
   const addNode = (kind: UseCaseNodeKind, position: XYPosition): void => {
@@ -306,33 +382,78 @@ export function UseCaseModelEditor({
   };
 
   const onNodesChange = (changes: NodeChange[]): void => {
-    commitContent({ nodes: applyNodeChanges(changes, nodes) as UseCaseModelNode[], edges });
+    const carried = carriedByBoundaryRef.current;
+    const extra: NodeChange[] = [];
+    if (carried !== null) {
+      // Dragging the system boundary moves what is inside it, as on paper.
+      changes.forEach((change) => {
+        if (change.type !== 'position' || change.id !== carried.boundaryId || !change.position) return;
+        const boundary = nodes.find((node) => node.id === carried.boundaryId);
+        if (!boundary) return;
+        const dx = change.position.x - boundary.position.x;
+        const dy = change.position.y - boundary.position.y;
+        if (dx === 0 && dy === 0) return;
+        carried.ids.forEach((id) => {
+          const node = nodes.find((candidate) => candidate.id === id);
+          if (!node || changes.some((other) => other.type === 'position' && other.id === id)) return;
+          extra.push({ type: 'position', id, position: { x: node.position.x + dx, y: node.position.y + dy }, dragging: change.dragging });
+        });
+      });
+    }
+    const latest = latestContentRef.current;
+    commitContent({ nodes: applyNodeChanges([...changes, ...extra], latest.nodes) as UseCaseModelNode[], edges: latest.edges });
+  };
+
+  const startCarryingBoundary = (boundaryId: string): void => {
+    const boundaryBox = measuredBox(boundaryId);
+    if (boundaryBox === null) return;
+    const ids = nodes
+      .filter((node) => node.data.kind !== 'system-boundary')
+      .filter((node) => {
+        const box = measuredBox(node.id);
+        return box !== null && isInside(box, boundaryBox);
+      })
+      .map((node) => node.id);
+    carriedByBoundaryRef.current = { boundaryId, ids };
+  };
+
+  /** Adds or removes the association between an actor and a use case (inspector checklist). */
+  const toggleAssociation = (actorId: string, useCaseId: string): void => {
+    const existing = relationBetween(actorId, useCaseId);
+    if (existing !== undefined) {
+      updateEdges(edges.filter((edge) => edge.id !== existing.id));
+      return;
+    }
+    updateEdges([...edges, buildRelation(actorId, useCaseId, 'association')]);
   };
 
   const onEdgesChange = (changes: EdgeChange[]): void => {
-    commitContent({ nodes, edges: applyEdgeChanges(changes, edges) as UseCaseModelEdge[] });
+    const latest = latestContentRef.current;
+    commitContent({ nodes: latest.nodes, edges: applyEdgeChanges(changes, latest.edges) as UseCaseModelEdge[] });
   };
 
   const onConnect = (connection: Connection): void => {
     const sourceNode = nodes.find((node) => node.id === connection.source);
     const targetNode = nodes.find((node) => node.id === connection.target);
     const relationType = canConnectNodes(sourceNode, targetNode);
+    if (relationType === null || sourceNode === undefined || targetNode === undefined) return;
+    if (connectionProblem(sourceNode.id, targetNode.id) !== null) return;
 
-    if (relationType === null) {
-      return;
-    }
-
-    const edge: UseCaseModelEdge = {
-      id: createId(),
-      source: connection.source ?? '',
-      sourceHandle: connection.sourceHandle,
-      target: connection.target ?? '',
-      targetHandle: connection.targetHandle,
-      type: 'useCaseRelation',
-      data: { relationType, label: relationType === 'association' ? '' : undefined },
-    };
-
-    updateEdges(addEdge(edge, edges) as UseCaseModelEdge[]);
+    // An association always runs from the actor to the use case, whichever
+    // end the drag started from.
+    const [from, to] = relationType === 'association' && sourceNode.data.kind !== 'actor'
+      ? [targetNode.id, sourceNode.id]
+      : [sourceNode.id, targetNode.id];
+    const edge = buildRelation(from, to, relationType);
+    connectedRef.current = true;
+    // The new relation comes out selected, so the inspector shows it right away
+    // (that is where «include» becomes «extend»).
+    commitContent({
+      nodes: nodes.map((node) => (node.selected ? { ...node, selected: false } : node)),
+      edges: addEdge({ ...edge, selected: true }, edges.map((current) => (current.selected ? { ...current, selected: false } : current))) as UseCaseModelEdge[],
+    });
+    setSelectedEdgeId(edge.id);
+    setSelectedNodeId(null);
   };
 
   const updateSelectedEdge = (values: Partial<UseCaseEdgeData>): void => {
@@ -577,7 +698,7 @@ export function UseCaseModelEditor({
 
       <div className={`editor-body ${selectedNode === null && selectedEdge === null ? 'inspector-hidden' : isInspectorCollapsed ? 'inspector-collapsed' : ''}`}>
         <div
-          className="flow-canvas"
+          className={`flow-canvas use-case-canvas ${connectingFromId !== null ? 'is-connecting' : ''}`}
           ref={canvasRef}
           onDoubleClick={(event) => {
             // Double-click on empty canvas creates a use case under the pointer.
@@ -601,6 +722,26 @@ export function UseCaseModelEditor({
             onInit={setReactFlowInstance}
             zoomOnDoubleClick={false}
             onNodesChange={onNodesChange}
+            connectionRadius={34}
+            connectionLineStyle={{ stroke: 'var(--accent)', strokeWidth: 1.8, strokeDasharray: '6 5' }}
+            isValidConnection={(connection) => connectionProblem(connection.source, connection.target) === null}
+            onConnectStart={(_, params) => {
+              connectedRef.current = false;
+              setConnectingFromId(params.nodeId ?? null);
+            }}
+            onConnectEnd={(event) => {
+              const fromId = connectingFromId;
+              setConnectingFromId(null);
+              if (connectedRef.current || fromId === null) return;
+              const point = 'changedTouches' in event ? event.changedTouches[0] : event;
+              const overId = document.elementFromPoint(point.clientX, point.clientY)?.closest('.react-flow__node')?.getAttribute('data-id');
+              if (overId && overId !== fromId) showFeedback(connectionProblem(fromId, overId) ?? 'No se pudo relacionar.');
+            }}
+            onNodeDragStart={(_, node) => {
+              carriedByBoundaryRef.current = null;
+              if (node.data.kind === 'system-boundary') startCarryingBoundary(node.id);
+            }}
+            onNodeDragStop={() => { carriedByBoundaryRef.current = null; }}
             onPaneClick={() => { setSelectedNodeId(null); setSelectedEdgeId(null); setContextMenu(null); }}
             onPaneContextMenu={(event) => {
               if (reactFlowInstance === null || canvasRef.current === null) return;
@@ -636,8 +777,9 @@ export function UseCaseModelEditor({
                   </>
                 )}
               >
-                Ubicá quién usa el sistema y qué puede hacer. Después uní actores con casos
-                de uso, y agregá el límite del sistema para encerrarlos.
+                Ubicá quién usa el sistema y qué puede hacer. Para unir un actor con un caso de
+                uso, arrastrá el círculo <strong>→</strong> que aparece al pasar el mouse, o marcalos
+                en el panel del actor.
               </CanvasStartCard>
             ) : null}
             <CanvasControls label="Controles del modelo de casos de uso" />
@@ -678,19 +820,39 @@ export function UseCaseModelEditor({
                 <input value={inspectedNode.data.name} onChange={(event) => renameNode(inspectedNode.id, event.target.value)} />
               </label>
             ) : null}
-            {selectedEdge !== null && selectedNode === null ? (
+            {inspectedNode !== null && inspectedNode.data.kind !== 'system-boundary' ? (
+              <UseCaseParticipation
+                edges={edges}
+                node={inspectedNode}
+                nodes={nodes}
+                onSelectEdge={(edgeId) => { setSelectedNodeId(null); setSelectedEdgeId(edgeId); }}
+                onToggleAssociation={toggleAssociation}
+              />
+            ) : null}
+            {selectedEdge !== null ? (
               <>
-                <label className="field">
-                  Tipo
-                  <select
-                    value={selectedEdge.data?.relationType ?? 'association'}
-                    onChange={(event) => updateSelectedEdge({ relationType: event.target.value as UseCaseRelationType })}
-                  >
+                <p className="use-case-relation-ends">
+                  <strong>{nodes.find((node) => node.id === selectedEdge.source)?.data.name.trim() || 'Sin nombre'}</strong>
+                  <span aria-hidden="true">{(selectedEdge.data?.relationType ?? 'association') === 'association' ? '—' : '→'}</span>
+                  <strong>{nodes.find((node) => node.id === selectedEdge.target)?.data.name.trim() || 'Sin nombre'}</strong>
+                </p>
+                {relationOptions.length > 1 ? (
+                  <div className="v2-segmented" role="radiogroup" aria-label="Tipo de relación">
                     {relationOptions.map((option) => (
-                      <option key={option} value={option}>{labelForUseCaseRelation(option)}</option>
+                      <button
+                        aria-checked={(selectedEdge.data?.relationType ?? 'association') === option}
+                        className={(selectedEdge.data?.relationType ?? 'association') === option ? 'is-active' : ''}
+                        key={option}
+                        role="radio"
+                        type="button"
+                        onClick={() => updateSelectedEdge({ relationType: option })}
+                      >
+                        {option === 'generalization' ? 'Generalización' : `«${option}»`}
+                      </button>
                     ))}
-                  </select>
-                </label>
+                  </div>
+                ) : null}
+                <p className="helper-text">{relationHelp(selectedEdge.data?.relationType ?? 'association')}</p>
                 {(selectedEdge.data?.relationType ?? 'association') === 'association' ? (
                   <label className="field">
                     Etiqueta
@@ -705,5 +867,81 @@ export function UseCaseModelEditor({
       </div>
       {feedbackMessage !== null ? <div className="editor-feedback">{feedbackMessage}</div> : null}
     </main>
+  );
+}
+
+/**
+ * Who takes part in what, without dragging: an actor lists every use case
+ * (and a use case every actor) with a check to associate them; a use case also
+ * lists its «include», «extend» and generalization relations.
+ */
+function UseCaseParticipation({
+  node,
+  nodes,
+  edges,
+  onToggleAssociation,
+  onSelectEdge,
+}: {
+  node: UseCaseModelNode;
+  nodes: UseCaseModelNode[];
+  edges: UseCaseModelEdge[];
+  onToggleAssociation: (actorId: string, useCaseId: string) => void;
+  onSelectEdge: (edgeId: string) => void;
+}) {
+  const isActor = node.data.kind === 'actor';
+  const isRelated = (otherId: string): boolean => edges.some((edge) =>
+    (edge.source === node.id && edge.target === otherId) || (edge.source === otherId && edge.target === node.id));
+  const counterparts = nodes.filter((candidate) => candidate.data.kind === (isActor ? 'use-case' : 'actor'));
+  const otherRelations = isActor ? [] : edges.filter((edge) =>
+    (edge.source === node.id || edge.target === node.id)
+    && (edge.data?.relationType ?? 'association') !== 'association');
+  const nameOf = (id: string): string => nodes.find((candidate) => candidate.id === id)?.data.name.trim() || 'Sin nombre';
+
+  return (
+    <>
+      <section className="v2-panel-section">
+        <header><h3>{isActor ? 'Casos de uso en los que participa' : 'Actores que lo usan'}</h3></header>
+        <div className="v2-panel-section-body">
+          {counterparts.length === 0 ? (
+            <p className="helper-text">{isActor ? 'Todavía no hay casos de uso.' : 'Todavía no hay actores.'}</p>
+          ) : (
+            <ul className="use-case-checklist">
+              {counterparts.map((other) => (
+                <li key={other.id}>
+                  <label>
+                    <input
+                      checked={isRelated(other.id)}
+                      type="checkbox"
+                      onChange={() => (isActor ? onToggleAssociation(node.id, other.id) : onToggleAssociation(other.id, node.id))}
+                    />
+                    <span>{other.data.name.trim() || 'Sin nombre'}</span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
+      {otherRelations.length > 0 ? (
+        <section className="v2-panel-section">
+          <header><h3>Relaciones con otros casos de uso</h3></header>
+          <div className="v2-panel-section-body">
+            <ul className="use-case-relation-list">
+              {otherRelations.map((edge) => {
+                const outgoing = edge.source === node.id;
+                return (
+                  <li key={edge.id}>
+                    <button type="button" onClick={() => onSelectEdge(edge.id)}>
+                      <span className="v2-menu-code">{edge.data?.relationType === 'generalization' ? 'hereda' : `«${edge.data?.relationType}»`}</span>
+                      <span>{outgoing ? '→' : '←'} {nameOf(outgoing ? edge.target : edge.source)}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </section>
+      ) : null}
+    </>
   );
 }

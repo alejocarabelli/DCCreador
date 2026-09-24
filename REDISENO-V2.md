@@ -297,3 +297,28 @@ No se quitó ninguna función: todo lo que hacían los encabezados viejos (plega
 | "El botón de plegar la barra lateral está abajo y cuando se cierra sube arriba" | Abierta, el botón estaba en el pie; plegada, arriba. El riel plegado solo tenía Inicio | El botón está **siempre arriba a la izquierda, en el mismo píxel** abierta o plegada (como el de plegar del inspector, en el encabezado del panel). El riel plegado muestra Inicio y los artefactos del proyecto abierto como íconos (con su nombre al pasar el mouse) y "+ Nuevo artefacto": se cambia de diagrama sin desplegarla. ⌘\ sigue funcionando |
 | El botón de tema "cambiaba solo" | Cada clic pasaba a la opción siguiente (automático → claro → oscuro) sin mostrar cuál venía | **Apariencia** es un menú como los demás: se abre hacia arriba desde el pie, con Automático (según macOS), Claro y Oscuro, y una tilde en el actual |
 | "¿Puedo pasar todos mis proyectos de la app vieja?" | Solo se importaba un proyecto por archivo | **Importar…** acepta el respaldo automático de la v1 (`Documentos › Modelador de Sistemas › Respaldos › respaldo-….json`, que guarda todos los proyectos) y varios archivos a la vez. Los proyectos que ya están se saltean, así que importar el mismo respaldo dos veces no duplica nada. Un proyecto exportado suelto se importa como siempre. La pantalla de inicio vacía lo explica |
+
+### 7.1 Modelo de casos de uso, pulido de punta a punta
+
+"Funcionan raro, en especial conectar el actor con sus casos de uso."
+
+| Qué | Antes | Ahora | Por qué |
+|---|---|---|---|
+| Conectar | Había que acertarle a uno de 4 puntos de 6 px casi invisibles (20 % de opacidad al pasar el mouse) | Al pasar el mouse (o con el nodo seleccionado) aparece un círculo **→** claro; se arrastra y se suelta **en cualquier parte** del otro nodo | Era la queja principal: el punto de enganche no se veía y era diminuto |
+| Mientras se arrastra | Sin indicación | Los destinos posibles se resaltan en petróleo y los imposibles se atenúan (el mismo nodo, uno ya relacionado, el límite del sistema) | Se ve antes de soltar si va a funcionar |
+| Soltar donde no se puede | No pasaba nada | Un aviso dice por qué: "Esos dos ya están relacionados", "El límite del sistema no se relaciona: poné los casos de uso adentro" | Antes parecía que la app no respondía |
+| Relaciones duplicadas | Se podía unir dos veces el mismo par | No se permite | Un modelo no tiene dos asociaciones iguales |
+| Dirección de la asociación | Dependía de desde dónde se arrastraba | Siempre del actor al caso de uso, se arrastre desde donde se arrastre | Coherencia al exportar e invertir |
+| Líneas | Salían de un punto fijo por lado: varias líneas de un actor salían del mismo píxel y se cruzaban | Van de centro a centro y se cortan en el contorno (el óvalo, o la figura del actor sin su nombre): se abren en abanico y siguen al mover | Así se dibujan en papel |
+| Relación recién creada | Quedaba sin seleccionar | Queda seleccionada y el panel la muestra (ahí se pasa de «include» a «extend») | El siguiente paso natural está a la vista |
+| Tipo de relación entre casos de uso | Select | **«include» · «extend» · Generalización** a la vista, con una línea que explica cada uno, y los nombres de los dos extremos arriba | Se elige sin abrir un desplegable y se entiende la diferencia |
+| Conectar sin arrastrar | No existía | El panel del actor lista todos los casos de uso con una casilla ("Casos de uso en los que participa"); el de un caso de uso lista los actores y sus relaciones «include»/«extend» (clic para seleccionarlas) | La forma más directa de decir "este actor participa en estos casos" |
+| Mover el límite del sistema | Se movía solo el rectángulo y los casos de uso quedaban afuera | Arrastra lo que tiene adentro | Como en papel |
+| Nombre de un caso de uso nuevo | Lo que se escribía justo después de crearlo se perdía (el campo no tomaba el foco; pasaba también en la v1) | El campo toma el foco y se escribe directamente | Error |
+| Clic en un nodo con una relación seleccionada | A veces no seleccionaba nada: el cambio de la relación pisaba el del nodo | Selecciona el nodo | Error |
+| Selección | Sin marca visible en óvalos y actores | Anillo petróleo como en las clases | Coherencia |
+| Rótulos «include»/«extend» | La línea punteada los atravesaba | Llevan fondo del lienzo y tipografía mono | Legibles |
+| Óvalos en modo oscuro | Tenían un brillo blanco a la izquierda | Planos, del color de las clases; el límite del sistema con un fondo sutil | Se veía como una mancha |
+| Avisos del editor | Arriba a la derecha, tapando el encabezado del inspector (todos los editores) | Abajo al centro, como dice DESIGN.md | Tapaban el panel |
+
+Compatibilidad: los archivos no cambian. Las relaciones nuevas guardan el lado que mira al otro nodo (derecha, izquierda…) para que la versión anterior las siga dibujando bien.

@@ -762,6 +762,17 @@
   font-size: var(--text-md);
   font-weight: 500;
   padding: var(--space-2) var(--space-4);
+  /* Bottom centre of the editor, as DESIGN.md says: it used to sit top-right,
+     right over the inspector's header. Centred without transform, which the
+     rise-in animation uses. */
+  bottom: 72px;
+  left: 0;
+  margin-inline: auto;
+  max-width: calc(100% - 32px);
+  pointer-events: none;
+  right: 0;
+  top: auto;
+  width: max-content;
 }
 
 /* ─── Motion preferences ────────────────────────────────────────────────── */
