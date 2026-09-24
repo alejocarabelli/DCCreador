@@ -4,21 +4,19 @@ import {
   useMemo,
   useRef,
   useState,
-  type ChangeEvent,
   type KeyboardEvent,
   type MouseEvent,
-  type SyntheticEvent,
 } from 'react';
 import {
   ChevronDown,
+  Download,
+  Eye,
+  FileType,
+  Split,
   ChevronRight,
   ChevronsDownUp,
   ChevronsUpDown,
-  FileDown,
   FileText,
-  FileUp,
-  Keyboard,
-  ListChecks,
   Plus,
   Trash2,
 } from 'lucide-react';
@@ -32,10 +30,9 @@ import type {
   UseCaseFlowPriority,
   UseCaseFlowStep,
 } from '../types/diagram';
-import { IMPORT_INVALID_MESSAGE, IMPORT_UNREADABLE_MESSAGE, isImportableProject } from '../utils/projectImport';
 import type { DiagramTheme } from '../theme/themes';
 import { createId } from '../utils/id';
-import { normalizeDiagramProject, normalizeUseCaseFlowContent } from '../utils/diagramNormalization';
+import { normalizeUseCaseFlowContent } from '../utils/diagramNormalization';
 import { buildProjectSymbolIndex } from '../utils/projectSymbolIndex';
 import { normalizeUseCaseFlowContentNumbering } from '../utils/useCaseFlowNumbering';
 import {
@@ -55,6 +52,7 @@ import {
 import { reviewUseCaseFlow, type FlowIssue } from '../utils/useCaseFlowReview';
 import { createFlowDocx } from '../utils/flowExportDocx';
 import { downloadBlob } from '../utils/pdfExport';
+import { EditorToolbar, MenuItem, ReviewButton, ToolButton, ToolMenu } from './ui/Toolbar';
 import { EditorIdentity } from './EditorIdentity';
 import { ToolbarHistory } from './ToolbarHistory';
 import { DiagramReviewPanel } from './DiagramReviewPanel';
@@ -94,7 +92,6 @@ type UseCaseFlowEditorProps = {
   project: DiagramProject;
   theme: DiagramTheme;
   onChangeContent: (content: UseCaseFlowContent) => void;
-  onImportProject: (project: DiagramProject) => void;
   onRedo: () => void;
   onUndo: () => void;
 };
@@ -149,27 +146,6 @@ const PRIORITIES: UseCaseFlowPriority[] = ['A', 'B', 'C'];
 
 /** Rows longer than this fold with «Plegar pasos largos». */
 const LONG_ROW_LINES = 10;
-
-const SHORTCUTS: Array<[string, string]> = [
-  ['↵', 'Paso siguiente, ya numerado'],
-  ['Tab  ⇧Tab', 'Bajar o subir un nivel'],
-  ['- al inicio', 'Viñeta de detalle'],
-  ['⌘↵', 'Pasarle el turno al otro lado'],
-  ['⌘⇧↵', 'Turno al revés (dentro o fuera del bloque)'],
-  ['⌘.', 'Plegar o desplegar el paso'],
-  ['⌘⇧A', 'Camino alternativo desde esta línea'],
-  ['⌘ clic', 'Ir al paso o camino mencionado'],
-];
-
-const downloadTextFile = (filename: string, text: string, type: string): void => {
-  const blob = new Blob([text], { type });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-};
 
 const createEmptyStep = (): UseCaseFlowStep => ({
   id: createId(),
@@ -266,13 +242,11 @@ export function UseCaseFlowEditor({
   canUndo,
   project,
   onChangeContent,
-  onImportProject,
   onRedo,
   onUndo,
 }: UseCaseFlowEditorProps) {
   const content = useMemo(() => normalizeUseCaseFlowContent(artifact.content), [artifact.content]);
   const toolbarRef = useRef<HTMLElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const feedbackTimeoutRef = useRef<number | null>(null);
   const cellRefs = useRef(new Map<string, HTMLTextAreaElement>());
   const caretPositions = useRef(new Map<string, number>());
@@ -1135,51 +1109,12 @@ export function UseCaseFlowEditor({
     }
   };
 
-  const exportProjectJson = (): void => {
-    downloadTextFile(`${project.name.trim() || 'proyecto'}.json`, JSON.stringify(project, null, 2), 'application/json');
-    showFeedback('JSON exportado');
-  };
-
-  const importProjectJson = (event: ChangeEvent<HTMLInputElement>): void => {
-    const file = event.target.files?.[0];
-
-    if (file === undefined) {
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(String(reader.result));
-
-        if (!isImportableProject(parsed)) {
-          showFeedback(IMPORT_INVALID_MESSAGE);
-          return;
-        }
-
-        onImportProject(normalizeDiagramProject(parsed));
-        showFeedback('JSON importado');
-      } catch {
-        showFeedback(IMPORT_UNREADABLE_MESSAGE);
-      }
-
-      event.target.value = '';
-    };
-    reader.readAsText(file);
-  };
-
   const closeToolbarMenus = (except?: HTMLDetailsElement): void => {
     toolbarRef.current?.querySelectorAll<HTMLDetailsElement>('details.toolbar-menu').forEach((details) => {
       if (details !== except) {
         details.removeAttribute('open');
       }
     });
-  };
-
-  const handleToolbarMenuToggle = (event: SyntheticEvent<HTMLDetailsElement>): void => {
-    if (event.currentTarget.open) {
-      closeToolbarMenus(event.currentTarget);
-    }
   };
 
   useEffect(() => {
@@ -1606,112 +1541,46 @@ export function UseCaseFlowEditor({
 
   return (
     <main className="editor-shell flow-editor-shell">
-      <header className="editor-toolbar" ref={toolbarRef}>
-        <EditorIdentity artifactKind="Especificación de caso de uso" artifactType={'use-case-flow'} artifactName={artifact.name} projectName={project.name} />
-        <div className="editor-toolbar-actions">
-          <ToolbarHistory canRedo={canRedo} canUndo={canUndo} saveStatus={saveStatus} onRedo={onRedo} onUndo={onUndo} />
-          <div className="toolbar-group">
-            <button
-              className="secondary-action flow-fold-action"
-              type="button"
-              title="Plegar los pasos de más de 10 líneas"
-              aria-label="Plegar pasos largos"
-              onClick={foldLongRows}
-            >
-              <ChevronsDownUp size={15} /> <span className="toolbar-label">Plegar</span>
-            </button>
-            <button
-              className="secondary-action flow-fold-action"
-              type="button"
-              title="Desplegar todos los pasos"
-              aria-label="Desplegar todos los pasos"
-              disabled={collapsedRowIds.size === 0}
-              onClick={() => setCollapsedRowIds(new Set())}
-            >
-              <ChevronsUpDown size={15} /> <span className="toolbar-label">Desplegar</span>
-            </button>
-            <details className="toolbar-menu flow-shortcuts-menu" onToggle={handleToolbarMenuToggle}>
-              <summary aria-label="Atajos de teclado" title="Atajos de teclado"><Keyboard size={15} /> <span className="toolbar-label">Atajos</span></summary>
-              <div className="toolbar-menu-content flow-shortcuts">
-                <dl>
-                  {SHORTCUTS.map(([keys, description]) => (
-                    <div key={keys}><dt><kbd>{keys}</kbd></dt><dd>{description}</dd></div>
-                  ))}
-                </dl>
-              </div>
-            </details>
-          </div>
-          <div className="toolbar-group">
-            <button
-              aria-label={`Revisar el flujo${reviewIssues.length > 0 ? `: ${reviewIssues.length} observaciones` : ''}`}
-              aria-pressed={reviewOpen}
-              className={`secondary-action toolbar-review-action${errorCount > 0 ? ' has-errors' : reviewIssues.length > 0 ? ' has-warnings' : ''}`}
-              type="button"
-              title="Revisar referencias, bloques y clases"
-              onClick={() => setReviewOpen((open) => !open)}
-            >
-              <ListChecks size={15} /> <span className="toolbar-label">Revisar</span>
-              {reviewIssues.length > 0 ? <span className="toolbar-count">{reviewIssues.length}</span> : null}
-            </button>
-          </div>
-          <div className="toolbar-group">
-            <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
-              <summary>Archivo</summary>
-              <div className="toolbar-menu-content file-menu">
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.currentTarget.closest('details')?.removeAttribute('open');
-                    void exportDocument('pdf');
-                  }}
-                >
-                  <FileText size={17} />
-                  Exportar PDF
-                </button>
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.currentTarget.closest('details')?.removeAttribute('open');
-                    void exportDocument('docx');
-                  }}
-                >
-                  <FileText size={17} />
-                  Exportar Word (.docx)
-                </button>
-                <hr />
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    exportProjectJson();
-                    event.currentTarget.closest('details')?.removeAttribute('open');
-                  }}
-                >
-                  <FileDown size={17} />
-                  Exportar JSON
-                </button>
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    fileInputRef.current?.click();
-                    event.currentTarget.closest('details')?.removeAttribute('open');
-                  }}
-                >
-                  <FileUp size={17} />
-                  Importar JSON
-                </button>
-              </div>
-            </details>
-          </div>
-        </div>
-      </header>
-      {feedbackMessage !== null ? <div className="editor-feedback" role="status">{feedbackMessage}</div> : null}
-      <input
-        className="hidden-file-input"
-        ref={fileInputRef}
-        type="file"
-        accept="application/json"
-        onChange={importProjectJson}
+      <EditorToolbar
+        toolbarRef={toolbarRef}
+        start={(
+          <>
+            <EditorIdentity artifactKind="Especificación de caso de uso" artifactType={'use-case-flow'} artifactName={artifact.name} projectName={project.name} />
+            <ToolbarHistory canRedo={canRedo} canUndo={canUndo} saveStatus={saveStatus} onRedo={onRedo} onUndo={onUndo} />
+          </>
+        )}
+        create={(
+          <>
+            <ToolButton
+              icon={Split}
+              label="Camino alternativo"
+              showLabel
+              variant="primary"
+              title="Agregar un camino alternativo (⇧⌘A desde un paso lo abre desde esa línea)"
+              onClick={addAlternativeFlow}
+            />
+          </>
+        )}
+        end={(
+          <>
+            <ReviewButton
+              count={reviewIssues.length}
+              hasErrors={errorCount > 0}
+              open={reviewOpen}
+              onToggle={() => setReviewOpen((open) => !open)}
+            />
+            <ToolMenu icon={Eye} label="Vista">
+              <MenuItem icon={ChevronsDownUp} onSelect={foldLongRows}>Plegar pasos largos</MenuItem>
+              <MenuItem icon={ChevronsUpDown} disabled={collapsedRowIds.size === 0} onSelect={() => setCollapsedRowIds(new Set())}>Desplegar todos los pasos</MenuItem>
+            </ToolMenu>
+            <ToolMenu icon={Download} label="Exportar">
+              <MenuItem icon={FileText} onSelect={() => { void exportDocument('pdf'); }}>Documento PDF</MenuItem>
+              <MenuItem icon={FileType} onSelect={() => { void exportDocument('docx'); }}>Documento Word (.docx)</MenuItem>
+            </ToolMenu>
+          </>
+        )}
       />
+      {feedbackMessage !== null ? <div className="editor-feedback" role="status">{feedbackMessage}</div> : null}
 
       <div className={`flow-editor-body${reviewOpen ? ' review-open' : ''}`}>
         <section className="flow-document">
@@ -1838,15 +1707,15 @@ export function UseCaseFlowEditor({
           <section className="flow-card" id="caminos-alternativos">
             <div className="flow-section-heading">
               <h4>Caminos alternativos</h4>
-              <button className="secondary-action" type="button" onClick={addAlternativeFlow}>
-                <Plus size={15} />
-                Agregar camino
-              </button>
             </div>
             {content.alternativeFlows.length === 0 ? (
-              <p className="flow-empty">
-                Para abrir uno desde un paso, poné el cursor en esa línea y apretá <kbd>⌘⇧A</kbd>.
-              </p>
+              <div className="flow-empty">
+                <p>Todavía no hay caminos alternativos. Para abrir uno desde un paso, poné el cursor en esa línea y apretá <kbd>⇧⌘A</kbd>.</p>
+                <button className="secondary-action" type="button" onClick={addAlternativeFlow}>
+                  <Split size={15} aria-hidden="true" />
+                  Agregar camino alternativo
+                </button>
+              </div>
             ) : (
               content.alternativeFlows.map((flow) => {
                 const isCollapsed = collapsedAlternativeIds.has(flow.id);

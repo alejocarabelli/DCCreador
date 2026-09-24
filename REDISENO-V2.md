@@ -189,3 +189,17 @@ Cada fila dice dónde estaba el control en la v1, qué pasó y por qué.
 | Exportar/Importar JSON | Menú "Archivo" | Proyecto (barra lateral) e inicio | Eran acciones del proyecto |
 | Zoom | Barra propia abajo (− 100% + enfocar) | Control de zoom compartido, mismo lugar y mismos nombres que en los otros lienzos | Coherencia |
 | Barra de selección múltiple | Flotando dentro de la barra | Franja contextual debajo de la barra, en color de selección | Aparece donde se lee y no desordena la barra |
+
+### 5.4 Flujo de sucesos
+
+| Control (v1) | Dónde estaba | Ahora | Por qué |
+|---|---|---|---|
+| Barra de herramientas | Propia, sin acción principal | `EditorToolbar`: **Camino alternativo** · Revisar · Vista · Exportar | Misma forma que el resto; la acción de documento más frecuente queda a la vista aunque se haya bajado por la página |
+| "Agregar camino" | Encabezado de "Caminos alternativos" | Botón principal de la barra; si no hay caminos, también en el estado vacío de la sección | Evita el duplicado y el estado vacío dice qué hacer |
+| "Agregar fila" / "Agregar primera fila" | Debajo de cada tabla | Igual | Agrega a esa tabla en particular (camino básico o un alternativo) |
+| Plegar pasos largos / Desplegar | Dos botones en la barra; "Desplegar" siempre visible aunque no hubiera nada plegado | Menú Vista: "Plegar pasos largos", "Desplegar todos los pasos" (se habilita cuando hay algo plegado) | Cambian cómo se ve el documento; no son acciones frecuentes |
+| Atajos | Menú "Atajos" propio | Panel de atajos de toda la app (tecla ? o barra lateral), sección "Flujo de sucesos" | Todos los atajos en un lugar |
+| Revisar el flujo | Botón secundario | `ReviewButton`, igual que en los otros editores | Coherencia |
+| Archivo → Exportar PDF / Word | Menú "Archivo" | Menú Exportar: Documento PDF, Documento Word (.docx). Mismos exportadores, mismo formato de tablas | Solo exporta este documento |
+| Archivo → Exportar/Importar JSON | Menú "Archivo" | Proyecto (barra lateral) e inicio | Eran acciones del proyecto |
+| Encabezados de tabla | Texto pequeño | Mono en mayúsculas, como los rótulos del resto de la app | Coherencia |

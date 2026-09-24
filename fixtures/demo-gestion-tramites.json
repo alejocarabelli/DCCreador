@@ -379,26 +379,14 @@
     "basicFlow": [
      {
       "id": "b1",
-      "actor": "El consultor selecciona la opción Cambiar estado de trámite.",
-      "system": "",
-      "ref": ""
-     },
-     {
-      "id": "b2",
-      "actor": "",
-      "system": "El sistema busca los trámites con estado actual vigente y los muestra.",
-      "ref": ""
-     },
-     {
-      "id": "b3",
-      "actor": "El consultor selecciona un trámite y el nuevo estado.",
-      "system": "",
+      "actor": "1. El consultor selecciona la opción Cambiar estado de trámite.",
+      "system": "2. El sistema busca los trámites asignados al consultor con estado actual vigente y los muestra.",
       "ref": "A1"
      },
      {
-      "id": "b4",
-      "actor": "",
-      "system": "El sistema registra el cambio y cierra el estado anterior.",
+      "id": "b2",
+      "actor": "3. El consultor selecciona un trámite y el nuevo estado.",
+      "system": "4. El sistema registra el cambio de estado y cierra el estado anterior.",
       "ref": ""
      }
     ],
@@ -411,7 +399,7 @@
        {
         "id": "x1",
         "actor": "",
-        "system": "El sistema informa que no hay trámites y finaliza el caso de uso.",
+        "system": "2.A1.1 El sistema informa que no hay trámites para el consultor y finaliza el caso de uso.",
         "ref": ""
        }
       ]

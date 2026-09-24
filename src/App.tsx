@@ -573,7 +573,6 @@ function App() {
             onChangeContent={handleChangeProjectContent}
             onRedo={handleRedo}
             onUndo={handleUndo}
-            onImportProject={importProject}
           />
         ) : (
           <SequenceDiagramEditor
