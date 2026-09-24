@@ -1,172 +1,179 @@
-# DESIGN.md — Modelador de Sistemas
+# DESIGN.md — Modelador de Sistemas 2.0
 
-Derived from the shipped implementation, not from intentions. Every value here
-was read out of `src/theme/themes.ts`, `src/styles.css` and `src/refined.css`
-or measured in the running app.
+The design system of the 2.0 redesign ("Cuaderno técnico"). It replaces the v1
+document; `REDISENO-V2.md` records what changed and why.
 
 ## What this is
 
-A desktop UML modelling tool for coursework: class diagrams, use-case models,
-event flows and sequence diagrams, grouped into projects that live in one
-technical file. Spanish (rioplatense) throughout. It ships as a macOS app that
-opens at **1380×860**, which is the size every layout decision answers to.
+A desktop modelling tool for the *Diseño de Sistemas* course: projects hold use
+case models, flows of events, sequence diagrams, class diagrams and "clases de
+secuencias". It ships as a macOS app (WKWebView) and works offline.
 
-**Mode: Operate.** The visitor is building a diagram, not being persuaded by
-one. Scanability, stable density and native expectations outrank expression.
-The brand lives in the precision of the details, and the diagram — never the
-chrome — is the loudest thing on screen.
+The product's output is paper: diagrams and specifications handed in as PDF or
+Word. The interface is built around that — **the document is the brightest,
+sharpest thing on screen, and the chrome is quieter paper around it.**
 
-## Visual world
+## Visual world: Cuaderno técnico
 
-A technical notebook. Cool paper greys under white working surfaces, one petrol
-blue reserved for interaction, and UML ink kept charcoal so the diagram reads as
-drawing rather than as UI. Nothing glows, nothing gradients, nothing floats
-without cause.
+Ink on paper with one petrol accent.
+
+- **Canvas** is off-white paper (`#F8F7F3`) with a faint dot grid. Classes are
+  white cards with a 1px ink border and a small offset shadow, like a printed
+  box on a sheet — the same look the PDF export produces.
+- **Chrome** (sidebar, toolbar, inspector) is a slightly warmer paper, so the
+  canvas always reads as the lightest plane.
+- **Petrol** (`#1C6570`) is the only accent: primary actions, selection, focus,
+  the current item. It never tints the document itself.
+- **Dark mode is "Pizarra"**: light ink on warm graphite, the same accent lifted
+  to `#63B7BC`. Not an inverted grey.
 
 ## Type
 
-The interface renders in the platform UI face — SF Pro on macOS, Segoe on
-Windows — via `ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-"Segoe UI", Roboto, sans-serif`. There is no webfont, and the stack names what
-actually paints rather than a face the app does not ship.
+IBM Plex, bundled with the app (`@fontsource/ibm-plex-sans`, `…-mono`), so it
+renders the same on every Mac and in every export.
 
-| Role | Size | Weight |
+| Token | Size | Use |
 |---|---|---|
-| Artifact title (`h1`) | 0.8rem | 700 |
-| Panel heading (`h2`) | 0.73rem, uppercase tracking | 650–700 |
-| Body / control | 0.76–0.82rem | 400–500 |
-| Secondary, muted | 0.72–0.75rem | 400 |
-| Floor | **0.69rem / 11px** | — |
+| `--text-2xs` | 10.5px | counters, key caps, eyebrow labels (mono, uppercase) |
+| `--text-xs` | 11.5px | meta, save state, hints |
+| `--text-sm` | 12.5px | field labels, secondary lines |
+| `--text-md` | 13px | **default**: every control, menu item and body text |
+| `--text-lg` | 15px | dialog and empty-state titles |
+| `--text-xl` | 19px | section titles (flow) |
+| `--text-2xl` | 26px | page title (home) |
 
-**11px is the floor.** Nothing in the UI is smaller. Diagram text is separate
-and comes from `theme.typography` (class names 14px, attributes 13px,
-multiplicities 12px).
+- **Plex Sans** for the interface. Weights 400, 500 (controls), 600 (titles).
+- **Plex Mono** for anything that is code: attributes and methods in class
+  boxes, message signatures, key caps, eyebrow labels.
+- Controls never inherit the page size: `button`, `input`, `select`,
+  `textarea` and `summary` are set to `--text-md` at element level.
 
 ## Colour
 
-One source of truth: `academicLightTheme` in `src/theme/themes.ts`, projected to
-CSS custom properties by `useTheme()`. Do not reintroduce a second palette in a
-stylesheet; that is what the `!important` override block used to be.
+All colours are tokens produced by `useTheme()` from `src/theme/themes.ts` and
+set as CSS variables on `.app-shell`. Stylesheets never hard-code a colour
+(`src/theme/themes.test.ts` fails if a stylesheet reads a variable the themes
+do not define, and checks text contrast in both themes).
 
-| Token | Value | Contrast on its surface |
-|---|---|---|
-| `--panel-text` | `#1F2933` | 14.76:1 |
-| `--panel-muted-text` | `#52606D` | 6.46:1 |
-| `--panel-background` | `#FFFFFF` | — |
-| `--panel-border` | `#DCE2E8` | — |
-| `--button-background` | `#F3F5F7` | text 12.12:1 |
-| `--button-active-background` | `#315F8C` | white text 6.67:1 |
-| `--input-border` | `#CFD7DF` | — |
-| `--accent` | `#2F648F` | white text 6.85:1 |
-| `--panel-subtle-background` | `#F8FAFB` | muted text 6.28:1 |
-| `--panel-muted-background` | `#F1F4F7` | muted text 5.99:1 |
-| `--panel-strong-background` | `#E3E8ED` | muted text 5.32:1 |
+| Role | Tokens |
+|---|---|
+| Planes | `--ui-app-background` < `--ui-sidebar-background` < `--panel-background` (chrome) · `--canvas-background` (document) |
+| Surfaces on a panel | `--panel-subtle-background`, `--panel-muted-background`, `--panel-strong-background` |
+| Lines | `--panel-border`, `--panel-border-strong`, `--button-border`, `--input-border` |
+| Text | `--panel-text` > `--panel-secondary-text` > `--panel-muted-text` > `--panel-faint-text` > `--panel-placeholder-text` |
+| Accent | `--accent` (text, icons), `--button-active-background` (fills), `--accent-strong-fill` (pressed), `--accent-soft(-strong)` (tints), `--accent-outline`, `--accent-border` |
+| State | `--ui-hover-background`, `--ui-selected-background`, `--ui-selected-text` |
+| Status | `--status-{danger,warning,success,info,violet}-{soft,soft-strong,border,border-strong,text}` |
+| Document | `--class-*`, `--association-*`, `--note-*`, and `theme.sequence.*` for the SVG sequence canvas |
 
-Three named fills sit on the panel, lightest first. They replaced a single
-`--panel-muted-background` that was being written with three different inline
-fallbacks (`#f8fafc`, `#f1f5f9`, `#e2e8f0`) — one name, three values, which is
-drift by definition. Pick the level by how far the surface should separate from
-the panel, never by eye.
+Exports always use the light theme (`EXPORT_THEME`), whatever the screen shows.
 
-Chrome-only tokens with no diagram equivalent live on `.app-shell` as
-`--ui-*`: app background `#f1f4f6`, sidebar `#f7f8fa`, hover `#edf2f6`,
-selected `#e6eef6` / `#244f78`, danger `#b63d42`.
+## Space, shape, elevation, motion
 
-Seven project accent tones (`--project-tone-a`…`g`) identify projects at a
-glance; all clear 4.99:1 on white. Every pair in this table meets WCAG AA — keep
-it that way when adding one.
+- **Space**: 4px grid — `--space-1…8` = 4, 8, 12, 16, 20, 24, 32px.
+- **Radii**: sharp like paper. `--radius-xs` 3px (chips, class boxes),
+  `--radius-sm` 5px (controls, fields), `--radius-md` 7px (menus, floating
+  panels), `--radius-lg` 10px (dialogs, cards), `--radius-pill`.
+- **Controls**: `--control-sm` 26px (canvas zoom), `--control-md` 30px (toolbar,
+  fields, menu items), `--control-lg` 34px (dialog and card buttons). Every
+  target is ≥24×24px.
+- **Elevation**: ink-tinted shadows only on things that float —
+  `--shadow-1` (zoom control), `--shadow-popover` (menus, cards),
+  `--shadow-dialog`. Panels are separated by lines, not shadows.
+- **Motion**: `--duration-fast` 120ms (hover, press), `--duration` 180ms (menus,
+  toasts), `--duration-slow` 260ms (dialogs, empty-state cards), all on
+  `--ease-out`. Menus pop in, cards rise in, nothing bounces. Transitions list
+  their properties; never `transition: all`.
 
-The sequence editor scopes its own accent (`--button-active-background:
-#2f648f`) on `.sequence-editor-shell`. That is a deliberate per-surface
-variation, not drift.
+## Components
 
-**Everything sits in one hue band, 196°–220° (cool blue-grey).** The sequence
-canvas used to sit at 45° — yellow, the opposite side of the wheel — because a
-whole warm palette was hardcoded in `SequenceDiagramCanvas.tsx` behind
-`usesTechnicalNotebook`, a flag that was always true once the other themes were
-deleted. Those sixteen values now live in `academicLightTheme.sequence` and the
-flag is gone. When adding a colour, check its hue before its beauty: one
-surface in the wrong band is what makes an app feel assembled.
+Shared React components live in `src/components/ui/`; their styles in
+`src/design/system.css`. **The same control looks and behaves the same in every
+editor.**
 
-Two warm things survive on purpose. The nine participant families vary hue so
-participants are told apart at a glance, and three of them are warm. Note
-colours are chosen per note, and Ámbar is the default because a UML sticky note
-is yellow. Neither is drift; both are choices.
+### Editor toolbar — `EditorToolbar`
 
-**No fallback values in `var()`.** `var(--panel-text, #0f172a)` is a second
-palette hiding in the stylesheet: it never fires while the theme is applied, and
-when it does fire it ships a colour nobody chose. Every token in this document is
-set on `.app-shell` by `useTheme()`, so `var(--panel-text)` is enough. The two
-exceptions are genuinely runtime values with no theme entry —
-`--sequence-inspector-width` (the person drags it) and `--project-tone` (set per
-row) — where the fallback *is* the default.
+One bar, three zones, identical order in all five editors:
 
-## Space
+1. **Start** — breadcrumb (`Proyecto › icono Artefacto`), save state (a check
+   that expands to "Guardado" on hover; "Guardando…" and errors stay expanded),
+   Deshacer, Rehacer.
+2. **Create** — the editor's own tools. The most common creation is the one
+   filled primary button (`ToolButton variant="primary"`): *Clase*, *Mensaje*,
+   *Caso de uso*. Secondary creations are icon buttons or one menu.
+3. **End** — `ReviewButton` (where the editor can check its work) · `Vista ▾`
+   (everything that changes how the document is shown) · `Exportar ▾` (only
+   the formats of this artifact).
 
-A 4-unit base. `4 / 6 / 8 / 10 / 12 / 18px` carry the rhythm; 2–3px appear only
-inside control clusters. Radii step `4 / 5 / 6 / 7 / 8px`, with `999px` for
-pills. Shadows carry offset and blur (`0 4px 12px rgba(15, 23, 42, 0.08)`);
-there are no zero-offset halos.
+Project-level actions (export/import the whole project as JSON) are not in the
+editor toolbar: they live in the project menu and on the home screen.
 
-Shell: a 272px project rail (54px collapsed) beside `minmax(0, 1fr)`.
+### Tool buttons — `ToolButton`
+
+30px high, transparent until hovered, 5px radius, 16px Lucide icon. Icon-only
+buttons carry the label as `aria-label` and tooltip (with the shortcut when
+there is one). `pressed` shows the accent tint; `variant="primary"` is the one
+filled button per toolbar.
+
+### Menus — `ToolMenu`, `MenuItem`, `MenuLabel`, `MenuSeparator`, `MenuField`
+
+A native `<details>` (keyboard and VoiceOver for free) with a popover panel:
+only one menu open in the window, closes on outside click, Escape (focus back
+to the trigger) and after choosing an item. Items are 30px rows with a 16px
+icon column; toggles use `role="menuitemcheckbox"` and a check mark; sections
+use mono uppercase labels. Canvas context menus and the sidebar's floating
+menus share the same panel and item styles.
+
+### Canvas zoom — `CanvasZoom`
+
+The only zoom control: bottom-left of every canvas, `− 100% + | ⤢`. The
+percentage appears where the editor knows it and resets to 100% on click.
+
+### Empty states
+
+One card centred on the empty canvas: a title that says what to start with, one
+sentence, and the actions to do it. Rises in over 260ms.
+
+### Dialogs, toasts
+
+Dialogs are paper cards (`--radius-lg`, `--shadow-dialog`) over a blurred ink
+scrim; primary action on the right. Toasts are ink pills at the bottom.
 
 ## Layout contracts
 
-Two rules exist because breaking them shipped visible bugs:
-
-1. **Toolbars wrap; they never overflow.** `justify-content: flex-end` on a
-   `nowrap` flex row pushes surplus content out the *start* edge — that is how
-   the sequence toolbar once painted over the breadcrumb and into the project
-   rail. Every `.editor-toolbar-actions` is `flex-wrap: wrap`.
-2. **Labels collapse before the row does.** Text inside a toolbar control is
-   wrapped in `<span class="toolbar-label">` and hidden by breakpoint, in
-   priority order: save state (≤1460) → secondary groups (≤1520) → keyboard mode
-   (≤1380) → UML literals (≤1280) → everything (≤1100). **Every control carrying
-   a `toolbar-label` must also carry an `aria-label` and a `title`**, so
-   collapsing costs no accessible name.
+1. **Toolbars never overflow.** The start zone shrinks (breadcrumb ellipsis)
+   before the create and end zones do; labels in the create zone collapse to
+   icons at narrow widths. Every collapsible label has an `aria-label` and a
+   tooltip on its control, so collapsing costs no accessible name.
+2. **The canvas is never a residual column.** Side panels collapse before the
+   canvas drops under 480px.
 
 ## Accessibility contract
 
-- Every form control has a programmatic label. Verified: zero unlabeled inputs.
-- One `h1` per view (the artifact name). Panel titles are `h2`. The brand
-  wordmark is a `<p class="sidebar-brand-name">`, not a heading — it is chrome.
-- Focus is always visible, including on React Flow nodes, which zero their own
-  outline (`.react-flow__node:focus-visible .class-node`).
-- Targets are ≥24×24 CSS px (WCAG 2.2 SC 2.5.8).
-- Modals use native `<dialog>.showModal()` for a free focus trap and Escape;
-  the custom surfaces use `useFocusTrap`, which also restores the opener.
-- **No `window.confirm` / `window.alert` / `window.prompt`.** They render OS
-  chrome the design does not control, cannot be themed, cannot be translated,
-  and in the WKWebView shell look like a system failure rather than a question
-  the app is asking. Destructive actions go through `useDialogs().confirm()` and
-  failures through `.notify()` (`src/components/ConfirmDialog.tsx`). The dialog
-  portals into `.app-shell` so it inherits the tokens, and focus lands on
-  *Cancelar* — the safe choice — because the trap takes the first focusable
-  child and the cancel button is first in DOM order.
-- Reduced motion removes travel, not feedback: animations off, transitions
-  restricted to colour/opacity/shadow at 120ms. Never a blanket `1ms` kill.
-- All UI copy is Spanish, including third-party controls — React Flow's canvas
-  buttons are re-rendered by `CanvasControls` for exactly this reason.
+- Every control has a programmatic label; one `h1` per view (the artifact
+  name); panel titles are `h2`.
+- Focus is always visible: a 2px accent ring with a 2px paper gap
+  (`--focus-ring`), including on React Flow nodes.
+- Targets ≥24×24 CSS px (WCAG 2.2 SC 2.5.8).
+- Body text meets 4.5:1 in both themes; `themes.test.ts` checks the key pairs.
+- No `window.confirm/alert/prompt`: destructive actions go through
+  `useDialogs().confirm()`; the dialog portals into `.app-shell`, focus lands on
+  *Cancelar*.
+- Reduced motion removes travel, not feedback: pop-in and rise-in animations
+  are dropped, colour and opacity transitions stay. Never a blanket kill.
+- All UI copy is Spanish, including third-party controls.
 
 ## Performance contract
 
-- Editors are route-split via `React.lazy`. `jspdf`, `svg2pdf` and
+- Editors are route-split via `React.lazy`; `jspdf`, `svg2pdf` and
   `html-to-image` load only when an export runs.
-- `SequenceDiagramCanvas` is memoised; the editor above it holds 33 pieces of
-  state that must not reach the diagram.
-- Pointer drags measure the SVG box **once** at pointerdown and coalesce work to
-  one `requestAnimationFrame`. Never call `getBoundingClientRect()` per
-  `pointermove`.
-- Transitions enumerate their properties. No `transition: all`.
+- `SequenceDiagramCanvas` is memoised; pointer drags measure once at
+  pointerdown and coalesce to one `requestAnimationFrame`.
 - `src/utils/sequenceDiagramPerformance.test.tsx` guards layout cost at 120
-  messages / 20 participants. Keep it passing.
+  messages / 20 participants.
 
-## Things that are deliberately absent
+## Deliberately absent
 
-- **Theme switching.** One visual language ships. `DiagramThemeId` is a
-  single-member union; adding a theme means adding it to `themes.ts` and
-  restoring the setter in `useTheme`, not adding a stylesheet.
-- **Dark mode.** No `prefers-color-scheme` handling exists.
-- **A webfont.** See Type.
-- **Mobile.** Breakpoints run to 700px so nothing breaks, but this is a desktop
-  tool and the phone layout is a courtesy, not a target.
+- **More themes.** One language in two appearances (Cuaderno, Pizarra).
+- **Mobile.** A desktop tool; narrow windows (down to ~900px, the macOS
+  minimum) must work, phones are a courtesy.
