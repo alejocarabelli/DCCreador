@@ -104,6 +104,7 @@ export function ToolMenu({
   label,
   showLabel = true,
   align = 'end',
+  direction = 'down',
   className = '',
   panelClassName = '',
   disabled,
@@ -115,6 +116,8 @@ export function ToolMenu({
   label: string;
   showLabel?: boolean;
   align?: 'start' | 'end';
+  /** 'up' for menus that live at the bottom of the window (the sidebar footer). */
+  direction?: 'down' | 'up';
   className?: string;
   panelClassName?: string;
   disabled?: boolean;
@@ -170,7 +173,7 @@ export function ToolMenu({
         <ChevronDown className="v2-menu-chevron" size={13} aria-hidden="true" />
       </summary>
       <div
-        className={`v2-menu-panel align-${align} ${panelClassName}`}
+        className={`v2-menu-panel align-${align} ${direction === 'up' ? 'opens-up' : ''} ${panelClassName}`}
         role="menu"
         onClick={(event) => {
           const item = (event.target as HTMLElement).closest('[role^="menuitem"]');

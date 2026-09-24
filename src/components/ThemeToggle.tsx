@@ -1,42 +1,43 @@
 import { Monitor, Moon, Sun } from 'lucide-react';
 import type { ThemePreference } from '../hooks/useTheme';
+import { MenuItem, MenuLabel, ToolMenu } from './ui/Toolbar';
 
-const NEXT_PREFERENCE: Record<ThemePreference, ThemePreference> = {
-  system: 'light',
-  light: 'dark',
-  dark: 'system',
-};
-
-const PREFERENCE_LABEL: Record<ThemePreference, string> = {
-  system: 'Tema: automático (según el sistema)',
-  light: 'Tema: claro',
-  dark: 'Tema: oscuro',
-};
+const OPTIONS: Array<{ value: ThemePreference; label: string; icon: typeof Sun }> = [
+  { value: 'system', label: 'Automático', icon: Monitor },
+  { value: 'light', label: 'Claro', icon: Sun },
+  { value: 'dark', label: 'Oscuro', icon: Moon },
+];
 
 type ThemeToggleProps = {
   preference: ThemePreference;
   onChange: (preference: ThemePreference) => void;
-  className?: string;
   showLabel?: boolean;
 };
 
-/** Cycles automático → claro → oscuro; the icon shows the current choice. */
-export function ThemeToggle({ preference, onChange, className = 'icon-button', showLabel = false }: ThemeToggleProps) {
-  const Icon = preference === 'dark' ? Moon : preference === 'light' ? Sun : Monitor;
-  const label = PREFERENCE_LABEL[preference];
-  const next = NEXT_PREFERENCE[preference];
-
+/**
+ * Apariencia: a menu like every other one, opening upwards from the sidebar
+ * footer. It replaces a button that cycled automático → claro → oscuro on
+ * each click, where the next state was a guess.
+ */
+export function ThemeToggle({ preference, onChange, showLabel = false }: ThemeToggleProps) {
+  const current = OPTIONS.find((option) => option.value === preference) ?? OPTIONS[0];
   return (
-    <button
-      aria-label={`${label}. Cambiar a ${PREFERENCE_LABEL[next].replace('Tema: ', '')}`}
-      className={`${className} theme-toggle`}
-      data-preference={preference}
-      title={label}
-      type="button"
-      onClick={() => onChange(next)}
+    <ToolMenu
+      align="start"
+      className="theme-toggle"
+      direction="up"
+      icon={current.icon}
+      label={showLabel ? current.label : `Apariencia: ${current.label}`}
+      showLabel={showLabel}
+      title={`Apariencia: ${current.label}`}
     >
-      <Icon aria-hidden="true" size={showLabel ? 15 : 18} />
-      {showLabel ? (preference === 'dark' ? 'Oscuro' : preference === 'light' ? 'Claro' : 'Automático') : null}
-    </button>
+      <MenuLabel>Apariencia</MenuLabel>
+      {OPTIONS.map((option) => (
+        <MenuItem key={option.value} checked={preference === option.value} onSelect={() => onChange(option.value)}>
+          {option.label}
+          {option.value === 'system' ? <span className="v2-menu-item-hint">según macOS</span> : null}
+        </MenuItem>
+      ))}
+    </ToolMenu>
   );
 }

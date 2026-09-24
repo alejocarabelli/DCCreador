@@ -142,29 +142,100 @@ export function ProjectSidebar({
     };
   }, []);
 
+  const newArtifactMenuElement = newArtifactMenu !== null ? (
+        <div
+          aria-label="Nuevo artefacto"
+          className="artifact-floating-menu new-artifact-floating-menu"
+          ref={newArtifactMenuRef}
+          role="menu"
+          style={{ left: newArtifactMenu.left, top: newArtifactMenu.top }}
+        >
+          {ARTIFACT_TYPES.map((type) => (
+            <MenuItem
+              key={type.id}
+              icon={type.icon}
+              onSelect={() => {
+                onCreateArtifact(newArtifactMenu.projectId, type.id);
+                setNewArtifactMenu(null);
+              }}
+            >
+              {type.label}
+            </MenuItem>
+          ))}
+        </div>
+      ) : null;
+
+  const collapseButton = (
+    <button
+      aria-expanded={!isCollapsed}
+      aria-label={isCollapsed ? 'Mostrar barra lateral' : 'Ocultar barra lateral'}
+      className="v2-tool v2-sidebar-toggle"
+      type="button"
+      onClick={onToggleCollapsed}
+      title={`${isCollapsed ? 'Mostrar' : 'Ocultar'} barra lateral (⌘\\)`}
+    >
+      {isCollapsed ? <PanelLeftOpen size={16} aria-hidden="true" /> : <PanelLeftClose size={16} aria-hidden="true" />}
+    </button>
+  );
+
   if (isCollapsed) {
+    // The rail keeps what you use most: the toggle in the very same spot as
+    // when the sidebar is open, Inicio, and the open project's artifacts.
+    const activeProject = projects.find((project) => project.id === activeProjectId) ?? null;
     return (
       <aside className="project-sidebar collapsed v2-sidebar" aria-label="Navegación">
-        <span className="v2-brand-mark" aria-hidden="true"><Blocks size={17} /></span>
-        <button aria-label="Mostrar barra lateral" className="v2-tool" type="button" onClick={onToggleCollapsed} title="Mostrar barra lateral (⌘\)">
-          <PanelLeftOpen size={16} aria-hidden="true" />
-        </button>
-        <button
-          aria-current={isHome ? 'page' : undefined}
-          aria-label="Inicio"
-          className={`v2-tool ${isHome ? 'is-pressed' : ''}`}
-          type="button"
-          onClick={onOpenHome}
-          title="Inicio"
-        >
-          <Home size={16} aria-hidden="true" />
-        </button>
+        <div className="v2-sidebar-header">{collapseButton}</div>
+        <nav className="v2-sidebar-rail" aria-label="Navegación rápida">
+          <button
+            aria-current={isHome ? 'page' : undefined}
+            aria-label="Inicio"
+            className={`v2-tool ${isHome ? 'is-pressed' : ''}`}
+            type="button"
+            onClick={onOpenHome}
+            title="Inicio"
+          >
+            <Home size={16} aria-hidden="true" />
+          </button>
+          {activeProject !== null ? (
+            <>
+              <span className="v2-sidebar-rail-divider" aria-hidden="true" />
+              {activeProject.artifacts.map((artifact) => {
+                const isCurrent = artifact.id === activeArtifactId;
+                return (
+                  <button
+                    aria-current={isCurrent ? 'page' : undefined}
+                    aria-label={artifact.name}
+                    className={`v2-tool ${isCurrent ? 'is-pressed' : ''}`}
+                    key={artifact.id}
+                    type="button"
+                    onClick={() => onSelectArtifact(activeProject.id, artifact.id)}
+                    title={`${artifact.name} · ${activeProject.name}`}
+                  >
+                    <ArtifactTypeIcon type={artifact.type} />
+                  </button>
+                );
+              })}
+              <button
+                aria-expanded={newArtifactMenu?.projectId === activeProject.id}
+                aria-haspopup="menu"
+                aria-label="Nuevo artefacto"
+                className="v2-tool"
+                type="button"
+                onClick={(event) => openNewArtifactMenu(activeProject.id, event)}
+                title="Nuevo artefacto"
+              >
+                <Plus size={16} aria-hidden="true" />
+              </button>
+            </>
+          ) : null}
+        </nav>
         <div className="v2-sidebar-rail-footer">
           <button aria-label="Atajos de teclado" className="v2-tool" type="button" onClick={onOpenShortcuts} title="Atajos de teclado (?)">
             <Keyboard size={16} aria-hidden="true" />
           </button>
-          <ThemeToggle className="v2-tool" preference={themePreference} onChange={onThemePreferenceChange} />
+          <ThemeToggle preference={themePreference} onChange={onThemePreferenceChange} />
         </div>
+        {newArtifactMenuElement}
       </aside>
     );
   }
@@ -172,8 +243,9 @@ export function ProjectSidebar({
   return (
     <aside className="project-sidebar v2-sidebar" aria-label="Navegación">
       <div className="v2-sidebar-header">
-        <span className="v2-brand-mark" aria-hidden="true"><Blocks size={17} /></span>
+        {collapseButton}
         <p className="sidebar-brand-name v2-brand-name">
+          <span className="v2-brand-mark" aria-hidden="true"><Blocks size={15} /></span>
           {APP_NAME}
         </p>
       </div>
@@ -285,15 +357,10 @@ export function ProjectSidebar({
       </nav>
 
       <div className="v2-sidebar-footer">
-        <ThemeToggle className="v2-tool has-label" preference={themePreference} onChange={onThemePreferenceChange} showLabel />
-        <span className="v2-sidebar-footer-tools">
-          <button aria-label="Atajos de teclado" className="v2-tool" type="button" onClick={onOpenShortcuts} title="Atajos de teclado (?)">
-            <Keyboard size={16} aria-hidden="true" />
-          </button>
-          <button aria-label="Ocultar barra lateral" className="v2-tool" type="button" onClick={onToggleCollapsed} title="Ocultar barra lateral (⌘\)">
-            <PanelLeftClose size={16} aria-hidden="true" />
-          </button>
-        </span>
+        <ThemeToggle preference={themePreference} onChange={onThemePreferenceChange} showLabel />
+        <button aria-label="Atajos de teclado" className="v2-tool" type="button" onClick={onOpenShortcuts} title="Atajos de teclado (?)">
+          <Keyboard size={16} aria-hidden="true" />
+        </button>
       </div>
 
       {optionsMenu !== null ? (
@@ -348,28 +415,7 @@ export function ProjectSidebar({
         </div>
       ) : null}
 
-      {newArtifactMenu !== null ? (
-        <div
-          aria-label="Nuevo artefacto"
-          className="artifact-floating-menu new-artifact-floating-menu"
-          ref={newArtifactMenuRef}
-          role="menu"
-          style={{ left: newArtifactMenu.left, top: newArtifactMenu.top }}
-        >
-          {ARTIFACT_TYPES.map((type) => (
-            <MenuItem
-              key={type.id}
-              icon={type.icon}
-              onSelect={() => {
-                onCreateArtifact(newArtifactMenu.projectId, type.id);
-                setNewArtifactMenu(null);
-              }}
-            >
-              {type.label}
-            </MenuItem>
-          ))}
-        </div>
-      ) : null}
+      {newArtifactMenuElement}
     </aside>
   );
 }

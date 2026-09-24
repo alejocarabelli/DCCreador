@@ -29,13 +29,31 @@
   z-index: 25;
 }
 
+/* The toggle sits at the same x and y whether the sidebar is open or folded
+   (10px from the left edge, vertically centred in the header), so the hand
+   finds it in one place. It used to live in the footer when open and jump
+   to the top when folded. */
 .app-shell .v2-sidebar-header {
   align-items: center;
   display: flex;
   flex: 0 0 auto;
-  gap: var(--space-2);
+  gap: var(--space-1);
   height: var(--toolbar-height);
-  padding: 0 var(--space-2) 0 var(--space-3);
+  padding: 0 var(--space-2) 0 10px;
+  width: 100%;
+}
+
+.app-shell .v2-sidebar-toggle { flex: 0 0 auto; }
+
+.app-shell[data-ui-version='refined'] .v2-sidebar-header .v2-brand-name {
+  gap: var(--space-2);
+  padding: 0 var(--space-1);
+}
+
+.app-shell .v2-brand-name .v2-brand-mark {
+  flex-basis: 22px;
+  height: 22px;
+  width: 22px;
 }
 
 .app-shell .v2-brand-mark {
@@ -242,19 +260,43 @@
   font-weight: 400;
 }
 
-/* Collapsed rail. */
+/* Collapsed rail: toggle (same place as open), Inicio, the open project's
+   artifacts, then shortcuts and theme at the bottom. */
 .app-shell[data-ui-version='refined'] .v2-sidebar.collapsed {
-  align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-3) 0 var(--space-2);
+  align-items: stretch;
+  padding: 0 0 var(--space-2);
 }
 
-.app-shell .v2-sidebar.collapsed .v2-brand-mark { margin-bottom: var(--space-2); }
+.app-shell .v2-sidebar-rail {
+  align-content: start;
+  display: grid;
+  flex: 1 1 auto;
+  gap: 2px;
+  justify-items: center;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-2) 0;
+}
+
+.app-shell .v2-sidebar-rail-divider {
+  background: var(--panel-border);
+  height: 1px;
+  margin: var(--space-1) 0;
+  width: 24px;
+}
 
 .app-shell .v2-sidebar-rail-footer {
+  border-top: 1px solid var(--panel-border);
   display: grid;
-  gap: var(--space-1);
-  margin-top: auto;
+  gap: 2px;
+  justify-items: center;
+  padding-top: var(--space-2);
+}
+
+/* Footer of the open sidebar: Apariencia (a menu) and shortcuts. */
+.app-shell .v2-sidebar-footer .theme-toggle > summary {
+  color: var(--panel-muted-text);
+  font-weight: 400;
 }
 
 /* ─── Home ──────────────────────────────────────────────────────────────── */
@@ -652,3 +694,5 @@
 
 .app-shell .v2-shortcuts-section dt { display: flex; flex-wrap: wrap; gap: 4px; }
 .app-shell .v2-shortcuts-section dd { color: var(--panel-secondary-text); margin: 0; }
+
+.app-shell .v2-sidebar.collapsed .theme-toggle .v2-menu-chevron { display: none; }
