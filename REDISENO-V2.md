@@ -326,8 +326,8 @@ Compatibilidad: los archivos no cambian. Las relaciones nuevas guardan el lado q
 ## La 2.0 reemplaza a la v1
 
 - La app instalada es una sola: `/Applications/Modelador de Sistemas.app`, con
-  nombre "Modelador de Sistemas" (sin "2.0") y un ícono nuevo al estilo
-  Cuaderno técnico (`macos/CreateIcon.m`).
+  nombre "Modelador de Sistemas" (sin "2.0") y un ícono nuevo: la marca de
+  bloques de la barra lateral sobre petróleo (`macos/CreateIcon.m`).
 - El bundle id (`com.alejocarabelli.disenosistemas.v2`) y el esquema
   (`modeladorv2://`) no cambian: ahí están guardados los proyectos.
 - Los respaldos van a `~/Documents/Modelador de Sistemas/Respaldos`; el último
