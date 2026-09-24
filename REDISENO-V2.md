@@ -284,3 +284,13 @@ No se quitó ninguna función: todo lo que hacían los encabezados viejos (plega
 | El inspector crecía hasta el 38 % de la ventana y dejaba el lienzo de clases en ~300 px, con el minimapa tapando el zoom | Bajo 1100 px el inspector mide 280 px y el minimapa se oculta (sigue en Vista para ventanas anchas) |
 | Nombres de atributos y métodos cortados en el inspector angosto | Filas de miembros un punto más chicas y el nombre con más ancho que el tipo |
 | En un diagrama de clases vacío, la primera clase abría con zoom al 200 % | El ajuste automático no pasa del 100 % (y el botón Ajustar, del 150 %) |
+
+## 7. Después de la primera prueba en el Mac
+
+| Qué se reportó | Qué pasaba | Arreglo |
+|---|---|---|
+| "No puedo crear un actor en secuencia" | Se podía, pero solo en Inspector → Opciones técnicas → Tipo interno (igual que en la v1) | El actor aparece donde se usa, sin un botón fijo en la barra (se crea una vez por diagrama): la tarjeta de inicio de una secuencia vacía ofrece **Agregar actor** primero; el cuadro de "Participante" tiene **Actor · Objeto** y arranca en Actor mientras el diagrama no tenga uno; el inspector muestra **Objeto · Actor** arriba para convertir un participante. Límite/Control/Entidad siguen en Opciones técnicas |
+| (encontrado al revisarlo) Renombrar un actor mostraba "Actor" | El campo del inspector interpretaba el texto como `instancia:Clase` y lo guardaba como clase; el actor muestra su nombre | Para un actor el campo es "Nombre del actor" y edita el nombre |
+| "Doble clic crea una clase" no funcionaba | Nunca estuvo programado (tampoco en la v1); el doble clic hacía zoom | Doble clic en el lienzo vacío crea una clase (clases, clases de secuencias) o un caso de uso donde se hizo clic. El doble clic ya no hace zoom |
+| (encontrado al revisarlo) La primera clase de un diagrama vacío aparecía lejos del clic y medio tapada por el inspector | React Flow reencuadraba la vista al aparecer el primer nodo | Solo se encuadra un diagrama que se abre con contenido |
+| El cartel del modo teclado se cortaba en el borde | Se centraba sobre el participante sin mirar el borde visible | Se corre para quedar dentro del lienzo y la flechita sigue apuntando al participante |

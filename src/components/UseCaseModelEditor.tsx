@@ -576,7 +576,16 @@ export function UseCaseModelEditor({
       />
 
       <div className={`editor-body ${selectedNode === null && selectedEdge === null ? 'inspector-hidden' : isInspectorCollapsed ? 'inspector-collapsed' : ''}`}>
-        <div className="flow-canvas" ref={canvasRef}>
+        <div
+          className="flow-canvas"
+          ref={canvasRef}
+          onDoubleClick={(event) => {
+            // Double-click on empty canvas creates a use case under the pointer.
+            if (reactFlowInstance === null || !(event.target as Element).closest('.react-flow__pane')) return;
+            const point = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+            addNode('use-case', { x: Math.round(point.x - 80), y: Math.round(point.y - 30) });
+          }}
+        >
           <ReactFlow
             connectionMode={ConnectionMode.Loose}
             deleteKeyCode={null}
@@ -590,6 +599,7 @@ export function UseCaseModelEditor({
             onConnect={onConnect}
             onEdgesChange={onEdgesChange}
             onInit={setReactFlowInstance}
+            zoomOnDoubleClick={false}
             onNodesChange={onNodesChange}
             onPaneClick={() => { setSelectedNodeId(null); setSelectedEdgeId(null); setContextMenu(null); }}
             onPaneContextMenu={(event) => {

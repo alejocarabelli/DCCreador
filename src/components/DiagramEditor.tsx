@@ -180,6 +180,7 @@ export function DiagramEditor({
   const [methodEditingRequest, setMethodEditingRequest] = useState<{ nodeId: string; methodId: string } | null>(null);
   const [selectedNoteNodeId, setSelectedNoteNodeId] = useState<string | null>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
+  const [openedWithContent] = useState(() => (artifact.content.nodes?.length ?? 0) > 0);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [connectionSourceNodeId, setConnectionSourceNodeId] = useState<string | null>(null);
@@ -1500,6 +1501,13 @@ export function DiagramEditor({
         <div
           className={`canvas-shell class-diagram-canvas ${connectionSourceNodeId !== null ? 'is-connecting' : ''}`}
           ref={canvasRef}
+          onDoubleClick={(event) => {
+            // Double-click on empty canvas creates a class right there, as the
+            // empty state and the Clase tooltip promise.
+            if (reactFlowInstance === null || !(event.target as Element).closest('.react-flow__pane')) return;
+            const point = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+            addClassNode({ x: Math.round(point.x - DEFAULT_CLASS_SIZE.width / 2), y: Math.round(point.y - 24) });
+          }}
         >
           <ReactFlow
             nodes={renderedNodes}
@@ -1507,6 +1515,7 @@ export function DiagramEditor({
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             onInit={setReactFlowInstance}
+            zoomOnDoubleClick={false}
             onNodesChange={handleNodesChange}
             onNodeDragStart={(_, node, group) => {
               setSelectedEdgeId(null);
@@ -1588,9 +1597,11 @@ export function DiagramEditor({
             selectionOnDrag={false}
             snapGrid={[20, 20]}
             snapToGrid={isSnapEnabled}
-            fitView
-            // React Flow fits when the first node appears; a lone new class should
-            // open at its real size, not blown up to 200%.
+            // Fit only a diagram that opens with content. React Flow fits the
+            // first time nodes appear, so on an empty diagram it used to jump the
+            // view to the first class — away from where it was double-clicked
+            // and half under the inspector. Never above 100%.
+            fitView={openedWithContent}
             fitViewOptions={{ maxZoom: 1, padding: 0.2 }}
           >
             {isGridEnabled ? (

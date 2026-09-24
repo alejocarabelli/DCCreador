@@ -24,6 +24,7 @@ import {
   Trash2,
   Ungroup,
   UserRoundPlus,
+  PersonStanding,
   X,
 } from 'lucide-react';
 import { useCallback, useEffect, useEffectEvent, useMemo, useReducer, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction, type SyntheticEvent } from 'react';
@@ -153,6 +154,7 @@ import {
   formatSequenceParticipantLabel,
   parseSequenceParticipantLabel,
   participantLabelIsValid,
+  resolveSequenceParticipantInsertionX,
 } from '../utils/sequenceParticipantEditing';
 import { EditorIdentity } from './EditorIdentity';
 import { ToolbarHistory } from './ToolbarHistory';
@@ -359,7 +361,7 @@ export function SequenceDiagramEditor({
   const templateDialogRef = useRef<HTMLDivElement | null>(null);
   const [messageDraft, setMessageDraft] = useState<MessageDraft | null>(null);
   const [quickMessage, setQuickMessage] = useState<QuickMessageDraft | null>(null);
-  const [participantDraft, setParticipantDraft] = useState<{ editId?: string; text: string } | null>(null);
+  const [participantDraft, setParticipantDraft] = useState<{ editId?: string; text: string; kind?: 'object' | 'actor' } | null>(null);
   const [participantEditDraft, setParticipantEditDraft] = useState<{ id: string; text: string } | null>(null);
   const outlinePreferenceRef = useRef(readStoredSequenceOutlineVisibility() !== null);
   const [outlineVisible, setOutlineVisible] = useState(getInitialSequenceOutlineVisibility);
@@ -1728,15 +1730,38 @@ export function SequenceDiagramEditor({
     });
   };
 
-  const beginParticipantCreation = useCallback((): void => {
+  const diagramHasActor = content.participants.some((participant) => participant.kind === 'actor');
+  // The actor is almost always the first participant and there is usually
+  // one: the composer starts on Actor until the diagram has one.
+  const beginParticipantCreation = useCallback((kind?: 'object' | 'actor'): void => {
     setMessageDraft(null);
     setQuickMessage(null);
-    setParticipantDraft({ text: '' });
-  }, []);
+    setParticipantDraft({ text: '', kind: kind ?? (diagramHasActor ? 'object' : 'actor') });
+  }, [diagramHasActor]);
 
   const submitParticipantDraft = useCallback((event: FormEvent): void => {
     event.preventDefault();
     if (!participantDraft) return;
+    if (participantDraft.kind === 'actor' && !participantDraft.editId) {
+      // An actor is a name ("Consultor"), not instancia:Clase.
+      const name = participantDraft.text.replace(/[\r\n]+/g, ' ').trim();
+      if (!name) {
+        showFeedback('Escribí el nombre del actor.');
+        return;
+      }
+      const actor: SequenceParticipant = {
+        id: createId(),
+        kind: 'actor',
+        name,
+        classifierName: '',
+        x: resolveSequenceParticipantInsertionX(content.participants, { kind: 'actor', name, classifierName: '' }),
+      };
+      if (commit({ ...content, participants: [...content.participants, actor] })) {
+        setSelection({ kind: 'participant', id: actor.id });
+        setParticipantDraft(null);
+      }
+      return;
+    }
     const parsed = parseSequenceParticipantLabel(participantDraft.text);
     if (!participantLabelIsValid(parsed)) {
       showFeedback('Escribí una clase válida después de “:”.');
@@ -3261,19 +3286,55 @@ export function SequenceDiagramEditor({
         </button>
       </div>
 
-      {/* Identificación UML textual: el tipo persistido queda como compatibilidad interna. */}
-      <label style={{ marginBottom: 10 }}>
-        <span>Identificación UML</span>
-        <input
-          className="sequence-compact-input"
-          value={participantEditText}
-          onChange={(event) => updateParticipantLabel(selectedParticipant.id, event.target.value)}
-          placeholder="TramiteActual:Tramite o :Clase"
-        />
-        <small className="sequence-inspector-hint" style={{ marginTop: 4, display: 'block' }}>
-          La instancia puede quedar vacía antes de “:”.
-        </small>
-      </label>
+      {/* Objeto o actor, a la vista: antes solo se cambiaba en "Opciones técnicas". */}
+      <div className="v2-segmented" role="radiogroup" aria-label="Tipo de participante">
+        {(['object', 'actor'] as const).map((kind) => {
+          const active = kind === 'actor' ? selectedParticipant.kind === 'actor' : selectedParticipant.kind !== 'actor';
+          return (
+            <button
+              aria-checked={active}
+              className={active ? 'is-active' : ''}
+              key={kind}
+              role="radio"
+              type="button"
+              onClick={() => {
+                if (active) return;
+                updateParticipant(selectedParticipant.id, kind === 'actor'
+                  ? { kind: 'actor', name: selectedParticipant.name.trim() || selectedParticipant.classifierName.replace(/^:+/, '').trim() }
+                  : { kind: 'object', classifierName: selectedParticipant.classifierName.trim() || selectedParticipant.name.trim(), name: selectedParticipant.classifierName.trim() ? selectedParticipant.name : '' });
+              }}
+            >
+              {kind === 'actor' ? <PersonStanding size={14} aria-hidden="true" /> : <UserRoundPlus size={14} aria-hidden="true" />}
+              {kind === 'actor' ? 'Actor' : 'Objeto'}
+            </button>
+          );
+        })}
+      </div>
+
+      {selectedParticipant.kind === 'actor' ? (
+        <label style={{ marginBottom: 10 }}>
+          <span>Nombre del actor</span>
+          <input
+            className="sequence-compact-input"
+            value={selectedParticipant.name}
+            onChange={(event) => updateParticipant(selectedParticipant.id, { name: event.target.value })}
+            placeholder="Consultor"
+          />
+        </label>
+      ) : (
+        <label style={{ marginBottom: 10 }}>
+          <span>Identificación UML</span>
+          <input
+            className="sequence-compact-input"
+            value={participantEditText}
+            onChange={(event) => updateParticipantLabel(selectedParticipant.id, event.target.value)}
+            placeholder="TramiteActual:Tramite o :Clase"
+          />
+          <small className="sequence-inspector-hint" style={{ marginTop: 4, display: 'block' }}>
+            La instancia puede quedar vacía antes de “:”.
+          </small>
+        </label>
+      )}
 
       <details className="sequence-inspector-section sequence-collapsible-section" style={{ marginBottom: 10 }}>
         <summary><h4>Opciones técnicas</h4></summary>
@@ -4522,7 +4583,7 @@ export function SequenceDiagramEditor({
   // selected: an empty "Seleccioná un elemento" column cost the diagram ~300px.
   const selectedInspector = participantInspector ?? messageInspector ?? fragmentInspector ?? noteInspector;
   const inspectorHeader: { kind: string; title: string; tone: InspectorTone; deleteLabel: string } | null = selectedParticipant
-    ? { kind: 'Participante', title: formatSequenceParticipantName(selectedParticipant), tone: 'accent', deleteLabel: 'Eliminar participante' }
+    ? { kind: selectedParticipant.kind === 'actor' ? 'Actor' : 'Participante', title: formatSequenceParticipantName(selectedParticipant), tone: 'accent', deleteLabel: selectedParticipant.kind === 'actor' ? 'Eliminar actor' : 'Eliminar participante' }
     : selectedItem?.kind === 'message'
       ? {
           kind: messageKindLabels[selectedItem.type],
@@ -4557,7 +4618,7 @@ export function SequenceDiagramEditor({
               title="Insertar mensaje (o doble clic en el lienzo)"
               onClick={() => beginMessage()}
             />
-            <ToolButton icon={UserRoundPlus} label="Participante" showLabel title="Agregar participante con la notación instancia:Clase" onClick={beginParticipantCreation} />
+            <ToolButton icon={UserRoundPlus} label="Participante" showLabel title="Agregar participante (objeto o actor)" onClick={() => beginParticipantCreation()} />
             <ToolMenu icon={BoxSelect} label="Fragmento" align="start" title="Agregar fragmento combinado (alt, loop, opt…)">
               {Object.entries(fragmentLabels).map(([value, label]) => {
                 const [operator, description] = label.split(' · ');
@@ -4697,14 +4758,32 @@ export function SequenceDiagramEditor({
           onSubmit={submitParticipantDraft}
         >
           <div>
-            <h2 id="sequence-participant-composer-title">{participantDraft.editId ? 'Editar participante' : 'Nuevo participante'}</h2>
-            <span id="sequence-participant-composer-help">Usá la notación instancia:Clase o :Clase.</span>
+            <h2 id="sequence-participant-composer-title">{participantDraft.editId ? 'Editar participante' : participantDraft.kind === 'actor' ? 'Nuevo actor' : 'Nuevo participante'}</h2>
+            <span id="sequence-participant-composer-help">{participantDraft.kind === 'actor' ? 'El nombre del actor, como en el caso de uso.' : 'Usá la notación instancia:Clase o :Clase.'}</span>
           </div>
+          {participantDraft.editId ? null : (
+            <div className="v2-segmented" role="radiogroup" aria-label="Tipo de participante">
+              {(['actor', 'object'] as const).map((kind) => (
+                <button
+                  aria-checked={participantDraft.kind === kind}
+                  className={participantDraft.kind === kind ? 'is-active' : ''}
+                  key={kind}
+                  role="radio"
+                  type="button"
+                  onClick={() => setParticipantDraft((current) => current ? { ...current, kind } : current)}
+                >
+                  {kind === 'actor' ? <PersonStanding size={14} aria-hidden="true" /> : <UserRoundPlus size={14} aria-hidden="true" />}
+                  {kind === 'actor' ? 'Actor' : 'Objeto'}
+                </button>
+              ))}
+            </div>
+          )}
           <input
             autoFocus
-            aria-label="Identificación del participante"
+            key={participantDraft.kind}
+            aria-label={participantDraft.kind === 'actor' ? 'Nombre del actor' : 'Identificación del participante'}
             value={participantDraft.text}
-            placeholder="TramiteActual:Tramite"
+            placeholder={participantDraft.kind === 'actor' ? 'Consultor' : 'TramiteActual:Tramite'}
             onChange={(event) => setParticipantDraft((current) => current ? { ...current, text: event.target.value } : current)}
             onKeyDown={(event) => {
               if (event.key === 'Escape') {
@@ -4815,16 +4894,21 @@ export function SequenceDiagramEditor({
               onAddParticipant={() => dispatchKeyboardMode({ type: 'begin-participant' })}
             />
           ) : null}
-          {content.participants.length === 0 ? (
+          {content.participants.length === 0 && !participantDraft ? (
             <CanvasStartCard
-              title="Empezá por los participantes"
+              title="Empezá por el actor"
               action={(
-                <button className="secondary-action" type="button" onClick={beginParticipantCreation}>
-                  <Plus size={14} />Agregar participante
-                </button>
+                <>
+                  <button className="primary-action" type="button" onClick={() => beginParticipantCreation('actor')}>
+                    <PersonStanding size={14} />Agregar actor
+                  </button>
+                  <button className="secondary-action" type="button" onClick={() => beginParticipantCreation('object')}>
+                    <Plus size={14} />Agregar participante
+                  </button>
+                </>
               )}
             >
-              Escribí una identificación UML simple, por ejemplo <code>TramiteActual:Tramite</code>.
+              El actor del caso de uso inicia la secuencia; después, los objetos con <code>instancia:Clase</code>, por ejemplo <code>TramiteActual:Tramite</code>.
             </CanvasStartCard>
           ) : null}
           {quickMessage ? <SequenceMessageDialog draft={quickMessage} participants={content.participants} methodOptions={quickMessageMethodOptions} flowOptions={flowOptions} referenceStatus={quickMessageReferenceStatus} onChange={setQuickMessage} onSwap={swapQuickMessage} onSubmit={saveQuickMessage} onCancel={() => setQuickMessage(null)} /> : null}

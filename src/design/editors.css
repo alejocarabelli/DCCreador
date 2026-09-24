@@ -563,3 +563,19 @@
   font-size: var(--text-sm);
   padding-inline: 6px;
 }
+
+/* Keyboard-mode popover: stays inside the visible canvas (see the nudge in
+   SequenceKeyboardComposer); the arrow moves back to keep pointing at the
+   participant. */
+.sequence-keyboard-popover,
+.sequence-keyboard-popover.placement-above {
+  transform: translate(calc(-50% + var(--keyboard-nudge, 0px)), calc(-100% - 16px));
+}
+
+.sequence-keyboard-popover.placement-below {
+  transform: translate(calc(-50% + var(--keyboard-nudge, 0px)), 16px);
+}
+
+.sequence-keyboard-popover::after {
+  left: clamp(18px, calc(50% - var(--keyboard-nudge, 0px)), calc(100% - 18px)) !important;
+}
