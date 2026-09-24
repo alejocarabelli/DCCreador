@@ -203,3 +203,14 @@ Cada fila dice dónde estaba el control en la v1, qué pasó y por qué.
 | Archivo → Exportar PDF / Word | Menú "Archivo" | Menú Exportar: Documento PDF, Documento Word (.docx). Mismos exportadores, mismo formato de tablas | Solo exporta este documento |
 | Archivo → Exportar/Importar JSON | Menú "Archivo" | Proyecto (barra lateral) e inicio | Eran acciones del proyecto |
 | Encabezados de tabla | Texto pequeño | Mono en mayúsculas, como los rótulos del resto de la app | Coherencia |
+
+### 5.5 Modelo de casos de uso
+
+| Control (v1) | Dónde estaba | Ahora | Por qué |
+|---|---|---|---|
+| Agregar elemento ▾ (Actor, Caso de uso, Límite del sistema) | Menú principal | Tres botones directos: **Caso de uso** (principal), Actor, Límite del sistema (icono) | Son tres acciones frecuentes; un menú agregaba un clic a cada una |
+| Centrar vista, Ver todo | Iconos en la barra | Quitados de la barra; control de zoom del lienzo | Igual que en clases |
+| Vista → Grilla, Ajustar a la grilla | Botones | Casillas con tilde | Se ve el estado |
+| Minimapa | Siempre visible, también vacío | Casilla "Minimapa" en Vista (nueva; comparte la preferencia con clases) y solo aparece si hay elementos | El recuadro vacío no aportaba nada |
+| Archivo → PNG / PDF | Menú "Archivo" | Menú Exportar: Imagen PNG, Documento PDF | Igual que en clases |
+| Archivo → Exportar/Importar JSON | Menú "Archivo" | Proyecto (barra lateral) e inicio | Eran acciones del proyecto |

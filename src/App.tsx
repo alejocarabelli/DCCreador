@@ -559,7 +559,6 @@ function App() {
             onChangeContent={handleChangeProjectContent}
             onRedo={handleRedo}
             onUndo={handleUndo}
-            onImportProject={importProject}
           />
         ) : activeArtifact.type === 'use-case-flow' ? (
           <UseCaseFlowEditor

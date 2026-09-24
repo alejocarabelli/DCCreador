@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type SyntheticEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import ReactFlow, {
   Background,
   BackgroundVariant,
@@ -16,14 +16,10 @@ import ReactFlow, {
   type XYPosition,
 } from 'reactflow';
 import {
-  Crosshair,
-  FileDown,
+  Download,
+  Eye,
   FileText,
-  FileUp,
-  Grid3X3,
   ImageDown,
-  Magnet,
-  Maximize2,
   Plus,
   SquareDashed,
   UserRound,
@@ -39,14 +35,14 @@ import type {
   UseCaseNodeKind,
   UseCaseRelationType,
 } from '../types/diagram';
-import { IMPORT_INVALID_MESSAGE, IMPORT_UNREADABLE_MESSAGE, isImportableProject } from '../utils/projectImport';
 import type { DiagramTheme } from '../theme/themes';
 import { createId } from '../utils/id';
 import { createPdfFromJpegDataUrl, downloadBlob, downloadDataUrl } from '../utils/pdfExport';
 import { applyExportThemeVariables } from '../hooks/useTheme';
 import { readUiPreference, writeUiPreference } from '../storage/uiPreferences';
-import { normalizeDiagramProject, normalizeUseCaseModelContent } from '../utils/diagramNormalization';
+import { normalizeUseCaseModelContent } from '../utils/diagramNormalization';
 import { CanvasControls } from './CanvasControls';
+import { EditorToolbar, MenuItem, ToolButton, ToolMenu } from './ui/Toolbar';
 import { CanvasStartCard } from './CanvasStartCard';
 import { SystemBoundaryNode, UseCaseActorNode, UseCaseOvalNode } from './useCaseNodes';
 import { UseCaseRelationEdge } from './UseCaseRelationEdge';
@@ -57,6 +53,8 @@ import { findFreeClassPosition } from '../utils/classPlacement';
 
 const GRID_ENABLED_KEY = 'class-diagram-grid-enabled';
 const SNAP_ENABLED_KEY = 'class-diagram-snap-enabled';
+/** Shared with the class editor: the minimap is a preference of the person, not of the diagram. */
+const MINIMAP_ENABLED_KEY = 'class-diagram-minimap-enabled';
 const PNG_WIDTH = 1600;
 const PNG_HEIGHT = 1000;
 
@@ -71,7 +69,6 @@ type UseCaseModelEditorProps = {
   project: DiagramProject;
   theme: DiagramTheme;
   onChangeContent: (content: DiagramContent) => void;
-  onImportProject: (project: DiagramProject) => void;
   onRedo: () => void;
   onUndo: () => void;
 };
@@ -90,16 +87,6 @@ const nodeTypes = {
 
 const edgeTypes = {
   useCaseRelation: UseCaseRelationEdge,
-};
-
-const downloadTextFile = (filename: string, text: string, type: string): void => {
-  const blob = new Blob([text], { type });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
 };
 
 const getEffectiveBackgroundColor = (element: HTMLElement): string => {
@@ -158,7 +145,6 @@ export function UseCaseModelEditor({
   canUndo,
   project,
   onChangeContent,
-  onImportProject,
   onRedo,
   onUndo,
 }: UseCaseModelEditorProps) {
@@ -166,12 +152,12 @@ export function UseCaseModelEditor({
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [isGridEnabled, setIsGridEnabled] = useState(() => readUiPreference(GRID_ENABLED_KEY) !== 'false');
   const [isSnapEnabled, setIsSnapEnabled] = useState(() => readUiPreference(SNAP_ENABLED_KEY) === 'true');
+  const [isMiniMapEnabled, setIsMiniMapEnabled] = useState(() => readUiPreference(MINIMAP_ENABLED_KEY) !== 'false');
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const toolbarRef = useRef<HTMLElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const feedbackTimeoutRef = useRef<number | null>(null);
   const normalizedContent = useMemo(() => normalizeUseCaseModelContent(artifact.content), [artifact.content]);
   const { nodes, edges } = normalizedContent;
@@ -374,56 +360,6 @@ export function UseCaseModelEditor({
     );
   };
 
-  const centerDiagram = (): void => {
-    if (reactFlowInstance === null || renderedNodes.length === 0) {
-      return;
-    }
-
-    const bounds = getNodesBounds(renderedNodes);
-    reactFlowInstance.setCenter(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2, {
-      duration: 300,
-      zoom: reactFlowInstance.getZoom(),
-    });
-  };
-
-  const fitDiagram = (): void => {
-    if (reactFlowInstance === null || canvasRef.current === null || renderedNodes.length === 0) {
-      return;
-    }
-    const bounds = getNodesBounds(renderedNodes);
-    const { width, height } = canvasRef.current.getBoundingClientRect();
-    reactFlowInstance.setViewport(getViewportForBounds(bounds, width, height, 0.2, 1.5, 0.18), { duration: 300 });
-  };
-
-  const exportProjectJson = (): void => {
-    const exportProject = normalizeDiagramProject({
-      ...project,
-      artifacts: project.artifacts.map((currentArtifact) =>
-        currentArtifact.id === artifact.id ? { ...artifact, content: normalizedContent } : currentArtifact,
-      ),
-    });
-    downloadTextFile(`${project.name.trim() || 'diagrama'}.json`, JSON.stringify(exportProject, null, 2), 'application/json');
-    showFeedback('JSON exportado');
-  };
-
-  const importProjectJson = async (file: File): Promise<void> => {
-    try {
-      const parsed = JSON.parse(await file.text()) as unknown;
-      if (!isImportableProject(parsed)) {
-        showFeedback(IMPORT_INVALID_MESSAGE);
-        return;
-      }
-      onImportProject(normalizeDiagramProject(parsed));
-      showFeedback('JSON importado');
-    } catch {
-      showFeedback(IMPORT_UNREADABLE_MESSAGE);
-    } finally {
-      if (fileInputRef.current !== null) {
-        fileInputRef.current.value = '';
-      }
-    }
-  };
-
   const captureDiagramImage = async (format: 'jpeg' | 'png'): Promise<string | null> => {
     if (canvasRef.current === null || renderedNodes.length === 0) {
       showFeedback('No hay diagrama para exportar');
@@ -523,12 +459,6 @@ export function UseCaseModelEditor({
     });
   };
 
-  const handleToolbarMenuToggle = (event: SyntheticEvent<HTMLDetailsElement>): void => {
-    if (event.currentTarget.open) {
-      closeToolbarMenus(event.currentTarget);
-    }
-  };
-
   useEffect(() => {
     writeUiPreference(GRID_ENABLED_KEY, String(isGridEnabled));
   }, [isGridEnabled]);
@@ -536,6 +466,10 @@ export function UseCaseModelEditor({
   useEffect(() => {
     writeUiPreference(SNAP_ENABLED_KEY, String(isSnapEnabled));
   }, [isSnapEnabled]);
+
+  useEffect(() => {
+    writeUiPreference(MINIMAP_ENABLED_KEY, String(isMiniMapEnabled));
+  }, [isMiniMapEnabled]);
 
   useEffect(() => {
     const closeOnOutsideClick = (event: globalThis.MouseEvent): void => {
@@ -585,45 +519,42 @@ export function UseCaseModelEditor({
 
   return (
     <main className="diagram-editor use-case-editor">
-      <header className="editor-toolbar" ref={toolbarRef}>
-        <EditorIdentity artifactKind="Modelo de casos de uso" artifactType={'use-case-model'} artifactName={artifact.name} projectName={project.name} />
-        <div className="editor-toolbar-actions">
-          <ToolbarHistory canRedo={canRedo} canUndo={canUndo} saveStatus={saveStatus} onRedo={onRedo} onUndo={onUndo} />
-          <div className="toolbar-group">
-          <details className="toolbar-menu add-element-menu" onToggle={handleToolbarMenuToggle}>
-            <summary><Plus size={16} />Agregar elemento</summary>
-            <div className="toolbar-menu-content">
-              <button type="button" onClick={(event) => { addNode('actor', freeSlotFor('actor', { x: 80, y: 120 })); event.currentTarget.closest('details')?.removeAttribute('open'); }}><UserRound size={16} />Actor</button>
-              <button type="button" onClick={(event) => { addNode('use-case', freeSlotFor('use-case', { x: 240, y: 140 })); event.currentTarget.closest('details')?.removeAttribute('open'); }}><Plus size={16} />Caso de uso</button>
-              <button type="button" onClick={(event) => { addNode('system-boundary', { x: 180, y: 90 }); event.currentTarget.closest('details')?.removeAttribute('open'); }}><SquareDashed size={16} />Límite del sistema</button>
-            </div>
-          </details>
-          </div>
-          <div className="toolbar-group">
-          <button className="toolbar-icon-action" aria-label="Centrar vista" title="Centrar vista" type="button" onClick={centerDiagram}><Crosshair size={16} /></button>
-          <button className="toolbar-icon-action" aria-label="Ver todo" title="Ajustar para ver todo" type="button" onClick={fitDiagram}><Maximize2 size={16} /></button>
-          <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
-            <summary>Vista</summary>
-            <div className="toolbar-menu-content">
-              <button type="button" className={isGridEnabled ? 'active-tool' : ''} onClick={(event) => { setIsGridEnabled((enabled) => !enabled); event.currentTarget.closest('details')?.removeAttribute('open'); }}><Grid3X3 size={17} />Grilla</button>
-              <button type="button" className={isSnapEnabled ? 'active-tool' : ''} onClick={(event) => { setIsSnapEnabled((enabled) => !enabled); event.currentTarget.closest('details')?.removeAttribute('open'); }}><Magnet size={17} />Ajustar a la grilla</button>
-            </div>
-          </details>
-          </div>
-          <div className="toolbar-group">
-          <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
-            <summary>Archivo</summary>
-            <div className="toolbar-menu-content file-menu">
-              <button type="button" onClick={(event) => { exportProjectJson(); event.currentTarget.closest('details')?.removeAttribute('open'); }}><FileDown size={17} />Exportar JSON</button>
-              <button type="button" onClick={(event) => { fileInputRef.current?.click(); event.currentTarget.closest('details')?.removeAttribute('open'); }}><FileUp size={17} />Importar JSON</button>
-              <button type="button" onClick={(event) => { void exportPng(); event.currentTarget.closest('details')?.removeAttribute('open'); }}><ImageDown size={17} />Exportar PNG</button>
-              <button type="button" onClick={(event) => { void exportPdf(); event.currentTarget.closest('details')?.removeAttribute('open'); }}><FileText size={17} />Exportar PDF</button>
-            </div>
-          </details>
-          </div>
-          <input ref={fileInputRef} accept="application/json,.json" className="hidden-file-input" type="file" onChange={(event) => { const file = event.target.files?.[0]; if (file !== undefined) void importProjectJson(file); }} />
-        </div>
-      </header>
+      <EditorToolbar
+        toolbarRef={toolbarRef}
+        start={(
+          <>
+            <EditorIdentity artifactKind="Modelo de casos de uso" artifactType={'use-case-model'} artifactName={artifact.name} projectName={project.name} />
+            <ToolbarHistory canRedo={canRedo} canUndo={canUndo} saveStatus={saveStatus} onRedo={onRedo} onUndo={onUndo} />
+          </>
+        )}
+        create={(
+          <>
+            <ToolButton
+              icon={Plus}
+              label="Caso de uso"
+              showLabel
+              variant="primary"
+              title="Crear caso de uso (o doble clic en el lienzo)"
+              onClick={() => addNode('use-case', freeSlotFor('use-case', { x: 240, y: 140 }))}
+            />
+            <ToolButton icon={UserRound} label="Actor" showLabel title="Crear actor" onClick={() => addNode('actor', freeSlotFor('actor', { x: 80, y: 120 }))} />
+            <ToolButton icon={SquareDashed} label="Límite del sistema" title="Crear límite del sistema" onClick={() => addNode('system-boundary', { x: 180, y: 90 })} />
+          </>
+        )}
+        end={(
+          <>
+            <ToolMenu icon={Eye} label="Vista">
+              <MenuItem checked={isGridEnabled} onSelect={() => setIsGridEnabled((enabled) => !enabled)}>Grilla</MenuItem>
+              <MenuItem checked={isSnapEnabled} onSelect={() => setIsSnapEnabled((enabled) => !enabled)}>Ajustar a la grilla</MenuItem>
+              <MenuItem checked={isMiniMapEnabled} onSelect={() => setIsMiniMapEnabled((enabled) => !enabled)}>Minimapa</MenuItem>
+            </ToolMenu>
+            <ToolMenu icon={Download} label="Exportar">
+              <MenuItem icon={ImageDown} onSelect={() => { void exportPng(); }}>Imagen PNG</MenuItem>
+              <MenuItem icon={FileText} onSelect={() => { void exportPdf(); }}>Documento PDF</MenuItem>
+            </ToolMenu>
+          </>
+        )}
+      />
 
       <div className={`editor-body ${selectedNode === null && selectedEdge === null ? 'inspector-hidden' : ''}`}>
         <div className="flow-canvas" ref={canvasRef}>
@@ -681,7 +612,7 @@ export function UseCaseModelEditor({
               </CanvasStartCard>
             ) : null}
             <CanvasControls label="Controles del modelo de casos de uso" />
-            <MiniMap aria-label="Minimapa del modelo" pannable zoomable />
+            {isMiniMapEnabled && nodes.length > 0 ? <MiniMap aria-label="Minimapa del modelo" pannable zoomable /> : null}
           </ReactFlow>
           {contextMenu !== null ? (
             <div className="canvas-context-menu" style={{ left: contextMenu.screenPosition.x, top: contextMenu.screenPosition.y }}>
