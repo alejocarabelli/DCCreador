@@ -171,3 +171,21 @@ Cada fila dice dónde estaba el control en la v1, qué pasó y por qué.
 | Tipo de atributo (inspector) | Select con opción "custom" que abría un segundo campo | Un campo con sugerencias (`int`, `string`, `date`…) donde también se escribe cualquier tipo | Misma capacidad, un solo control, sin la palabra en inglés |
 | Atributos y métodos (inspector) | Campos apilados | Filas tipo código: `⠿ nombre : tipo 🗑` y `+ nombre 🗑 / ( parámetros ) : retorno` | Se leen como la clase del lienzo |
 | Miembros en las clases del lienzo | Plex Sans | Plex Mono | Nombres, `:` y tipos quedan en columnas; se lee como código |
+
+### 5.3 Diagrama de secuencia
+
+| Control (v1) | Dónde estaba | Ahora | Por qué |
+|---|---|---|---|
+| Barra de herramientas | Propia, con grupos y reglas de ancho especiales | `EditorToolbar` compartida: **Mensaje** · Participante · Fragmento ▾ · Nota · Plantillas · Modo teclado · Revisar · Vista · Exportar | Misma forma que los otros editores |
+| Plantillas educativas | Menú "Archivo" | Botón "Plantillas" en la zona de agregar | Cargar una plantilla es agregar contenido, no un archivo |
+| Fragmento ▾ | Lista "alt · caminos alternativos" | Mismo contenido; el operador en mono y color de acento, alineado | Se leen como las palabras clave de UML que son |
+| Modo teclado | Botón "Teclado" con tecla `M` visible | Botón con icono en la zona de agregar; el atajo `M` está en el título y en el panel de atajos | Menos texto en la barra; el atajo sigue a la vista |
+| Ocultar/mostrar estructura | Icono en la barra **y** botón en el panel | Casilla "Estructura" en Vista ▸ Paneles y el botón del propio panel | Era un duplicado |
+| "+" Agregar mensaje en el panel de estructura | Encabezado del panel | **Quitado** | Duplicaba "Mensaje" de la barra (y el doble clic en el lienzo) |
+| Opciones de vista y referencias | Menú "Vista" con casillas y selects mezclados | Vista ▾ con secciones: Paneles (Estructura), Diagrama (Activaciones, Colores de participantes, Numeración) y Referencias (Diagrama de clases, Flujo de sucesos) | Cada cosa en su sección; las referencias quedan separadas de lo visual |
+| Colores de participantes | Select Automáticos/Desactivados | Casilla | Solo tenía dos estados |
+| Numeración | Select "Correlativa / Jerárquica / Sin números" | Igual, con ejemplo: "Correlativa (1, 2, 3)", "Jerárquica (1, 1.1, 1.2)" | Se entiende sin probar |
+| Exportar PNG o PDF… | Menú "Archivo" | Menú "Exportar" | Igual que en los otros editores |
+| Exportar/Importar JSON | Menú "Archivo" | Proyecto (barra lateral) e inicio | Eran acciones del proyecto |
+| Zoom | Barra propia abajo (− 100% + enfocar) | Control de zoom compartido, mismo lugar y mismos nombres que en los otros lienzos | Coherencia |
+| Barra de selección múltiple | Flotando dentro de la barra | Franja contextual debajo de la barra, en color de selección | Aparece donde se lee y no desordena la barra |

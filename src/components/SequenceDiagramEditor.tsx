@@ -1,4 +1,6 @@
 import {
+  Download,
+  Eye,
   ArrowDown,
   ArrowLeft,
   ArrowLeftRight,
@@ -9,17 +11,12 @@ import {
   ChevronRight,
   Copy,
   ExternalLink,
-  FileDown,
-  FileUp,
   ImageDown,
-  Focus,
   Keyboard,
   Link2,
   LayoutTemplate,
-  ListChecks,
   MessageSquarePlus,
   PanelLeftClose,
-  PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
   Plus,
@@ -30,15 +27,13 @@ import {
   Ungroup,
   UserRoundPlus,
   X,
-  ZoomIn,
-  ZoomOut,
 } from 'lucide-react';
 import { useCallback, useEffect, useEffectEvent, useMemo, useReducer, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction, type SyntheticEvent } from 'react';
+import { CanvasZoom } from './ui/CanvasZoom';
+import { EditorToolbar, MenuField, MenuItem, MenuLabel, MenuSeparator, ReviewButton, ToolbarDivider, ToolButton, ToolMenu } from './ui/Toolbar';
 import { EXPORT_THEME, type DiagramTheme } from '../theme/themes';
 import { CanvasStartCard } from './CanvasStartCard';
 import { useDialogs } from '../hooks/useDialogs';
-import { normalizeDiagramProject } from '../utils/diagramNormalization';
-import { IMPORT_INVALID_MESSAGE, IMPORT_UNREADABLE_MESSAGE, isImportableProject } from '../utils/projectImport';
 import type {
   ClassModelArtifact,
   ClassMethod,
@@ -52,7 +47,6 @@ import type {
   SequenceMessageType,
   SequenceNote,
   SequenceParticipant,
-  SequenceParticipantColorMode,
   SequenceParticipantKind,
   SequenceTimelineItem,
   UseCaseFlowArtifact,
@@ -186,7 +180,6 @@ type SequenceDiagramEditorProps = {
   onChangeContent: (content: SequenceDiagramContent, options?: { separateHistoryEntry?: boolean; alreadyNormalized?: boolean }) => void;
   onRedo: () => void;
   onUndo: () => void;
-  onImportProject: (project: DesignProject) => void;
 };
 
 type MessageDraft = SequenceMessageEditModel;
@@ -235,16 +228,6 @@ const getInitialSequenceOutlineVisibility = (): boolean => {
   const stored = readStoredSequenceOutlineVisibility();
   if (stored !== null) return stored;
   return typeof window === 'undefined' || !window.matchMedia('(max-width: 920px)').matches;
-};
-
-const downloadProjectJson = (project: DesignProject): void => {
-  const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `${project.name.trim() || 'proyecto'}.json`;
-  link.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 
 const updateNestedItemLocation = (
@@ -313,7 +296,6 @@ export function SequenceDiagramEditor({
   onChangeContent,
   onRedo,
   onUndo,
-  onImportProject,
 }: SequenceDiagramEditorProps) {
   const { confirm, notify } = useDialogs();
   const content = artifact.content;
@@ -434,7 +416,6 @@ export function SequenceDiagramEditor({
   const exportSvgRef = useRef<SVGSVGElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const editorRootRef = useRef<HTMLElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const toolbarRef = useRef<HTMLElement | null>(null);
   const canvasExpansionRef = useRef(0);
   const highlightTimeoutRef = useRef<number | null>(null);
@@ -3152,27 +3133,6 @@ export function SequenceDiagramEditor({
     );
   });
 
-  const importJson = (event: React.ChangeEvent<HTMLInputElement>): void => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed: unknown = JSON.parse(String(reader.result));
-        if (!isImportableProject(parsed)) {
-          showFeedback(IMPORT_INVALID_MESSAGE);
-          return;
-        }
-        onImportProject(normalizeDiagramProject(parsed));
-        showFeedback('Proyecto importado');
-      } catch {
-        showFeedback(IMPORT_UNREADABLE_MESSAGE);
-      }
-    };
-    reader.readAsText(file);
-  };
-
   const exportPng = async (): Promise<void> => {
     if (!exportSvgRef.current) return;
     try {
@@ -4605,177 +4565,108 @@ export function SequenceDiagramEditor({
 
   return (
     <main className="editor-shell sequence-editor-shell" ref={editorRootRef}>
-      <header className="editor-toolbar" ref={toolbarRef}>
-        <EditorIdentity artifactKind="Diagrama de secuencia" artifactType={'sequence-diagram'} artifactName={artifact.name} projectName={project.name} />
-        <div className="editor-toolbar-actions sequence-toolbar-actions-refined">
-          <ToolbarHistory canRedo={canRedo} canUndo={canUndo} saveStatus={saveStatus} onRedo={onRedo} onUndo={onUndo} />
-
-          {/* Create: the only group that differs between editors. */}
-          <div className="toolbar-group sequence-toolbar-group sequence-toolbar-create-group">
-            <button
-              aria-label="Insertar mensaje"
-              className="toolbar-primary-action"
-              type="button"
+      <EditorToolbar
+        toolbarRef={toolbarRef}
+        start={(
+          <>
+            <EditorIdentity artifactKind="Diagrama de secuencia" artifactType={'sequence-diagram'} artifactName={artifact.name} projectName={project.name} />
+            <ToolbarHistory canRedo={canRedo} canUndo={canUndo} saveStatus={saveStatus} onRedo={onRedo} onUndo={onUndo} />
+          </>
+        )}
+        create={(
+          <>
+            <ToolButton
+              icon={MessageSquarePlus}
+              label="Mensaje"
+              showLabel
+              variant="primary"
               title="Insertar mensaje (o doble clic en el lienzo)"
               onClick={() => beginMessage()}
-            >
-              <MessageSquarePlus size={15} /> <span className="toolbar-label">Mensaje</span>
-            </button>
-            <button
-              aria-label="Agregar participante"
-              className="secondary-action sequence-toolbar-btn sequence-toolbar-participant-btn"
-              type="button"
-              title="Agregar participante con la notación instancia:Clase"
-              onClick={beginParticipantCreation}
-            >
-              <UserRoundPlus size={15} /> <span className="toolbar-label">Participante</span>
-            </button>
-            <details className="toolbar-menu sequence-toolbar-fragment-menu" onToggle={handleToolbarMenuToggle}>
-              <summary aria-label="Agregar fragmento combinado" title="Agregar fragmento combinado (alt, loop, opt...)"><BoxSelect size={15} /> <span className="toolbar-label">Fragmento</span></summary>
-              <div className="toolbar-menu-content sequence-fragment-menu">
-                {Object.entries(fragmentLabels).map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={(event) => {
-                      addFragment(value as SequenceFragmentOperator);
-                      event.currentTarget.closest('details')?.removeAttribute('open');
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </details>
-            <button
-              aria-label="Agregar nota"
-              className="toolbar-icon-action"
-              type="button"
-              title="Agregar nota"
-              onClick={addNote}
-            >
-              <StickyNote size={15} />
-            </button>
-          </div>
-
-          <div className="toolbar-group sequence-toolbar-group sequence-toolbar-keyboard-group">
-            <button
-              aria-label="Modo ágil por teclado"
-              aria-pressed={keyboardMode.stage !== 'off'}
-              className={`secondary-action sequence-keyboard-toggle ${keyboardMode.stage !== 'off' ? 'active' : ''}`}
-              type="button"
-              title="Modo ágil por teclado (presioná M)"
+            />
+            <ToolButton icon={UserRoundPlus} label="Participante" showLabel title="Agregar participante con la notación instancia:Clase" onClick={beginParticipantCreation} />
+            <ToolMenu icon={BoxSelect} label="Fragmento" align="start" title="Agregar fragmento combinado (alt, loop, opt…)">
+              {Object.entries(fragmentLabels).map(([value, label]) => {
+                const [operator, description] = label.split(' · ');
+                return (
+                  <MenuItem key={value} onSelect={() => addFragment(value as SequenceFragmentOperator)}>
+                    <span className="v2-menu-code">{operator}</span> {description}
+                  </MenuItem>
+                );
+              })}
+            </ToolMenu>
+            <ToolButton icon={StickyNote} label="Nota" title="Agregar nota" onClick={addNote} />
+            <ToolButton icon={LayoutTemplate} label="Plantillas" title="Plantillas educativas" onClick={() => setIsTemplatesOpen(true)} />
+            <ToolbarDivider />
+            <ToolButton
+              icon={Keyboard}
+              label="Modo teclado"
+              pressed={keyboardMode.stage !== 'off'}
+              shortcut="M"
               onClick={() => keyboardMode.stage === 'off' ? activateKeyboardMode() : dispatchKeyboardMode({ type: 'deactivate' })}
-            >
-              <Keyboard size={15} /> <span className="toolbar-label">Teclado</span> <kbd>M</kbd>
-            </button>
-          </div>
-
-          {/* View */}
-          <div className="toolbar-group sequence-toolbar-group sequence-toolbar-view-group">
-            <button
-              aria-label={outlineVisible ? 'Ocultar panel de estructura' : 'Mostrar panel de estructura'}
-              aria-pressed={outlineVisible}
-              className={`toolbar-icon-action ${outlineVisible ? 'active' : ''}`}
-              type="button"
-              title={outlineVisible ? 'Ocultar panel de estructura' : 'Mostrar panel de estructura'}
-              onClick={() => updateOutlineVisibility(!outlineVisible)}
-            >
-              {outlineVisible ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
-            </button>
-            <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
-              <summary aria-label="Opciones de vista y referencias" title="Opciones de vista y referencias">
-                <span className="toolbar-label-static">Vista</span>
-              </summary>
-              <div className="toolbar-menu-content sequence-settings-menu">
-                <div className="sequence-settings-section">
-                  <span className="sequence-settings-title">Visualización</span>
-                  <label className="sequence-menu-check">
-                    <input type="checkbox" checked={content.showActivations} onChange={(event) => commit({ ...content, showActivations: event.target.checked })} /> Activaciones
-                  </label>
-                  <label>
-                    <span>Numeración</span>
-                    <select value={content.numbering} onChange={(event) => commit({ ...content, numbering: event.target.value as SequenceDiagramContent['numbering'] })}>
-                      <option value="sequential">Correlativa</option>
-                      <option value="hierarchical">Jerárquica</option>
-                      <option value="none">Sin números</option>
-                    </select>
-                  </label>
-                  <label>
-                    <span>Colores de participantes</span>
-                    <select value={content.participantColors ?? 'automatic'} onChange={(event) => commit({ ...content, participantColors: event.target.value as SequenceParticipantColorMode })}>
-                      <option value="automatic">Automáticos</option>
-                      <option value="disabled">Desactivados</option>
-                    </select>
-                  </label>
-                </div>
-                <div className="sequence-settings-section">
-                  <span className="sequence-settings-title">Referencias</span>
-                  <label>
-                    <span>Diagrama de clases</span>
-                    <select value={content.classDiagramArtifactId ?? ''} onChange={(event) => commit({ ...content, classDiagramArtifactId: event.target.value || undefined })}>
-                      {content.classDiagramArtifactId && !associatedClassDiagram ? <option value={content.classDiagramArtifactId}>Referencia no disponible</option> : null}
-                      <option value="">{defaultClassDiagram ? `Automático: ${defaultClassDiagram.name}` : 'Sin referencia'}</option>
-                      {classDiagrams.map((diagram) => <option key={diagram.id} value={diagram.id}>{diagram.name}</option>)}
-                    </select>
-                    {content.classDiagramArtifactId && !associatedClassDiagram ? <small>El diagrama asociado ya no existe.</small> : null}
-                  </label>
-                  <label>
-                    <span>Flujo de sucesos</span>
-                    <select value={content.flowArtifactId ?? ''} onChange={(event) => commit({ ...content, flowArtifactId: event.target.value || undefined })}>
-                      {content.flowArtifactId && !flows.some((flow) => flow.id === content.flowArtifactId) ? <option value={content.flowArtifactId}>Referencia no disponible</option> : null}
-                      <option value="">Sin referencia</option>
-                      {flows.map((flow) => <option key={flow.id} value={flow.id}>{flow.name}</option>)}
-                    </select>
-                    {content.flowArtifactId && !flows.some((flow) => flow.id === content.flowArtifactId) ? <small>El flujo asociado ya no existe.</small> : null}
-                  </label>
-                </div>
-              </div>
-            </details>
-          </div>
-
-          {/* Review */}
-          <div className="toolbar-group sequence-toolbar-group sequence-toolbar-quality-group">
-            <button
-              aria-label={`Revisión semántica del diagrama${semantics.problems.length > 0 ? `: ${semantics.problems.length} observaciones` : ''}`}
-              aria-pressed={isReviewPanelOpen}
-              className={`toolbar-review-action ${semantics.problems.some((p) => p.severity === 'error') ? 'has-errors' : semantics.problems.length > 0 ? 'has-warnings' : ''}`}
-              type="button"
-              title="Revisión semántica del diagrama"
-              onClick={() => setIsReviewPanelOpen(!isReviewPanelOpen)}
-            >
-              <ListChecks size={15} /> <span className="toolbar-label-static">Revisar</span>
-              {semantics.problems.length > 0 ? <span className="toolbar-count">{semantics.problems.length}</span> : null}
-            </button>
-          </div>
-
-          {/* File */}
-          <div className="toolbar-group sequence-toolbar-group sequence-toolbar-settings-group">
-            <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
-              <summary aria-label="Archivo: plantillas, exportar e importar" title="Plantillas, exportar e importar">
-                <span className="toolbar-label-static">Archivo</span>
-              </summary>
-              <div className="toolbar-menu-content file-menu">
-                <button type="button" onClick={(event) => { setIsTemplatesOpen(true); event.currentTarget.closest('details')?.removeAttribute('open'); }}>
-                  <LayoutTemplate size={16} /> Plantillas educativas…
-                </button>
-                <hr />
-                <button type="button" onClick={(event) => { setExportDialogOpen(true); event.currentTarget.closest('details')?.removeAttribute('open'); }}>
-                  <ImageDown size={16} /> Exportar PNG o PDF…
-                </button>
-                <button type="button" onClick={(event) => { downloadProjectJson(project); event.currentTarget.closest('details')?.removeAttribute('open'); }}>
-                  <FileDown size={16} /> Exportar JSON
-                </button>
-                <button type="button" onClick={(event) => { fileInputRef.current?.click(); event.currentTarget.closest('details')?.removeAttribute('open'); }}>
-                  <FileUp size={16} /> Importar JSON
-                </button>
-              </div>
-            </details>
-          </div>
+            />
+          </>
+        )}
+        end={(
+          <>
+            <ReviewButton
+              count={semantics.problems.length}
+              hasErrors={semantics.problems.some((problem) => problem.severity === 'error')}
+              open={isReviewPanelOpen}
+              onToggle={() => setIsReviewPanelOpen(!isReviewPanelOpen)}
+            />
+            <ToolMenu icon={Eye} label="Vista">
+              <MenuLabel>Paneles</MenuLabel>
+              <MenuItem checked={outlineVisible} onSelect={() => updateOutlineVisibility(!outlineVisible)}>Estructura</MenuItem>
+              <MenuSeparator />
+              <MenuLabel>Diagrama</MenuLabel>
+              <MenuItem checked={content.showActivations} onSelect={() => commit({ ...content, showActivations: !content.showActivations })}>Activaciones</MenuItem>
+              <MenuItem
+                checked={(content.participantColors ?? 'automatic') !== 'disabled'}
+                onSelect={() => commit({ ...content, participantColors: (content.participantColors ?? 'automatic') === 'disabled' ? 'automatic' : 'disabled' })}
+              >
+                Colores de participantes
+              </MenuItem>
+              <MenuField label="Numeración">
+                <select value={content.numbering} onChange={(event) => commit({ ...content, numbering: event.target.value as SequenceDiagramContent['numbering'] })}>
+                  <option value="sequential">Correlativa (1, 2, 3)</option>
+                  <option value="hierarchical">Jerárquica (1, 1.1, 1.2)</option>
+                  <option value="none">Sin números</option>
+                </select>
+              </MenuField>
+              <MenuSeparator />
+              <MenuLabel>Referencias</MenuLabel>
+              <MenuField
+                label="Diagrama de clases"
+                hint={content.classDiagramArtifactId && !associatedClassDiagram ? 'El diagrama asociado ya no existe.' : undefined}
+              >
+                <select value={content.classDiagramArtifactId ?? ''} onChange={(event) => commit({ ...content, classDiagramArtifactId: event.target.value || undefined })}>
+                  {content.classDiagramArtifactId && !associatedClassDiagram ? <option value={content.classDiagramArtifactId}>Referencia no disponible</option> : null}
+                  <option value="">{defaultClassDiagram ? `Automático: ${defaultClassDiagram.name}` : 'Sin referencia'}</option>
+                  {classDiagrams.map((diagram) => <option key={diagram.id} value={diagram.id}>{diagram.name}</option>)}
+                </select>
+              </MenuField>
+              <MenuField
+                label="Flujo de sucesos"
+                hint={content.flowArtifactId && !flows.some((flow) => flow.id === content.flowArtifactId) ? 'El flujo asociado ya no existe.' : undefined}
+              >
+                <select value={content.flowArtifactId ?? ''} onChange={(event) => commit({ ...content, flowArtifactId: event.target.value || undefined })}>
+                  {content.flowArtifactId && !flows.some((flow) => flow.id === content.flowArtifactId) ? <option value={content.flowArtifactId}>Referencia no disponible</option> : null}
+                  <option value="">Sin referencia</option>
+                  {flows.map((flow) => <option key={flow.id} value={flow.id}>{flow.name}</option>)}
+                </select>
+              </MenuField>
+            </ToolMenu>
+            <ToolMenu icon={Download} label="Exportar">
+              <MenuItem icon={ImageDown} onSelect={() => setExportDialogOpen(true)}>PNG o PDF…</MenuItem>
+            </ToolMenu>
+          </>
+        )}
+        below={(
+          <>
           {selectedTimelineIds.length > 0 ? (
-            <div className="sequence-multi-selection-bar" data-testid="sequence-multi-selection-bar">
+            <div className="sequence-multi-selection-bar v2-selection-bar" data-testid="sequence-multi-selection-bar">
               <span><strong>{selectedTimelineIds.length}</strong> {selectedTimelineIds.length === 1 ? 'seleccionado' : 'seleccionados'}</span>
-              <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
+              <details className="toolbar-menu v2-menu" onToggle={handleToolbarMenuToggle}>
                 <summary style={{ cursor: canWrapSelection ? 'pointer' : 'not-allowed', opacity: canWrapSelection ? 1 : 0.6 }}>
                   <BoxSelect size={14} /> Envolver en...
                 </summary>
@@ -4820,9 +4711,9 @@ export function SequenceDiagramEditor({
               </button>
             </div>
           ) : null}
-        </div>
-      </header>
-      <input ref={fileInputRef} className="hidden-file-input" type="file" accept="application/json" onChange={importJson} />
+          </>
+        )}
+      />
       {feedback ? <div className="editor-feedback">{feedback}</div> : null}
       {participantDraft ? (
         <form
@@ -4881,8 +4772,7 @@ export function SequenceDiagramEditor({
           <div className="sequence-panel-title">
             <div><h2>Estructura</h2><strong>{flatEntries.filter((entry) => entry.item.kind === 'message').length} mensajes</strong></div>
             <div className="sequence-panel-title-actions">
-              <button aria-label="Ocultar estructura" className="icon-button" type="button" title="Ocultar estructura" onClick={() => updateOutlineVisibility(false)}><PanelLeftClose size={15} /></button>
-              <button aria-label="Agregar mensaje" className="icon-button" type="button" title="Agregar mensaje" onClick={() => beginMessage()}><Plus size={15} /></button>
+              <button aria-label="Ocultar estructura" className="v2-tool" type="button" title="Ocultar estructura (también en Vista)" onClick={() => updateOutlineVisibility(false)}><PanelLeftClose size={15} /></button>
             </div>
           </div>
           <label className="sequence-search"><Search aria-hidden="true" size={14} /><input aria-label="Buscar mensaje o bloque" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Buscar mensaje o bloque" /></label>
@@ -4964,12 +4854,14 @@ export function SequenceDiagramEditor({
             </CanvasStartCard>
           ) : null}
           {quickMessage ? <SequenceMessageDialog draft={quickMessage} participants={content.participants} methodOptions={quickMessageMethodOptions} flowOptions={flowOptions} referenceStatus={quickMessageReferenceStatus} onChange={setQuickMessage} onSwap={swapQuickMessage} onSubmit={saveQuickMessage} onCancel={() => setQuickMessage(null)} /> : null}
-          <div className="sequence-canvas-controls" data-export-control="true">
-            <button aria-label="Alejar lienzo" type="button" title="Alejar" onClick={() => setZoom((value) => Math.max(0.3, value - 0.1))}><ZoomOut size={16} /></button>
-            <button aria-label="Restablecer zoom al 100%" type="button" className="sequence-zoom-reset" title="Restablecer zoom al 100%" onClick={() => setZoom(1)}>{Math.round(zoom * 100)}%</button>
-            <button aria-label="Acercar lienzo" type="button" title="Acercar" onClick={() => setZoom((value) => Math.min(1.5, value + 0.1))}><ZoomIn size={16} /></button>
-            <button aria-label="Ajustar diagrama a la vista" type="button" title="Ajustar participantes a la vista" onClick={fitDiagramToView}><Focus size={16} /></button>
-          </div>
+          <CanvasZoom
+            label="Zoom del diagrama de secuencia"
+            zoomPercent={Math.round(zoom * 100)}
+            onZoomOut={() => setZoom((value) => Math.max(0.3, value - 0.1))}
+            onZoomIn={() => setZoom((value) => Math.min(1.5, value + 0.1))}
+            onResetZoom={() => setZoom(1)}
+            onFit={fitDiagramToView}
+          />
           {scrollPosition.top > 100 ? (
             <div className="sequence-sticky-participants" style={{ height: layout.maxParticipantHeaderHeight * zoom + 14 }}>
               {content.participants.filter((participant) => !participant.createdByMessageId).map((participant) => {

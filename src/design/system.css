@@ -722,3 +722,32 @@
     transition: opacity var(--duration-fast) linear;
   }
 }
+
+/* A UML keyword leading a menu item: alt, loop, opt… */
+.app-shell .v2-menu-code {
+  color: var(--accent);
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  min-width: 64px;
+}
+
+/* ─── Contextual strip under the toolbar (multi-selection) ─────────────── */
+
+.app-shell[data-ui-version='refined'] .v2-selection-bar {
+  align-items: center;
+  animation: v2-rise-in var(--duration) var(--ease-out);
+  background: var(--accent-soft);
+  border: 0;
+  border-top: 1px solid var(--accent-outline);
+  border-radius: 0;
+  color: var(--ui-selected-text);
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 6px var(--space-4);
+  position: static;
+  transform: none;
+}
+
+.app-shell[data-ui-version='refined'] .v2-selection-bar > span { margin-right: auto; }
