@@ -136,6 +136,8 @@ export type UseCaseNodeData = {
   name: string;
   onOpenContextMenu?: (nodeId: string, event: MouseEvent<HTMLElement>) => void;
   onRename?: (nodeId: string, name: string) => void;
+  /** Runtime only, while a relation is being dragged: how this node takes it. */
+  connectState?: 'source' | 'valid' | 'invalid';
 };
 
 export type UseCaseModelNode = Node<UseCaseNodeData, 'useCaseActor' | 'useCaseOval' | 'systemBoundary'>;

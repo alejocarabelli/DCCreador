@@ -2,6 +2,8 @@ import { useDialogs } from './hooks/useDialogs';
 import { ProjectNameDialog } from './components/ProjectNameDialog';
 import { ProjectHome } from './components/ProjectHome';
 import { ProjectSidebar } from './components/ProjectSidebar';
+import { ShortcutsDialog } from './components/ShortcutsDialog';
+import { downloadProjectFile } from './utils/projectFile';
 import { useProjects } from './hooks/useProjects';
 import { useTheme } from './hooks/useTheme';
 import { readUiPreference, writeUiPreference } from './storage/uiPreferences';
@@ -130,6 +132,7 @@ function App() {
     deleteArtifact,
     deleteProject,
     importProject,
+    importProjects,
     linkSequenceDiagramsToClassModel,
     projects,
     renameArtifact,
@@ -262,7 +265,6 @@ function App() {
     historyBurstRef.current = null;
     setActiveProjectId(projectId);
     setActiveArtifactId(projectId, artifactId);
-    setIsProjectSidebarCollapsed(true);
   };
 
   const activeArtifact = useMemo(
@@ -446,6 +448,31 @@ function App() {
     writeUiPreference(PROJECT_SIDEBAR_COLLAPSED_KEY, String(isProjectSidebarCollapsed));
   }, [isProjectSidebarCollapsed]);
 
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+
+  // `?` opens the shortcuts panel and ⌘\ toggles the sidebar, unless the user is typing.
+  useEffect(() => {
+    const handleHelpShortcut = (event: KeyboardEvent): void => {
+      if (event.key === '\\' && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        setIsProjectSidebarCollapsed((isCollapsed) => !isCollapsed);
+        return;
+      }
+      if (event.key !== '?' || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+      event.preventDefault();
+      setIsShortcutsOpen((open) => !open);
+    };
+    document.addEventListener('keydown', handleHelpShortcut);
+    return () => document.removeEventListener('keydown', handleHelpShortcut);
+  }, []);
+
+  const handleExportProject = (projectId: string): void => {
+    const project = projects.find((candidate) => candidate.id === projectId);
+    if (project !== undefined) downloadProjectFile(project);
+  };
+
   return (
     <div
       className={`app-shell ${isProjectSidebarCollapsed ? 'project-sidebar-collapsed' : 'project-sidebar-expanded'} ${isProjectHome ? 'project-home-mode' : ''}`}
@@ -458,26 +485,27 @@ function App() {
           {storageWarning}
         </div>
       ) : null}
-      {!isProjectHome ? (
-        <ProjectSidebar
-          activeArtifactId={activeArtifact.id}
-          activeProjectId={activeProjectId}
-          isCollapsed={isProjectSidebarCollapsed}
-          onCreateArtifact={handleCreateArtifact}
-          onCreateProject={handleCreateProject}
-          onOpenHome={handleOpenHome}
-          onDeleteArtifact={handleDeleteArtifact}
-          onDeleteProject={handleDeleteProject}
-          onRenameArtifact={handleRenameArtifact}
-          onRenameProject={handleRenameProject}
-          onSelectArtifact={handleSelectArtifact}
-          onSelectProject={setActiveProjectId}
-          onToggleCollapsed={() => setIsProjectSidebarCollapsed((isCollapsed) => !isCollapsed)}
-          onThemePreferenceChange={setThemePreference}
-          projects={projects}
-          themePreference={themePreference}
-        />
-      ) : null}
+      <ProjectSidebar
+        activeArtifactId={isProjectHome ? null : activeArtifact.id}
+        activeProjectId={activeProjectId}
+        isCollapsed={isProjectSidebarCollapsed}
+        isHome={isProjectHome}
+        onCreateArtifact={handleCreateArtifact}
+        onCreateProject={handleCreateProject}
+        onExportProject={handleExportProject}
+        onOpenHome={handleOpenHome}
+        onOpenShortcuts={() => setIsShortcutsOpen(true)}
+        onDeleteArtifact={handleDeleteArtifact}
+        onDeleteProject={handleDeleteProject}
+        onRenameArtifact={handleRenameArtifact}
+        onRenameProject={handleRenameProject}
+        onSelectArtifact={handleSelectArtifact}
+        onSelectProject={setActiveProjectId}
+        onToggleCollapsed={() => setIsProjectSidebarCollapsed((isCollapsed) => !isCollapsed)}
+        onThemePreferenceChange={setThemePreference}
+        projects={projects}
+        themePreference={themePreference}
+      />
       {isProjectHome ? (
         <ProjectHome
           backup={backup}
@@ -486,9 +514,8 @@ function App() {
           projects={projects}
           onCreateProject={handleCreateProject}
           onImportProject={importProject}
+          onImportProjects={importProjects}
           onOpenProject={setActiveProjectId}
-          onThemePreferenceChange={setThemePreference}
-          themePreference={themePreference}
         />
       ) : (
         <Suspense fallback={<EditorLoadingState />}>
@@ -504,7 +531,6 @@ function App() {
             onChangeContent={handleChangeProjectContent}
             onRedo={handleRedo}
             onUndo={handleUndo}
-            onImportProject={importProject}
           />
         ) : activeArtifact.type === 'class-sequence-diagram' ? (
           <ClassSequenceDiagramEditor
@@ -522,7 +548,6 @@ function App() {
             onChangeContent={handleChangeProjectContent}
             onRedo={handleRedo}
             onUndo={handleUndo}
-            onImportProject={importProject}
           />
         ) : activeArtifact.type === 'use-case-model' ? (
           <UseCaseModelEditor
@@ -536,7 +561,6 @@ function App() {
             onChangeContent={handleChangeProjectContent}
             onRedo={handleRedo}
             onUndo={handleUndo}
-            onImportProject={importProject}
           />
         ) : activeArtifact.type === 'use-case-flow' ? (
           <UseCaseFlowEditor
@@ -550,7 +574,6 @@ function App() {
             onChangeContent={handleChangeProjectContent}
             onRedo={handleRedo}
             onUndo={handleUndo}
-            onImportProject={importProject}
           />
         ) : (
           <SequenceDiagramEditor
@@ -571,7 +594,6 @@ function App() {
             onChangeContent={handleChangeProjectContent}
             onRedo={handleRedo}
             onUndo={handleUndo}
-            onImportProject={importProject}
           />
           )}
         </Suspense>
@@ -598,6 +620,7 @@ function App() {
           onConfirm={handleConfirmProjectDialog}
         />
       ) : null}
+      {isShortcutsOpen ? <ShortcutsDialog onClose={() => setIsShortcutsOpen(false)} /> : null}
     </div>
   );
 }

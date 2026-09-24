@@ -1,5 +1,5 @@
-import type { ChangeEvent, MouseEvent } from 'react';
-import { ATTRIBUTE_TYPES } from '../constants/attributeTypes';
+import { useId, type MouseEvent } from 'react';
+import { INLINE_ATTRIBUTE_TYPE_SUGGESTIONS } from '../constants/attributeTypes';
 
 type AttributeTypeSelectProps = {
   value: string;
@@ -11,49 +11,30 @@ const stopFlowEvent = (event: MouseEvent<HTMLElement>): void => {
   event.stopPropagation();
 };
 
+/**
+ * One field for the type: type anything (`Date`, `EstadoTramite`) or pick a
+ * primitive from the suggestions. It replaces a select with a "custom" option
+ * that opened a second field.
+ */
 export function AttributeTypeSelect({ value, onChange, compact = false }: AttributeTypeSelectProps) {
-  const isKnownType = ATTRIBUTE_TYPES.some((type) => type === value);
-  const selectValue = isKnownType ? value : 'custom';
-  const customValue = selectValue === 'custom' && value !== 'custom' ? value : '';
-
-  const handleTypeChange = (event: ChangeEvent<HTMLSelectElement>): void => {
-    const nextType = event.target.value;
-    onChange(nextType === 'custom' ? customValue : nextType);
-  };
-
-  const handleCustomChange = (event: ChangeEvent<HTMLInputElement>): void => {
-    onChange(event.target.value);
-  };
-
+  const listId = useId();
   return (
-    <div className={`attribute-type-select ${compact ? 'compact' : ''}`}>
-      <select
+    <span className={`attribute-type-select ${compact ? 'compact' : ''}`}>
+      <input
         aria-label="Tipo del atributo"
-        value={selectValue}
-        onChange={handleTypeChange}
+        list={listId}
+        value={value}
+        placeholder="tipo"
+        spellCheck={false}
+        onChange={(event) => onChange(event.target.value)}
         onClick={stopFlowEvent}
         onContextMenu={stopFlowEvent}
         onDoubleClick={stopFlowEvent}
         onMouseDown={stopFlowEvent}
-      >
-        {ATTRIBUTE_TYPES.map((type) => (
-          <option key={type} value={type}>
-            {type}
-          </option>
-        ))}
-      </select>
-      {selectValue === 'custom' ? (
-        <input
-          aria-label="Tipo personalizado"
-          value={customValue}
-          onChange={handleCustomChange}
-          onClick={stopFlowEvent}
-          onContextMenu={stopFlowEvent}
-          onDoubleClick={stopFlowEvent}
-          onMouseDown={stopFlowEvent}
-          placeholder="Tipo"
-        />
-      ) : null}
-    </div>
+      />
+      <datalist id={listId}>
+        {INLINE_ATTRIBUTE_TYPE_SUGGESTIONS.map((type) => <option key={type} value={type} />)}
+      </datalist>
+    </span>
   );
 }

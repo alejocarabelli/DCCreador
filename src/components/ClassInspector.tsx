@@ -111,11 +111,6 @@ export function ClassInspector({
 
   return (
     <div className="inspector-content">
-      <div className="inspector-heading">
-        <p className="eyebrow">Propiedades</p>
-        <h2>{node.data.name.trim() || 'Clase sin nombre'}</h2>
-        <span>Clase</span>
-      </div>
       <label className="field">
         Nombre
         <input value={node.data.name} onChange={handleNameChange} />
@@ -207,16 +202,6 @@ export function ClassInspector({
               }
             }}
           >
-            <input
-              aria-label="Nombre del atributo"
-              value={attribute.name}
-              onChange={(event) => onUpdateAttribute(attribute.id, 'name', event.target.value)}
-              placeholder="nombre"
-            />
-            <AttributeTypeSelect
-              value={attribute.type}
-              onChange={(value) => onUpdateAttribute(attribute.id, 'type', value)}
-            />
             <button
               aria-label={`Reordenar atributo ${attribute.name || index + 1}`}
               className="attribute-drag-handle"
@@ -247,6 +232,18 @@ export function ClassInspector({
             >
               <GripVertical size={16} />
             </button>
+            <input
+              aria-label="Nombre del atributo"
+              value={attribute.name}
+              onChange={(event) => onUpdateAttribute(attribute.id, 'name', event.target.value)}
+              placeholder="nombre"
+              spellCheck={false}
+            />
+            <span className="attribute-editor-colon" aria-hidden="true">:</span>
+            <AttributeTypeSelect
+              value={attribute.type}
+              onChange={(value) => onUpdateAttribute(attribute.id, 'type', value)}
+            />
             <button
               aria-label={`Borrar atributo ${attribute.name || index + 1}`}
               className="attribute-delete-button"
@@ -294,6 +291,7 @@ export function ClassInspector({
               onChange={(event) => onUpdateMethod(method.id, { ...method, name: event.target.value })}
               placeholder="nombre"
             />
+            <span className="method-signature-open" aria-hidden="true">(</span>
             <input
               className="method-parameters"
               aria-label="Parámetros del método"
@@ -301,6 +299,7 @@ export function ClassInspector({
               onChange={(event) => onUpdateMethod(method.id, { ...method, parameters: event.target.value })}
               placeholder="parámetros"
             />
+            <span className="method-signature-close" aria-hidden="true">) :</span>
             <input
               className="method-return"
               aria-label="Tipo de retorno"
@@ -308,7 +307,7 @@ export function ClassInspector({
               onChange={(event) => onUpdateMethod(method.id, { ...method, returnType: event.target.value })}
               placeholder="retorno"
             />
-            <button className="method-delete" type="button" onClick={() => onDeleteMethod(method.id)} title="Borrar método">
+            <button aria-label={`Borrar método ${method.name}`} className="method-delete" type="button" onClick={() => onDeleteMethod(method.id)} title="Borrar método">
               <Trash2 size={16} />
             </button>
           </div>

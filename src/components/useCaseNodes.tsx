@@ -27,10 +27,24 @@ function EditableName({
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
-    if (isEditing) {
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    }
+    if (!isEditing) return undefined;
+    // React Flow keeps a new node hidden until it has measured it, and focus()
+    // on a hidden field does nothing — so a new use case never took the name
+    // being typed. Retry for a few frames until the field really has focus.
+    let frame = 0;
+    let attempts = 0;
+    const focusField = (): void => {
+      const field = inputRef.current;
+      if (!field) return;
+      field.focus();
+      if (document.activeElement === field) {
+        field.select();
+        return;
+      }
+      if (attempts++ < 12) frame = requestAnimationFrame(focusField);
+    };
+    focusField();
+    return () => cancelAnimationFrame(frame);
   }, [isEditing]);
 
   const commit = (): void => {
@@ -90,43 +104,50 @@ function EditableName({
   );
 }
 
-function ConnectionHandles({ className = '' }: { className?: string }) {
+/**
+ * How a node takes relations. The four side handles are kept only so edges
+ * saved by the first version (and read by it) still resolve; lines are drawn
+ * floating, from outline to outline. To connect, drag the round nub that shows
+ * on hover and drop anywhere on the other node: the whole node is the target.
+ */
+function ConnectionHandles({ kind }: { kind: 'actor' | 'use-case' }) {
   return (
     <>
       {sideHandles.map((handle) => (
-        <Handle
-          className={`use-case-handle ${className}`}
-          id={handle.id}
-          key={handle.id}
-          position={handle.position}
-          type="source"
-        />
+        <Handle className="use-case-handle-legacy" id={handle.id} isConnectable={false} key={handle.id} position={handle.position} type="source" />
       ))}
       {sideHandles.map((handle) => (
-        <Handle
-          className={`use-case-handle use-case-handle-target ${className}`}
-          id={handle.id}
-          key={`${handle.id}-target`}
-          position={handle.position}
-          type="target"
-        />
+        <Handle className="use-case-handle-legacy" id={handle.id} isConnectable={false} key={`${handle.id}-target`} position={handle.position} type="target" />
       ))}
+      <Handle className="use-case-drop-zone" id="body" position={Position.Top} type="target" />
+      <Handle
+        className={`use-case-connect-nub is-${kind}`}
+        id="connect"
+        position={Position.Right}
+        title={kind === 'actor' ? 'Arrastrá hasta un caso de uso para asociarlo' : 'Arrastrá hasta otro caso de uso o un actor'}
+        type="source"
+      >
+        <svg aria-hidden="true" viewBox="0 0 16 16"><path d="M3 8h9M9 5l3 3-3 3" /></svg>
+      </Handle>
     </>
   );
 }
 
+const connectClass = (state: UseCaseNodeData['connectState']): string =>
+  state === undefined ? '' : `is-connect-${state}`;
+
 export function UseCaseActorNode({ data, id }: NodeProps<UseCaseNodeData>) {
   return (
     <div
-      className="use-case-actor-node"
+      className={`use-case-actor-node ${connectClass(data.connectState)}`}
       onContextMenu={(event) => {
         event.preventDefault();
         event.stopPropagation();
         data.onOpenContextMenu?.(id, event);
       }}
     >
+      <ConnectionHandles kind="actor" />
       <div className="actor-symbol-frame">
-        <ConnectionHandles className="actor-handle" />
         <svg className="actor-symbol" viewBox="0 0 72 92" aria-hidden="true">
           <circle cx="36" cy="15" r="12" />
           <path d="M36 27v34M14 39h44M36 61 18 88M36 61l18 27" />
@@ -140,14 +161,14 @@ export function UseCaseActorNode({ data, id }: NodeProps<UseCaseNodeData>) {
 export function UseCaseOvalNode({ data, id }: NodeProps<UseCaseNodeData>) {
   return (
     <div
-      className="use-case-oval-node"
+      className={`use-case-oval-node ${connectClass(data.connectState)}`}
       onContextMenu={(event) => {
         event.preventDefault();
         event.stopPropagation();
         data.onOpenContextMenu?.(id, event);
       }}
     >
-      <ConnectionHandles />
+      <ConnectionHandles kind="use-case" />
       <EditableName className="use-case-oval-name" id={id} multiline name={data.name} onRename={data.onRename} />
     </div>
   );

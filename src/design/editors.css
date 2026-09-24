@@ -1,0 +1,780 @@
+/*
+ * Editors: the pieces every editor shares around its canvas — the inspector,
+ * its sections and field rows, the class inspector's code-like rows.
+ */
+
+/* ─── Inspector ─────────────────────────────────────────────────────────── */
+
+/* One panel for every editor: a fixed header (plegar · qué es · nombre ·
+   eliminar) over a scrolling body, folding to the same 44px rail. The legacy
+   class names (.inspector, .sequence-inspector-panel) stay only for the grid
+   that places the panel; everything visual lives here. */
+
+.app-shell[data-ui-version='refined'] .v2-inspector {
+  background: var(--panel-background);
+  border-left: 1px solid var(--panel-border);
+  color: var(--panel-text);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  position: relative;
+}
+
+.app-shell[data-ui-version='refined'] .v2-inspector[hidden] { display: none; }
+
+.app-shell[data-ui-version='refined'] .v2-inspector-header {
+  align-items: center;
+  border-bottom: 1px solid var(--panel-border);
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-2);
+  min-height: 56px;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-2);
+}
+
+.app-shell[data-ui-version='refined'] .v2-inspector-title {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 1px;
+  min-width: 0;
+}
+
+.app-shell[data-ui-version='refined'] .v2-inspector-title h2 {
+  color: var(--panel-text);
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1.3;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell[data-ui-version='refined'] .v2-inspector-kind {
+  align-items: center;
+  color: var(--panel-faint-text);
+  display: inline-flex;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  gap: 6px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-shell[data-ui-version='refined'] .v2-inspector-kind::before {
+  background: var(--panel-border-strong);
+  border-radius: 2px;
+  content: '';
+  flex: 0 0 auto;
+  height: 8px;
+  width: 8px;
+}
+
+.app-shell[data-ui-version='refined'] .v2-inspector-kind[data-tone='accent']::before { background: var(--accent); }
+.app-shell[data-ui-version='refined'] .v2-inspector-kind[data-tone='info']::before { background: var(--status-info-border-strong); }
+.app-shell[data-ui-version='refined'] .v2-inspector-kind[data-tone='success']::before { background: var(--status-success-border-strong); }
+.app-shell[data-ui-version='refined'] .v2-inspector-kind[data-tone='warning']::before { background: var(--status-warning-border-strong); }
+.app-shell[data-ui-version='refined'] .v2-inspector-kind[data-tone='violet']::before { background: var(--status-violet-border-strong); }
+.app-shell[data-ui-version='refined'] .v2-inspector-kind[data-tone='danger']::before { background: var(--status-danger-border-strong); }
+
+.app-shell[data-ui-version='refined'] .v2-inspector-actions {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 2px;
+}
+
+.app-shell .v2-tool.is-danger:hover:not(:disabled) {
+  background: var(--status-danger-soft);
+  color: var(--status-danger-text);
+}
+
+.app-shell[data-ui-version='refined'] .v2-inspector-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-1) var(--space-4) var(--space-6);
+}
+
+.app-shell[data-ui-version='refined'] .v2-inspector-body.sequence-inspector-content {
+  align-content: start;
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+}
+
+.app-shell[data-ui-version='refined'] .v2-inspector.is-collapsed {
+  align-items: stretch;
+}
+
+.app-shell[data-ui-version='refined'] .v2-inspector.is-collapsed .v2-inspector-header {
+  border-bottom: 0;
+  justify-content: center;
+  padding: var(--space-2) 0;
+}
+
+/* Same rail width in every editor. */
+.app-shell[data-ui-version='refined'] .editor-body.inspector-collapsed {
+  grid-template-columns: minmax(0, 1fr) 44px;
+}
+
+.app-shell[data-ui-version='refined'] .v2-inspector-block-action {
+  margin-top: var(--space-4);
+  width: 100%;
+}
+
+/* Field labels and section titles inside any inspector read the same way:
+   sentence case, not the old shouting small caps. */
+.app-shell[data-ui-version='refined'] .v2-inspector-body label > span:first-child,
+.app-shell[data-ui-version='refined'] .v2-inspector-body .v2-inspector-label {
+  color: var(--panel-secondary-text);
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  letter-spacing: 0;
+  margin-bottom: 4px;
+  text-transform: none;
+}
+
+.app-shell[data-ui-version='refined'] .v2-inspector-body .sequence-inspector-section > h4,
+.app-shell[data-ui-version='refined'] .v2-inspector-body .sequence-inspector-section > div > h4 {
+  color: var(--panel-text);
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Checkboxes inside panels stay checkbox-sized whatever the row does. */
+.app-shell[data-ui-version='refined'] .v2-inspector-body input[type='checkbox'] {
+  accent-color: var(--accent);
+  flex: 0 0 auto;
+  height: 16px;
+  margin: 0;
+  min-height: 0;
+  width: 16px;
+}
+
+/* ─── Panel sections ────────────────────────────────────────────────────── */
+
+.app-shell[data-ui-version='refined'] :is(.v2-panel-section, .sequence-collapsible-section) {
+  border-top: 1px solid var(--panel-border);
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) 0 0;
+}
+
+.app-shell[data-ui-version='refined'] .v2-panel-section > header,
+.app-shell[data-ui-version='refined'] :is(.v2-panel-section, .sequence-collapsible-section) > summary {
+  align-items: center;
+  display: flex;
+  gap: var(--space-1);
+  min-height: var(--control-sm);
+}
+
+.app-shell[data-ui-version='refined'] :is(.v2-panel-section, .sequence-collapsible-section) > summary {
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  list-style: none;
+  margin: 0 calc(-1 * var(--space-1));
+  padding: 0 var(--space-1);
+}
+
+.app-shell[data-ui-version='refined'] :is(.v2-panel-section, .sequence-collapsible-section) > summary::-webkit-details-marker { display: none; }
+
+.app-shell[data-ui-version='refined'] :is(.v2-panel-section, .sequence-collapsible-section) > summary:hover {
+  background: var(--ui-hover-background);
+}
+
+.app-shell[data-ui-version='refined'] :is(.v2-panel-section, .sequence-collapsible-section) > summary:focus-visible {
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+
+/* The chevron: drawn for the legacy sections, an icon for PanelSection. */
+.app-shell[data-ui-version='refined'] .sequence-collapsible-section > summary::before {
+  border-bottom: 1.5px solid currentColor;
+  border-right: 1.5px solid currentColor;
+  color: var(--panel-faint-text);
+  content: '';
+  flex: 0 0 auto;
+  height: 6px;
+  margin: 0 5px 0 3px;
+  transform: rotate(-45deg);
+  transition: transform var(--duration-fast) var(--ease-out);
+  width: 6px;
+}
+
+.app-shell[data-ui-version='refined'] .sequence-collapsible-section[open] > summary::before { transform: rotate(45deg); }
+.app-shell[data-ui-version='refined'] .sequence-collapsible-section > summary::after { content: none; display: none; }
+
+.app-shell[data-ui-version='refined'] .v2-panel-section-chevron {
+  color: var(--panel-faint-text);
+  flex: 0 0 auto;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.app-shell[data-ui-version='refined'] .v2-panel-section[open] .v2-panel-section-chevron { transform: rotate(90deg); }
+
+.app-shell[data-ui-version='refined'] :is(.v2-panel-section, .sequence-collapsible-section) :is(h3, h4) {
+  color: var(--panel-secondary-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0;
+  margin: 0;
+  text-transform: none;
+}
+
+.app-shell[data-ui-version='refined'] .sequence-collapsible-section[open] > summary { margin-bottom: var(--space-2); }
+
+
+.app-shell[data-ui-version='refined'] .inspector {
+  background: var(--panel-background);
+  border-left: 1px solid var(--panel-border);
+  padding: var(--space-3) var(--space-4) var(--space-6);
+}
+
+.app-shell[data-ui-version='refined'] .inspector-heading {
+  border-bottom: 1px solid var(--panel-border);
+  gap: 2px;
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+
+.app-shell[data-ui-version='refined'] .eyebrow {
+  color: var(--panel-faint-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-shell[data-ui-version='refined'] :is(.inspector-heading h2, .inspector-section > h2) {
+  color: var(--panel-text);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.app-shell[data-ui-version='refined'] .inspector-heading span {
+  color: var(--panel-muted-text);
+  font-size: var(--text-xs);
+}
+
+.app-shell[data-ui-version='refined'] .inspector-section-header {
+  border-top: 1px solid var(--panel-border);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+}
+
+.app-shell[data-ui-version='refined'] .inspector-section-header h2 {
+  color: var(--panel-text);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.app-shell[data-ui-version='refined'] .inspector-section-header .icon-button {
+  background: transparent;
+  border-color: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--panel-muted-text);
+  height: var(--control-sm);
+  min-height: 0;
+  min-width: var(--control-sm);
+}
+
+.app-shell[data-ui-version='refined'] .inspector-section-header .icon-button:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.app-shell[data-ui-version='refined'] .field {
+  color: var(--panel-secondary-text);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  gap: 4px;
+  margin-top: var(--space-3);
+}
+
+.app-shell[data-ui-version='refined'] :is(.field, .attribute-editor, .method-editor, .parametric-value-inspector-row) :is(input, select, textarea) {
+  background: var(--input-background);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-sm);
+  color: var(--input-text);
+  font-size: var(--text-md);
+  min-height: var(--control-md);
+}
+
+.app-shell[data-ui-version='refined'] :is(.field, .attribute-editor, .method-editor, .parametric-value-inspector-row) :is(input, select, textarea):focus {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.app-shell[data-ui-version='refined'] .helper-text {
+  color: var(--panel-faint-text);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+
+.app-shell[data-ui-version='refined'] .class-description-panel {
+  background: var(--panel-subtle-background);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+}
+
+/* ─── Class inspector: attributes and methods read like code ────────────── */
+
+.app-shell[data-ui-version='refined'] .attribute-editor-list,
+.app-shell[data-ui-version='refined'] .method-editor-list {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.app-shell[data-ui-version='refined'] .attribute-editor {
+  align-items: center;
+  display: grid;
+  gap: 4px;
+  grid-template-columns: 14px minmax(0, 1.5fr) 6px minmax(60px, 1fr) var(--control-sm);
+}
+
+.app-shell[data-ui-version='refined'] .attribute-editor-colon,
+.app-shell[data-ui-version='refined'] :is(.method-signature-open, .method-signature-close) {
+  color: var(--panel-faint-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.app-shell[data-ui-version='refined'] :is(.attribute-editor, .method-editor) input {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  min-width: 0;
+  padding: 0 7px;
+  width: 100%;
+}
+
+.app-shell[data-ui-version='refined'] .attribute-type-select {
+  display: block;
+  min-width: 0;
+}
+
+.app-shell[data-ui-version='refined'] .attribute-type-select input {
+  width: 100%;
+}
+
+.app-shell[data-ui-version='refined'] :is(.attribute-drag-handle, .attribute-delete-button, .method-delete) {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-xs);
+  color: var(--panel-placeholder-text);
+  display: inline-flex;
+  height: var(--control-sm);
+  justify-content: center;
+  min-height: 0;
+  min-width: 0;
+  padding: 0;
+  width: 100%;
+}
+
+.app-shell[data-ui-version='refined'] .attribute-drag-handle { cursor: grab; }
+
+.app-shell[data-ui-version='refined'] :is(.attribute-delete-button, .method-delete):hover {
+  background: var(--status-danger-soft);
+  color: var(--status-danger-text);
+}
+
+.app-shell[data-ui-version='refined'] .attribute-drag-handle:hover {
+  background: var(--ui-hover-background);
+  color: var(--panel-text);
+}
+
+/* A method: visibility, name, delete — then (parameters) : return. */
+.app-shell[data-ui-version='refined'] .method-editor {
+  align-items: center;
+  border-bottom: 1px dashed var(--panel-border);
+  display: grid;
+  gap: 4px;
+  grid-template-areas:
+    'vis name name name delete'
+    'open params close ret .';
+  grid-template-columns: 44px minmax(0, 1.5fr) 20px minmax(60px, 1fr) var(--control-sm);
+  padding-bottom: var(--space-2);
+}
+
+.app-shell[data-ui-version='refined'] .method-editor .method-visibility { grid-area: vis; font-family: var(--font-mono); min-width: 0; padding: 0 4px; }
+.app-shell[data-ui-version='refined'] .method-editor .method-name { grid-area: name; }
+.app-shell[data-ui-version='refined'] .method-editor .method-delete { grid-area: delete; }
+.app-shell[data-ui-version='refined'] .method-editor .method-signature-open { grid-area: open; text-align: right; }
+.app-shell[data-ui-version='refined'] .method-editor .method-parameters { grid-area: params; }
+.app-shell[data-ui-version='refined'] .method-editor .method-signature-close { grid-area: close; white-space: nowrap; }
+.app-shell[data-ui-version='refined'] .method-editor .method-return { grid-area: ret; }
+
+.app-shell[data-ui-version='refined'] .method-editor:last-child { border-bottom: 0; }
+
+/* ─── Class boxes on the canvas ─────────────────────────────────────────── */
+
+/* Members are code: Plex Mono keeps names, colons and types in columns. */
+.app-shell .class-node :is(.attribute-row, .method-row, .muted-attribute) {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: -0.01em;
+}
+
+.app-shell .class-node .class-node-title {
+  font-family: var(--font-ui);
+  letter-spacing: 0.005em;
+}
+
+/* ─── Minimap: a quiet thumbnail of the paper ───────────────────────────── */
+
+.app-shell[data-ui-version='refined'] :is(.canvas-shell, .flow-canvas) .react-flow__minimap {
+  background: var(--canvas-background);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
+}
+
+.app-shell .react-flow__minimap-mask {
+  fill: color-mix(in srgb, var(--ui-app-background) 72%, transparent);
+}
+
+.app-shell .react-flow__minimap-node {
+  fill: var(--panel-background);
+  stroke: var(--panel-border-strong);
+  stroke-width: 2px;
+}
+
+/* ─── Flujo de sucesos: a specification sheet ──────────────────────────── */
+
+.app-shell[data-ui-version='refined'] .flow-section-heading h4 {
+  color: var(--panel-text);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.app-shell[data-ui-version='refined'] .flow-table th {
+  color: var(--panel-faint-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-shell[data-ui-version='refined'] .flow-section-nav a {
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.app-shell[data-ui-version='refined'] .flow-empty {
+  align-items: flex-start;
+  background: var(--panel-subtle-background);
+  border: 1px dashed var(--panel-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--panel-muted-text);
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+  padding: var(--space-4);
+}
+
+.app-shell[data-ui-version='refined'] .flow-empty p { margin: 0; }
+
+.app-shell[data-ui-version='refined'] .flow-empty .secondary-action {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+/* ─── Review panels: the same floating card in every editor ────────────── */
+
+.app-shell[data-ui-version='refined'] .diagram-review-panel,
+.app-shell[data-ui-version='refined'] .sequence-review-panel {
+  animation: v2-pop-in var(--duration) var(--ease-out);
+  background: var(--panel-background);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-popover);
+  color: var(--panel-text);
+}
+
+.app-shell[data-ui-version='refined'] .diagram-review-heading {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+.app-shell[data-ui-version='refined'] .diagram-review-heading strong {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+/* Sequence: the workspace grid has no column for it, so it floats over the
+   canvas, left of the inspector, like the class editor's panel. */
+.app-shell[data-ui-version='refined'] .sequence-workspace {
+  position: relative;
+}
+
+.app-shell[data-ui-version='refined'] .sequence-review-panel {
+  height: auto;
+  max-height: calc(100% - var(--space-6));
+  position: absolute;
+  right: calc(var(--sequence-inspector-width, 0px) + var(--space-3));
+  top: var(--space-3);
+  width: min(340px, calc(100% - 32px));
+  z-index: 30;
+}
+
+.app-shell[data-ui-version='refined'] .sequence-review-header {
+  border-bottom: 1px solid var(--panel-border);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+}
+
+/* ─── Narrow windows ───────────────────────────────────────────────────────
+   Layout contract 2: the canvas is never a residual column. Under 1100px the
+   inspector is a fixed 280px (it used to grow to 38vw and leave the canvas
+   ~300px wide) and the minimap steps aside so it cannot cover the zoom. */
+@media (max-width: 1100px) {
+  .app-shell[data-ui-version='refined'] .editor-body:not(.inspector-hidden, .inspector-collapsed) {
+    grid-template-columns: minmax(0, 1fr) 280px;
+  }
+
+  .app-shell[data-ui-version='refined'] .react-flow__minimap {
+    display: none;
+  }
+}
+
+/* Member rows are code: a notch smaller and tighter so a name fits in a
+   280px inspector. */
+.app-shell[data-ui-version='refined'] :is(.attribute-editor, .method-editor) input {
+  font-size: var(--text-sm);
+  padding-inline: 6px;
+}
+
+/* Keyboard-mode popover: stays inside the visible canvas (see the nudge in
+   SequenceKeyboardComposer); the arrow moves back to keep pointing at the
+   participant. */
+.sequence-keyboard-popover,
+.sequence-keyboard-popover.placement-above {
+  transform: translate(calc(-50% + var(--keyboard-nudge, 0px)), calc(-100% - 16px));
+}
+
+.sequence-keyboard-popover.placement-below {
+  transform: translate(calc(-50% + var(--keyboard-nudge, 0px)), 16px);
+}
+
+.sequence-keyboard-popover::after {
+  left: clamp(18px, calc(50% - var(--keyboard-nudge, 0px)), calc(100% - 18px)) !important;
+}
+
+/* ─── Use case model ───────────────────────────────────────────────────────
+   Relations float from outline to outline. To connect: the round nub that
+   shows on hover (or when selected), dropped anywhere on the other node. */
+
+.app-shell .use-case-canvas .use-case-handle-legacy {
+  height: 1px;
+  min-height: 0;
+  min-width: 0;
+  opacity: 0;
+  pointer-events: none;
+  width: 1px;
+}
+
+/* The whole node is the drop target, but only while a relation is being
+   dragged — otherwise it would steal the node's own drag. */
+.app-shell .use-case-canvas .use-case-drop-zone {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  height: 100%;
+  inset: 0;
+  left: 0;
+  min-height: 0;
+  min-width: 0;
+  opacity: 0;
+  pointer-events: none;
+  top: 0;
+  transform: none;
+  width: 100%;
+}
+
+.app-shell .use-case-canvas.is-connecting .use-case-drop-zone { pointer-events: all; }
+.app-shell .use-case-oval-node .use-case-drop-zone { border-radius: 50%; }
+
+.app-shell .use-case-canvas .use-case-connect-nub {
+  align-items: center;
+  background: var(--panel-background);
+  border: 1.5px solid var(--accent);
+  border-radius: 50%;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.12));
+  color: var(--accent);
+  cursor: crosshair;
+  display: flex;
+  height: 20px;
+  justify-content: center;
+  opacity: 0;
+  right: -12px;
+  transition: opacity var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
+  width: 20px;
+  z-index: 5;
+}
+
+.app-shell .use-case-canvas .use-case-connect-nub svg {
+  fill: none;
+  height: 12px;
+  pointer-events: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  width: 12px;
+}
+
+/* The actor's nub sits by its hand, not by its name. */
+.app-shell .use-case-canvas .use-case-connect-nub.is-actor { right: 6px; top: 40px; }
+
+.app-shell .use-case-canvas .react-flow__node:hover .use-case-connect-nub,
+.app-shell .use-case-canvas .react-flow__node.selected .use-case-connect-nub {
+  opacity: 1;
+}
+
+.app-shell .use-case-canvas .use-case-connect-nub:hover {
+  background: var(--accent);
+  color: var(--button-active-text, #fff);
+  transform: translateY(-50%) scale(1.12);
+}
+
+.app-shell .use-case-canvas.is-connecting .use-case-connect-nub { opacity: 0; }
+
+/* Selection: the same accent ring as a selected class. */
+.app-shell .use-case-canvas .react-flow__node.selected .use-case-oval-node {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.app-shell .use-case-canvas .react-flow__node.selected .actor-symbol { stroke: var(--accent); }
+.app-shell .use-case-canvas .react-flow__node.selected .use-case-actor-name { color: var(--accent); }
+
+.app-shell .use-case-canvas .react-flow__node.selected .system-boundary-node {
+  border-color: var(--accent);
+}
+
+/* While dragging a relation: where it can land, and where it cannot. */
+.app-shell .use-case-oval-node.is-connect-valid {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.app-shell .use-case-actor-node.is-connect-valid .actor-symbol { stroke: var(--accent); }
+.app-shell .is-connect-invalid { opacity: 0.4; }
+.app-shell .use-case-canvas .react-flow__node .is-connect-valid:hover { background-color: color-mix(in srgb, var(--accent) 8%, var(--class-background)); }
+
+/* Labels sit on the canvas colour so the dashed line never cuts «include». */
+.app-shell .use-case-canvas .use-case-edge-label {
+  background: var(--canvas-background);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px 5px;
+}
+
+.app-shell .use-case-canvas .use-case-edge-label.is-selected { color: var(--accent); }
+
+/* Inspector: participation checklist and relation list. */
+.app-shell .use-case-checklist,
+.app-shell .use-case-relation-list {
+  display: grid;
+  gap: 1px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.app-shell .use-case-checklist label {
+  align-items: center;
+  border-radius: var(--radius-sm);
+  color: var(--panel-text);
+  cursor: pointer;
+  display: flex;
+  font-size: var(--text-md);
+  gap: var(--space-2);
+  min-height: 30px;
+  padding: 0 var(--space-2);
+}
+
+.app-shell .use-case-checklist label:hover { background: var(--ui-hover-background); }
+
+.app-shell .use-case-checklist input[type='checkbox'] {
+  accent-color: var(--accent);
+  flex: 0 0 auto;
+  height: 16px;
+  margin: 0;
+  min-height: 0;
+  width: 16px;
+}
+
+.app-shell .use-case-relation-list button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--panel-text);
+  cursor: pointer;
+  display: flex;
+  font-size: var(--text-md);
+  gap: var(--space-2);
+  min-height: 30px;
+  padding: 0 var(--space-2);
+  text-align: left;
+  width: 100%;
+}
+
+.app-shell .use-case-relation-list button:hover { background: var(--ui-hover-background); }
+
+.app-shell .use-case-relation-ends {
+  align-items: baseline;
+  color: var(--panel-secondary-text);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--text-md);
+  gap: 6px;
+  margin: var(--space-3) 0 var(--space-3);
+}
+
+.app-shell .use-case-relation-ends strong { color: var(--panel-text); font-weight: 600; }
+
+/* Flat paper ovals: the old white sheen read as a stain on Pizarra. */
+.app-shell .use-case-oval-node {
+  background: var(--class-background);
+}
+
+.app-shell .system-boundary-node {
+  background: color-mix(in srgb, var(--class-background) 22%, transparent);
+  border-color: color-mix(in srgb, var(--association-stroke) 70%, transparent);
+}
+
+/* Exports show the model, not the selection. */
+.app-shell .exporting-png .use-case-edge-label.is-selected { color: var(--multiplicity-text); }
+
+/* Three relation types fit the inspector's width. */
+.app-shell .v2-inspector-body .v2-segmented > button {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 6px;
+  text-overflow: ellipsis;
+}

@@ -6,6 +6,7 @@ import type {
   AssociationRelationType,
   ClassDiagramEdge,
 } from '../types/diagram';
+import { ASSOCIATION_RELATION_LABELS } from '../constants/associationLabels';
 import { normalizeAssociationData } from '../utils/association';
 import { MultiplicityInput } from './MultiplicityInput';
 
@@ -48,11 +49,6 @@ export function AssociationInspector({ edge, onUpdateAssociation }: AssociationI
     || data.relationType === 'composition';
   return (
     <div className="inspector-content">
-      <div className="inspector-heading">
-        <p className="eyebrow">Propiedades</p>
-        <h2>Relación</h2>
-        <span>Diagrama de clases</span>
-      </div>
       <label className="field compact-field">
         Tipo de relación
         <select
@@ -61,12 +57,9 @@ export function AssociationInspector({ edge, onUpdateAssociation }: AssociationI
             onUpdateAssociation(edge.id, { relationType: event.target.value as AssociationRelationType })
           }
         >
-          <option value="association">Asociación</option>
-          <option value="generalization">Herencia / generalización</option>
-          <option value="aggregation">Agregación</option>
-          <option value="composition">Composición</option>
-          <option value="dependency">Dependencia</option>
-          <option value="realization">Realización</option>
+          {(Object.keys(ASSOCIATION_RELATION_LABELS) as AssociationRelationType[]).map((relationType) => (
+            <option key={relationType} value={relationType}>{ASSOCIATION_RELATION_LABELS[relationType]}</option>
+          ))}
         </select>
       </label>
 

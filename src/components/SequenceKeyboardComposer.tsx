@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import type { SequenceFragmentOperator, SequenceMessageType } from '../types/diagram';
 import type { SequenceMethodOption } from '../utils/sequenceMessageEditing';
 import type { SequenceKeyboardModeState } from '../utils/sequenceKeyboardMode';
@@ -57,6 +57,35 @@ export function SequenceKeyboardComposer({
   onAddParticipant: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  // The popover is centred on the participant; near the edge of the visible
+  // canvas that cut it in half. Nudge it back inside the scrolling viewport
+  // (8px margin) and move the arrow the other way so it still points at the
+  // participant.
+  useLayoutEffect(() => {
+    const popover = popoverRef.current;
+    if (!popover) return undefined;
+    let viewport: HTMLElement | null = popover.parentElement;
+    while (viewport && !/(auto|scroll|hidden)/.test(getComputedStyle(viewport).overflowX)) viewport = viewport.parentElement;
+    const fit = (): void => {
+      popover.style.setProperty('--keyboard-nudge', '0px');
+      if (!viewport) return;
+      const box = popover.getBoundingClientRect();
+      const bounds = viewport.getBoundingClientRect();
+      const nudge = box.left < bounds.left + 8
+        ? bounds.left + 8 - box.left
+        : box.right > bounds.right - 8 ? bounds.right - 8 - box.right : 0;
+      popover.style.setProperty('--keyboard-nudge', `${Math.round(nudge)}px`);
+    };
+    fit();
+    viewport?.addEventListener('scroll', fit, { passive: true });
+    window.addEventListener('resize', fit);
+    return () => {
+      viewport?.removeEventListener('scroll', fit);
+      window.removeEventListener('resize', fit);
+    };
+  }, [position.left, position.top, state.stage, placement, sourceName, targetName]);
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const suggestions = useMemo(() => {
     const query = state.text.trim().toLocaleLowerCase().split(/[(:]/)[0];
@@ -119,6 +148,7 @@ export function SequenceKeyboardComposer({
         aria-label="Compositor rápido de secuencia"
         className={`sequence-keyboard-popover stage-${state.stage} placement-${placement}`}
         data-export-control="true"
+        ref={popoverRef}
         role="group"
         style={{ left: position.left, top: position.top }}
       >

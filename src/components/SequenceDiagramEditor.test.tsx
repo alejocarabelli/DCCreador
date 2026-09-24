@@ -48,7 +48,6 @@ describe('SequenceDiagramEditor referenced class diagram compatibility', () => {
         onChangeContent={vi.fn()}
         onRedo={vi.fn()}
         onUndo={vi.fn()}
-        onImportProject={vi.fn()}
       />
       </DialogProvider>,
     )).not.toThrow();
@@ -84,7 +83,6 @@ describe('SequenceDiagramEditor referenced class diagram compatibility', () => {
         onChangeContent={vi.fn()}
         onRedo={vi.fn()}
         onUndo={vi.fn()}
-        onImportProject={vi.fn()}
       />
       </DialogProvider>,
     );

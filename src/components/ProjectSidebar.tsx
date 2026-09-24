@@ -1,22 +1,25 @@
 import {
   Blocks,
-  Boxes,
-  FileText,
-  FolderKanban,
-  GitBranch,
+  Download,
+  FolderClosed,
+  FolderOpen,
   Home,
+  Keyboard,
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
+  Pencil,
   Plus,
-  UsersRound,
-  Workflow,
+  Trash2,
 } from 'lucide-react';
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import type { DesignArtifact, DiagramProject } from '../types/diagram';
 import type { ThemePreference } from '../hooks/useTheme';
+import { APP_NAME } from '../constants/appInfo';
+import { ARTIFACT_TYPES } from '../constants/artifactTypes';
 import { ArtifactTypeIcon } from './ArtifactTypeIcon';
 import { ThemeToggle } from './ThemeToggle';
+import { MenuItem, MenuSeparator } from './ui/Toolbar';
 
 type ProjectSidebarProps = {
   themePreference: ThemePreference;
@@ -24,11 +27,14 @@ type ProjectSidebarProps = {
   activeArtifactId: string | null;
   activeProjectId: string | null;
   isCollapsed: boolean;
+  isHome: boolean;
   onCreateProject: () => void;
   onOpenHome: () => void;
+  onOpenShortcuts: () => void;
   onCreateArtifact: (projectId: string, artifactType: DesignArtifact['type']) => void;
   onDeleteArtifact: (projectId: string, artifactId: string) => void;
   onDeleteProject: (projectId: string) => void;
+  onExportProject: (projectId: string) => void;
   onRenameArtifact: (projectId: string, artifactId: string) => void;
   onRenameProject: (projectId: string) => void;
   onSelectArtifact: (projectId: string, artifactId: string) => void;
@@ -52,21 +58,33 @@ type NewArtifactMenuState = {
   top: number;
 };
 
-const formatDate = (isoDate: string): string =>
-  new Intl.DateTimeFormat('es-AR', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  }).format(new Date(isoDate));
+const formatRelativeDate = (isoDate: string): string => {
+  const date = new Date(isoDate);
+  const now = new Date();
+  if (date.toDateString() === now.toDateString()) {
+    return `hoy, ${new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit' }).format(date)}`;
+  }
+  return new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short' }).format(date);
+};
+
+const placeMenu = (trigger: HTMLElement, width: number, height: number): { left: number; top: number } => {
+  const rect = trigger.getBoundingClientRect();
+  const top = rect.bottom + 6 + height > window.innerHeight ? Math.max(8, rect.top - height - 6) : rect.bottom + 6;
+  return { left: Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8)), top };
+};
 
 export function ProjectSidebar({
   activeArtifactId,
   activeProjectId,
   isCollapsed,
+  isHome,
   onCreateArtifact,
   onCreateProject,
   onOpenHome,
+  onOpenShortcuts,
   onDeleteArtifact,
   onDeleteProject,
+  onExportProject,
   onRenameArtifact,
   onRenameProject,
   onSelectArtifact,
@@ -76,7 +94,6 @@ export function ProjectSidebar({
   projects,
   themePreference,
 }: ProjectSidebarProps) {
-  const sidebarRef = useRef<HTMLElement | null>(null);
   const optionsMenuRef = useRef<HTMLDivElement | null>(null);
   const newArtifactMenuRef = useRef<HTMLDivElement | null>(null);
   const [optionsMenu, setOptionsMenu] = useState<SidebarOptionsMenuState | null>(null);
@@ -84,242 +101,280 @@ export function ProjectSidebar({
 
   const openNewArtifactMenu = (projectId: string, event: MouseEvent<HTMLButtonElement>): void => {
     event.stopPropagation();
-
     if (newArtifactMenu?.projectId === projectId) {
       setNewArtifactMenu(null);
       return;
     }
-
-    const rect = event.currentTarget.getBoundingClientRect();
-    const menuWidth = 224;
-    const menuHeight = 224;
-    const top =
-      rect.bottom + 6 + menuHeight > window.innerHeight
-        ? Math.max(8, rect.top - menuHeight - 6)
-        : rect.bottom + 6;
-
     setOptionsMenu(null);
-    setNewArtifactMenu({
-      projectId,
-      left: Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)),
-      top,
-    });
+    setNewArtifactMenu({ projectId, ...placeMenu(event.currentTarget, 240, 212) });
   };
 
-  const openOptionsMenu = (
-    values: Omit<SidebarOptionsMenuState, 'left' | 'top'>,
-    event: MouseEvent<HTMLButtonElement>,
-  ): void => {
+  const openOptionsMenu = (values: Omit<SidebarOptionsMenuState, 'left' | 'top'>, event: MouseEvent<HTMLButtonElement>): void => {
     event.stopPropagation();
     setNewArtifactMenu(null);
-
-    const rect = event.currentTarget.getBoundingClientRect();
-    const menuWidth = 148;
-    const menuHeight = 88;
-    const top =
-      rect.bottom + 6 + menuHeight > window.innerHeight
-        ? Math.max(8, rect.top - menuHeight - 6)
-        : rect.bottom + 6;
-
-    setOptionsMenu({
-      ...values,
-      left: Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8),
-      top,
-    });
+    setOptionsMenu({ ...values, ...placeMenu(event.currentTarget, 220, values.kind === 'project' ? 130 : 96) });
   };
 
   useEffect(() => {
     const closeOnOutsideClick = (event: globalThis.MouseEvent): void => {
       const target = event.target as globalThis.Node;
-
       if (
-        optionsMenuRef.current?.contains(target) ||
-        newArtifactMenuRef.current?.contains(target) ||
-        (target instanceof Element &&
-          target.closest('.artifact-options-trigger, .new-artifact-trigger') !== null)
+        optionsMenuRef.current?.contains(target)
+        || newArtifactMenuRef.current?.contains(target)
+        || (target instanceof Element && target.closest('.sidebar-row-menu, .sidebar-section-action') !== null)
       ) {
         return;
       }
-
       setOptionsMenu(null);
       setNewArtifactMenu(null);
     };
-
     const closeOnEscape = (event: globalThis.KeyboardEvent): void => {
       if (event.key === 'Escape') {
         setOptionsMenu(null);
         setNewArtifactMenu(null);
       }
     };
-
     document.addEventListener('mousedown', closeOnOutsideClick, true);
     document.addEventListener('keydown', closeOnEscape);
-
     return () => {
       document.removeEventListener('mousedown', closeOnOutsideClick, true);
       document.removeEventListener('keydown', closeOnEscape);
     };
   }, []);
 
-  if (isCollapsed) {
-    return (
-      <aside className="project-sidebar collapsed" ref={sidebarRef}>
-        <div className="sidebar-collapsed-mark" aria-hidden="true">
-          <Blocks size={19} />
+  const newArtifactMenuElement = newArtifactMenu !== null ? (
+        <div
+          aria-label="Nuevo artefacto"
+          className="artifact-floating-menu new-artifact-floating-menu"
+          ref={newArtifactMenuRef}
+          role="menu"
+          style={{ left: newArtifactMenu.left, top: newArtifactMenu.top }}
+        >
+          {ARTIFACT_TYPES.map((type) => (
+            <MenuItem
+              key={type.id}
+              icon={type.icon}
+              onSelect={() => {
+                onCreateArtifact(newArtifactMenu.projectId, type.id);
+                setNewArtifactMenu(null);
+              }}
+            >
+              {type.label}
+            </MenuItem>
+          ))}
         </div>
-        <button aria-label="Ir al inicio" className="icon-button sidebar-toggle" type="button" onClick={onOpenHome} title="Ir al inicio">
-          <Home size={18} />
-        </button>
-        <button aria-label="Expandir proyectos" className="icon-button sidebar-toggle" type="button" onClick={onToggleCollapsed} title="Expandir proyectos">
-          <PanelLeftOpen size={18} />
-        </button>
-        <ThemeToggle className="icon-button sidebar-toggle sidebar-theme-toggle" preference={themePreference} onChange={onThemePreferenceChange} />
+      ) : null;
+
+  const collapseButton = (
+    <button
+      aria-expanded={!isCollapsed}
+      aria-label={isCollapsed ? 'Mostrar barra lateral' : 'Ocultar barra lateral'}
+      className="v2-tool v2-sidebar-toggle"
+      type="button"
+      onClick={onToggleCollapsed}
+      title={`${isCollapsed ? 'Mostrar' : 'Ocultar'} barra lateral (⌘\\)`}
+    >
+      {isCollapsed ? <PanelLeftOpen size={16} aria-hidden="true" /> : <PanelLeftClose size={16} aria-hidden="true" />}
+    </button>
+  );
+
+  if (isCollapsed) {
+    // The rail keeps what you use most: the toggle in the very same spot as
+    // when the sidebar is open, Inicio, and the open project's artifacts.
+    const activeProject = projects.find((project) => project.id === activeProjectId) ?? null;
+    return (
+      <aside className="project-sidebar collapsed v2-sidebar" aria-label="Navegación">
+        <div className="v2-sidebar-header">{collapseButton}</div>
+        <nav className="v2-sidebar-rail" aria-label="Navegación rápida">
+          <button
+            aria-current={isHome ? 'page' : undefined}
+            aria-label="Inicio"
+            className={`v2-tool ${isHome ? 'is-pressed' : ''}`}
+            type="button"
+            onClick={onOpenHome}
+            title="Inicio"
+          >
+            <Home size={16} aria-hidden="true" />
+          </button>
+          {activeProject !== null ? (
+            <>
+              <span className="v2-sidebar-rail-divider" aria-hidden="true" />
+              {activeProject.artifacts.map((artifact) => {
+                const isCurrent = artifact.id === activeArtifactId;
+                return (
+                  <button
+                    aria-current={isCurrent ? 'page' : undefined}
+                    aria-label={artifact.name}
+                    className={`v2-tool ${isCurrent ? 'is-pressed' : ''}`}
+                    key={artifact.id}
+                    type="button"
+                    onClick={() => onSelectArtifact(activeProject.id, artifact.id)}
+                    title={`${artifact.name} · ${activeProject.name}`}
+                  >
+                    <ArtifactTypeIcon type={artifact.type} />
+                  </button>
+                );
+              })}
+              <button
+                aria-expanded={newArtifactMenu?.projectId === activeProject.id}
+                aria-haspopup="menu"
+                aria-label="Nuevo artefacto"
+                className="v2-tool"
+                type="button"
+                onClick={(event) => openNewArtifactMenu(activeProject.id, event)}
+                title="Nuevo artefacto"
+              >
+                <Plus size={16} aria-hidden="true" />
+              </button>
+            </>
+          ) : null}
+        </nav>
+        <div className="v2-sidebar-rail-footer">
+          <button aria-label="Atajos de teclado" className="v2-tool" type="button" onClick={onOpenShortcuts} title="Atajos de teclado (?)">
+            <Keyboard size={16} aria-hidden="true" />
+          </button>
+          <ThemeToggle preference={themePreference} onChange={onThemePreferenceChange} />
+        </div>
+        {newArtifactMenuElement}
       </aside>
     );
   }
 
   return (
-    <aside className="project-sidebar" ref={sidebarRef}>
-      <div className="sidebar-header">
-        <div className="sidebar-brand">
-          <span className="sidebar-brand-mark" aria-hidden="true">
-            <Blocks size={19} />
-          </span>
-          <div>
-            <p className="sidebar-brand-name">Modelador de Sistemas</p>
-          </div>
-        </div>
-        <div className="sidebar-header-actions">
-          <button aria-label="Ir al inicio" className="icon-button" type="button" onClick={onOpenHome} title="Ir al inicio">
-            <Home size={18} />
-          </button>
-          <button aria-label="Contraer proyectos" className="icon-button" type="button" onClick={onToggleCollapsed} title="Contraer proyectos">
-            <PanelLeftClose size={18} />
-          </button>
-          <button aria-label="Crear proyecto" className="icon-button primary" type="button" onClick={onCreateProject} title="Crear proyecto">
-            <Plus size={18} />
-          </button>
-        </div>
+    <aside className="project-sidebar v2-sidebar" aria-label="Navegación">
+      <div className="v2-sidebar-header">
+        {collapseButton}
+        <p className="sidebar-brand-name v2-brand-name">
+          <span className="v2-brand-mark" aria-hidden="true"><Blocks size={15} /></span>
+          {APP_NAME}
+        </p>
       </div>
 
-      <nav className="project-list" aria-label="Proyectos">
+      <nav className="v2-sidebar-nav" aria-label="Proyectos">
+        <button
+          aria-current={isHome ? 'page' : undefined}
+          className={`v2-sidebar-row v2-sidebar-home ${isHome ? 'is-current' : ''}`}
+          type="button"
+          onClick={onOpenHome}
+        >
+          <Home size={15} aria-hidden="true" />
+          <span className="v2-sidebar-row-label">Inicio</span>
+        </button>
+
+        <div className="v2-sidebar-section">
+          <h2>Proyectos</h2>
+          <button aria-label="Nuevo proyecto" className="v2-tool sidebar-section-action" type="button" onClick={onCreateProject} title="Nuevo proyecto">
+            <Plus size={15} aria-hidden="true" />
+          </button>
+        </div>
+
         {projects.length === 0 ? (
-          <div className="empty-list">
-            <FolderKanban size={23} />
-            <p>Tus proyectos aparecerán acá.</p>
-          </div>
+          <p className="v2-sidebar-empty">Todavía no hay proyectos.</p>
         ) : (
-          projects.map((project) => (
-            <article
-              className={`project-item ${project.id === activeProjectId ? 'active' : ''}`}
-              key={project.id}
-              onClick={() => onSelectProject(project.id)}
-            >
-              <button
-                aria-current={project.id === activeProjectId ? 'page' : undefined}
-                className="project-main"
-                type="button"
-                title={`Creado: ${formatDate(project.createdAt)}`}
-              >
-                <span className="project-main-icon" aria-hidden="true"><FolderKanban size={17} /></span>
-                <span className="project-main-copy">
-                  <strong>{project.name}</strong>
-                  <small>Actualizado {formatDate(project.updatedAt)}</small>
-                </span>
-              </button>
-              <button
-                aria-label="Opciones de proyecto"
-                aria-controls="sidebar-options-menu"
-                aria-expanded={optionsMenu?.kind === 'project' && optionsMenu.projectId === project.id}
-                aria-haspopup="menu"
-                className="artifact-options-trigger project-options-trigger"
-                type="button"
-                onClick={(event) => openOptionsMenu({ kind: 'project', projectId: project.id }, event)}
-              >
-                <MoreHorizontal size={16} />
-              </button>
-              {project.id === activeProjectId ? (
-                <div className="project-artifacts">
-                  <div className="project-artifacts-header">
-                    <span>Artefactos</span>
+          <ul className="v2-sidebar-projects">
+            {projects.map((project) => {
+              const isActive = project.id === activeProjectId;
+              return (
+                <li key={project.id} className={`v2-sidebar-project ${isActive ? 'is-open' : ''}`}>
+                  <div className="v2-sidebar-row-wrap">
                     <button
-                      aria-expanded={newArtifactMenu?.projectId === project.id}
-                      aria-haspopup="menu"
-                      className="new-artifact-trigger"
+                      aria-current={isActive ? 'true' : undefined}
+                      aria-expanded={isActive}
+                      className="v2-sidebar-row v2-sidebar-project-row"
                       type="button"
-                      onClick={(event) => openNewArtifactMenu(project.id, event)}
-                      title="Nuevo artefacto"
+                      title={`Actualizado ${formatRelativeDate(project.updatedAt)}`}
+                      onClick={() => onSelectProject(project.id)}
                     >
-                      <Plus size={14} />
-                      Nuevo
+                      {isActive ? <FolderOpen size={15} aria-hidden="true" /> : <FolderClosed size={15} aria-hidden="true" />}
+                      <span className="v2-sidebar-row-label">{project.name}</span>
+                    </button>
+                    <button
+                      aria-controls="sidebar-options-menu"
+                      aria-expanded={optionsMenu?.kind === 'project' && optionsMenu.projectId === project.id}
+                      aria-haspopup="menu"
+                      aria-label={`Opciones del proyecto ${project.name}`}
+                      className="v2-tool sidebar-row-menu"
+                      type="button"
+                      onClick={(event) => openOptionsMenu({ kind: 'project', projectId: project.id }, event)}
+                    >
+                      <MoreHorizontal size={15} aria-hidden="true" />
                     </button>
                   </div>
-                  <div className="artifact-list">
-                    {project.artifacts.map((artifact) => (
-                      <div
-                        className={`artifact-item ${
-                          project.id === activeProjectId && artifact.id === activeArtifactId ? 'active' : ''
-                        }`}
-                        key={artifact.id}
-                      >
-                        <button
-                          aria-current={project.id === activeProjectId && artifact.id === activeArtifactId ? 'page' : undefined}
-                          className="artifact-main"
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onSelectArtifact(project.id, artifact.id);
-                          }}
-                        >
-                          <ArtifactTypeIcon type={artifact.type} />
-                          {artifact.name}
-                        </button>
-                        <button
-                          aria-label="Opciones de artefacto"
-                          aria-controls="sidebar-options-menu"
-                          aria-expanded={optionsMenu?.kind === 'artifact' && optionsMenu.artifactId === artifact.id}
-                          aria-haspopup="menu"
-                          className="artifact-options-trigger"
-                          type="button"
-                          onClick={(event) =>
-                            openOptionsMenu(
-                              {
+
+                  {isActive ? (
+                    <ul className="v2-sidebar-artifacts" aria-label={`Artefactos de ${project.name}`}>
+                      {project.artifacts.map((artifact) => {
+                        const isCurrent = artifact.id === activeArtifactId;
+                        return (
+                          <li key={artifact.id} className={`v2-sidebar-row-wrap ${isCurrent ? 'is-current' : ''}`}>
+                            <button
+                              aria-current={isCurrent ? 'page' : undefined}
+                              className="v2-sidebar-row v2-sidebar-artifact-row"
+                              type="button"
+                              onClick={() => onSelectArtifact(project.id, artifact.id)}
+                            >
+                              <ArtifactTypeIcon type={artifact.type} />
+                              <span className="v2-sidebar-row-label">{artifact.name}</span>
+                            </button>
+                            <button
+                              aria-controls="sidebar-options-menu"
+                              aria-expanded={optionsMenu?.kind === 'artifact' && optionsMenu.artifactId === artifact.id}
+                              aria-haspopup="menu"
+                              aria-label={`Opciones de ${artifact.name}`}
+                              className="v2-tool sidebar-row-menu"
+                              type="button"
+                              onClick={(event) => openOptionsMenu({
                                 artifactId: artifact.id,
                                 canDelete: project.artifacts.length > 1,
                                 kind: 'artifact',
                                 projectId: project.id,
-                              },
-                              event,
-                            )
-                          }
+                              }, event)}
+                            >
+                              <MoreHorizontal size={15} aria-hidden="true" />
+                            </button>
+                          </li>
+                        );
+                      })}
+                      <li>
+                        <button
+                          aria-expanded={newArtifactMenu?.projectId === project.id}
+                          aria-haspopup="menu"
+                          className="v2-sidebar-row v2-sidebar-add sidebar-section-action"
+                          type="button"
+                          onClick={(event) => openNewArtifactMenu(project.id, event)}
                         >
-                          <MoreHorizontal size={15} />
+                          <Plus size={15} aria-hidden="true" />
+                          <span className="v2-sidebar-row-label">Nuevo artefacto</span>
                         </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </article>
-          ))
+                      </li>
+                    </ul>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
         )}
       </nav>
-      <div className="sidebar-footer">
-        <ThemeToggle className="sidebar-footer-button" preference={themePreference} onChange={onThemePreferenceChange} showLabel />
+
+      <div className="v2-sidebar-footer">
+        <ThemeToggle preference={themePreference} onChange={onThemePreferenceChange} showLabel />
+        <button aria-label="Atajos de teclado" className="v2-tool" type="button" onClick={onOpenShortcuts} title="Atajos de teclado (?)">
+          <Keyboard size={16} aria-hidden="true" />
+        </button>
       </div>
+
       {optionsMenu !== null ? (
         <div
-          id="sidebar-options-menu"
           aria-label={optionsMenu.kind === 'project' ? 'Opciones del proyecto' : 'Opciones del artefacto'}
           className="artifact-floating-menu"
+          id="sidebar-options-menu"
           ref={optionsMenuRef}
           role="menu"
           style={{ left: optionsMenu.left, top: optionsMenu.top }}
         >
-          <button
-            role="menuitem"
-            type="button"
-            onClick={() => {
+          <MenuItem
+            icon={Pencil}
+            onSelect={() => {
               if (optionsMenu.kind === 'artifact' && optionsMenu.artifactId !== undefined) {
                 onRenameArtifact(optionsMenu.projectId, optionsMenu.artifactId);
               } else {
@@ -328,13 +383,25 @@ export function ProjectSidebar({
               setOptionsMenu(null);
             }}
           >
-            Renombrar
-          </button>
-          <button
-            role="menuitem"
-            type="button"
+            Renombrar…
+          </MenuItem>
+          {optionsMenu.kind === 'project' ? (
+            <MenuItem
+              icon={Download}
+              onSelect={() => {
+                onExportProject(optionsMenu.projectId);
+                setOptionsMenu(null);
+              }}
+            >
+              Exportar proyecto (JSON)
+            </MenuItem>
+          ) : null}
+          <MenuSeparator />
+          <MenuItem
+            danger
             disabled={optionsMenu.kind === 'artifact' && !optionsMenu.canDelete}
-            onClick={() => {
+            icon={Trash2}
+            onSelect={() => {
               if (optionsMenu.kind === 'artifact' && optionsMenu.artifactId !== undefined) {
                 onDeleteArtifact(optionsMenu.projectId, optionsMenu.artifactId);
               } else {
@@ -343,75 +410,12 @@ export function ProjectSidebar({
               setOptionsMenu(null);
             }}
           >
-            Eliminar
-          </button>
+            {optionsMenu.kind === 'project' ? 'Eliminar proyecto…' : 'Eliminar…'}
+          </MenuItem>
         </div>
       ) : null}
-      {newArtifactMenu !== null ? (
-        <div
-          aria-label="Crear artefacto"
-          className="artifact-floating-menu new-artifact-floating-menu"
-          ref={newArtifactMenuRef}
-          role="menu"
-          style={{ left: newArtifactMenu.left, top: newArtifactMenu.top }}
-        >
-          <button
-            role="menuitem"
-            type="button"
-            onClick={() => {
-              onCreateArtifact(newArtifactMenu.projectId, 'class-diagram');
-              setNewArtifactMenu(null);
-            }}
-          >
-            <Boxes size={15} />
-            Diagrama de clases
-          </button>
-          <button
-            role="menuitem"
-            type="button"
-            onClick={() => {
-              onCreateArtifact(newArtifactMenu.projectId, 'class-sequence-diagram');
-              setNewArtifactMenu(null);
-            }}
-          >
-            <GitBranch size={15} />
-            Clases de secuencias
-          </button>
-          <button
-            role="menuitem"
-            type="button"
-            onClick={() => {
-              onCreateArtifact(newArtifactMenu.projectId, 'use-case-model');
-              setNewArtifactMenu(null);
-            }}
-          >
-            <UsersRound size={15} />
-            Modelo de casos de uso
-          </button>
-          <button
-            role="menuitem"
-            type="button"
-            onClick={() => {
-              onCreateArtifact(newArtifactMenu.projectId, 'use-case-flow');
-              setNewArtifactMenu(null);
-            }}
-          >
-            <FileText size={15} />
-            Flujo de sucesos
-          </button>
-          <button
-            role="menuitem"
-            type="button"
-            onClick={() => {
-              onCreateArtifact(newArtifactMenu.projectId, 'sequence-diagram');
-              setNewArtifactMenu(null);
-            }}
-          >
-            <Workflow size={15} />
-            Diagrama de secuencia
-          </button>
-        </div>
-      ) : null}
+
+      {newArtifactMenuElement}
     </aside>
   );
 }

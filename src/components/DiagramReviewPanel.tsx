@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 type ReviewIssue = { id: string; kind: 'error' | 'review'; message: string };
 
 type Props<Issue extends ReviewIssue> = {
@@ -17,7 +18,7 @@ export function DiagramReviewPanel<Issue extends ReviewIssue>({
 }: Props<Issue>) {
   return (
     <section className="diagram-review-panel" aria-label={title}>
-      <div className="diagram-review-heading"><strong>{title}</strong><button type="button" onClick={onClose} aria-label="Cerrar revisión">×</button></div>
+      <div className="diagram-review-heading"><strong>{title}</strong><button className="v2-tool" type="button" onClick={onClose} aria-label="Cerrar revisión"><X size={16} aria-hidden="true" /></button></div>
       <p className="helper-text">{helper}</p>
       {issues.length === 0 ? <p>No se detectaron problemas en estas comprobaciones.</p> : (
         <ul>{issues.map(issue => <li key={issue.id}>

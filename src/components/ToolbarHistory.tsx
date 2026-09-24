@@ -12,46 +12,46 @@ type ToolbarHistoryProps = {
 };
 
 /**
- * First group of every editor toolbar: whether the work is safe, and the way
- * back. It sits in the same place in all four editors so the hand learns it once.
+ * Whether the work is safe, and the way back. It sits right after the
+ * breadcrumb in every editor so the hand learns it once.
  */
 export function ToolbarHistory({ canRedo, canUndo, saveStatus, onRedo, onUndo, onBeforeAction }: ToolbarHistoryProps) {
   return (
-    <div className="toolbar-group toolbar-history-group">
+    <div className="v2-history">
       <div
         aria-live="polite"
-        className={`toolbar-save-status sequence-save-status sequence-save-${saveStatus}`}
+        className={`v2-save-status is-${saveStatus}`}
         data-testid="sequence-save-status"
         role="status"
         title={saveStatus === 'error' ? 'No se pudo guardar el último cambio' : saveStatus === 'saving' ? 'Guardando…' : 'Todos los cambios están guardados'}
       >
         {saveStatus === 'saving' ? (
-          <><span className="save-spinner" /> <span className="toolbar-label">Guardando…</span></>
+          <><span className="v2-save-spinner" aria-hidden="true" /><span className="v2-save-label">Guardando…</span></>
         ) : saveStatus === 'error' ? (
-          <><AlertCircle size={14} /> <span className="toolbar-label">Error al guardar</span></>
+          <><AlertCircle size={13} aria-hidden="true" /><span className="v2-save-label">No se pudo guardar</span></>
         ) : (
-          <><Check size={14} /> <span className="toolbar-label">Guardado</span></>
+          <><Check size={13} aria-hidden="true" /><span className="v2-save-label">Guardado</span></>
         )}
       </div>
       <button
         aria-label="Deshacer"
-        className="toolbar-icon-action"
+        className="v2-tool"
         disabled={!canUndo}
         type="button"
         title="Deshacer (⌘Z)"
         onClick={() => { onBeforeAction?.(); onUndo(); }}
       >
-        <Undo2 size={16} />
+        <Undo2 size={16} aria-hidden="true" />
       </button>
       <button
         aria-label="Rehacer"
-        className="toolbar-icon-action"
+        className="v2-tool"
         disabled={!canRedo}
         type="button"
         title="Rehacer (⇧⌘Z)"
         onClick={() => { onBeforeAction?.(); onRedo(); }}
       >
-        <Redo2 size={16} />
+        <Redo2 size={16} aria-hidden="true" />
       </button>
     </div>
   );

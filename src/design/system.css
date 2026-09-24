@@ -1,0 +1,887 @@
+/*
+ * Modelador de Sistemas 2.0 — sistema de diseño "Cuaderno técnico".
+ *
+ * Colours come from src/theme/themes.ts through useTheme() (light "Cuaderno",
+ * dark "Pizarra"). This file adds the tokens that do not change with the
+ * theme — type, space, radii, elevation, motion — and the shared components.
+ * It loads last, so a component defined here looks the same in every editor.
+ * DESIGN.md documents every token and component.
+ */
+
+.app-shell {
+  /* Type: one scale, IBM Plex Sans for the interface, Plex Mono for code. */
+  --font-ui: var(--app-font-family);
+  --font-mono: var(--app-code-font);
+  --text-2xs: 10.5px;
+  --text-xs: 11.5px;
+  --text-sm: 12.5px;
+  --text-md: 13px;
+  --text-lg: 15px;
+  --text-xl: 19px;
+  --text-2xl: 26px;
+  --leading-tight: 1.25;
+  --leading: 1.45;
+
+  /* Space: 4px grid. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Shape: sharp like paper; only floating things round a little more. */
+  --radius-xs: 3px;
+  --radius-sm: 5px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
+
+  /* Controls. */
+  --control-sm: 26px;
+  --control-md: 30px;
+  --control-lg: 34px;
+  --toolbar-height: 50px;
+
+  /* Elevation: ink-tinted, never grey fog. */
+  --shadow-color: 28 35 38;
+  --shadow-1: 0 1px 2px rgb(var(--shadow-color) / 0.06);
+  --shadow-popover: 0 1px 2px rgb(var(--shadow-color) / 0.06), 0 12px 32px -8px rgb(var(--shadow-color) / 0.2);
+  --shadow-dialog: 0 2px 6px rgb(var(--shadow-color) / 0.08), 0 32px 64px -16px rgb(var(--shadow-color) / 0.32);
+  --focus-ring: 0 0 0 2px var(--panel-background), 0 0 0 4px color-mix(in srgb, var(--accent) 70%, transparent);
+
+  /* Motion: short, eased out, never bouncy. */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --duration-fast: 120ms;
+  --duration: 180ms;
+  --duration-slow: 260ms;
+
+  font-family: var(--font-ui);
+  font-size: var(--text-md);
+  line-height: var(--leading);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'ss02' 1;
+}
+
+.app-shell[data-theme='academic-dark'] {
+  --shadow-color: 0 0 0;
+}
+
+/* ─── Base ──────────────────────────────────────────────────────────────── */
+
+/* Controls used to inherit 16–17 px from the page; everything now sits on the scale. */
+:where(.app-shell) :is(button, input, select, textarea, summary) {
+  font-family: inherit;
+  font-size: var(--text-md);
+  letter-spacing: normal;
+}
+
+:where(.app-shell) :where(code, kbd, .mono) {
+  font-family: var(--font-mono);
+}
+
+.app-shell[data-ui-version='refined'] :focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.app-shell ::selection {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
+.app-shell * {
+  scrollbar-color: color-mix(in srgb, var(--panel-muted-text) 40%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.v2-kbd {
+  border: 1px solid var(--panel-border);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-xs);
+  color: var(--panel-muted-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  line-height: 1;
+  padding: 2px 5px;
+}
+
+/* ─── Toolbar ───────────────────────────────────────────────────────────── */
+
+.app-shell .v2-toolbar {
+  background: var(--toolbar-background);
+  border-bottom: 1px solid var(--panel-border);
+  grid-column: 1 / -1;
+  min-width: 0;
+  position: relative;
+  z-index: 20;
+}
+
+.app-shell .v2-toolbar-row {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  min-height: var(--toolbar-height);
+  padding: 0 var(--space-3) 0 var(--space-4);
+}
+
+.app-shell .v2-toolbar-start {
+  align-items: center;
+  display: flex;
+  flex: 1 1 auto;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.app-shell .v2-toolbar-create,
+.app-shell .v2-toolbar-end {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+}
+
+.app-shell .v2-toolbar-create {
+  padding: 0 var(--space-2);
+}
+
+.app-shell .v2-toolbar-end {
+  border-left: 1px solid var(--panel-border);
+  padding-left: var(--space-2);
+}
+
+.app-shell .v2-toolbar-divider {
+  align-self: center;
+  background: var(--panel-border);
+  height: 18px;
+  margin: 0 var(--space-1);
+  width: 1px;
+}
+
+/* Layout contract 1: the toolbar never overflows. The row is a size
+   container; as it narrows, labels fold into their icons — first the
+   secondary tools and the end zone, then the primary action — and the
+   breadcrumb keeps only the artifact name. Every tool keeps its name in
+   aria-label and title, so folding costs nothing to VoiceOver. */
+.app-shell .v2-toolbar-row {
+  container: v2-toolbar / inline-size;
+}
+
+@container v2-toolbar (max-width: 1040px) {
+  .app-shell :is(.v2-toolbar-create .v2-tool:not(.is-primary), .v2-toolbar-end .v2-tool) .v2-tool-label {
+    display: none;
+  }
+
+  .app-shell :is(.v2-toolbar-create, .v2-toolbar-end) .v2-tool.has-label {
+    padding-inline: 7px;
+  }
+
+  .app-shell[data-ui-version='refined'] .v2-toolbar .editor-breadcrumb-project,
+  .app-shell[data-ui-version='refined'] .v2-toolbar .editor-breadcrumb > svg:first-of-type {
+    display: none;
+  }
+}
+
+@container v2-toolbar (max-width: 720px) {
+  .app-shell .v2-toolbar-create .v2-tool.is-primary .v2-tool-label {
+    display: none;
+  }
+
+  .app-shell .v2-toolbar-create {
+    padding: 0;
+  }
+}
+
+/* Breadcrumb: where am I. */
+.app-shell[data-ui-version='refined'] .v2-toolbar .editor-identity {
+  min-width: 0;
+}
+
+.app-shell[data-ui-version='refined'] .v2-toolbar .editor-breadcrumb {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.app-shell[data-ui-version='refined'] .v2-toolbar .editor-breadcrumb-project {
+  color: var(--panel-muted-text);
+  font-size: var(--text-md);
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell[data-ui-version='refined'] .v2-toolbar .editor-breadcrumb > svg {
+  color: var(--panel-placeholder-text);
+  flex: 0 0 auto;
+}
+
+.app-shell[data-ui-version='refined'] .v2-toolbar .editor-breadcrumb-type {
+  color: var(--accent);
+  display: inline-flex;
+}
+
+.app-shell[data-ui-version='refined'] .v2-toolbar .editor-breadcrumb h1 {
+  color: var(--panel-text);
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Save state + history. */
+.app-shell .v2-history {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+}
+
+.app-shell .v2-save-status {
+  align-items: center;
+  border-radius: var(--radius-pill);
+  color: var(--panel-faint-text);
+  display: inline-flex;
+  font-size: var(--text-xs);
+  gap: 4px;
+  height: 22px;
+  margin-right: var(--space-1);
+  padding: 0 8px 0 6px;
+  transition: color var(--duration) var(--ease-out), background-color var(--duration) var(--ease-out);
+}
+
+.app-shell .v2-save-status .v2-save-label {
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-width var(--duration-slow) var(--ease-out), opacity var(--duration) var(--ease-out);
+  white-space: nowrap;
+}
+
+.app-shell .v2-save-status.is-saving .v2-save-label,
+.app-shell .v2-save-status.is-error .v2-save-label,
+.app-shell .v2-save-status:hover .v2-save-label {
+  max-width: 14ch;
+  opacity: 1;
+}
+
+.app-shell .v2-save-status.is-saving { color: var(--status-info-text); }
+
+.app-shell .v2-save-status.is-error {
+  background: var(--status-danger-soft);
+  color: var(--status-danger-text);
+}
+
+.app-shell .v2-save-spinner {
+  animation: v2-spin 700ms linear infinite;
+  border: 1.5px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-radius: 50%;
+  border-top-color: currentColor;
+  height: 11px;
+  width: 11px;
+}
+
+@keyframes v2-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Tool buttons: one shape for every action in every toolbar. */
+.app-shell .v2-tool {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--panel-secondary-text);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: var(--text-md);
+  font-weight: 500;
+  gap: 6px;
+  height: var(--control-md);
+  justify-content: center;
+  list-style: none;
+  min-height: 0;
+  min-width: var(--control-md);
+  padding: 0 7px;
+  position: relative;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+  user-select: none;
+  white-space: nowrap;
+}
+
+.app-shell .v2-tool::-webkit-details-marker { display: none; }
+
+.app-shell .v2-tool.has-label { padding: 0 10px 0 8px; }
+
+.app-shell .v2-tool:hover:not(:disabled) {
+  background: var(--ui-hover-background);
+  border-color: transparent;
+  color: var(--panel-text);
+}
+
+.app-shell .v2-tool:disabled,
+.app-shell .v2-tool[aria-disabled='true'] {
+  color: var(--panel-placeholder-text);
+  cursor: default;
+  opacity: 0.7;
+}
+
+.app-shell .v2-tool.is-pressed,
+.app-shell details[open] > .v2-tool {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.app-shell .v2-tool.is-primary {
+  background: var(--button-active-background);
+  color: var(--button-active-text);
+  padding: 0 12px 0 10px;
+}
+
+.app-shell .v2-tool.is-primary:hover:not(:disabled) {
+  background: var(--accent-strong-fill);
+  color: var(--button-active-text);
+}
+
+.app-shell .v2-tool kbd {
+  border: 1px solid currentColor;
+  border-radius: var(--radius-xs);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  line-height: 1;
+  opacity: 0.6;
+  padding: 1px 4px;
+}
+
+.app-shell .v2-menu-chevron {
+  margin-left: -2px;
+  opacity: 0.6;
+  transition: transform var(--duration) var(--ease-out);
+}
+
+.app-shell details[open] > .v2-tool .v2-menu-chevron { transform: rotate(180deg); }
+
+/* Review. */
+.app-shell .v2-count {
+  background: var(--panel-strong-background);
+  border-radius: var(--radius-pill);
+  color: var(--panel-secondary-text);
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 16px;
+  min-width: 18px;
+  padding: 0 5px;
+  text-align: center;
+}
+
+.app-shell .v2-review.has-warnings .v2-count {
+  background: var(--status-warning-soft-strong);
+  color: var(--status-warning-text);
+}
+
+.app-shell .v2-review.has-errors .v2-count {
+  background: var(--status-danger-soft-strong);
+  color: var(--status-danger-text);
+}
+
+/* ─── Menus (toolbar menus, context menus, floating menus) ─────────────── */
+
+.app-shell .v2-menu {
+  position: relative;
+}
+
+.app-shell .v2-menu > summary { list-style: none; }
+
+/* The v1 menus drew their own ▾ after the label; v2 menus carry a chevron icon. */
+.app-shell .v2-menu > summary::after { content: none; display: none; }
+
+.app-shell .v2-menu-panel,
+.app-shell[data-ui-version='refined'] .canvas-context-menu,
+.app-shell[data-ui-version='refined'] .artifact-floating-menu {
+  animation: v2-pop-in var(--duration) var(--ease-out);
+  background: var(--panel-background);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-popover);
+  color: var(--panel-text);
+  display: grid;
+  gap: 1px;
+  min-width: 248px;
+  padding: var(--space-1);
+}
+
+.app-shell .v2-menu-panel {
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
+  position: absolute;
+  top: calc(100% + 6px);
+  z-index: 60;
+}
+
+.app-shell .v2-menu-panel.align-end { right: 0; }
+.app-shell .v2-menu-panel.align-start { left: 0; }
+/* Menus at the bottom of the window open upwards. */
+.app-shell .v2-menu-panel.opens-up { bottom: calc(100% + 6px); top: auto; }
+.app-shell .v2-menu-item-hint { color: var(--panel-faint-text); font-size: var(--text-xs); margin-left: var(--space-2); }
+
+@keyframes v2-pop-in {
+  from { opacity: 0; transform: translateY(-3px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+
+.app-shell .v2-menu-item,
+.app-shell[data-ui-version='refined'] .canvas-context-menu button,
+.app-shell[data-ui-version='refined'] .artifact-floating-menu button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--panel-text);
+  cursor: pointer;
+  display: flex;
+  font-size: var(--text-md);
+  font-weight: 400;
+  gap: var(--space-2);
+  justify-content: flex-start;
+  min-height: var(--control-md);
+  padding: 0 var(--space-2);
+  text-align: left;
+  width: 100%;
+}
+
+.app-shell .v2-menu-item:hover:not(:disabled),
+.app-shell .v2-menu-item:focus-visible,
+.app-shell[data-ui-version='refined'] .canvas-context-menu button:hover:not(:disabled),
+.app-shell[data-ui-version='refined'] .artifact-floating-menu button:hover:not(:disabled) {
+  background: var(--accent-soft);
+  box-shadow: none;
+  color: var(--panel-text);
+}
+
+.app-shell .v2-menu-item:disabled {
+  color: var(--panel-placeholder-text);
+  cursor: default;
+}
+
+.app-shell .v2-menu-item.is-danger { color: var(--status-danger-text); }
+
+.app-shell .v2-menu-item-icon {
+  align-items: center;
+  color: var(--panel-muted-text);
+  display: inline-flex;
+  flex: 0 0 16px;
+  justify-content: center;
+}
+
+.app-shell .v2-menu-item[aria-checked='true'] .v2-menu-item-icon { color: var(--accent); }
+
+.app-shell .v2-menu-item-label { flex: 1 1 auto; white-space: nowrap; }
+
+.app-shell .v2-menu-label {
+  color: var(--panel-faint-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.06em;
+  padding: var(--space-2) var(--space-2) var(--space-1);
+  text-transform: uppercase;
+}
+
+.app-shell .v2-menu-separator,
+.app-shell[data-ui-version='refined'] .canvas-context-menu hr,
+.app-shell[data-ui-version='refined'] .artifact-floating-menu hr {
+  border: 0;
+  border-top: 1px solid var(--panel-border);
+  margin: var(--space-1) calc(var(--space-1) * -1);
+}
+
+.app-shell .v2-menu-field {
+  display: grid;
+  gap: 4px;
+  padding: var(--space-1) var(--space-2) var(--space-2);
+}
+
+.app-shell .v2-menu-field > span {
+  color: var(--panel-secondary-text);
+  font-size: var(--text-sm);
+}
+
+.app-shell .v2-menu-field small {
+  color: var(--status-warning-text);
+  font-size: var(--text-xs);
+}
+
+/* ─── Fields ────────────────────────────────────────────────────────────── */
+
+:where(.app-shell) input:where(:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file'])),
+:where(.app-shell) select,
+:where(.app-shell) textarea {
+  background: var(--input-background);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-sm);
+  color: var(--input-text);
+  transition: border-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
+}
+
+:where(.app-shell) input:where(:not([type='checkbox'], [type='radio'], [type='file'])),
+:where(.app-shell) select {
+  min-height: var(--control-md);
+}
+
+:where(.app-shell) input:where(:hover:not(:focus, :disabled)),
+:where(.app-shell) select:where(:hover:not(:focus, :disabled)),
+:where(.app-shell) textarea:where(:hover:not(:focus, :disabled)) {
+  border-color: var(--panel-border-strong);
+}
+
+:where(.app-shell) input:where(:focus),
+:where(.app-shell) select:where(:focus),
+:where(.app-shell) textarea:where(:focus) {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  outline: none;
+}
+
+/* Native selects keep their native menu (keyboard, VoiceOver, macOS look)
+   but lose the heavy system chevron: one thin chevron in the muted text
+   colour, the same in every panel. The image properties are !important
+   because dozens of legacy rules reset `background` with the shorthand. */
+.app-shell select:not([multiple], [size]) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235F6668' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+  background-position: right 9px center !important;
+  background-repeat: no-repeat !important;
+  background-size: 12px 12px !important;
+  padding-right: 28px !important;
+  text-overflow: ellipsis;
+}
+
+.app-shell[data-theme='academic-dark'] select:not([multiple], [size]) {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23A3A7A2' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+}
+
+:where(.app-shell) ::placeholder {
+  color: var(--panel-placeholder-text);
+  opacity: 1;
+}
+
+.app-shell[data-ui-version='refined'] input[type='checkbox'] {
+  accent-color: var(--accent);
+}
+
+.app-shell[data-ui-version='refined'] .field > span:first-child,
+.app-shell[data-ui-version='refined'] .field > label:first-child {
+  color: var(--panel-secondary-text);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+/* ─── Buttons outside the toolbar ──────────────────────────────────────── */
+
+.app-shell[data-ui-version='refined'] :is(.primary-action, .home-button-primary) {
+  background: var(--button-active-background);
+  border: 1px solid var(--button-active-background);
+  border-radius: var(--radius-sm);
+  color: var(--button-active-text);
+  font-weight: 500;
+  min-height: var(--control-lg);
+  padding: 0 var(--space-4);
+}
+
+.app-shell[data-ui-version='refined'] :is(.primary-action, .home-button-primary):hover:not(:disabled) {
+  background: var(--accent-strong-fill);
+  border-color: var(--accent-strong-fill);
+  color: var(--button-active-text);
+}
+
+.app-shell[data-ui-version='refined'] :is(.secondary-action, .home-button:not(.home-button-primary)) {
+  background: var(--button-background);
+  border: 1px solid var(--button-border);
+  border-radius: var(--radius-sm);
+  color: var(--button-text);
+  font-weight: 500;
+  min-height: var(--control-lg);
+  padding: 0 var(--space-3);
+}
+
+.app-shell[data-ui-version='refined'] :is(.secondary-action, .home-button:not(.home-button-primary)):hover:not(:disabled) {
+  background: var(--ui-hover-background);
+  border-color: var(--panel-border-strong);
+}
+
+/* ─── Canvas ────────────────────────────────────────────────────────────── */
+
+.app-shell .v2-zoom {
+  align-items: center;
+  background: color-mix(in srgb, var(--panel-background) 94%, transparent);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  bottom: var(--space-4);
+  box-shadow: var(--shadow-1);
+  display: flex;
+  gap: 1px;
+  left: var(--space-4);
+  padding: 3px;
+  position: absolute;
+  z-index: 8;
+}
+
+.app-shell .v2-zoom button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-xs);
+  color: var(--panel-secondary-text);
+  cursor: pointer;
+  display: inline-flex;
+  height: var(--control-sm);
+  justify-content: center;
+  min-height: 0;
+  min-width: var(--control-sm);
+  padding: 0;
+}
+
+.app-shell .v2-zoom button:hover {
+  background: var(--ui-hover-background);
+  color: var(--panel-text);
+}
+
+.app-shell .v2-zoom .v2-zoom-value {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  min-width: 46px;
+}
+
+.app-shell .v2-zoom-divider {
+  background: var(--panel-border);
+  height: 16px;
+  margin: 0 2px;
+  width: 1px;
+}
+
+/* Empty canvas: one card, one action. */
+.app-shell[data-ui-version='refined'] :is(.canvas-start-card, .sequence-start-card) {
+  animation: v2-rise-in var(--duration-slow) var(--ease-out);
+  background: var(--panel-background);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-popover);
+  color: var(--panel-text);
+  max-width: 420px;
+  padding: var(--space-6);
+}
+
+.app-shell[data-ui-version='refined'] :is(.canvas-start-card, .sequence-start-card) :is(h2, h3, strong:first-child) {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.app-shell[data-ui-version='refined'] :is(.canvas-start-card, .sequence-start-card) p {
+  color: var(--panel-muted-text);
+  font-size: var(--text-md);
+  line-height: var(--leading);
+}
+
+.app-shell[data-ui-version='refined'] :is(.canvas-start-card, .sequence-start-card) button {
+  font-size: var(--text-md);
+  font-weight: 500;
+  min-height: var(--control-lg);
+}
+
+@keyframes v2-rise-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ─── Dialogs ───────────────────────────────────────────────────────────── */
+
+.app-shell[data-ui-version='refined'] .modal-backdrop {
+  animation: v2-fade-in var(--duration) var(--ease-out);
+  backdrop-filter: blur(3px);
+  background: color-mix(in srgb, var(--feedback-scrim, #1c2326) 38%, transparent);
+}
+
+.app-shell[data-ui-version='refined'] .project-dialog {
+  animation: v2-pop-in var(--duration-slow) var(--ease-out);
+  background: var(--panel-background);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-dialog);
+  color: var(--panel-text);
+  padding: var(--space-6);
+}
+
+.app-shell[data-ui-version='refined'] .project-dialog h2 {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0 0 var(--space-1);
+}
+
+.app-shell[data-ui-version='refined'] .project-dialog .dialog-description {
+  color: var(--panel-muted-text);
+  font-size: var(--text-md);
+  margin: 0 0 var(--space-4);
+}
+
+.app-shell[data-ui-version='refined'] .dialog-actions {
+  border-top: 0;
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+  margin-top: var(--space-5);
+  padding-top: 0;
+}
+
+@keyframes v2-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ─── Feedback toast ────────────────────────────────────────────────────── */
+
+.app-shell[data-ui-version='refined'] .editor-feedback {
+  animation: v2-rise-in var(--duration) var(--ease-out);
+  background: var(--ui-feedback-background);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-popover);
+  color: #fffefb;
+  font-size: var(--text-md);
+  font-weight: 500;
+  padding: var(--space-2) var(--space-4);
+  /* Bottom centre of the editor, as DESIGN.md says: it used to sit top-right,
+     right over the inspector's header. Centred without transform, which the
+     rise-in animation uses. */
+  bottom: 72px;
+  left: 0;
+  margin-inline: auto;
+  max-width: calc(100% - 32px);
+  pointer-events: none;
+  right: 0;
+  top: auto;
+  width: max-content;
+}
+
+/* ─── Motion preferences ────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  /* Remove travel, keep feedback: no pop-ins or rises, colour changes stay. */
+  .app-shell :is(.v2-menu-panel, .canvas-context-menu, .artifact-floating-menu, .project-dialog, .modal-backdrop,
+    .editor-feedback, .canvas-start-card, .sequence-start-card) {
+    animation: none;
+  }
+
+  .app-shell .v2-save-status .v2-save-label,
+  .app-shell .v2-menu-chevron {
+    transition: opacity var(--duration-fast) linear;
+  }
+}
+
+/* A UML keyword leading a menu item: alt, loop, opt… */
+.app-shell .v2-menu-code {
+  color: var(--accent);
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  min-width: 64px;
+}
+
+/* ─── Contextual strip under the toolbar (multi-selection) ─────────────── */
+
+.app-shell[data-ui-version='refined'] .v2-selection-bar {
+  align-items: center;
+  animation: v2-rise-in var(--duration) var(--ease-out);
+  background: var(--accent-soft);
+  border: 0;
+  border-top: 1px solid var(--accent-outline);
+  border-radius: 0;
+  color: var(--ui-selected-text);
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 6px var(--space-4);
+  position: static;
+  transform: none;
+}
+
+.app-shell[data-ui-version='refined'] .v2-selection-bar > span { margin-right: auto; }
+
+/* A line of context inside a menu (not an action). */
+.app-shell .v2-menu-note {
+  align-items: center;
+  color: var(--panel-muted-text);
+  display: flex;
+  font-size: var(--text-sm);
+  gap: 6px;
+  line-height: 1.4;
+  margin: 0;
+  max-width: 320px;
+  padding: var(--space-2);
+}
+
+.app-shell .v2-menu-note svg { color: var(--accent); flex: 0 0 auto; }
+
+/* ─── Segmented choice (Objeto · Actor) ───────────────────────────────────
+   Two or three mutually exclusive options that are always visible. A radio
+   group, so arrow keys and VoiceOver treat it as one choice. */
+.app-shell .v2-segmented {
+  background: var(--panel-muted-background);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+}
+
+.app-shell .v2-segmented > button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: calc(var(--radius-md) - 2px);
+  color: var(--panel-secondary-text);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 1 1 0;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  gap: 6px;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.app-shell .v2-segmented > button:hover:not(.is-active) {
+  background: var(--ui-hover-background);
+  color: var(--panel-text);
+}
+
+.app-shell .v2-segmented > button.is-active {
+  background: var(--panel-background);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 0 0 1px var(--panel-border);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.app-shell .v2-segmented > button:focus-visible {
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+
+.app-shell .v2-inspector-body .v2-segmented {
+  display: flex;
+  margin-bottom: var(--space-3);
+}

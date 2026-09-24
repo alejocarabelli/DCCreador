@@ -40,12 +40,17 @@ const makeDiagram = (messageCount: number, participantCount = 20, singleRoute = 
   };
 };
 
-const medianTime = (run: () => void, iterations = 5): number => {
+/**
+ * Median time of one run. Each sample times `batch` consecutive runs, so a
+ * run of a couple of milliseconds is not at the mercy of a single GC pause
+ * on a shared CI machine.
+ */
+const medianTime = (run: () => void, iterations = 5, batch = 1): number => {
   run();
   const samples = Array.from({ length: iterations }, () => {
     const started = performance.now();
-    run();
-    return performance.now() - started;
+    for (let index = 0; index < batch; index += 1) run();
+    return (performance.now() - started) / batch;
   }).sort((left, right) => left - right);
   return samples[Math.floor(samples.length / 2)];
 };
@@ -64,13 +69,13 @@ describe('sequence diagram performance regressions', () => {
   it('keeps synchronous semantic analysis near-linear as messages scale', () => {
     const small = makeDiagram(800, 2, true);
     const large = makeDiagram(3200, 2, true);
-    const smallMs = medianTime(() => { analyzeSequenceDiagramSemantics(small); });
-    const largeMs = medianTime(() => { analyzeSequenceDiagramSemantics(large); });
+    const smallMs = medianTime(() => { analyzeSequenceDiagramSemantics(small); }, 9, 4);
+    const largeMs = medianTime(() => { analyzeSequenceDiagramSemantics(large); }, 9, 4);
     const asyncLarge = {
       ...large,
       items: large.items.map((item) => item.kind === 'message' ? { ...item, type: 'asynchronous' as const } : item),
     };
-    const asyncLargeMs = medianTime(() => { analyzeSequenceDiagramSemantics(asyncLarge); });
+    const asyncLargeMs = medianTime(() => { analyzeSequenceDiagramSemantics(asyncLarge); }, 9, 4);
     const ratio = largeMs / Math.max(0.01, smallMs);
     const syncSlowdown = largeMs / Math.max(0.01, asyncLargeMs);
 
