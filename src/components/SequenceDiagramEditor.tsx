@@ -4663,7 +4663,7 @@ export function SequenceDiagramEditor({
         )}
         below={(
           <>
-          {selectedTimelineIds.length > 0 ? (
+          {selectedTimelineIds.length > 1 ? (
             <div className="sequence-multi-selection-bar v2-selection-bar" data-testid="sequence-multi-selection-bar">
               <span><strong>{selectedTimelineIds.length}</strong> {selectedTimelineIds.length === 1 ? 'seleccionado' : 'seleccionados'}</span>
               <details className="toolbar-menu v2-menu" onToggle={handleToolbarMenuToggle}>

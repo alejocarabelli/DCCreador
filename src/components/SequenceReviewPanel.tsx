@@ -56,11 +56,11 @@ export const SequenceReviewPanel: React.FC<SequenceReviewPanelProps> = ({
         </div>
         <button
           type="button"
-          className="btn-icon"
+          className="v2-tool"
           aria-label="Cerrar panel de revisión"
           onClick={onClose}
         >
-          <X size={18} />
+          <X size={16} aria-hidden="true" />
         </button>
       </div>
 

@@ -227,3 +227,16 @@ Usa el mismo editor que el diagrama de clases (5.2), más lo propio:
 | Actualizar vínculos | Botón | "Vincular todas las secuencias" dentro de Sincronizar | El nombre dice lo que hace: vincula todas las secuencias del proyecto |
 | Abrir secuencia | Botón que abría solo la primera vinculada | Sección "Abrir secuencia vinculada" con **todas** las vinculadas | Antes no se podía llegar a la segunda o tercera desde acá |
 | Resultado de la importación | Texto al lado de los botones | Aviso (toast) como el resto de los mensajes del editor | Coherencia |
+
+### 5.7 Diálogos y exportaciones
+
+| Control (v1) | Dónde estaba | Ahora | Por qué |
+|---|---|---|---|
+| Diálogos (crear/renombrar, confirmar, exportar secuencia, plantillas) | Estilos propios de cada uno | Tarjeta de papel con sombra de diálogo, título de 15 px y botón principal a la derecha; se abren con una animación corta | Todos iguales |
+| Menús de la barra lateral y menú contextual del lienzo | Botones sueltos | Mismo panel y mismos ítems que los menús de la barra (icono, texto, acción peligrosa en rojo) | Coherencia |
+| Panel de revisión de secuencia | Se agregaba como cuarta columna de la grilla y quedaba **fuera de la pantalla** (no se veía al tocar Revisar) | Tarjeta flotante arriba a la derecha del lienzo, como en clases | Era un error: el botón no mostraba nada |
+| Botón de cerrar de los paneles de revisión | "×" de texto en un recuadro | Botón de herramienta con icono, igual que el resto | Coherencia |
+| Franja de selección de secuencia | Aparecía con **un** elemento seleccionado | Aparece con dos o más | Con uno, el inspector ya ofrece envolver, mover y ubicar; la franja duplicaba |
+| Botón de invertir origen/destino (nuevo mensaje) | Posición fija que tapaba el rótulo "Origen" con la tipografía nueva | Alineado con la primera fila de campos | Se superponía |
+
+**Exportaciones verificadas** desde el modo oscuro (salen siempre en el tema claro): clases PNG y PDF, casos de uso PNG y PDF, flujo PDF y Word (3 tablas, 17 filas, mismo formato), secuencia PNG y PDF paginado. Ninguna pierde contenido; ahora usan Plex y la paleta Cuaderno.
