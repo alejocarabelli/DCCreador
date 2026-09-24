@@ -17,7 +17,7 @@ export function CanvasControls({ label }: CanvasControlsProps) {
       onZoomIn={() => zoomIn({ duration: 160 })}
       onZoomOut={() => zoomOut({ duration: 160 })}
       onResetZoom={() => zoomTo(1, { duration: 200 })}
-      onFit={() => fitView({ duration: 240, padding: 0.2 })}
+      onFit={() => fitView({ duration: 240, padding: 0.2, maxZoom: 1.5 })}
     />
   );
 }

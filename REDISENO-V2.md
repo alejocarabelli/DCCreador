@@ -274,6 +274,7 @@ No se quitó ninguna función: todo lo que hacían los encabezados viejos (plega
 | Contraste | `themes.test.ts` (claro y oscuro) | Pasa |
 | Ventana angosta (900 px) | Capturas de las 6 pantallas en claro y oscuro | Encontré dos fallas y las corregí (abajo) |
 | Exportaciones | Ver 5.7 | Completas, siempre en tema claro |
+| Recorrido desde cero | Proyecto nuevo, un artefacto de cada tipo desde "Nuevo artefacto", la acción principal de cada uno y su primera exportación | Los 5 se crean y exportan (PNG, PDF) sin errores en la página |
 
 **Arreglos de esta ronda**
 
@@ -282,3 +283,4 @@ No se quitó ninguna función: todo lo que hacían los encabezados viejos (plega
 | A 900 px la barra de secuencia se desbordaba: "Vista" quedaba cortada y "Exportar" fuera de la pantalla. El contrato de DESIGN.md decía que las etiquetas se pliegan, pero no estaba implementado | La fila de la barra es un contenedor: bajo 1040 px las herramientas secundarias y la zona final quedan solo con icono y el proyecto sale de la ruta; bajo 720 px también la acción principal. Todos los botones conservan su nombre en `aria-label` y en el tooltip |
 | El inspector crecía hasta el 38 % de la ventana y dejaba el lienzo de clases en ~300 px, con el minimapa tapando el zoom | Bajo 1100 px el inspector mide 280 px y el minimapa se oculta (sigue en Vista para ventanas anchas) |
 | Nombres de atributos y métodos cortados en el inspector angosto | Filas de miembros un punto más chicas y el nombre con más ancho que el tipo |
+| En un diagrama de clases vacío, la primera clase abría con zoom al 200 % | El ajuste automático no pasa del 100 % (y el botón Ajustar, del 150 %) |

@@ -1589,6 +1589,9 @@ export function DiagramEditor({
             snapGrid={[20, 20]}
             snapToGrid={isSnapEnabled}
             fitView
+            // React Flow fits when the first node appears; a lone new class should
+            // open at its real size, not blown up to 200%.
+            fitViewOptions={{ maxZoom: 1, padding: 0.2 }}
           >
             {isGridEnabled ? (
               <Background
