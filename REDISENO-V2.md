@@ -181,7 +181,7 @@ Cada fila dice dónde estaba el control en la v1, qué pasó y por qué.
 | Fragmento ▾ | Lista "alt · caminos alternativos" | Mismo contenido; el operador en mono y color de acento, alineado | Se leen como las palabras clave de UML que son |
 | Modo teclado | Botón "Teclado" con tecla `M` visible | Botón con icono en la zona de agregar; el atajo `M` está en el título y en el panel de atajos | Menos texto en la barra; el atajo sigue a la vista |
 | Ocultar/mostrar estructura | Icono en la barra **y** botón en el panel | Casilla "Estructura" en Vista ▸ Paneles y el botón del propio panel | Era un duplicado |
-| "+" Agregar mensaje en el panel de estructura | Encabezado del panel | **Quitado** | Duplicaba "Mensaje" de la barra (y el doble clic en el lienzo) |
+| "+" Agregar mensaje en el panel de estructura | Encabezado del panel | **Quitado** | Duplicaba "Mensaje" de la barra, que también inserta después del elemento seleccionado (además se crean mensajes arrastrando de una línea de vida a otra y con el modo teclado) |
 | Opciones de vista y referencias | Menú "Vista" con casillas y selects mezclados | Vista ▾ con secciones: Paneles (Estructura), Diagrama (Activaciones, Colores de participantes, Numeración) y Referencias (Diagrama de clases, Flujo de sucesos) | Cada cosa en su sección; las referencias quedan separadas de lo visual |
 | Colores de participantes | Select Automáticos/Desactivados | Casilla | Solo tenía dos estados |
 | Numeración | Select "Correlativa / Jerárquica / Sin números" | Igual, con ejemplo: "Correlativa (1, 2, 3)", "Jerárquica (1, 1.1, 1.2)" | Se entiende sin probar |
