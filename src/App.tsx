@@ -132,6 +132,7 @@ function App() {
     deleteArtifact,
     deleteProject,
     importProject,
+    importProjects,
     linkSequenceDiagramsToClassModel,
     projects,
     renameArtifact,
@@ -513,6 +514,7 @@ function App() {
           projects={projects}
           onCreateProject={handleCreateProject}
           onImportProject={importProject}
+          onImportProjects={importProjects}
           onOpenProject={setActiveProjectId}
         />
       ) : (

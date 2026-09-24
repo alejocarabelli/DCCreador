@@ -1,9 +1,8 @@
 import { Blocks, FolderOpen, Plus, Search, ShieldCheck, Upload, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import type { DesignArtifact, DesignProject } from '../types/diagram';
-import { IMPORT_INVALID_MESSAGE, IMPORT_UNREADABLE_MESSAGE, isImportableProject } from '../utils/projectImport';
+import { IMPORT_INVALID_MESSAGE, IMPORT_UNREADABLE_MESSAGE, extractImportableProjects } from '../utils/projectImport';
 import type { BackupState } from '../storage/backup';
-import { normalizeDiagramProject } from '../utils/diagramNormalization';
 import { projectInitials } from '../utils/projectInitials';
 import { ARTIFACT_TYPES, artifactTypeInfo } from '../constants/artifactTypes';
 import { ArtifactTypeIcon } from './ArtifactTypeIcon';
@@ -12,6 +11,8 @@ type ProjectHomeProps = {
   projects: DesignProject[];
   onCreateProject: () => void;
   onImportProject: (project: DesignProject) => void;
+  /** Many projects at once (a backup of the first version); skips ones already here. */
+  onImportProjects: (projects: DesignProject[]) => { imported: number; skipped: number };
   onOpenProject: (projectId: string) => void;
   backup: BackupState;
   backupAvailable: boolean;
@@ -65,7 +66,7 @@ const formatArtifactSummary = (project: DesignProject): string => {
   return summary.length > 0 ? summary.join(' · ') : 'Sin artefactos todavía';
 };
 
-export function ProjectHome({ projects, onCreateProject, onImportProject, onOpenProject, backup, backupAvailable, onRevealBackups }: ProjectHomeProps) {
+export function ProjectHome({ projects, onCreateProject, onImportProject, onImportProjects, onOpenProject, backup, backupAvailable, onRevealBackups }: ProjectHomeProps) {
   const [query, setQuery] = useState('');
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -76,17 +77,42 @@ export function ProjectHome({ projects, onCreateProject, onImportProject, onOpen
     return projects.filter((project) => `${project.name} ${project.artifacts.map((artifact) => artifact.name).join(' ')}`.toLocaleLowerCase().includes(normalizedQuery));
   }, [projects, query]);
 
-  const handleImport = async (file: File): Promise<void> => {
+  // One exported project behaves as always (imported as a copy if it is
+  // already here). A backup of the first version — or several files at once —
+  // brings every project in it and skips the ones already imported.
+  const handleImport = async (files: File[]): Promise<void> => {
     try {
-      const parsed = JSON.parse(await file.text()) as unknown;
-      if (!isImportableProject(parsed)) {
-        setFeedback({ tone: 'error', message: IMPORT_INVALID_MESSAGE });
+      const found: DesignProject[] = [];
+      let unreadable = 0;
+      for (const file of files) {
+        try {
+          const projectsInFile = extractImportableProjects(JSON.parse(await file.text()) as unknown);
+          if (projectsInFile === null) unreadable += 1;
+          else found.push(...projectsInFile);
+        } catch {
+          unreadable += 1;
+        }
+      }
+      if (found.length === 0) {
+        setFeedback({ tone: 'error', message: unreadable > 0 && files.length === 1 ? IMPORT_INVALID_MESSAGE : IMPORT_UNREADABLE_MESSAGE });
         return;
       }
-      onImportProject(normalizeDiagramProject(parsed));
-      setFeedback({ tone: 'success', message: 'Proyecto importado.' });
-    } catch {
-      setFeedback({ tone: 'error', message: IMPORT_UNREADABLE_MESSAGE });
+      if (found.length === 1 && files.length === 1) {
+        onImportProject(found[0]);
+        setFeedback({ tone: 'success', message: 'Proyecto importado.' });
+        return;
+      }
+      const { imported, skipped } = onImportProjects(found);
+      if (imported === 0) {
+        setFeedback({ tone: 'success', message: skipped === 1 ? 'Ese proyecto ya estaba; no se duplicó.' : `Esos ${skipped} proyectos ya estaban; no se duplicó nada.` });
+        return;
+      }
+      const parts = [
+        imported === 1 ? 'Se importó 1 proyecto' : `Se importaron ${imported} proyectos`,
+        skipped > 0 ? `${skipped} ya ${skipped === 1 ? 'estaba' : 'estaban'} y no se ${skipped === 1 ? 'duplicó' : 'duplicaron'}` : '',
+        unreadable > 0 ? `${unreadable} ${unreadable === 1 ? 'archivo no se pudo leer' : 'archivos no se pudieron leer'}` : '',
+      ].filter(Boolean);
+      setFeedback({ tone: 'success', message: `${parts.join('; ')}.` });
     } finally {
       if (fileInputRef.current !== null) fileInputRef.current.value = '';
     }
@@ -98,10 +124,11 @@ export function ProjectHome({ projects, onCreateProject, onImportProject, onOpen
       className="hidden-file-input"
       type="file"
       accept="application/json,.json"
-      aria-label="Importar proyecto JSON"
+      aria-label="Importar proyectos o un respaldo (JSON)"
+      multiple
       onChange={(event) => {
-        const file = event.target.files?.[0];
-        if (file !== undefined) void handleImport(file);
+        const files = Array.from(event.target.files ?? []);
+        if (files.length > 0) void handleImport(files);
       }}
     />
   );
@@ -141,6 +168,10 @@ export function ProjectHome({ projects, onCreateProject, onImportProject, onOpen
             </button>
             {fileInput}
           </div>
+          <p className="v2-home-migrate">
+            ¿Venís de la versión anterior? Tocá <strong>Importar proyecto…</strong> y elegí el respaldo más reciente de
+            <code>Documentos › Modelador de Sistemas › Respaldos</code>: trae todos tus proyectos de una vez.
+          </p>
           {feedbackBanner}
           <ol className="v2-home-artifact-types" aria-label="Qué podés modelar">
             {ARTIFACT_TYPES.map((type) => (
@@ -175,7 +206,7 @@ export function ProjectHome({ projects, onCreateProject, onImportProject, onOpen
             onChange={(event) => setQuery(event.target.value)}
           />
         </label>
-        <button className="home-button" type="button" onClick={() => fileInputRef.current?.click()}>
+        <button className="home-button" title="Importar proyectos exportados o un respaldo de la versión anterior" type="button" onClick={() => fileInputRef.current?.click()}>
           <Upload aria-hidden="true" size={15} />
           Importar…
         </button>

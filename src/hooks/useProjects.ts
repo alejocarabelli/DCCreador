@@ -614,6 +614,31 @@ export const useProjects = () => {
     });
   };
 
+  /**
+   * Brings in many projects at once (a backup of the first version). A project
+   * whose id is already here is skipped, so importing the same backup twice
+   * does not duplicate anything.
+   */
+  const importProjects = (incoming: DiagramProject[]): { imported: number; skipped: number } => {
+    const knownIds = new Set(projects.map((project) => project.id));
+    const now = new Date().toISOString();
+    const fresh = incoming
+      .map((project) => normalizeDiagramProject(project))
+      .filter((project) => {
+        if (project.id && knownIds.has(project.id)) return false;
+        if (project.id) knownIds.add(project.id);
+        return true;
+      })
+      .map((project) => ({
+        ...project,
+        id: project.id || createId(),
+        createdAt: project.createdAt || now,
+        updatedAt: project.updatedAt || now,
+      }));
+    if (fresh.length > 0) setProjects((currentProjects) => [...fresh, ...currentProjects]);
+    return { imported: fresh.length, skipped: incoming.length - fresh.length };
+  };
+
   return {
     activeProject,
     activeProjectId,
@@ -632,6 +657,7 @@ export const useProjects = () => {
     deleteProject,
     projects,
     importProject,
+    importProjects,
     renameArtifact,
     renameProject,
     saveStatus,

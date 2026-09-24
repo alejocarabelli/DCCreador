@@ -696,3 +696,22 @@
 .app-shell .v2-shortcuts-section dd { color: var(--panel-secondary-text); margin: 0; }
 
 .app-shell .v2-sidebar.collapsed .theme-toggle .v2-menu-chevron { display: none; }
+
+/* First launch: how to bring the projects of the first version. */
+.app-shell .v2-home-migrate {
+  color: var(--panel-muted-text);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  margin: 0;
+  max-width: 46ch;
+}
+
+.app-shell .v2-home-migrate code {
+  background: var(--panel-muted-background);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  margin-left: 4px;
+  padding: 1px 5px;
+  white-space: nowrap;
+}

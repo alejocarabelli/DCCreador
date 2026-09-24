@@ -24,5 +24,19 @@ export const isImportableProject = (value: unknown): value is DiagramProject => 
   return isRecord(value.content);
 };
 
+/**
+ * Every project a file carries. Besides a single exported project, this reads
+ * the automatic backups of the Mac app (`respaldo-….json`, which hold
+ * `{ version, projects: [...] }` with all the projects of the first version)
+ * and a plain array of projects. Returns null when the file holds none.
+ */
+export const extractImportableProjects = (value: unknown): DiagramProject[] | null => {
+  if (isImportableProject(value)) return [value];
+  const list = Array.isArray(value) ? value : isRecord(value) && Array.isArray(value.projects) ? value.projects : null;
+  if (list === null) return null;
+  const projects = list.filter(isImportableProject);
+  return projects.length > 0 ? projects : null;
+};
+
 export const IMPORT_INVALID_MESSAGE = 'El archivo no tiene la estructura de un proyecto del modelador.';
 export const IMPORT_UNREADABLE_MESSAGE = 'No se pudo leer el archivo. Revisá que sea un JSON exportado desde el modelador.';
