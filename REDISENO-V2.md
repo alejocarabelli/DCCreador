@@ -32,5 +32,6 @@ compila sin instalar.
 barra lateral muestra una etiqueta "Beta" junto al nombre.
 
 **Compilación en GitHub:** `.github/workflows/beta-macos.yml` compila en un Mac
-de GitHub Actions y publica el `.dmg` y el `.zip` como pre-release. Se lanza a
-mano desde la pestaña Actions con la etiqueta (por ejemplo `v2.0.0-beta.1`).
+de GitHub Actions en cada push a `rediseno-v2` (el `.dmg` y el `.zip` quedan como
+artefacto de la ejecución). Al subir una etiqueta `v2.*-beta.*` además los
+publica como pre-release.
