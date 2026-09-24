@@ -95,3 +95,30 @@ secuencia, la revisión semántica, los respaldos y el modo oscuro.
 6. **Clases de secuencias integra la sincronización en un menú** "Sincronizar"
    dentro de la barra única.
 7. **Escala tipográfica cerrada** y tipografías empaquetadas en la app.
+
+## 3. Dirección visual
+
+Exploré tres direcciones sobre la misma pantalla real (modelo de dominio del
+proyecto de ejemplo, con una clase seleccionada y el inspector abierto):
+
+| | |
+|---|---|
+| **A · Grafito** — monocroma, Geist, acento índigo, botón principal negro. | ![A](docs/rediseno-v2/direccion-a.png) |
+| **B · Cuaderno técnico** — papel, tinta y petróleo; IBM Plex Sans y Plex Mono. | ![B](docs/rediseno-v2/direccion-b.png) |
+| **C · Nativo macOS** — barra lateral traslúcida, azul del sistema, radios grandes. | ![C](docs/rediseno-v2/direccion-c.png) |
+
+**Elegida: B, Cuaderno técnico**, con la limpieza de chrome de A.
+
+- **Es la única con identidad propia.** A y C se ven bien pero podrían ser
+  cualquier herramienta. B se parece a lo que la app produce: UML en papel.
+- **Las clases con borde de tinta se leen como UML impreso**, y así se ven igual
+  en pantalla y en el PDF que se entrega.
+- **Plex Mono alinea atributos y métodos**: `+ fechaRecepcion : Date` se lee como
+  código, que es lo que es.
+- **El petróleo es calmo para sesiones largas** y no compite con los colores de
+  grupo de las clases ni con los de los participantes de secuencia.
+- **Tiene un modo oscuro natural**: pizarra con tinta clara, no un gris
+  invertido.
+
+Plex Sans y Plex Mono se empaquetan con la app (funciona sin conexión), así que
+se ven igual en todas las Mac y en las exportaciones.
