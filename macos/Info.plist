@@ -5,17 +5,17 @@
   <key>CFBundleDevelopmentRegion</key>
   <string>es</string>
   <key>CFBundleDisplayName</key>
-  <string>Modelador de Sistemas 2.0 Beta</string>
+  <string>Modelador de Sistemas 2.0</string>
   <key>CFBundleExecutable</key>
-  <string>ModeladorBeta</string>
+  <string>ModeladorV2</string>
   <key>CFBundleIconFile</key>
   <string>AppIcon.png</string>
   <key>CFBundleIdentifier</key>
-  <string>com.alejocarabelli.disenosistemas.beta2</string>
+  <string>com.alejocarabelli.disenosistemas.v2</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
-  <string>Modelador de Sistemas 2.0 Beta</string>
+  <string>Modelador de Sistemas 2.0</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>

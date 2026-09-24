@@ -6,19 +6,19 @@ if [[ -d "/Library/Developer/CommandLineTools" ]]; then
 fi
 
 ROOT_DIR="${0:A:h:h}"
-# Beta 2.0: nombre, ejecutable, carpeta de compilación y ruta de instalación
+# 2.0: nombre, ejecutable, carpeta de compilación y ruta de instalación
 # propios, para convivir con /Applications/Modelador de Sistemas.app (v1).
-APP_NAME="Modelador de Sistemas 2.0 Beta"
-EXECUTABLE="ModeladorBeta"
-BUILD_DIR="/private/tmp/modelador-sistemas-v2-beta-build"
+APP_NAME="Modelador de Sistemas 2.0"
+EXECUTABLE="ModeladorV2"
+BUILD_DIR="/private/tmp/modelador-sistemas-v2-build"
 APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
 INSTALL_PATH="/Applications/$APP_NAME.app"
 CONTENTS_DIR="$APP_BUNDLE/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
 DELIVERY_DIR="$ROOT_DIR/build"
-DELIVERY_ZIP="$DELIVERY_DIR/Modelador-de-Sistemas-2.0-Beta-macOS.zip"
-DELIVERY_DMG="$DELIVERY_DIR/Modelador-de-Sistemas-2.0-Beta-macOS.dmg"
+DELIVERY_ZIP="$DELIVERY_DIR/Modelador-de-Sistemas-2.0-macOS.zip"
+DELIVERY_DMG="$DELIVERY_DIR/Modelador-de-Sistemas-2.0-macOS.dmg"
 
 cd "$ROOT_DIR"
 npm run build
@@ -54,7 +54,7 @@ codesign --verify --deep --strict "$APP_BUNDLE"
 rm -f "$DELIVERY_ZIP"
 ditto -c -k --norsrc --noextattr --noqtn --noacl --keepParent "$APP_BUNDLE" "$DELIVERY_ZIP"
 
-# Nunca toca la v1: solo reemplaza una beta instalada antes en su propia ruta.
+# Nunca toca la v1: solo reemplaza una 2.0 instalada antes en su propia ruta.
 if [[ "${SKIP_INSTALL:-0}" != "1" ]] && [[ -w "/Applications" || -w "$INSTALL_PATH" ]]; then
   rm -rf "$INSTALL_PATH"
   ditto --norsrc --noextattr --noqtn --noacl "$APP_BUNDLE" "$INSTALL_PATH"

@@ -2,12 +2,12 @@
 #import <WebKit/WebKit.h>
 
 /*
- * Beta 2.0: convive con la v1 instalada. Nombre, esquema de URL (origen web)
+ * 2.0: convive con la v1 instalada. Nombre, esquema de URL (origen web)
  * y carpeta de respaldos son propios, y el bundle id del Info.plist también,
  * así que el almacenamiento de WebKit queda separado del de la v1.
  */
-static NSString *const kAppName = @"Modelador de Sistemas 2.0 Beta";
-static NSString *const kAppScheme = @"modeladorbeta";
+static NSString *const kAppName = @"Modelador de Sistemas 2.0";
+static NSString *const kAppScheme = @"modeladorv2";
 
 @interface AppSchemeHandler : NSObject <WKURLSchemeHandler>
 @property(nonatomic, strong) NSURL *resourceDirectory;
@@ -221,7 +221,7 @@ static NSString *const kAppScheme = @"modeladorbeta";
 /**
  * Los proyectos viven en el localStorage del WKWebView, que macOS puede vaciar
  * sin aviso. Este puente escribe una copia rotativa en
- * ~/Documents/Modelador de Sistemas 2.0 Beta/Respaldos, que además se sincroniza sola si
+ * ~/Documents/Modelador de Sistemas 2.0/Respaldos, que además se sincroniza sola si
  * el usuario tiene iCloud Drive activado sobre Documentos.
  */
 static NSUInteger const kBackupsToKeep = 10;

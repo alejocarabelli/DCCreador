@@ -5,36 +5,37 @@ sin aprobación explícita.
 
 > Nota: la etiqueta `v1.0.0` apunta a 6185434, anterior al modo oscuro, al
 > arreglo de notas de secuencia, a la propagación de renombres y a la limpieza
-> de etiquetas de asociaciones. `main` ya los incluye, y la beta parte de ahí.
+> de etiquetas de asociaciones. `main` ya los incluye, y la 2.0 parte de ahí.
 
-## 1. Preparación: la beta convive con la v1
+## 1. Preparación: la 2.0 convive con la v1
 
-| | v1 (actual) | 2.0 Beta |
+| | v1 (actual) | 2.0 |
 |---|---|---|
-| Nombre | Modelador de Sistemas | Modelador de Sistemas 2.0 Beta |
-| Bundle id | `com.alejocarabelli.disenosistemas` | `com.alejocarabelli.disenosistemas.beta2` |
-| Ejecutable | `DisenoDeSistemas` | `ModeladorBeta` |
-| Instalación | `/Applications/Modelador de Sistemas.app` | `/Applications/Modelador de Sistemas 2.0 Beta.app` |
-| Esquema web (origen del almacenamiento) | `disenosistemas://app` | `modeladorbeta://app` |
-| Respaldos | `~/Documents/Modelador de Sistemas/Respaldos` | `~/Documents/Modelador de Sistemas 2.0 Beta/Respaldos` |
-| Carpeta de compilación | `/private/tmp/diseno-sistemas-macos-build` | `/private/tmp/modelador-sistemas-v2-beta-build` |
+| Nombre | Modelador de Sistemas | Modelador de Sistemas 2.0 |
+| Bundle id | `com.alejocarabelli.disenosistemas` | `com.alejocarabelli.disenosistemas.v2` |
+| Ejecutable | `DisenoDeSistemas` | `ModeladorV2` |
+| Instalación | `/Applications/Modelador de Sistemas.app` | `/Applications/Modelador de Sistemas 2.0.app` |
+| Esquema web (origen del almacenamiento) | `disenosistemas://app` | `modeladorv2://app` |
+| Respaldos | `~/Documents/Modelador de Sistemas/Respaldos` | `~/Documents/Modelador de Sistemas 2.0/Respaldos` |
+| Carpeta de compilación | `/private/tmp/diseno-sistemas-macos-build` | `/private/tmp/modelador-sistemas-v2-build` |
 
-**Por qué la beta no ve tus proyectos:** WebKit guarda el almacenamiento local
-por aplicación (bundle id) y, dentro de ella, por origen (esquema). La beta
+**Por qué la 2.0 no ve tus proyectos:** WebKit guarda el almacenamiento local
+por aplicación (bundle id) y, dentro de ella, por origen (esquema). La 2.0
 cambia las dos cosas. Las claves y el formato del almacenamiento son los mismos
 que en la v1, así que un JSON exportado de una se importa en la otra.
 
 **El script nunca toca la v1:** solo borra y reemplaza
-`/Applications/Modelador de Sistemas 2.0 Beta.app`. Con `SKIP_INSTALL=1`
+`/Applications/Modelador de Sistemas 2.0.app`. Con `SKIP_INSTALL=1`
 compila sin instalar.
 
-**Etiqueta Beta:** el nombre de la ventana y el menú dicen "2.0 Beta", y la
-barra lateral muestra una etiqueta "Beta" junto al nombre.
+**Sin etiqueta Beta:** a pedido, la 2.0 se trabaja como producto final. El
+nombre visible es "Modelador de Sistemas 2.0" (app, ventana, menú, respaldos) y
+la interfaz no muestra ninguna etiqueta de versión preliminar.
 
-**Compilación en GitHub:** `.github/workflows/beta-macos.yml` compila en un Mac
+**Compilación en GitHub:** `.github/workflows/macos-v2.yml` compila en un Mac
 de GitHub Actions en cada push a `rediseno-v2` (el `.dmg` y el `.zip` quedan como
-artefacto de la ejecución). Al subir una etiqueta `v2.*-beta.*` además los
-publica como pre-release.
+artefacto de la ejecución). Al subir una etiqueta `v2.*` además los publica en
+una release (pre-release si la etiqueta lleva sufijo, como `v2.0.0-rc.1`).
 
 ## 2. Diagnóstico de la v1
 
@@ -122,3 +123,32 @@ proyecto de ejemplo, con una clase seleccionada y el inspector abierto):
 
 Plex Sans y Plex Mono se empaquetan con la app (funciona sin conexión), así que
 se ven igual en todas las Mac y en las exportaciones.
+
+## 4. Sistema
+
+Definido en `DESIGN.md` (tokens, componentes y contratos). Los componentes
+compartidos viven en `src/components/ui/` y sus estilos en `src/design/`.
+
+## 5. Cambios por pantalla
+
+Cada fila dice dónde estaba el control en la v1, qué pasó y por qué.
+
+### 5.1 Inicio y barra lateral
+
+| Control (v1) | Dónde estaba | Ahora | Por qué |
+|---|---|---|---|
+| Barra lateral | Oculta en el inicio | Siempre visible, también en el inicio, con "Inicio" como primer ítem | La app se siente una sola: se navega igual desde cualquier pantalla |
+| Contraer/expandir barra lateral | Botón en el encabezado de la barra | Botón en el pie de la barra + atajo **⌘\\** (nuevo) | El encabezado queda para el nombre, que ahora entra en una línea |
+| Ir al inicio (icono casa) | Encabezado de la barra | Ítem "Inicio" arriba de la lista de proyectos | Es navegación, no una herramienta |
+| Crear proyecto (+) | Encabezado de la barra | "+" junto al título "Proyectos" | Queda al lado de lo que crea |
+| Contraer al abrir un artefacto | Automático | Se respeta lo que elegiste | La barra es la navegación entre artefactos; esconderla sola obligaba a volver a abrirla |
+| "+ Nuevo" artefacto | Encabezado de la lista de artefactos | Última fila de la lista: "+ Nuevo artefacto" | Se lee en el lugar donde aparecerá el nuevo |
+| Menú de proyecto | Renombrar, Eliminar | Renombrar…, **Exportar proyecto (JSON)**, separador, Eliminar proyecto… | Exportar el proyecto sale de los editores (ver 5.2–5.6) y llega a su lugar |
+| Selector de tema | Pie de la barra y encabezado del inicio | Solo en el pie de la barra | Estaba duplicado |
+| Atajos de teclado | Menú "Atajos" solo en el flujo | Panel único para toda la app: botón en el pie de la barra y tecla **?** (nueva) | Todos los atajos en un lugar, descubribles desde cualquier pantalla |
+| Contador, búsqueda, Importar, Nuevo proyecto (inicio) | Encabezado del inicio | Igual, en una sola fila; la búsqueda también encuentra artefactos por nombre | — |
+| "Ordenados por última edición" | Texto en el inicio | Quitado; el orden se anuncia al lector de pantalla en la lista | Era un rótulo sin acción |
+| Lista de proyectos | Filas | Tarjetas tipo cuaderno con iniciales, tipos de artefacto y fecha | Más fácil de reconocer de un vistazo |
+| Inicio sin proyectos | "Todavía no hay proyectos" + botón | Bienvenida con Nuevo proyecto, Importar proyecto… y los cinco tipos de artefacto | Es la primera pantalla que ve alguien nuevo |
+| Resumen del proyecto | "1 clase" para un diagrama de clases | "1 diagrama de clases" | Era un error de texto |
+| Iconos de tipo de artefacto | Distintos en inicio y barra lateral | Un solo juego para toda la app | Coherencia |

@@ -1,21 +1,13 @@
-import { Boxes, FileText, GitBranch, UsersRound, Workflow } from 'lucide-react';
 import type { DesignArtifact } from '../types/diagram';
+import { artifactTypeInfo } from '../constants/artifactTypes';
 
 type ArtifactTypeIconProps = {
   type: DesignArtifact['type'];
   size?: number;
 };
 
-/** One glyph per artifact type, shared by the project rail and the editor header. */
+/** One glyph per artifact type, shared by the sidebar, the breadcrumb and the home screen. */
 export function ArtifactTypeIcon({ type, size = 15 }: ArtifactTypeIconProps) {
-  const Icon = type === 'class-diagram'
-    ? Boxes
-    : type === 'class-sequence-diagram'
-      ? GitBranch
-      : type === 'use-case-model'
-        ? UsersRound
-        : type === 'use-case-flow'
-          ? FileText
-          : Workflow;
+  const Icon = artifactTypeInfo(type).icon;
   return <Icon aria-hidden="true" size={size} />;
 }

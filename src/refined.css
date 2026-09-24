@@ -4379,16 +4379,3 @@
   color: var(--panel-muted-text);
 }
 
-.app-channel-badge {
-  border: 1px solid var(--accent-outline);
-  border-radius: 999px;
-  color: var(--accent);
-  display: inline-block;
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  line-height: 1;
-  padding: 2px 6px;
-  text-transform: uppercase;
-  vertical-align: 2px;
-}

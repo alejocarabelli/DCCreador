@@ -11,6 +11,7 @@ import '@fontsource/ibm-plex-mono/500.css';
 import './styles.css';
 import './refined.css';
 import './design/system.css';
+import './design/shell.css';
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <StrictMode>
