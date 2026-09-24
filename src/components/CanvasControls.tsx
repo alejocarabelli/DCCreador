@@ -1,34 +1,23 @@
-import { Maximize2, Minus, Plus } from 'lucide-react';
-import { ControlButton, Controls, useReactFlow } from 'reactflow';
+import { useReactFlow, useStore } from 'reactflow';
+import { CanvasZoom } from './ui/CanvasZoom';
 
 type CanvasControlsProps = {
   label: string;
 };
 
-/**
- * React Flow's built-in controls ship English labels ("zoom in", "fit view"),
- * which were the only English strings left in a Spanish interface. Rendering
- * the buttons ourselves keeps the same affordances and names them in the
- * product's own language.
- */
+/** The shared zoom control, wired to a React Flow canvas. */
 export function CanvasControls({ label }: CanvasControlsProps) {
-  const { fitView, zoomIn, zoomOut } = useReactFlow();
+  const { fitView, zoomIn, zoomOut, zoomTo } = useReactFlow();
+  const zoom = useStore((state) => state.transform[2]);
 
   return (
-    <Controls aria-label={label} showFitView={false} showInteractive={false} showZoom={false}>
-      <ControlButton aria-label="Acercar" title="Acercar" onClick={() => zoomIn({ duration: 160 })}>
-        <Plus size={14} />
-      </ControlButton>
-      <ControlButton aria-label="Alejar" title="Alejar" onClick={() => zoomOut({ duration: 160 })}>
-        <Minus size={14} />
-      </ControlButton>
-      <ControlButton
-        aria-label="Ajustar el diagrama a la vista"
-        title="Ajustar a la vista"
-        onClick={() => fitView({ duration: 240, padding: 0.2 })}
-      >
-        <Maximize2 size={14} />
-      </ControlButton>
-    </Controls>
+    <CanvasZoom
+      label={label}
+      zoomPercent={Math.round(zoom * 100)}
+      onZoomIn={() => zoomIn({ duration: 160 })}
+      onZoomOut={() => zoomOut({ duration: 160 })}
+      onResetZoom={() => zoomTo(1, { duration: 200 })}
+      onFit={() => fitView({ duration: 240, padding: 0.2 })}
+    />
   );
 }

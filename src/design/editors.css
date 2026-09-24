@@ -1,0 +1,226 @@
+/*
+ * Editors: the pieces every editor shares around its canvas — the inspector,
+ * its sections and field rows, the class inspector's code-like rows.
+ */
+
+/* ─── Inspector ─────────────────────────────────────────────────────────── */
+
+.app-shell[data-ui-version='refined'] .inspector {
+  background: var(--panel-background);
+  border-left: 1px solid var(--panel-border);
+  padding: var(--space-3) var(--space-4) var(--space-6);
+}
+
+.app-shell[data-ui-version='refined'] .inspector-heading {
+  border-bottom: 1px solid var(--panel-border);
+  gap: 2px;
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+
+.app-shell[data-ui-version='refined'] .eyebrow {
+  color: var(--panel-faint-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-shell[data-ui-version='refined'] :is(.inspector-heading h2, .inspector-section > h2) {
+  color: var(--panel-text);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.app-shell[data-ui-version='refined'] .inspector-heading span {
+  color: var(--panel-muted-text);
+  font-size: var(--text-xs);
+}
+
+.app-shell[data-ui-version='refined'] .inspector-section-header {
+  border-top: 1px solid var(--panel-border);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+}
+
+.app-shell[data-ui-version='refined'] .inspector-section-header h2 {
+  color: var(--panel-text);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.app-shell[data-ui-version='refined'] .inspector-section-header .icon-button {
+  background: transparent;
+  border-color: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--panel-muted-text);
+  height: var(--control-sm);
+  min-height: 0;
+  min-width: var(--control-sm);
+}
+
+.app-shell[data-ui-version='refined'] .inspector-section-header .icon-button:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.app-shell[data-ui-version='refined'] .field {
+  color: var(--panel-secondary-text);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  gap: 4px;
+  margin-top: var(--space-3);
+}
+
+.app-shell[data-ui-version='refined'] :is(.field, .attribute-editor, .method-editor, .parametric-value-inspector-row) :is(input, select, textarea) {
+  background: var(--input-background);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-sm);
+  color: var(--input-text);
+  font-size: var(--text-md);
+  min-height: var(--control-md);
+}
+
+.app-shell[data-ui-version='refined'] :is(.field, .attribute-editor, .method-editor, .parametric-value-inspector-row) :is(input, select, textarea):focus {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.app-shell[data-ui-version='refined'] .helper-text {
+  color: var(--panel-faint-text);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+
+.app-shell[data-ui-version='refined'] .class-description-panel {
+  background: var(--panel-subtle-background);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+}
+
+/* ─── Class inspector: attributes and methods read like code ────────────── */
+
+.app-shell[data-ui-version='refined'] .attribute-editor-list,
+.app-shell[data-ui-version='refined'] .method-editor-list {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.app-shell[data-ui-version='refined'] .attribute-editor {
+  align-items: center;
+  display: grid;
+  gap: 4px;
+  grid-template-columns: 18px minmax(0, 1fr) 8px minmax(72px, 0.8fr) var(--control-sm);
+}
+
+.app-shell[data-ui-version='refined'] .attribute-editor-colon,
+.app-shell[data-ui-version='refined'] :is(.method-signature-open, .method-signature-close) {
+  color: var(--panel-faint-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.app-shell[data-ui-version='refined'] :is(.attribute-editor, .method-editor) input {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  min-width: 0;
+  padding: 0 7px;
+  width: 100%;
+}
+
+.app-shell[data-ui-version='refined'] .attribute-type-select {
+  display: block;
+  min-width: 0;
+}
+
+.app-shell[data-ui-version='refined'] .attribute-type-select input {
+  width: 100%;
+}
+
+.app-shell[data-ui-version='refined'] :is(.attribute-drag-handle, .attribute-delete-button, .method-delete) {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-xs);
+  color: var(--panel-placeholder-text);
+  display: inline-flex;
+  height: var(--control-sm);
+  justify-content: center;
+  min-height: 0;
+  min-width: 0;
+  padding: 0;
+  width: 100%;
+}
+
+.app-shell[data-ui-version='refined'] .attribute-drag-handle { cursor: grab; }
+
+.app-shell[data-ui-version='refined'] :is(.attribute-delete-button, .method-delete):hover {
+  background: var(--status-danger-soft);
+  color: var(--status-danger-text);
+}
+
+.app-shell[data-ui-version='refined'] .attribute-drag-handle:hover {
+  background: var(--ui-hover-background);
+  color: var(--panel-text);
+}
+
+/* A method: visibility, name, delete — then (parameters) : return. */
+.app-shell[data-ui-version='refined'] .method-editor {
+  align-items: center;
+  border-bottom: 1px dashed var(--panel-border);
+  display: grid;
+  gap: 4px;
+  grid-template-areas:
+    'vis name name name delete'
+    'open params close ret .';
+  grid-template-columns: 44px minmax(0, 1fr) 20px minmax(64px, 0.7fr) var(--control-sm);
+  padding-bottom: var(--space-2);
+}
+
+.app-shell[data-ui-version='refined'] .method-editor .method-visibility { grid-area: vis; font-family: var(--font-mono); min-width: 0; padding: 0 4px; }
+.app-shell[data-ui-version='refined'] .method-editor .method-name { grid-area: name; }
+.app-shell[data-ui-version='refined'] .method-editor .method-delete { grid-area: delete; }
+.app-shell[data-ui-version='refined'] .method-editor .method-signature-open { grid-area: open; text-align: right; }
+.app-shell[data-ui-version='refined'] .method-editor .method-parameters { grid-area: params; }
+.app-shell[data-ui-version='refined'] .method-editor .method-signature-close { grid-area: close; white-space: nowrap; }
+.app-shell[data-ui-version='refined'] .method-editor .method-return { grid-area: ret; }
+
+.app-shell[data-ui-version='refined'] .method-editor:last-child { border-bottom: 0; }
+
+/* ─── Class boxes on the canvas ─────────────────────────────────────────── */
+
+/* Members are code: Plex Mono keeps names, colons and types in columns. */
+.app-shell .class-node :is(.attribute-row, .method-row, .muted-attribute) {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: -0.01em;
+}
+
+.app-shell .class-node .class-node-title {
+  font-family: var(--font-ui);
+  letter-spacing: 0.005em;
+}
+
+/* ─── Minimap: a quiet thumbnail of the paper ───────────────────────────── */
+
+.app-shell[data-ui-version='refined'] :is(.canvas-shell, .flow-canvas) .react-flow__minimap {
+  background: var(--canvas-background);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
+}
+
+.app-shell .react-flow__minimap-mask {
+  fill: color-mix(in srgb, var(--ui-app-background) 72%, transparent);
+}
+
+.app-shell .react-flow__minimap-node {
+  fill: var(--panel-background);
+  stroke: var(--panel-border-strong);
+  stroke-width: 2px;
+}

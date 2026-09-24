@@ -26,7 +26,6 @@ type ClassSequenceDiagramEditorProps = {
   onChangeContent: (content: ArtifactContent, options?: { separateHistoryEntry?: boolean; alreadyNormalized?: boolean }) => void;
   onRedo: () => void;
   onUndo: () => void;
-  onImportProject: (project: DesignProject) => void;
 };
 
 const asClassContent = (content: DiagramContent): ClassDiagramContent => ({
@@ -46,7 +45,6 @@ export function ClassSequenceDiagramEditor({
   onChangeContent,
   onRedo,
   onUndo,
-  onImportProject,
 }: ClassSequenceDiagramEditorProps) {
   const [importFeedback, setImportFeedback] = useState<string | null>(null);
   const sequenceDiagrams = useMemo(
@@ -230,7 +228,6 @@ export function ClassSequenceDiagramEditor({
       onChangeContent={handleChangeContent}
       onRedo={onRedo}
       onUndo={onUndo}
-      onImportProject={onImportProject}
     />
   );
 }

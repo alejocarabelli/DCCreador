@@ -520,15 +520,6 @@
   right: 16px;
 }
 
-/* React Flow paints the minimap with light presentation attributes. */
-.app-shell[data-theme='academic-dark'] .react-flow__minimap-mask {
-  fill: rgba(8, 11, 15, 0.6);
-}
-
-.app-shell[data-theme='academic-dark'] .react-flow__minimap-node {
-  fill: var(--panel-border-strong);
-}
-
 /* Edge reconnection anchors: keep the hit area generous, but show the affordance
  * only while an association is selected. React Flow 11 renders these as SVG
  * circles inside the edge group. */

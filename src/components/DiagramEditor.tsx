@@ -1,13 +1,14 @@
 import { ClassGroupColorPicker } from './ClassGroupColorPicker';
 import type { ClassGroupColor } from '../constants/classGroupColors';
 import { CanvasControls } from './CanvasControls';
+import { EditorToolbar, MenuItem, MenuLabel, MenuSeparator, ReviewButton, ToolButton, ToolMenu } from './ui/Toolbar';
 import { CanvasStartCard } from './CanvasStartCard';
 import { ClassAlignmentGuides } from './ClassAlignmentGuides';
 import { DiagramSelectionTools } from './DiagramSelectionTools';
 import { DiagramReviewPanel } from './DiagramReviewPanel';
 import { arrangeClasses, duplicateClasses, moveClass, type ClassArrangement, type ClassSize } from '../utils/classDiagramOperations';
 import { reviewClassDiagram, type DiagramIssue } from '../utils/classDiagramReview';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode, type SyntheticEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import ReactFlow, {
   Background,
   BackgroundVariant,
@@ -17,7 +18,6 @@ import ReactFlow, {
   applyEdgeChanges,
   applyNodeChanges,
   getNodesBounds,
-  getViewportForBounds,
   reconnectEdge,
   type Connection,
   type Edge,
@@ -29,16 +29,11 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import {
-  Crosshair,
-  FileDown,
+  Download,
+  Eye,
+  EyeOff,
   FileText,
-  FileUp,
-  Grid3X3,
   ImageDown,
-  ListChecks,
-  Magnet,
-  Map,
-  Maximize2,
   PanelRightClose,
   PanelRightOpen,
   Plus,
@@ -56,7 +51,6 @@ import type {
   ParametricValuesNoteConnectionMode,
   ParametricValuesNoteHandle,
 } from '../types/diagram';
-import { IMPORT_INVALID_MESSAGE, IMPORT_UNREADABLE_MESSAGE, isImportableProject } from '../utils/projectImport';
 import type { DiagramTheme } from '../theme/themes';
 import { createId } from '../utils/id';
 import { reorderItemsByIds } from '../utils/reorder';
@@ -67,7 +61,7 @@ import {
   oppositeConnectionSide,
   resolveAutomaticNoteHandles,
 } from '../utils/associationRouting';
-import { normalizeClassNode, normalizeDiagramContent, normalizeDiagramProject } from '../utils/diagramNormalization';
+import { normalizeClassNode, normalizeDiagramContent } from '../utils/diagramNormalization';
 import { AssociationEdge } from './AssociationEdge';
 import { AssociationConnectionPreview } from './AssociationConnectionPreview';
 import { AssociationInspector } from './AssociationInspector';
@@ -90,7 +84,6 @@ type DiagramEditorProps = {
   toolbarContext?: ReactNode;
   theme: DiagramTheme;
   onChangeContent: (content: DiagramContent, options?: ContentChangeOptions) => void;
-  onImportProject: (project: DiagramProject) => void;
   onRedo: () => void;
   onUndo: () => void;
 };
@@ -121,16 +114,6 @@ const MINIMAP_ENABLED_KEY = 'class-diagram-minimap-enabled';
 const NOTE_NODE_OFFSET = { x: 24, y: 116 };
 const NOTE_EDGE_SUFFIX = '__values-edge';
 const NOTE_NODE_SUFFIX = '__values-note';
-
-const downloadTextFile = (filename: string, text: string, type: string): void => {
-  const blob = new Blob([text], { type });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-};
 
 const getDefaultNotePosition = (node: ClassDiagramNode): XYPosition => ({
   x: node.position.x + NOTE_NODE_OFFSET.x,
@@ -168,7 +151,6 @@ export function DiagramEditor({
   toolbarContext,
   theme,
   onChangeContent,
-  onImportProject,
   onRedo,
   onUndo,
 }: DiagramEditorProps) {
@@ -201,7 +183,6 @@ export function DiagramEditor({
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const toolbarRef = useRef<HTMLElement | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const feedbackTimeoutRef = useRef<number | null>(null);
   const normalizedContent = useMemo(() => normalizeDiagramContent(artifact.content), [artifact.content]);
   const { nodes, edges } = normalizedContent;
@@ -1303,64 +1284,6 @@ export function DiagramEditor({
     return getNodesBounds(measuredNodes !== undefined && measuredNodes.length > 0 ? measuredNodes : renderedNodes);
   }, [reactFlowInstance, renderedNodes]);
 
-  const centerDiagram = (): void => {
-    if (reactFlowInstance === null || renderedNodes.length === 0) {
-      return;
-    }
-
-    const bounds = getDiagramBounds();
-    reactFlowInstance.setCenter(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2, {
-      duration: 300,
-      zoom: reactFlowInstance.getZoom(),
-    });
-  };
-
-  const fitDiagram = (): void => {
-    if (reactFlowInstance === null || canvasRef.current === null || renderedNodes.length === 0) {
-      return;
-    }
-
-    const bounds = getDiagramBounds();
-    const { width, height } = canvasRef.current.getBoundingClientRect();
-    const viewport = getViewportForBounds(bounds, width, height, 0.2, 1.5, 0.18);
-    reactFlowInstance.setViewport(viewport, { duration: 300 });
-  };
-
-  const exportProjectJson = (): void => {
-    const exportProject = normalizeDiagramProject({
-      ...project,
-      artifacts: project.artifacts.map((currentArtifact) =>
-        currentArtifact.id === artifact.id ? { ...artifact, content: normalizedContent } : currentArtifact,
-      ),
-    });
-    downloadTextFile(
-      `${project.name.trim() || 'diagrama'}.json`,
-      JSON.stringify(exportProject, null, 2),
-      'application/json',
-    );
-    showFeedback('JSON exportado');
-  };
-
-  const importProjectJson = async (file: File): Promise<void> => {
-    try {
-      const parsed = JSON.parse(await file.text()) as unknown;
-
-      if (!isImportableProject(parsed)) {
-        showFeedback(IMPORT_INVALID_MESSAGE);
-        return;
-      }
-
-      onImportProject(normalizeDiagramProject(parsed));
-      showFeedback('JSON importado');
-    } catch {
-      showFeedback(IMPORT_UNREADABLE_MESSAGE);
-    } finally {
-      if (fileInputRef.current !== null) {
-        fileInputRef.current.value = '';
-      }
-    }
-  };
-
   const { exportPng, exportPdf, isExporting } = useDiagramImageExport({
     canvasRef,
     hasNodes: renderedNodes.length > 0,
@@ -1407,12 +1330,6 @@ export function DiagramEditor({
         details.removeAttribute('open');
       }
     });
-  };
-
-  const handleToolbarMenuToggle = (event: SyntheticEvent<HTMLDetailsElement>): void => {
-    if (event.currentTarget.open) {
-      closeToolbarMenus(event.currentTarget);
-    }
   };
 
   useLayoutEffect(() => {
@@ -1495,175 +1412,73 @@ export function DiagramEditor({
 
   return (
     <main className="diagram-editor class-diagram-editor">
-      <header className="editor-toolbar" ref={toolbarRef}>
-        <EditorIdentity artifactKind={artifactKind} artifactType={artifactType} artifactName={artifact.name} projectName={project.name} />
-        {toolbarContext}
-        <div className="editor-toolbar-actions">
-          <ToolbarHistory
-            canRedo={canRedo}
-            canUndo={canUndo}
-            saveStatus={saveStatus}
-            onBeforeAction={closeToolbarMenus}
-            onRedo={onRedo}
-            onUndo={onUndo}
-          />
-          <div className="toolbar-group">
-            <button
-              className="toolbar-primary-action"
-              type="button"
-              aria-label="Crear clase"
+      <EditorToolbar
+        toolbarRef={toolbarRef}
+        start={(
+          <>
+            <EditorIdentity artifactKind={artifactKind} artifactType={artifactType} artifactName={artifact.name} projectName={project.name} />
+            <ToolbarHistory
+              canRedo={canRedo}
+              canUndo={canUndo}
+              saveStatus={saveStatus}
+              onBeforeAction={closeToolbarMenus}
+              onRedo={onRedo}
+              onUndo={onUndo}
+            />
+          </>
+        )}
+        create={(
+          <>
+            <ToolButton
+              icon={Plus}
+              label="Clase"
+              showLabel
+              variant="primary"
               title="Crear clase (o doble clic en el lienzo)"
-              onMouseDown={(event) => event.preventDefault()}
               onClick={(event) => {
                 event.currentTarget.blur();
                 closeToolbarMenus();
                 addClassNode();
               }}
-            >
-              <Plus size={16} />
-              <span className="toolbar-label-static">Crear clase</span>
-            </button>
-            <DiagramSelectionTools count={activeSelectedIds.length} onArrange={arrangeSelection}
+            />
+            <DiagramSelectionTools
+              count={activeSelectedIds.length}
+              onArrange={arrangeSelection}
               onDuplicate={() => { duplicateSelection(); closeToolbarMenus(); }}
               onSelectAll={() => { setSelectedNodeIds(nodes.map(node => node.id)); setSelectedEdgeId(null); setSelectedNoteNodeId(null); closeToolbarMenus(); }}
-              onToggle={handleToolbarMenuToggle} />
-          </div>
-          <div className="toolbar-group">
-            <button className="toolbar-icon-action" aria-label="Centrar vista" type="button" onClick={() => { closeToolbarMenus(); centerDiagram(); }} title="Centrar vista">
-              <Crosshair size={16} />
-            </button>
-            <button className="toolbar-icon-action" aria-label="Ver todo" type="button" onClick={() => { closeToolbarMenus(); fitDiagram(); }} title="Ajustar para ver todo">
-              <Maximize2 size={16} />
-            </button>
-          <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
-            <summary>Vista</summary>
-            <div className="toolbar-menu-content">
-              {nodes.some(node => node.data.groupColor) ? <button type="button" aria-pressed={!hideGroupColors}
-                onClick={() => setHideGroupColors(hidden => !hidden)}>{hideGroupColors ? 'Mostrar' : 'Ocultar'} colores de grupo</button> : null}
-              <button type="button" aria-pressed={!hideAttributes} onClick={() => setHideAttributes(hidden => !hidden)}>{hideAttributes ? 'Mostrar' : 'Ocultar'} todos los atributos</button>
-              <button type="button" aria-pressed={!hideMethods} onClick={() => setHideMethods(hidden => !hidden)}>{hideMethods ? 'Mostrar' : 'Ocultar'} todos los métodos</button>
-              <button type="button" disabled={activeSelectedIds.length === 0} onClick={() => toggleClassDetail('hideAttributes')}>Alternar atributos de la selección</button>
-              <button type="button" disabled={activeSelectedIds.length === 0} onClick={() => toggleClassDetail('hideMethods')}>Alternar métodos de la selección</button>
-              <hr />
-              <button
-                aria-pressed={isGridEnabled}
-                type="button"
-                className={isGridEnabled ? 'active-tool' : ''}
-                onClick={(event) => {
-                  setIsGridEnabled((enabled) => !enabled);
-                  event.currentTarget.closest('details')?.removeAttribute('open');
-                }}
-                title="Activar o desactivar grilla"
-              >
-                <Grid3X3 size={17} />
-                Grilla
-              </button>
-              <button
-                aria-pressed={isSnapEnabled}
-                type="button"
-                className={isSnapEnabled ? 'active-tool' : ''}
-                onClick={(event) => {
-                  setIsSnapEnabled((enabled) => !enabled);
-                  event.currentTarget.closest('details')?.removeAttribute('open');
-                }}
-                title="Ajustar elementos a la grilla"
-              >
-                <Magnet size={17} />
-                Ajustar a la grilla
-              </button>
-              <button
-                aria-pressed={isMiniMapEnabled}
-                type="button"
-                className={isMiniMapEnabled ? 'active-tool' : ''}
-                onClick={(event) => {
-                  setIsMiniMapEnabled((enabled) => !enabled);
-                  event.currentTarget.closest('details')?.removeAttribute('open');
-                }}
-                title="Mostrar u ocultar minimapa"
-              >
-                <Map size={17} />
-                Minimapa
-              </button>
-            </div>
-          </details>
-          </div>
-          <div className="toolbar-group">
-            <button
-              aria-label={`Revisar el diagrama${reviewIssues.length > 0 ? `: ${reviewIssues.length} observaciones` : ''}`}
-              aria-pressed={reviewOpen}
-              className={`toolbar-review-action ${reviewIssues.length > 0 ? 'has-warnings' : ''}`}
-              type="button"
-              title="Revisar el diagrama"
-              onClick={() => { closeToolbarMenus(); setReviewOpen(open => !open); }}
-            >
-              <ListChecks size={15} /> <span className="toolbar-label-static">Revisar</span>
-              {reviewIssues.length > 0 ? <span className="toolbar-count">{reviewIssues.length}</span> : null}
-            </button>
-          </div>
-          <div className="toolbar-group">
-          <details className="toolbar-menu" onToggle={handleToolbarMenuToggle}>
-            <summary>Archivo</summary>
-            <div className="toolbar-menu-content file-menu">
-              <button
-                type="button"
-                onClick={(event) => {
-                  exportProjectJson();
-                  event.currentTarget.closest('details')?.removeAttribute('open');
-                }}
-              >
-                <FileDown size={17} />
-                Exportar JSON
-              </button>
-              <button
-                type="button"
-                onClick={(event) => {
-                  fileInputRef.current?.click();
-                  event.currentTarget.closest('details')?.removeAttribute('open');
-                }}
-              >
-                <FileUp size={17} />
-                Importar JSON
-              </button>
-              <button
-                disabled={isExporting}
-                type="button"
-                onClick={(event) => {
-                  void exportPng();
-                  event.currentTarget.closest('details')?.removeAttribute('open');
-                }}
-              >
-                <ImageDown size={17} />
-                Exportar PNG
-              </button>
-              <button
-                disabled={isExporting}
-                type="button"
-                onClick={(event) => {
-                  void exportPdf();
-                  event.currentTarget.closest('details')?.removeAttribute('open');
-                }}
-              >
-                <FileText size={17} />
-                Exportar PDF
-              </button>
-            </div>
-          </details>
-          </div>
-          <input
-            ref={fileInputRef}
-            accept="application/json,.json"
-            className="hidden-file-input"
-            type="file"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-
-              if (file !== undefined) {
-                void importProjectJson(file);
-              }
-            }}
-          />
-        </div>
-      </header>
+            />
+          </>
+        )}
+        end={(
+          <>
+            {toolbarContext}
+            <ReviewButton
+              count={reviewIssues.length}
+              open={reviewOpen}
+              onToggle={() => { closeToolbarMenus(); setReviewOpen(open => !open); }}
+            />
+            <ToolMenu icon={Eye} label="Vista">
+              <MenuLabel>Clases</MenuLabel>
+              <MenuItem checked={!hideAttributes} onSelect={() => setHideAttributes(hidden => !hidden)}>Atributos</MenuItem>
+              <MenuItem checked={!hideMethods} onSelect={() => setHideMethods(hidden => !hidden)}>Métodos</MenuItem>
+              {nodes.some(node => node.data.groupColor) ? (
+                <MenuItem checked={!hideGroupColors} onSelect={() => setHideGroupColors(hidden => !hidden)}>Colores de grupo</MenuItem>
+              ) : null}
+              <MenuItem icon={EyeOff} disabled={activeSelectedIds.length === 0} onSelect={() => toggleClassDetail('hideAttributes')}>Alternar atributos de la selección</MenuItem>
+              <MenuItem icon={EyeOff} disabled={activeSelectedIds.length === 0} onSelect={() => toggleClassDetail('hideMethods')}>Alternar métodos de la selección</MenuItem>
+              <MenuSeparator />
+              <MenuLabel>Lienzo</MenuLabel>
+              <MenuItem checked={isGridEnabled} onSelect={() => setIsGridEnabled(enabled => !enabled)}>Grilla</MenuItem>
+              <MenuItem checked={isSnapEnabled} onSelect={() => setIsSnapEnabled(enabled => !enabled)}>Ajustar a la grilla</MenuItem>
+              <MenuItem checked={isMiniMapEnabled} onSelect={() => setIsMiniMapEnabled(enabled => !enabled)}>Minimapa</MenuItem>
+            </ToolMenu>
+            <ToolMenu icon={Download} label="Exportar">
+              <MenuItem icon={ImageDown} disabled={isExporting} onSelect={() => { void exportPng(); }}>Imagen PNG</MenuItem>
+              <MenuItem icon={FileText} disabled={isExporting} onSelect={() => { void exportPdf(); }}>Documento PDF</MenuItem>
+            </ToolMenu>
+          </>
+        )}
+      />
       {feedbackMessage !== null ? (
         <div className="editor-feedback" role="status" aria-live="polite">
           {feedbackMessage}

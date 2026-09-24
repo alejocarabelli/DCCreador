@@ -152,3 +152,22 @@ Cada fila dice dónde estaba el control en la v1, qué pasó y por qué.
 | Inicio sin proyectos | "Todavía no hay proyectos" + botón | Bienvenida con Nuevo proyecto, Importar proyecto… y los cinco tipos de artefacto | Es la primera pantalla que ve alguien nuevo |
 | Resumen del proyecto | "1 clase" para un diagrama de clases | "1 diagrama de clases" | Era un error de texto |
 | Iconos de tipo de artefacto | Distintos en inicio y barra lateral | Un solo juego para toda la app | Coherencia |
+
+### 5.2 Diagrama de clases
+
+| Control (v1) | Dónde estaba | Ahora | Por qué |
+|---|---|---|---|
+| Barra de herramientas | Propia del editor | `EditorToolbar` compartida: migas · guardado · deshacer/rehacer · **Clase** · Organizar · Revisar · Vista · Exportar | Mismo orden y mismos controles en todos los editores |
+| "Crear clase" | Botón principal | Botón principal "**Clase**" (el título dice "Crear clase (o doble clic en el lienzo)") | La etiqueta corta entra siempre; el verbo lo da el botón |
+| Centrar vista | Icono en la barra | **Quitado** | "Ajustar a la vista" hace lo mismo y además encuadra; tener los dos confundía |
+| Ver todo | Icono en la barra | Quitado de la barra; es "Ajustar a la vista" (⤢) en el control de zoom del lienzo | Era un duplicado exacto |
+| Acercar, alejar, ajustar | Columna de botones en el lienzo | Control de zoom compartido abajo a la izquierda: − **porcentaje** + · ⤢. Clic en el porcentaje vuelve al 100 % (nuevo) | Mismo control en todos los lienzos; ahora se ve el zoom actual |
+| Organizar | Menú de texto | Menú con icono; los ítems de alinear/distribuir tienen iconos y se habilitan según la selección, con un rótulo que dice qué hace falta | Se entiende por qué un ítem está deshabilitado |
+| Ayuda "Mayús + arrastrar…" | Texto dentro de Organizar | Panel de atajos (tecla ?) | Los atajos viven en un solo lugar |
+| Vista → mostrar/ocultar atributos, métodos, colores de grupo | Botones que cambiaban de texto ("Ocultar…/Mostrar…") | Casillas con tilde (Atributos, Métodos, Colores de grupo) | Se ve el estado sin leer el verbo |
+| Vista → grilla, ajustar a la grilla, minimapa | Botones con icono | Casillas con tilde en la sección "Lienzo" | Igual que arriba |
+| Archivo → Exportar PNG / PDF | Menú "Archivo" | Menú "**Exportar**": Imagen PNG, Documento PDF | El menú solo exporta el diagrama |
+| Archivo → Exportar JSON / Importar JSON | Menú "Archivo" | Menú del proyecto en la barra lateral (Exportar proyecto) e inicio (Importar) | Exportaban e importaban el proyecto entero, no este diagrama |
+| Tipo de atributo (inspector) | Select con opción "custom" que abría un segundo campo | Un campo con sugerencias (`int`, `string`, `date`…) donde también se escribe cualquier tipo | Misma capacidad, un solo control, sin la palabra en inglés |
+| Atributos y métodos (inspector) | Campos apilados | Filas tipo código: `⠿ nombre : tipo 🗑` y `+ nombre 🗑 / ( parámetros ) : retorno` | Se leen como la clase del lienzo |
+| Miembros en las clases del lienzo | Plex Sans | Plex Mono | Nombres, `:` y tipos quedan en columnas; se lee como código |

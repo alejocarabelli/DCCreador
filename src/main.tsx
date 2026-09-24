@@ -12,6 +12,7 @@ import './styles.css';
 import './refined.css';
 import './design/system.css';
 import './design/shell.css';
+import './design/editors.css';
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <StrictMode>
