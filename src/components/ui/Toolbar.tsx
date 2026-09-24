@@ -77,7 +77,7 @@ export function ToolButton({
   const tooltip = title ?? (shortcut ? `${label} (${shortcut})` : label);
   return (
     <button
-      aria-label={showLabel ? undefined : label}
+      aria-label={label}
       aria-pressed={pressed}
       className={`v2-tool ${variant === 'primary' ? 'is-primary' : ''} ${showLabel ? 'has-label' : ''} ${pressed ? 'is-pressed' : ''} ${className}`}
       disabled={disabled}
@@ -159,7 +159,7 @@ export function ToolMenu({
     <details className={`toolbar-menu v2-menu ${className}`} ref={detailsRef}>
       <summary
         aria-disabled={disabled || undefined}
-        aria-label={showLabel ? undefined : label}
+        aria-label={badge !== undefined ? `${label}: ${badge}` : label}
         className={`v2-tool ${showLabel ? 'has-label' : ''}`}
         title={title ?? label}
         onClick={(event) => { if (disabled) event.preventDefault(); }}

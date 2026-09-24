@@ -158,6 +158,40 @@
   width: 1px;
 }
 
+/* Layout contract 1: the toolbar never overflows. The row is a size
+   container; as it narrows, labels fold into their icons — first the
+   secondary tools and the end zone, then the primary action — and the
+   breadcrumb keeps only the artifact name. Every tool keeps its name in
+   aria-label and title, so folding costs nothing to VoiceOver. */
+.app-shell .v2-toolbar-row {
+  container: v2-toolbar / inline-size;
+}
+
+@container v2-toolbar (max-width: 1040px) {
+  .app-shell :is(.v2-toolbar-create .v2-tool:not(.is-primary), .v2-toolbar-end .v2-tool) .v2-tool-label {
+    display: none;
+  }
+
+  .app-shell :is(.v2-toolbar-create, .v2-toolbar-end) .v2-tool.has-label {
+    padding-inline: 7px;
+  }
+
+  .app-shell[data-ui-version='refined'] .v2-toolbar .editor-breadcrumb-project,
+  .app-shell[data-ui-version='refined'] .v2-toolbar .editor-breadcrumb > svg:first-of-type {
+    display: none;
+  }
+}
+
+@container v2-toolbar (max-width: 720px) {
+  .app-shell .v2-toolbar-create .v2-tool.is-primary .v2-tool-label {
+    display: none;
+  }
+
+  .app-shell .v2-toolbar-create {
+    padding: 0;
+  }
+}
+
 /* Breadcrumb: where am I. */
 .app-shell[data-ui-version='refined'] .v2-toolbar .editor-identity {
   min-width: 0;

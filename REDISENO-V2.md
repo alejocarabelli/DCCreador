@@ -261,3 +261,24 @@ Había tres inspectores distintos: el de clases con un botón de plegar suelto a
 | Paneles de revisión | Clases y secuencia flotando sobre el lienzo; flujo acoplado al documento | Se mantiene | En el flujo la revisión señala renglones del documento y necesita estar al lado; en los lienzos flotar no le quita espacio al diagrama |
 
 No se quitó ninguna función: todo lo que hacían los encabezados viejos (plegar, eliminar, ver el tipo y el nombre) sigue en el encabezado nuevo, y ahora también en los editores que no lo tenían.
+
+## 6. Verificación
+
+| Qué | Cómo | Resultado |
+|---|---|---|
+| Compatibilidad v2 → v1 | La v2 importa el proyecto de demostración (los 5 tipos de artefacto) y lo exporta desde la barra lateral; la v1 de `main`, corriendo aparte, importa ese archivo | La v1 guarda exactamente el mismo proyecto (nombre, artefactos y contenido idénticos) |
+| Compatibilidad v1 → v2 | La v1 lo exporta desde su menú Archivo → Exportar JSON; una v2 limpia lo importa | Idéntico al original. El archivo que exporta la v1 es igual al que exporta la v2 |
+| Formato | `normalizeDiagramProject`, los tipos, el importador y el almacenamiento no cambiaron respecto de `main`; `projectFile.test.ts` fija que `serializeProject` escribe lo mismo que escribía la v1 y que el ida y vuelta es estable | 5 pruebas nuevas |
+| Accesibilidad: nombres | Recorrido automático de inicio y los 5 editores buscando botones, menús, campos y selects visibles sin nombre accesible | 0 en todas las pantallas |
+| Accesibilidad: foco | 30 paradas de Tab en el editor de clases | Todas con anillo de foco visible |
+| Contraste | `themes.test.ts` (claro y oscuro) | Pasa |
+| Ventana angosta (900 px) | Capturas de las 6 pantallas en claro y oscuro | Encontré dos fallas y las corregí (abajo) |
+| Exportaciones | Ver 5.7 | Completas, siempre en tema claro |
+
+**Arreglos de esta ronda**
+
+| Problema | Arreglo |
+|---|---|
+| A 900 px la barra de secuencia se desbordaba: "Vista" quedaba cortada y "Exportar" fuera de la pantalla. El contrato de DESIGN.md decía que las etiquetas se pliegan, pero no estaba implementado | La fila de la barra es un contenedor: bajo 1040 px las herramientas secundarias y la zona final quedan solo con icono y el proyecto sale de la ruta; bajo 720 px también la acción principal. Todos los botones conservan su nombre en `aria-label` y en el tooltip |
+| El inspector crecía hasta el 38 % de la ventana y dejaba el lienzo de clases en ~300 px, con el minimapa tapando el zoom | Bajo 1100 px el inspector mide 280 px y el minimapa se oculta (sigue en Vista para ventanas anchas) |
+| Nombres de atributos y métodos cortados en el inspector angosto | Filas de miembros un punto más chicas y el nombre con más ancho que el tipo |

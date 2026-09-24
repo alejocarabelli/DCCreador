@@ -342,7 +342,7 @@
   align-items: center;
   display: grid;
   gap: 4px;
-  grid-template-columns: 18px minmax(0, 1fr) 8px minmax(72px, 0.8fr) var(--control-sm);
+  grid-template-columns: 14px minmax(0, 1.5fr) 6px minmax(60px, 1fr) var(--control-sm);
 }
 
 .app-shell[data-ui-version='refined'] .attribute-editor-colon,
@@ -406,7 +406,7 @@
   grid-template-areas:
     'vis name name name delete'
     'open params close ret .';
-  grid-template-columns: 44px minmax(0, 1fr) 20px minmax(64px, 0.7fr) var(--control-sm);
+  grid-template-columns: 44px minmax(0, 1.5fr) 20px minmax(60px, 1fr) var(--control-sm);
   padding-bottom: var(--space-2);
 }
 
@@ -541,4 +541,25 @@
 .app-shell[data-ui-version='refined'] .sequence-review-header {
   border-bottom: 1px solid var(--panel-border);
   padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+}
+
+/* ─── Narrow windows ───────────────────────────────────────────────────────
+   Layout contract 2: the canvas is never a residual column. Under 1100px the
+   inspector is a fixed 280px (it used to grow to 38vw and leave the canvas
+   ~300px wide) and the minimap steps aside so it cannot cover the zoom. */
+@media (max-width: 1100px) {
+  .app-shell[data-ui-version='refined'] .editor-body:not(.inspector-hidden, .inspector-collapsed) {
+    grid-template-columns: minmax(0, 1fr) 280px;
+  }
+
+  .app-shell[data-ui-version='refined'] .react-flow__minimap {
+    display: none;
+  }
+}
+
+/* Member rows are code: a notch smaller and tighter so a name fits in a
+   280px inspector. */
+.app-shell[data-ui-version='refined'] :is(.attribute-editor, .method-editor) input {
+  font-size: var(--text-sm);
+  padding-inline: 6px;
 }
