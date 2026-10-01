@@ -18,6 +18,7 @@ export const DEFAULT_ASSOCIATION_DATA: AssociationEdgeData = {
   navigability: 'none',
   relationType: 'association',
   diamondEnd: 'source',
+  triangleEnd: 'target',
   lineStyle: 'automatic',
   sourceSide: 'automatic',
   targetSide: 'automatic',
@@ -80,6 +81,7 @@ export const normalizeAssociationData = (data: Partial<AssociationEdgeData> | un
     ? data.relationType
     : DEFAULT_ASSOCIATION_DATA.relationType,
   diamondEnd: isOneOf(data?.diamondEnd, diamondEnds) ? data.diamondEnd : DEFAULT_ASSOCIATION_DATA.diamondEnd,
+  triangleEnd: isOneOf(data?.triangleEnd, diamondEnds) ? data.triangleEnd : DEFAULT_ASSOCIATION_DATA.triangleEnd,
   lineStyle: isOneOf(data?.lineStyle, lineStyles) ? data.lineStyle : DEFAULT_ASSOCIATION_DATA.lineStyle,
   sourceSide: isOneOf(data?.sourceSide, connectionSides) ? data.sourceSide : DEFAULT_ASSOCIATION_DATA.sourceSide,
   targetSide: isOneOf(data?.targetSide, connectionSides) ? data.targetSide : DEFAULT_ASSOCIATION_DATA.targetSide,

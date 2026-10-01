@@ -59,20 +59,36 @@ describe('association endpoint roles', () => {
 });
 
 describe('association UML markers', () => {
-  it.each(['source', 'target'] as const)('places the inheritance triangle at the configured %s endpoint', (diamondEnd) => {
+  it.each(['source', 'target'] as const)('places the inheritance triangle at the configured %s endpoint', (triangleEnd) => {
     const html = renderToString(
       <ReactFlowProvider>
         <AssociationEdge
           id="inheritance" source="child" target="parent"
           sourceX={100} sourceY={100} targetX={500} targetY={100}
           sourcePosition={Position.Right} targetPosition={Position.Left}
-          data={normalizeAssociationData({ relationType: 'generalization', diamondEnd })}
+          data={normalizeAssociationData({ relationType: 'generalization', triangleEnd })}
         />
       </ReactFlowProvider>,
     );
     const tip = html.match(/<polygon[^>]*points="([^ ]+)/)?.[1];
 
-    expect(tip).toBe(diamondEnd === 'source' ? '100,100' : '500,100');
+    expect(tip).toBe(triangleEnd === 'source' ? '100,100' : '500,100');
+  });
+
+  it('keeps saved inheritances without a triangle end pointing at the destination', () => {
+    // Older diagrams stored the default diamondEnd "source" while the triangle was drawn at the target.
+    const html = renderToString(
+      <ReactFlowProvider>
+        <AssociationEdge
+          id="saved" source="child" target="parent"
+          sourceX={100} sourceY={100} targetX={500} targetY={100}
+          sourcePosition={Position.Right} targetPosition={Position.Left}
+          data={normalizeAssociationData({ relationType: 'generalization', diamondEnd: 'source' })}
+        />
+      </ReactFlowProvider>,
+    );
+
+    expect(html.match(/<polygon[^>]*points="([^ ]+)/)?.[1]).toBe('500,100');
   });
 
   it('keeps a realization triangle at the destination regardless of the unused diamond setting', () => {

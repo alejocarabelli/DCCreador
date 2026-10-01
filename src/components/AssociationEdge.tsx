@@ -119,6 +119,7 @@ export function AssociationEdge({
     navigability: 'none',
     relationType: 'association',
     diamondEnd: 'source',
+    triangleEnd: 'target',
     lineStyle: 'automatic',
     sourceSide: 'automatic',
     targetSide: 'automatic',
@@ -139,7 +140,9 @@ export function AssociationEdge({
   const markerEndPosition =
     relationType === 'realization' || relationType === 'dependency'
       ? 'target'
-      : edgeData.diamondEnd === 'target'
+      : relationType === 'generalization'
+        ? edgeData.triangleEnd ?? 'target'
+        : edgeData.diamondEnd === 'target'
         ? 'target'
         : 'source';
   const sourceEndpoint = { x: sourceX, y: sourceY };

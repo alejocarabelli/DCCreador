@@ -115,7 +115,7 @@ describe('artifact JSON files', () => {
       expect(node.data.methods).toEqual(example.content.nodes[index].data.methods);
     });
     expect(artifact.content.edges.find((edge) => edge.id === 'rel-cliente-pedido')?.data?.navigability).toBe('source-to-target');
-    expect(artifact.content.edges.find((edge) => edge.id === 'rel-cliente-entidad')?.data?.diamondEnd).toBe('target');
+    expect(artifact.content.edges.find((edge) => edge.id === 'rel-cliente-entidad')?.data?.triangleEnd).toBe('target');
   });
 
   it('keeps the reserved rectangles of the guide example separated', () => {

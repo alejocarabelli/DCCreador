@@ -35,7 +35,7 @@ export function reviewClassDiagram(content: ClassDiagramContent): DiagramIssue[]
   const parents = new Map<string, Array<{ parent: string; edgeId: string }>>();
   for (const edge of content.edges) {
     if (edge.data?.relationType === 'generalization') {
-      const parent = edge.data.diamondEnd === 'source' ? edge.source : edge.target;
+      const parent = edge.data.triangleEnd === 'source' ? edge.source : edge.target;
       const child = parent === edge.source ? edge.target : edge.source;
       parents.set(child, [...(parents.get(child) ?? []), { parent, edgeId: edge.id }]);
     } else if (edge.data?.relationType === 'association'

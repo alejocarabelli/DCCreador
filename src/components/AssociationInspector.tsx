@@ -67,8 +67,8 @@ export function AssociationInspector({ edge, onUpdateAssociation }: AssociationI
         <label className="field compact-field">
           Triángulo en
           <select
-            value={data.diamondEnd}
-            onChange={(event) => onUpdateAssociation(edge.id, { diamondEnd: event.target.value as AssociationDiamondEnd })}
+            value={data.triangleEnd ?? 'target'}
+            onChange={(event) => onUpdateAssociation(edge.id, { triangleEnd: event.target.value as AssociationDiamondEnd })}
           >
             <option value="source">Origen</option>
             <option value="target">Destino</option>

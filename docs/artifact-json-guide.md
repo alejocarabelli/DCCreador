@@ -87,7 +87,8 @@ Cada relación tiene `id` único, `type: "association"`, `source` y `target` con
 | `targetMultiplicity` | Multiplicidad junto a la clase `target`. En Cliente → Pedido: `sourceMultiplicity: "1"` y `targetMultiplicity: "0..*"` significa que cada pedido tiene un cliente y cada cliente puede tener varios pedidos. |
 | `sourceRole`, `targetRole` | Roles de los extremos correspondientes, o `""`; por ejemplo `"cliente"` y `"pedidos"`. |
 | `navigability` | `"source-to-target"`, `"target-to-source"`, `"bidirectional"` o `"none"`. |
-| `diamondEnd` | `"source"` o `"target"`; extremo del rombo para agregación/composición y del triángulo para generalización. |
+| `diamondEnd` | `"source"` o `"target"`; extremo del rombo para agregación/composición. |
+| `triangleEnd` | `"source"` o `"target"`; extremo del triángulo (la superclase) en una generalización. Si falta, vale `"target"`. |
 | `lineStyle` | `"automatic"`, `"straight"` u `"orthogonal"`. |
 | `sourceSide`, `targetSide` | `"automatic"`, `"top"`, `"right"`, `"bottom"` o `"left"`. |
 | `labelOffset` | Opcional: `{ "x": número, "y": número }`; desplazamiento de la etiqueta central respecto del recorrido. |
@@ -97,12 +98,12 @@ Escribí explícitamente `navigability: "source-to-target"` para asociaciones na
 #### Convenciones UML que debe respetar la IA
 
 - **Asociación:** usá el origen como el objeto que conoce al destino. Multiplicidades y roles deben expresar reglas del dominio, sin deducirlas de dónde está dibujada la clase.
-- **Generalización:** usá `source` como subclase, `target` como superclase y **`diamondEnd: "target"`** para colocar el triángulo en la superclase. El valor predeterminado del normalizador es `"source"`, así que no omitas este campo. Normalmente dejá nombre, roles y multiplicidades vacíos.
+- **Generalización:** usá `source` como subclase, `target` como superclase y `triangleEnd: "target"` para colocar el triángulo en la superclase. Es el valor predeterminado, pero conviene escribirlo explícitamente. Normalmente dejá nombre, roles y multiplicidades vacíos.
 - **Composición / agregación:** usá `source` como el todo, `target` como la parte y `diamondEnd: "source"`. La composición requiere una relación de pertenencia y ciclo de vida que justifique el rombo lleno; no la uses solo para expresar que una clase utiliza otra.
 - **Dependencia:** `source` depende de `target`; la flecha discontinua apunta al destino.
 - **Realización:** `source` implementa lo especificado por `target`; el triángulo discontinuo apunta al destino.
 
-La navegabilidad configurable se dibuja para `relationType: "association"`. Para las otras relaciones, la representación depende de su tipo y de `diamondEnd` cuando corresponda. No agregues multiplicidades a herencia, dependencia o realización para intentar mostrarlas como una asociación.
+La navegabilidad configurable se dibuja para `relationType: "association"`. Para las otras relaciones, la representación depende de su tipo y de `diamondEnd` o `triangleEnd` cuando corresponda. No agregues multiplicidades a herencia, dependencia o realización para intentar mostrarlas como una asociación.
 
 #### Puntos de conexión y recorrido
 
@@ -325,7 +326,7 @@ Este ejemplo incluye cinco clases, herencia, asociaciones navegables y composici
         "targetHandle": "bottom",
         "data": {
           "relationType": "generalization",
-          "diamondEnd": "target",
+          "triangleEnd": "target",
           "navigability": "none",
           "name": "",
           "sourceMultiplicity": "",
@@ -435,7 +436,7 @@ Cada edge tiene `id`, `type: "useCaseRelation"`, `source`, `target` y `data`. `d
 
 Include, extend y generalización apuntan al destino. Las etiquetas «include» y «extend» se generan por el tipo: no escribas esos textos como si definieran el comportamiento de `label`. `sourceHandle` / `targetHandle` pueden ser `top`, `right`, `bottom` o `left`; las líneas actuales se dibujan entre los contornos de las figuras y no necesitan rutas manuales.
 
-No uses `navigability`, `diamondEnd`, multiplicidades ni roles de asociaciones de clases en este artefacto. Evitá duplicar relaciones entre el mismo par de nodos y no conectes un elemento consigo mismo.
+No uses `navigability`, `diamondEnd`, `triangleEnd`, multiplicidades ni roles de asociaciones de clases en este artefacto. Evitá duplicar relaciones entre el mismo par de nodos y no conectes un elemento consigo mismo.
 
 ### 3.3. Orden y espaciado
 
