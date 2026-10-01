@@ -53,6 +53,7 @@ import type { DiagramTheme } from '../theme/themes';
 import { createId } from '../utils/id';
 import { reorderItemsByIds } from '../utils/reorder';
 import { useDiagramImageExport } from '../hooks/useDiagramImageExport';
+import { getDiagramImageExportBounds } from '../utils/diagramImageExport';
 import { readUiPreference, writeUiPreference } from '../storage/uiPreferences';
 import { getAssociationMarker, normalizeAssociationData, normalizeAssociationEdge } from '../utils/association';
 import {
@@ -385,7 +386,7 @@ export function DiagramEditor({
 
   const handleConnect = useCallback(
     (connection: Connection): void => {
-      const navigability = 'none';
+      const navigability = 'source-to-target';
       updateEdges(
         addEdge(
           {
@@ -1289,7 +1290,9 @@ export function DiagramEditor({
       ?.getNodes()
       .filter((node) => renderedNodeIds.has(node.id));
 
-    return getNodesBounds(measuredNodes !== undefined && measuredNodes.length > 0 ? measuredNodes : renderedNodes);
+    const nodeBounds = getNodesBounds(measuredNodes !== undefined && measuredNodes.length > 0 ? measuredNodes : renderedNodes);
+    const viewport = canvasRef.current?.querySelector<HTMLElement>('.react-flow__viewport');
+    return viewport ? getDiagramImageExportBounds(viewport, nodeBounds, reactFlowInstance?.getZoom() ?? 1) : nodeBounds;
   }, [reactFlowInstance, renderedNodes]);
 
   const { exportPng, exportPdf, isExporting } = useDiagramImageExport({

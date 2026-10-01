@@ -1824,6 +1824,30 @@ textarea {
   margin: 0;
 }
 
+.artifact-transfer-dialog {
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  width: min(520px, calc(100vw - 32px));
+}
+
+.artifact-transfer-checkbox {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.artifact-transfer-checkbox input {
+  min-height: 0;
+  width: auto;
+}
+
+.artifact-transfer-list {
+  margin: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  padding-left: 24px;
+}
+
 .dialog-actions {
   display: flex;
   gap: 10px;

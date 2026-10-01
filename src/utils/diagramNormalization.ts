@@ -336,7 +336,7 @@ const normalizeSequenceDiagramArtifact = (
   content: normalizeSequenceDiagramContent(artifact?.content),
 });
 
-const normalizeArtifact = (
+export const normalizeArtifact = (
   artifact: unknown,
   fallbackDates: Pick<DiagramProject, 'createdAt' | 'updatedAt'>,
 ): DesignArtifact | null => {

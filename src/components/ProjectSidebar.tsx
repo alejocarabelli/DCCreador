@@ -1,16 +1,19 @@
 import {
   Blocks,
+  BookOpen,
   Download,
   FolderClosed,
   FolderOpen,
   Home,
   Keyboard,
   MoreHorizontal,
+  MoveRight,
   PanelLeftClose,
   PanelLeftOpen,
   Pencil,
   Plus,
   Trash2,
+  Upload,
 } from 'lucide-react';
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import type { DesignArtifact, DiagramProject } from '../types/diagram';
@@ -35,6 +38,10 @@ type ProjectSidebarProps = {
   onDeleteArtifact: (projectId: string, artifactId: string) => void;
   onDeleteProject: (projectId: string) => void;
   onExportProject: (projectId: string) => void;
+  onExportArtifact: (projectId: string, artifactId: string) => void;
+  onImportArtifact: (projectId: string) => void;
+  onMoveArtifact: (projectId: string, artifactId: string) => void;
+  onDownloadArtifactGuide: () => void;
   onRenameArtifact: (projectId: string, artifactId: string) => void;
   onRenameProject: (projectId: string) => void;
   onSelectArtifact: (projectId: string, artifactId: string) => void;
@@ -85,6 +92,10 @@ export function ProjectSidebar({
   onDeleteArtifact,
   onDeleteProject,
   onExportProject,
+  onExportArtifact,
+  onImportArtifact,
+  onMoveArtifact,
+  onDownloadArtifactGuide,
   onRenameArtifact,
   onRenameProject,
   onSelectArtifact,
@@ -106,13 +117,13 @@ export function ProjectSidebar({
       return;
     }
     setOptionsMenu(null);
-    setNewArtifactMenu({ projectId, ...placeMenu(event.currentTarget, 240, 212) });
+    setNewArtifactMenu({ projectId, ...placeMenu(event.currentTarget, 310, 310) });
   };
 
   const openOptionsMenu = (values: Omit<SidebarOptionsMenuState, 'left' | 'top'>, event: MouseEvent<HTMLButtonElement>): void => {
     event.stopPropagation();
     setNewArtifactMenu(null);
-    setOptionsMenu({ ...values, ...placeMenu(event.currentTarget, 220, values.kind === 'project' ? 130 : 96) });
+    setOptionsMenu({ ...values, ...placeMenu(event.currentTarget, 260, 180) });
   };
 
   useEffect(() => {
@@ -162,6 +173,15 @@ export function ProjectSidebar({
               {type.label}
             </MenuItem>
           ))}
+          <MenuSeparator />
+          <MenuItem icon={Upload} onSelect={() => {
+            onImportArtifact(newArtifactMenu.projectId);
+            setNewArtifactMenu(null);
+          }}>Importar artefacto…</MenuItem>
+          <MenuItem icon={BookOpen} onSelect={() => {
+            onDownloadArtifactGuide();
+            setNewArtifactMenu(null);
+          }}>Guía de artefactos para IA (.md)</MenuItem>
         </div>
       ) : null;
 
@@ -386,15 +406,32 @@ export function ProjectSidebar({
             Renombrar…
           </MenuItem>
           {optionsMenu.kind === 'project' ? (
-            <MenuItem
-              icon={Download}
-              onSelect={() => {
-                onExportProject(optionsMenu.projectId);
+            <>
+              <MenuItem icon={Upload} onSelect={() => {
+                onImportArtifact(optionsMenu.projectId);
                 setOptionsMenu(null);
-              }}
-            >
-              Exportar proyecto (JSON)
-            </MenuItem>
+              }}>Importar artefacto…</MenuItem>
+              <MenuItem
+                icon={Download}
+                onSelect={() => {
+                  onExportProject(optionsMenu.projectId);
+                  setOptionsMenu(null);
+                }}
+              >
+                Exportar proyecto (JSON)
+              </MenuItem>
+            </>
+          ) : optionsMenu.artifactId !== undefined ? (
+            <>
+              <MenuItem icon={Download} onSelect={() => {
+                onExportArtifact(optionsMenu.projectId, optionsMenu.artifactId!);
+                setOptionsMenu(null);
+              }}>Exportar artefacto (JSON)</MenuItem>
+              <MenuItem icon={MoveRight} onSelect={() => {
+                onMoveArtifact(optionsMenu.projectId, optionsMenu.artifactId!);
+                setOptionsMenu(null);
+              }}>Mover a otro proyecto…</MenuItem>
+            </>
           ) : null}
           <MenuSeparator />
           <MenuItem

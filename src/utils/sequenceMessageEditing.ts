@@ -399,3 +399,24 @@ export const formatMessageSignature = (d: {
   const base = d.name ? (args ? `${d.name}(${args})` : `${d.name}()`) : (d.type === 'create' ? 'create' : '');
   return d.returnType ? `${base}: ${d.returnType}` : base;
 };
+
+export type SequenceSignatureDraft = {
+  messageId: string;
+  text: string;
+  modelSignature: string;
+};
+
+/** Preserve incomplete text while typing, but let external edits and undo win. */
+export const createSequenceSignatureDraft = (message: SequenceMessage, text: string): SequenceSignatureDraft => {
+  const edited = updateSequenceMessageEditModel(sequenceMessageEditModelFromMessage(message), parseMessageSignature(text));
+  return {
+    messageId: message.id,
+    text,
+    modelSignature: formatMessageSignature(sequenceMessageEditModelToPatch(edited)),
+  };
+};
+
+export const getSequenceSignatureInputValue = (message: SequenceMessage, draft: SequenceSignatureDraft | null): string => {
+  const signature = formatMessageSignature(message);
+  return draft?.messageId === message.id && draft.modelSignature === signature ? draft.text : signature;
+};

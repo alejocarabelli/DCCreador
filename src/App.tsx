@@ -1,9 +1,14 @@
 import { useDialogs } from './hooks/useDialogs';
 import { ProjectNameDialog } from './components/ProjectNameDialog';
+import { ArtifactImportDialog } from './components/ArtifactImportDialog';
+import { ArtifactMoveDialog } from './components/ArtifactMoveDialog';
 import { ProjectHome } from './components/ProjectHome';
 import { ProjectSidebar } from './components/ProjectSidebar';
 import { ShortcutsDialog } from './components/ShortcutsDialog';
 import { downloadProjectFile } from './utils/projectFile';
+import { downloadArtifactFile, downloadTextFile } from './utils/artifactFile';
+import { relinkArtifactForProject } from './utils/artifactTransfer';
+import artifactGuide from '../docs/artifact-json-guide.md?raw';
 import { useProjects } from './hooks/useProjects';
 import { useTheme } from './hooks/useTheme';
 import { readUiPreference, writeUiPreference } from './storage/uiPreferences';
@@ -30,6 +35,10 @@ type ProjectDialogState =
   | { mode: 'rename'; projectId: string; initialName: string }
   | { mode: 'createArtifact'; projectId: string; initialName: string; artifactType: DesignArtifact['type'] }
   | { mode: 'renameArtifact'; projectId: string; artifactId: string; initialName: string };
+
+type ArtifactTransferDialogState =
+  | { mode: 'import'; projectId: string }
+  | { mode: 'move'; projectId: string; artifactId: string };
 
 const PROJECT_SIDEBAR_COLLAPSED_KEY = 'class-diagram-project-sidebar-collapsed';
 const MAX_HISTORY_ENTRIES = 60;
@@ -103,6 +112,7 @@ function EditorLoadingState() {
 function App() {
   const { confirm, notify } = useDialogs();
   const [projectDialog, setProjectDialog] = useState<ProjectDialogState | null>(null);
+  const [artifactTransferDialog, setArtifactTransferDialog] = useState<ArtifactTransferDialogState | null>(null);
   const [isProjectSidebarCollapsed, setIsProjectSidebarCollapsed] = useState(
     () => readUiPreference(PROJECT_SIDEBAR_COLLAPSED_KEY) === 'true',
   );
@@ -133,6 +143,8 @@ function App() {
     deleteProject,
     importProject,
     importProjects,
+    importArtifact,
+    moveArtifact,
     linkSequenceDiagramsToClassModel,
     projects,
     renameArtifact,
@@ -473,6 +485,51 @@ function App() {
     if (project !== undefined) downloadProjectFile(project);
   };
 
+  const handleExportArtifact = (projectId: string, artifactId: string): void => {
+    const artifact = projects.find((project) => project.id === projectId)?.artifacts.find((candidate) => candidate.id === artifactId);
+    if (artifact) downloadArtifactFile(artifact);
+  };
+
+  const handleDownloadArtifactGuide = (): void => {
+    downloadTextFile(artifactGuide, 'guia-artefactos-ia.md', 'text/markdown;charset=utf-8');
+  };
+
+  const transferProject = projects.find((project) => project.id === artifactTransferDialog?.projectId);
+  const transferArtifact = artifactTransferDialog?.mode === 'move'
+    ? transferProject?.artifacts.find((artifact) => artifact.id === artifactTransferDialog.artifactId)
+    : undefined;
+
+  const handleMoveArtifact = (targetProjectId: string, includeLinked: boolean): void => {
+    if (!transferProject || !transferArtifact) return;
+    const result = moveArtifact(transferProject.id, targetProjectId, transferArtifact.id, includeLinked);
+    if (result.idMap.size === 0) return;
+    updateHistory((currentHistory) => {
+      const nextHistory = { ...currentHistory };
+      // Carry undo/redo with the artifact, and keep old snapshots from restoring links across projects.
+      for (const project of result.projects.filter((candidate) => candidate.id === transferProject.id || candidate.id === targetProjectId)) {
+        for (const artifact of project.artifacts) {
+          const oldId = project.id === targetProjectId
+            ? [...result.idMap].find(([, newId]) => newId === artifact.id)?.[0]
+            : undefined;
+          if (project.id === targetProjectId && !oldId) continue;
+          if (!oldId && transferProject.artifacts.find((candidate) => candidate.id === artifact.id)?.content === artifact.content) continue;
+          const oldKey = `${oldId ? transferProject.id : project.id}:${oldId ?? artifact.id}`;
+          const history = currentHistory[oldKey];
+          if (!history) continue;
+          const context = oldId ? project.artifacts.filter((candidate) => [...result.idMap.values()].includes(candidate.id)) : project.artifacts;
+          const sanitize = (content: ArtifactContent): ArtifactContent => relinkArtifactForProject(
+            { ...artifact, content } as DesignArtifact, context, oldId ? result.idMap : undefined, transferProject.artifacts,
+          ).content;
+          delete nextHistory[oldKey];
+          nextHistory[`${project.id}:${artifact.id}`] = { past: history.past.map(sanitize), future: history.future.map(sanitize) };
+        }
+      }
+      return nextHistory;
+    });
+    historyBurstRef.current = null;
+    setArtifactTransferDialog(null);
+  };
+
   return (
     <div
       className={`app-shell ${isProjectSidebarCollapsed ? 'project-sidebar-collapsed' : 'project-sidebar-expanded'} ${isProjectHome ? 'project-home-mode' : ''}`}
@@ -493,6 +550,10 @@ function App() {
         onCreateArtifact={handleCreateArtifact}
         onCreateProject={handleCreateProject}
         onExportProject={handleExportProject}
+        onExportArtifact={handleExportArtifact}
+        onImportArtifact={(projectId) => setArtifactTransferDialog({ mode: 'import', projectId })}
+        onMoveArtifact={(projectId, artifactId) => setArtifactTransferDialog({ mode: 'move', projectId, artifactId })}
+        onDownloadArtifactGuide={handleDownloadArtifactGuide}
         onOpenHome={handleOpenHome}
         onOpenShortcuts={() => setIsShortcutsOpen(true)}
         onDeleteArtifact={handleDeleteArtifact}
@@ -621,6 +682,29 @@ function App() {
         />
       ) : null}
       {isShortcutsOpen ? <ShortcutsDialog onClose={() => setIsShortcutsOpen(false)} /> : null}
+      {artifactTransferDialog?.mode === 'import' && transferProject ? (
+        <ArtifactImportDialog
+          key={transferProject.id}
+          project={transferProject}
+          onCancel={() => setArtifactTransferDialog(null)}
+          onDownloadGuide={handleDownloadArtifactGuide}
+          onConfirm={(artifact) => {
+            importArtifact(transferProject.id, artifact);
+            historyBurstRef.current = null;
+            setArtifactTransferDialog(null);
+          }}
+        />
+      ) : null}
+      {artifactTransferDialog?.mode === 'move' && transferProject && transferArtifact ? (
+        <ArtifactMoveDialog
+          key={`${transferProject.id}:${transferArtifact.id}`}
+          project={transferProject}
+          artifact={transferArtifact}
+          projects={projects}
+          onCancel={() => setArtifactTransferDialog(null)}
+          onConfirm={handleMoveArtifact}
+        />
+      ) : null}
     </div>
   );
 }

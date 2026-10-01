@@ -17,6 +17,9 @@ export const isImportableProject = (value: unknown): value is DiagramProject => 
     return false;
   }
 
+  // An individual artifact also has name/content, but is not a legacy project.
+  if (typeof value.type === 'string') return false;
+
   if (Array.isArray(value.artifacts)) {
     return value.artifacts.every((artifact) => isRecord(artifact) && 'content' in artifact);
   }
