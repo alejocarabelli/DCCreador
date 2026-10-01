@@ -7,6 +7,7 @@ import type {
   ClassSequenceDiagramContent,
   DiagramContent,
   DiagramProject,
+  DesignArtifact,
   SequenceDiagramArtifact,
   SequenceDiagramContent,
   UseCaseFlowArtifact,
@@ -39,6 +40,7 @@ import {
 } from '../utils/classRenamePropagation';
 import { createId } from '../utils/id';
 import { createEmptySequenceDiagramContent, normalizeSequenceDiagramContent } from '../utils/sequenceDiagram';
+import { importArtifactIntoProjects, moveArtifactsBetweenProjects, type ArtifactMoveResult } from '../utils/artifactTransfer';
 
 const createEmptyContent = (): ClassDiagramContent => ({
   nodes: [],
@@ -614,6 +616,20 @@ export const useProjects = () => {
     });
   };
 
+  const importArtifact = (projectId: string, artifact: DesignArtifact): void => {
+    setProjects((currentProjects) => importArtifactIntoProjects(currentProjects, projectId, artifact));
+    setActiveProjectId(projectId);
+  };
+
+  const moveArtifact = (sourceProjectId: string, targetProjectId: string, artifactId: string, includeLinked: boolean): ArtifactMoveResult => {
+    const result = moveArtifactsBetweenProjects(projects, sourceProjectId, targetProjectId, artifactId, includeLinked);
+    if (result.idMap.size > 0) {
+      setProjects(result.projects);
+      setActiveProjectId(targetProjectId);
+    }
+    return result;
+  };
+
   /**
    * Brings in many projects at once (a backup of the first version). A project
    * whose id is already here is skipped, so importing the same backup twice
@@ -658,6 +674,8 @@ export const useProjects = () => {
     projects,
     importProject,
     importProjects,
+    importArtifact,
+    moveArtifact,
     renameArtifact,
     renameProject,
     saveStatus,

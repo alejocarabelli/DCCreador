@@ -78,6 +78,20 @@ describe('sequence diagram export plan', () => {
     expect(plan.effectiveScale).toBeLessThan(1);
     expect(plan.warnings).not.toHaveLength(0);
     expect(plan.pages.every((page) => page.source.width === plan.crop.width)).toBe(true);
+    const printableWidth = 595.28 - 2 * 10 * 72 / 25.4;
+    expect(plan.crop.width * plan.effectiveScale).toBeLessThanOrEqual(printableWidth + 0.001);
+  });
+
+  it.each(['portrait', 'landscape'] as const)('ajusta todo el ancho al papel %s incluso con la escala mínima solicitada', (orientation) => {
+    const content = normalizeSequenceDiagramContent({
+      ...diagram([message('wide', 'a', 'c', 'mensaje muy ancho')]),
+      participants: [participant('a', 120), participant('b', 4800), participant('c', 12000)],
+    });
+    const plan = buildSequencePdfPlan(content, buildSequenceLayout(content), { paperSize: 'a4', orientation, scale: 20, marginMm: 40 });
+    const printableWidth = (orientation === 'portrait' ? 595.28 : 841.89) - 2 * 40 * 72 / 25.4;
+
+    expect(plan.effectiveScale).toBeLessThan(0.2);
+    expect(plan.pages.every((page) => page.source.width * plan.effectiveScale <= printableWidth + 0.001)).toBe(true);
   });
 
   it('no repite participantes que ya fueron destruidos antes del corte de página', () => {

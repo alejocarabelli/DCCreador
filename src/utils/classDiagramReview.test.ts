@@ -7,8 +7,8 @@ const content: ClassDiagramContent = {
   nodes: ['a', 'b', 'c'].map(id => ({ id, position: { x: 0, y: 0 }, type: 'classNode', data: { name: id, attributes: [], methods: [] } })),
   edges: [],
 };
-const inheritance = (id: string, source: string, target: string, diamondEnd: 'source' | 'target' = 'target') => ({
-  id, source, target, data: normalizeAssociationData({ relationType: 'generalization', diamondEnd }),
+const inheritance = (id: string, source: string, target: string, triangleEnd: 'source' | 'target' = 'target') => ({
+  id, source, target, data: normalizeAssociationData({ relationType: 'generalization', triangleEnd }),
 });
 
 describe('class diagram review', () => {

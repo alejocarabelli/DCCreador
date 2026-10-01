@@ -60,7 +60,7 @@ import {
   analyzeSequenceDiagramSemantics,
   applySequenceDiagramMutation,
   clampParticipantX,
-  cloneSequenceTimelineItems,
+  cloneSequenceBlock,
   duplicateSequenceItem,
   findSequenceItem,
   flattenSequenceItems,
@@ -97,7 +97,8 @@ import { defaultSequenceExportOptions, exportSequencePdf, exportSequencePng, typ
 import {
   createSequenceMessageEditModel,
   buildSequenceMessageFromEditModel,
-  formatMessageSignature,
+  createSequenceSignatureDraft,
+  getSequenceSignatureInputValue,
   getSequenceFlowOptions,
   getSequenceMessageReferenceStatus,
   getSequenceMethodOptions,
@@ -107,6 +108,7 @@ import {
   sequenceMessageEditModelToPatch,
   swapSequenceMessageEditModel,
   updateSequenceMessageEditModel,
+  type SequenceSignatureDraft,
   type SequenceMessageEditModel,
   type SequenceMethodOption,
 } from '../utils/sequenceMessageEditing';
@@ -363,6 +365,7 @@ export function SequenceDiagramEditor({
   const [quickMessage, setQuickMessage] = useState<QuickMessageDraft | null>(null);
   const [participantDraft, setParticipantDraft] = useState<{ editId?: string; text: string; kind?: 'object' | 'actor' } | null>(null);
   const [participantEditDraft, setParticipantEditDraft] = useState<{ id: string; text: string } | null>(null);
+  const [messageSignatureDraft, setMessageSignatureDraft] = useState<SequenceSignatureDraft | null>(null);
   const outlinePreferenceRef = useRef(readStoredSequenceOutlineVisibility() !== null);
   const [outlineVisible, setOutlineVisible] = useState(getInitialSequenceOutlineVisibility);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(() => {
@@ -2238,7 +2241,7 @@ export function SequenceDiagramEditor({
   const pasteBlockSelection = useCallback((): void => {
     const clipboard = blockClipboard.current;
     if (!clipboard || (clipboard.items.length === 0 && clipboard.notes.length === 0)) return;
-    const itemClones = cloneSequenceTimelineItems(clipboard.items);
+    const { items: itemClones, notes: noteClones } = cloneSequenceBlock(clipboard.items, clipboard.notes);
     let nextItems = content.items;
     const anchorCandidates = [...selectedTimelineIds];
     if (selection?.kind === 'message' || selection?.kind === 'fragment') anchorCandidates.push(selection.id);
@@ -2253,7 +2256,6 @@ export function SequenceDiagramEditor({
       nextItems = insertSequenceItem(nextItems, clone, afterId ? { afterItemId: afterId } : undefined);
       afterId = clone.id;
     }
-    const noteClones = clipboard.notes.map((note) => ({ ...note, id: createId(), x: note.x + 24, y: note.y + 24 }));
     const saved = commit(keepAnchoredNotesWithTimeline({
       ...content,
       items: nextItems,
@@ -3545,7 +3547,7 @@ export function SequenceDiagramEditor({
 
   const messageInspector = selectedItem?.kind === 'message' ? (() => {
     const parentLoc = findParentLocation(content, selectedItem.id);
-    const signatureValue = formatMessageSignature(selectedItem);
+    const signatureValue = getSequenceSignatureInputValue(selectedItem, messageSignatureDraft);
 
     return (
       <div className="sequence-message-inspector-root">
@@ -3567,11 +3569,13 @@ export function SequenceDiagramEditor({
               <span style={{ fontSize: '0.65rem', color: 'var(--panel-muted-text, #60717f)' }}>auto-wrap</span>
             </div>
             <textarea
+              key={selectedItem.id}
               rows={3}
               className="sequence-inspector-signature-textarea"
               value={signatureValue}
               placeholder="Ej: buscar(id): Caso"
               onChange={(e) => {
+                setMessageSignatureDraft(createSequenceSignatureDraft(selectedItem, e.target.value));
                 const parsed = parseMessageSignature(e.target.value);
                 updateMessageEditModel(selectedItem.id, {
                   name: parsed.name,
@@ -3579,6 +3583,7 @@ export function SequenceDiagramEditor({
                   returnType: parsed.returnType,
                 });
               }}
+              onBlur={() => setMessageSignatureDraft(null)}
             />
           </label>
         </div> : <p className="sequence-dialog-help">Los retornos se representan sin texto.</p>}

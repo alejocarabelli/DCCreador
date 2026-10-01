@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { ClassDiagramArtifact, SequenceMessage, SequenceParticipant, UseCaseFlowArtifact } from '../types/diagram';
 import {
   createSequenceMessageEditModel,
+  createSequenceSignatureDraft,
   buildSequenceMessageFromEditModel,
   getSequenceFlowOptions,
   getSequenceMessageReferenceStatus,
   getSequenceMethodOptions,
+  getSequenceSignatureInputValue,
   formatMessageSignature,
   parseMessageSignature,
   reconcileMessageLifecycleMarkers,
@@ -79,6 +81,36 @@ const message = (overrides: Partial<SequenceMessage> = {}): SequenceMessage => (
 });
 
 describe('shared sequence message editing contract', () => {
+  it.each([
+    'buscar(id): Pedido',
+    'validar(calcular(a, b), c): boolean',
+    'buscar(datos: Map<string, number>): List<Item>',
+  ])('preserves every keystroke of the inspector signature %s', (signature) => {
+    let edited = message();
+    for (let length = 0; length <= signature.length; length += 1) {
+      const text = signature.slice(0, length);
+      const draft = createSequenceSignatureDraft(edited, text);
+      const model = updateSequenceMessageEditModel(sequenceMessageEditModelFromMessage(edited), parseMessageSignature(text));
+      edited = { ...edited, ...sequenceMessageEditModelToPatch(model) };
+
+      expect(getSequenceSignatureInputValue(edited, draft)).toBe(text);
+    }
+    expect(edited).toMatchObject(parseMessageSignature(signature));
+    expect(getSequenceSignatureInputValue(edited, null)).toBe(formatMessageSignature(edited));
+  });
+
+  it('discards a raw signature draft when another message or an external edit replaces its model', () => {
+    const original = message({ name: 'antes', arguments: '', returnType: '' });
+    const text = 'buscar(id): Pedido ';
+    const draft = createSequenceSignatureDraft(original, text);
+    const model = updateSequenceMessageEditModel(sequenceMessageEditModelFromMessage(original), parseMessageSignature(text));
+    const edited = { ...original, ...sequenceMessageEditModelToPatch(model) };
+
+    expect(getSequenceSignatureInputValue(edited, draft)).toBe(text);
+    expect(getSequenceSignatureInputValue(original, draft)).toBe('antes()');
+    expect(getSequenceSignatureInputValue({ ...edited, id: 'another' }, draft)).toBe('buscar(id): Pedido');
+  });
+
   it('tolerates incomplete linked class and flow artifacts', () => {
     const incompleteClass = {
       ...classDiagram,

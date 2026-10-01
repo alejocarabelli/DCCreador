@@ -44,15 +44,18 @@ const getOutwardUnit = (position: Position, fallback: { x: number; y: number }) 
 const getEndpointLabelPosition = (
   endpoint: { x: number; y: number },
   outward: { x: number; y: number },
+  rowOffset = 0,
 ) => {
   const alongOffset = 23;
   const sideOffset = 20;
   const perpendicularX = -outward.y * sideOffset;
   const perpendicularY = outward.x * sideOffset;
+  // Extend role rows away from the anchor on every side, including left/top.
+  const rowDirection = outward.x < 0 || outward.y < 0 ? -1 : 1;
 
   return {
     x: endpoint.x + outward.x * alongOffset + perpendicularX,
-    y: endpoint.y + outward.y * alongOffset + perpendicularY,
+    y: endpoint.y + outward.y * alongOffset + perpendicularY + rowDirection * rowOffset,
   };
 };
 
@@ -116,6 +119,7 @@ export function AssociationEdge({
     navigability: 'none',
     relationType: 'association',
     diamondEnd: 'source',
+    triangleEnd: 'target',
     lineStyle: 'automatic',
     sourceSide: 'automatic',
     targetSide: 'automatic',
@@ -134,9 +138,11 @@ export function AssociationEdge({
       ? sideToPosition[edgeData.targetSide]
       : targetPosition;
   const markerEndPosition =
-    relationType === 'generalization' || relationType === 'realization' || relationType === 'dependency'
+    relationType === 'realization' || relationType === 'dependency'
       ? 'target'
-      : edgeData.diamondEnd === 'target'
+      : relationType === 'generalization'
+        ? edgeData.triangleEnd ?? 'target'
+        : edgeData.diamondEnd === 'target'
         ? 'target'
         : 'source';
   const sourceEndpoint = { x: sourceX, y: sourceY };
@@ -205,6 +211,8 @@ export function AssociationEdge({
 
   const sourceLabelPosition = getEndpointLabelPosition(sourceEndpoint, sourceOutward);
   const targetLabelPosition = getEndpointLabelPosition(targetEndpoint, targetOutward);
+  const sourceRolePosition = getEndpointLabelPosition(sourceEndpoint, sourceOutward, 26);
+  const targetRolePosition = getEndpointLabelPosition(targetEndpoint, targetOutward, 26);
   const markerEndpoint = markerEndPosition === 'target' ? targetEndpoint : sourceEndpoint;
   const markerOutward = markerEndPosition === 'target' ? targetPathOutward : sourcePathOutward;
   const startMultiplicityEditing = (end: MultiplicityEnd, event: MouseEvent<HTMLElement>): void => {
@@ -321,10 +329,10 @@ export function AssociationEdge({
             onMove={labelOffset => edgeData.onUpdateLabel?.(id, { labelOffset })} />
           {supportsEndpoints ? <>
             <AssociationTextLabel value={edgeData.sourceRole} placeholder="Rol de origen"
-              x={sourceLabelPosition.x} y={sourceLabelPosition.y + 26} className="association-role-label"
+              x={sourceRolePosition.x} y={sourceRolePosition.y} className="association-role-label"
               onCommit={sourceRole => edgeData.onUpdateLabel?.(id, { sourceRole })} />
             <AssociationTextLabel value={edgeData.targetRole} placeholder="Rol de destino"
-              x={targetLabelPosition.x} y={targetLabelPosition.y + 26} className="association-role-label"
+              x={targetRolePosition.x} y={targetRolePosition.y} className="association-role-label"
               onCommit={targetRole => edgeData.onUpdateLabel?.(id, { targetRole })} />
           </> : null}
         </> : null}

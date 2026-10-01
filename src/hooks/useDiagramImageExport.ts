@@ -56,8 +56,8 @@ export function useDiagramImageExport({
 
     // Exports are documents: capture them on the light palette even in dark mode.
     const restoreTheme = applyExportThemeVariables(canvasRef.current);
-    const nodesBounds = getDiagramBounds();
-    const transform = getViewportForBounds(nodesBounds, PNG_WIDTH, PNG_HEIGHT, 0.01, 2, 0.16);
+    const diagramBounds = getDiagramBounds();
+    const transform = getViewportForBounds(diagramBounds, PNG_WIDTH, PNG_HEIGHT, 0, 2, 0.16);
     const backgroundColor = getEffectiveBackgroundColor(flowRoot);
     const edgePathStyleBackups = Array.from(viewport.querySelectorAll<SVGElement>('.react-flow__edges path, .react-flow__edges polygon')).map(
       (path) => ({

@@ -108,6 +108,8 @@ export type AssociationEdgeData = {
   navigability: AssociationNavigability;
   relationType?: AssociationRelationType;
   diamondEnd?: AssociationDiamondEnd;
+  /** Generalization only: the superclass end. Separate from diamondEnd so older diagrams keep the triangle at the target. */
+  triangleEnd?: AssociationDiamondEnd;
   lineStyle?: AssociationLineStyle;
   sourceSide?: AssociationConnectionSide;
   targetSide?: AssociationConnectionSide;

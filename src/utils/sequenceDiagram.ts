@@ -1820,8 +1820,10 @@ export const reparentSequenceItem = (
     : insertSequenceItem(result.items, result.removed, destination);
 };
 
-const cloneTimelineItemsWithReferences = (items: SequenceTimelineItem[]): SequenceTimelineItem[] => {
-  const itemIdRemap = new Map<string, string>();
+const cloneTimelineItemsWithReferences = (
+  items: SequenceTimelineItem[],
+  itemIdRemap = new Map<string, string>(),
+): SequenceTimelineItem[] => {
   const collectIds = (currentItems: SequenceTimelineItem[]): void => {
     currentItems.forEach((item) => {
       itemIdRemap.set(item.id, createId());
@@ -1971,6 +1973,25 @@ export const moveSequenceItemsBlock = (
 export const cloneSequenceTimelineItems = (
   items: SequenceTimelineItem[],
 ): SequenceTimelineItem[] => cloneTimelineItemsWithReferences(items);
+
+/** Clone one clipboard block, remapping notes to copied messages and fragments. */
+export const cloneSequenceBlock = (
+  items: SequenceTimelineItem[],
+  notes: SequenceNote[],
+): { items: SequenceTimelineItem[]; notes: SequenceNote[] } => {
+  const itemIdRemap = new Map<string, string>();
+  const clonedItems = cloneTimelineItemsWithReferences(items, itemIdRemap);
+  const clonedNotes = notes.map((note) => ({
+    ...note,
+    id: createId(),
+    x: note.x + 24,
+    y: note.y + 24,
+    anchorId: (note.anchorKind === 'message' || note.anchorKind === 'fragment') && note.anchorId
+      ? itemIdRemap.get(note.anchorId) ?? note.anchorId
+      : note.anchorId,
+  }));
+  return { items: clonedItems, notes: clonedNotes };
+};
 
 export const createSequenceMessage = (
   type: SequenceMessageType,

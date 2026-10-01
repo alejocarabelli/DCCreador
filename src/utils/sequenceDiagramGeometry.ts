@@ -238,7 +238,8 @@ export const resolveSequenceParticipantX = (
     .sort((left, right) => left.left - right.left)
     .reduce<Array<{ left: number; right: number }>>((merged, interval) => {
       const last = merged.at(-1);
-      if (last === undefined || interval.left > last.right) {
+      // Forbidden intervals are open: a shared boundary is still a legal center.
+      if (last === undefined || interval.left >= last.right) {
         merged.push({ ...interval });
       } else {
         last.right = Math.max(last.right, interval.right);
@@ -251,14 +252,14 @@ export const resolveSequenceParticipantX = (
         >= (movingWidth + getSequenceParticipantHeaderWidth(participant)) / 2 + (gap - 160));
   if (isLegal(desired)) return desired;
 
-  const candidates = [minimumX, ...intervals.flatMap((interval) => [interval.left, interval.right])]
+  const candidates = [minimumX, ...intervals.flatMap((interval) => [Math.floor(interval.left), Math.ceil(interval.right)])]
     .filter(isLegal);
   if (candidates.length === 0) {
     const rightmost = Math.max(minimumX, ...participants
       .filter((participant) => participant.id !== participantId)
       .map((participant) => participant.x
         + (movingWidth + getSequenceParticipantHeaderWidth(participant)) / 2 + (gap - 160)));
-    return Math.round(rightmost);
+    return Math.ceil(rightmost);
   }
   return Math.round(candidates.reduce((closest, candidate) =>
     Math.abs(candidate - desired) < Math.abs(closest - desired) ? candidate : closest));

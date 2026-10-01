@@ -144,19 +144,23 @@ export const buildSequencePdfPlan = (content: Pick<SequenceDiagramContent, 'part
   const headerHeight = Math.max(54, Math.ceil((layout.maxParticipantHeaderHeight ?? 58) + 8));
   const usableHeight = Math.max(72, paper.height - margin * 2 - headerHeight);
   const requestedScale = Math.max(0.2, Math.min(2, options.scale / 100));
+  const widthScale = usableWidth / crop.width;
+  // The requested scale has a 20% minimum; automatic fitting must still fit
+  // the entire width, since pagination only splits the diagram vertically.
+  const minimumScale = Math.min(0.2, widthScale);
   const bands = getSequenceExportProtectedBands(layout);
   const largestBand = Math.max(1, ...bands.map((band) => band.bottom - band.top));
   const scaleForBand = usableHeight / (largestBand + EXPORT_PADDING * 2);
-  let effectiveScale = Math.max(0.2, Math.min(requestedScale, usableWidth / crop.width, scaleForBand));
+  let effectiveScale = Math.max(minimumScale, Math.min(requestedScale, widthScale, scaleForBand));
   let slices = splitVerticalPages(crop, bands, usableHeight / effectiveScale);
   if (slices.length > 1 && slices[0].bottom - slices[0].top < (usableHeight / effectiveScale) * 0.25) {
     const joinedHeight = slices[1].bottom - crop.top;
-    effectiveScale = Math.max(0.2, Math.min(effectiveScale, usableHeight / joinedHeight));
+    effectiveScale = Math.max(minimumScale, Math.min(effectiveScale, usableHeight / joinedHeight));
     slices = splitVerticalPages(crop, bands, usableHeight / effectiveScale);
   }
   const warnings: string[] = [];
   if (effectiveScale < requestedScale - 0.001) {
-    warnings.push('La escala se redujo para no cortar mensajes, notas ni encabezados de fragmentos.');
+    warnings.push(`La escala se redujo al ${Number((effectiveScale * 100).toFixed(1))} % para ajustar el diagrama al papel.`);
   }
   const hasSplitBand = slices.some((slice) =>
     bands.some((band) => band.top < slice.bottom && slice.bottom < band.bottom));

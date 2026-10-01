@@ -183,6 +183,30 @@ describe('sequence diagram geometry contract', () => {
     expect(pastBoth).toBe(780);
   });
 
+  it.each([295, 299, 301, 305])('keeps the middle participant in its legal slot for a small drag to %i', (requestedX) => {
+    const participants = [participant('a', 120), participant('b', 300), participant('c', 480)];
+
+    expect(clampParticipantX(participants, 'b', requestedX)).toBe(300);
+  });
+
+  it('preserves an isolated legal slot between several tightly spaced participants', () => {
+    const participants = [120, 300, 480, 660, 840].map((x, index) => participant(String(index), x));
+
+    expect(clampParticipantX(participants, '2', 485)).toBe(480);
+    expect(clampParticipantX(participants, '2', 475)).toBe(480);
+  });
+
+  it.each([619, 621])('keeps measured headers separated after rounding a drag to %i', (requestedX) => {
+    const moving = participant('moving', 120, 'A'.repeat(27));
+    const other = participant('other', 620);
+    const minimumDistance = (getSequenceParticipantHeaderWidth(moving) + getSequenceParticipantHeaderWidth(other)) / 2 + 20;
+    const moved = clampParticipantX([moving, other], moving.id, requestedX);
+
+    expect(Number.isInteger(moved)).toBe(true);
+    expect(Math.abs(moved - other.x)).toBeGreaterThanOrEqual(minimumDistance);
+    expect(Math.sign(moved - other.x)).toBe(Math.sign(requestedX - other.x));
+  });
+
   it('uses the real header width when clamping a long participant drag', () => {
     const long = participant('long', 120, 'ParticipanteConUnNombreMuyLargoQueDebeConservarse');
     const other = participant('other', 620, 'Otro');
