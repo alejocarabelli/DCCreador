@@ -1,3 +1,5 @@
+import { accessorAttribute, importClassesFromSequences } from './utils/sequenceClassImport';
+import { createId } from './utils/id';
 import { useDialogs } from './hooks/useDialogs';
 import { ProjectNameDialog } from './components/ProjectNameDialog';
 import { ArtifactImportDialog } from './components/ArtifactImportDialog';
@@ -12,7 +14,7 @@ import artifactGuide from '../docs/artifact-json-guide.md?raw';
 import { useProjects } from './hooks/useProjects';
 import { useTheme } from './hooks/useTheme';
 import { readUiPreference, writeUiPreference } from './storage/uiPreferences';
-import type { ArtifactContent, ClassMethod, ClassModelArtifact, ClassSequenceDiagramContent, DesignArtifact } from './types/diagram';
+import type { ArtifactContent, ClassMethod, ClassModelArtifact, ClassSequenceDiagramContent, DesignArtifact, SequenceDiagramContent } from './types/diagram';
 import {
   getActiveArtifact,
   normalizeClassSequenceDiagramContent,
@@ -360,10 +362,21 @@ function App() {
       }
 
       const previousContent = cloneArtifactContent(modelArtifact);
+      const attribute = accessorAttribute(method);
+      const addAttribute = attribute !== null && !classNode.data.attributes.some(
+        (existing) => existing.name.trim().toLocaleLowerCase() === attribute.name.toLocaleLowerCase(),
+      );
       const nextContent = {
         ...modelArtifact.content,
         nodes: modelArtifact.content.nodes.map((node) => node.id === nodeId
-          ? { ...node, data: { ...node.data, methods: [...node.data.methods, method] } }
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                methods: [...node.data.methods, method],
+                attributes: addAttribute && attribute ? [...node.data.attributes, { id: createId(), ...attribute }] : node.data.attributes,
+              },
+            }
           : node),
       };
       const normalizedNextContent = cloneContentForType(modelArtifact.type, nextContent);
@@ -380,6 +393,36 @@ function App() {
       updateProjectArtifactContent(activeProject.id, modelArtifact.id, normalizedNextContent, { alreadyNormalized: true });
     },
     [activeProject, updateHistory, updateProjectArtifactContent],
+  );
+
+  const handleImportSequenceIntoClassModel = useCallback(
+    (artifactId: string, sequenceContent: SequenceDiagramContent): void => {
+      if (activeProject === null || activeArtifact?.type !== 'sequence-diagram') return;
+      const modelArtifact = activeProject.artifacts.find(
+        (candidate): candidate is ClassModelArtifact => candidate.id === artifactId
+          && (candidate.type === 'class-diagram' || candidate.type === 'class-sequence-diagram'),
+      );
+      if (!modelArtifact) return;
+      const { content, summary } = importClassesFromSequences(modelArtifact.content, [sequenceContent]);
+      const needsLink = modelArtifact.type === 'class-sequence-diagram' && !modelArtifact.content.linkedSequenceDiagramIds.includes(activeArtifact.id);
+      if (!needsLink && summary.createdClasses + summary.addedMethods + summary.addedAttributes === 0) return;
+      const previousContent = cloneArtifactContent(modelArtifact);
+      const nextContent = modelArtifact.type === 'class-sequence-diagram'
+        ? { ...content, linkedSequenceDiagramIds: [...new Set([...modelArtifact.content.linkedSequenceDiagramIds, activeArtifact.id])] }
+        : content;
+      const normalizedNextContent = cloneContentForType(modelArtifact.type, nextContent);
+      const historyKey = `${activeProject.id}:${modelArtifact.id}`;
+      updateHistory((currentHistory) => {
+        const modelHistory = currentHistory[historyKey] ?? { past: [], future: [] };
+        return {
+          ...currentHistory,
+          [historyKey]: changeHistory(modelHistory, previousContent, true, MAX_HISTORY_ENTRIES),
+        };
+      });
+      historyBurstRef.current = null;
+      updateProjectArtifactContent(activeProject.id, modelArtifact.id, normalizedNextContent, { alreadyNormalized: true });
+    },
+    [activeProject, activeArtifact, updateHistory, updateProjectArtifactContent],
   );
 
   const handleUndo = useCallback((): void => {
@@ -649,6 +692,7 @@ function App() {
               setActiveArtifactId(activeProject.id, targetArtifactId)
             }
             onCreateClassMethod={handleCreateClassMethodFromSequence}
+            onImportSequenceIntoClassModel={handleImportSequenceIntoClassModel}
             onCreateSequenceDiagramArtifact={(name, initialContent) =>
               createSequenceDiagramArtifact(activeProject.id, name, initialContent)
             }

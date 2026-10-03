@@ -30,6 +30,7 @@ type SequenceDiagramCanvasProps = {
   selected: Selection;
   highlighted?: Selection;
   theme: DiagramTheme;
+  missingInModel?: { messageIds: Set<string>; participantIds: Set<string> };
   classNodesById?: Map<string, { name: string }> | Record<string, { name: string }>;
   participantColorsEnabled?: boolean;
   onSelect: (selection: Selection) => void;
@@ -154,6 +155,7 @@ function SequenceDiagramCanvasImpl({
   ariaDescriptionId,
   svgRef,
   classNodesById,
+  missingInModel,
   participantColorsEnabled,
 }: SequenceDiagramCanvasProps) {
   const ink = theme.sequence;
@@ -1021,8 +1023,10 @@ function SequenceDiagramCanvasImpl({
           <g>
             <rect x={box.labelCenterX - box.labelWidth / 2} y={box.labelTop - 2} width={box.labelWidth} height={box.labelBottom - box.labelTop + 4} rx="3" fill={canvasBackground} opacity="0.92" />
             <text x={box.labelCenterX} y={box.labelBaselineY} fill={textColor} fontSize="11.5" fontWeight={540} textAnchor="middle">
+              {missingInModel?.messageIds.has(message.id) ? <title>No está en el modelo de clases</title> : null}
               {box.labelLines.map((line, index) => <tspan key={`${message.id}:${index}`} x={box.labelCenterX} dy={index === 0 ? 0 : 14}>{line}</tspan>)}
             </text>
+            {missingInModel?.messageIds.has(message.id) ? <line data-export-control="true" x1={box.labelCenterX - box.labelWidth / 2} x2={box.labelCenterX + box.labelWidth / 2} y1={box.labelBottom + 2} y2={box.labelBottom + 2} stroke={theme.ui.warningText} strokeDasharray="2 3" strokeWidth="1"><title>No está en el modelo de clases</title></line> : null}
           </g>
         ) : null}
         {box.flowLines.length > 0 && box.flowBaselineY !== undefined ? (
@@ -1416,6 +1420,7 @@ function SequenceDiagramCanvasImpl({
                 <>
                   <ParticipantGlyph participant={participant} x={x} y={headerY} stroke={glyphStroke} />
                   <text x={x} y={nameBaselineY} fill={textColor} fontSize="11" fontWeight="bold" textAnchor="middle">
+                    {missingInModel?.participantIds.has(participant.id) ? <title>No está en el modelo de clases</title> : null}
                     {nameLines.map((line, index) => <tspan key={`${participant.id}:name:${index}`} x={x} dy={index === 0 ? 0 : 14} fill={index === 0 ? textColor : muted} fontWeight={index === 0 ? 720 : 580}>{line}</tspan>)}
                   </text>
                   <rect data-export-control="true" x={x - headerWidth / 2} y={headerY} width={headerWidth} height={headerHeight} fill="transparent" stroke={isSelected || isHighlighted ? selectedStroke : 'transparent'} strokeWidth={isSelected ? 2 : isHighlighted ? 2.4 : 2} />
@@ -1424,10 +1429,12 @@ function SequenceDiagramCanvasImpl({
                 <>
                   <rect x={x - headerWidth / 2} y={headerY} width={headerWidth} height={headerHeight} rx="3" fill={headerFill} stroke={isSelected || isHighlighted ? selectedStroke : headerBorder} strokeWidth={isSelected ? 2 : isHighlighted ? 2.4 : 1.2} />
                   <text x={x} y={nameBaselineY} fill={textColor} fontSize="11" fontWeight="bold" textAnchor="middle">
+                    {missingInModel?.participantIds.has(participant.id) ? <title>No está en el modelo de clases</title> : null}
                     {nameLines.map((line, index) => <tspan key={`${participant.id}:name:${index}`} x={x} dy={index === 0 ? 0 : 14} fill={index === 0 ? textColor : muted} fontWeight={index === 0 ? 720 : 580}>{line}</tspan>)}
                   </text>
                 </>
               )}
+              {missingInModel?.participantIds.has(participant.id) ? <line data-export-control="true" x1={x - headerWidth / 2 + 8} x2={x + headerWidth / 2 - 8} y1={nameBaselineY + (nameLines.length - 1) * 14 + 3} y2={nameBaselineY + (nameLines.length - 1) * 14 + 3} stroke={theme.ui.warningText} strokeDasharray="2 3" strokeWidth="1"><title>No está en el modelo de clases</title></line> : null}
             </g>
           </g>
         );
@@ -1522,7 +1529,7 @@ function SequenceDiagramCanvasImpl({
                   </text>
                 ) : (
                   <text x={noteTextX} y={noteBox.y + 22} fill={noteScheme.text} opacity={0.45} fontStyle="italic" fontSize={SEQUENCE_NOTE_FONT_SIZE} fontFamily={SEQUENCE_NOTE_FONT_FAMILY} style={{ pointerEvents: 'none', userSelect: 'none' }}>
-                    (Doble clic para escribir)
+                    Doble clic o Enter para escribir
                   </text>
                 )}
               </>

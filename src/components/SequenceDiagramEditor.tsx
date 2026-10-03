@@ -1,3 +1,4 @@
+import { findSequenceMessagesMissingInModel, participantClassName, planSequenceClassImport } from '../utils/sequenceClassImport';
 import {
   Download,
   Eye,
@@ -14,6 +15,7 @@ import {
   ImageDown,
   Keyboard,
   Link2,
+  Unlink,
   LayoutTemplate,
   MessageSquarePlus,
   PanelLeftClose,
@@ -81,6 +83,7 @@ import {
 import {
   getSequenceNoteMinimumHeight,
   reorderSequenceParticipants,
+  resolveSequenceParticipantDragReorder,
   resolveSequenceNoteRect,
   SEQUENCE_NOTE_FONT_FAMILY,
   SEQUENCE_NOTE_FONT_SIZE,
@@ -90,7 +93,7 @@ import {
   SEQUENCE_NOTE_PADDING_TOP,
   SEQUENCE_NOTE_PADDING_X,
 } from '../utils/sequenceDiagramGeometry';
-import { hasMeaningfulSequenceNoteDrag, resolveSequenceNoteDragPosition } from '../utils/sequenceNoteInteraction';
+import { hasMeaningfulSequenceNoteDrag, resolveNewSequenceNotePosition, resolveSequenceNoteDragPosition } from '../utils/sequenceNoteInteraction';
 import { sequencePointerToCanvas } from '../utils/sequencePointer';
 import { buildSequenceLayout, SEQUENCE_HEADER_HEIGHT } from '../utils/sequenceDiagramLayout';
 import { defaultSequenceExportOptions, exportSequencePdf, exportSequencePng, type SequenceExportOptions } from '../utils/sequenceDiagramExport';
@@ -178,6 +181,7 @@ type SequenceDiagramEditorProps = {
   theme: DiagramTheme;
   saveStatus?: DiagramSaveStatus;
   onNavigateToArtifact?: (artifactId: string) => void;
+  onImportSequenceIntoClassModel?: (modelArtifactId: string, sequenceContent: SequenceDiagramContent) => void;
   onCreateClassMethod?: (artifactId: string, nodeId: string, method: ClassMethod) => void;
   onCreateSequenceDiagramArtifact?: (name: string, initialContent?: SequenceDiagramContent) => void;
   onChangeContent: (content: SequenceDiagramContent, options?: { separateHistoryEntry?: boolean; alreadyNormalized?: boolean }) => void;
@@ -312,6 +316,7 @@ export function SequenceDiagramEditor({
   saveStatus = 'saved',
   onNavigateToArtifact,
   onCreateClassMethod,
+  onImportSequenceIntoClassModel,
   onCreateSequenceDiagramArtifact,
   onChangeContent,
   onRedo,
@@ -414,12 +419,14 @@ export function SequenceDiagramEditor({
   } | null>(null);
   const [inlineNoteEditor, setInlineNoteEditor] = useState<{
     noteId: string;
+    draft?: SequenceNote;
     value: string;
     x: number;
     y: number;
     width: number;
     height: number;
   } | null>(null);
+  const [isParticipantDragging, setIsParticipantDragging] = useState(false);
   const [participantPreview, setParticipantPreview] = useState<Record<string, number>>({});
   const [notePreview, setNotePreview] = useState<Record<string, Partial<SequenceNote>>>({});
   const [draggedOutlineItemId, setDraggedOutlineItemId] = useState<string | null>(null);
@@ -636,6 +643,11 @@ export function SequenceDiagramEditor({
     ? plainClassDiagrams[0]
     : undefined;
   const associatedClassDiagram = classDiagrams.find((candidate) => candidate.id === content.classDiagramArtifactId) ?? defaultClassDiagram;
+  const missingInModel = associatedClassDiagram ? findSequenceMessagesMissingInModel(content, { nodes: associatedClassDiagram.content.nodes ?? [], edges: associatedClassDiagram.content.edges ?? [] }) : undefined;
+  // Counted as the class model counts its novelties, so both editors agree.
+  const missingCount = associatedClassDiagram
+    ? planSequenceClassImport({ nodes: associatedClassDiagram.content.nodes ?? [], edges: associatedClassDiagram.content.edges ?? [] }, [content]).length
+    : 0;
   // A small lookup; the React compiler memoizes it with the diagram it reads.
   const classNodesById = new Map<string, { name: string }>(
     (Array.isArray(associatedClassDiagram?.content?.nodes) ? associatedClassDiagram.content.nodes : [])
@@ -1966,13 +1978,13 @@ export function SequenceDiagramEditor({
     setSelection({ kind: 'fragment', id: fragment.id });
   };
 
-  const addNote = (): void => {
+  const addNote = useCallback((): void => {
     const note: SequenceNote = {
       id: createId(),
-      text: 'Nueva nota',
+      text: '',
       color: 'yellow',
-      x: Math.max(80, scrollPosition.left / zoom + 120),
-      y: Math.max(150, scrollPosition.top / zoom + 170),
+      x: 0,
+      y: 0,
       width: 230,
       height: 110,
       anchorKind: selection?.kind === 'message' || selection?.kind === 'fragment' || selection?.kind === 'participant'
@@ -1982,9 +1994,20 @@ export function SequenceDiagramEditor({
         ? selection.id
         : undefined,
     };
-    commit({ ...content, notes: [...content.notes, note] });
-    setSelection({ kind: 'note', id: note.id });
-  };
+    Object.assign(note, resolveNewSequenceNotePosition(layout, note, {
+      left: scrollPosition.left,
+      top: scrollPosition.top,
+      width: scrollRef.current?.clientWidth ?? viewportCanvasSize.width * zoom,
+      height: scrollRef.current?.clientHeight ?? viewportCanvasSize.height * zoom,
+      zoom,
+    }));
+    setInlineNoteEditor({ noteId: note.id, draft: note, value: '', x: note.x, y: note.y, width: note.width, height: note.height });
+    // Beside an anchor near the edge, the draft can open out of view.
+    window.requestAnimationFrame(() => {
+      scrollRef.current?.querySelector('.sequence-inline-note-container')
+        ?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    });
+  }, [layout, scrollPosition, selection, viewportCanvasSize, zoom]);
 
   const deleteFragmentOperand = async (fragmentId: string, operandId: string): Promise<void> => {
     const fragment = findSequenceItem(content.items, fragmentId);
@@ -2268,56 +2291,14 @@ export function SequenceDiagramEditor({
     }
   }, [commit, content, keepAnchoredNotesWithTimeline, selection, selectedTimelineIds, setSelectedTimelineIds, showFeedback]);
 
-  useEffect(() => {
-    const handleTimelineShortcuts = (event: KeyboardEvent): void => {
-      const target = event.target instanceof Element ? event.target : null;
-      if (target?.closest('input, textarea, select, [contenteditable="true"], dialog') !== null) return;
-      if (messageDraft !== null || quickMessage !== null) return;
-
-      if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
-        if (selection?.kind === 'message' || selection?.kind === 'fragment' || selectedTimelineIds.length > 0) {
-          event.preventDefault();
-          moveSelectedItem(event.key === 'ArrowUp' ? -1 : 1);
-          return;
-        }
-      }
-
-      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'c') {
-        if (selectedTimelineIds.length > 0 || selection?.kind === 'message' || selection?.kind === 'fragment' || selection?.kind === 'note') {
-          event.preventDefault();
-          copyBlockSelection();
-          return;
-        }
-      }
-
-      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'v') {
-        const clipboard = blockClipboard.current;
-        if (clipboard && (clipboard.items.length > 0 || clipboard.notes.length > 0)) {
-          event.preventDefault();
-          pasteBlockSelection();
-          return;
-        }
-      }
-
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'd') {
-        if (selection?.kind === 'message' || selection?.kind === 'fragment') {
-          event.preventDefault();
-          duplicateSelectedItem();
-          return;
-        }
-      }
-
-      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'u') {
-        if (selection?.kind === 'fragment') {
-          event.preventDefault();
-          handleUnwrapFragment(selection.id);
-          return;
-        }
-      }
-    };
-    window.addEventListener('keydown', handleTimelineShortcuts);
-    return () => window.removeEventListener('keydown', handleTimelineShortcuts);
-  }, [messageDraft, quickMessage, selection, selectedTimelineIds, moveSelectedItem, duplicateSelectedItem, copyBlockSelection, pasteBlockSelection, handleUnwrapFragment]);
+  const moveParticipantHorizontal = useCallback((participantId: string, direction: -1 | 1): void => {
+    const updated = reorderSequenceParticipants(content.participants, participantId, direction);
+    if (!updated || updated.every((participant) => {
+      const before = content.participants.find((candidate) => candidate.id === participant.id);
+      return before?.x === participant.x;
+    })) return;
+    commit({ ...content, participants: updated });
+  }, [commit, content]);
 
   const startParticipantDrag = (participant: SequenceParticipant, event: ReactPointerEvent<SVGGElement>): void => {
     if (event.button !== 0 || event.shiftKey) return;
@@ -2325,31 +2306,52 @@ export function SequenceDiagramEditor({
     const start = event.clientX;
     const startScrollLeft = scrollRef.current?.scrollLeft ?? 0;
     const original = participant.x;
+    const originalOrder = [...content.participants].sort((a, b) => a.x - b.x || a.id.localeCompare(b.id)).map((item) => item.id);
     let finalX = original;
+    let didMove = false;
+    let freePosition = event.altKey;
+    let reordered = resolveSequenceParticipantDragReorder(content.participants, participant.id, original);
     const move = (pointerEvent: PointerEvent): void => {
       const scrollDelta = (scrollRef.current?.scrollLeft ?? startScrollLeft) - startScrollLeft;
-      finalX = clampParticipantX(
-        content.participants,
-        participant.id,
-        original + (pointerEvent.clientX - start + scrollDelta) / zoom,
-      );
-      setParticipantPreview({ [participant.id]: finalX });
-    };
-    const finish = (): void => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', finish);
-      setParticipantPreview({});
-      if (Math.abs(finalX - original) > 1) {
-        const updated = content.participants.map((candidate) => candidate.id === participant.id ? { ...candidate, x: finalX } : candidate);
-        updated.sort((a, b) => a.x - b.x);
-        commit({
-          ...content,
-          participants: updated,
-        });
+      const delta = pointerEvent.clientX - start + scrollDelta;
+      if (!didMove && Math.abs(delta) < 3) return;
+      didMove = true;
+      setIsParticipantDragging(true);
+      freePosition = pointerEvent.altKey;
+      const requestedX = original + delta / zoom;
+      if (freePosition) {
+        finalX = clampParticipantX(content.participants, participant.id, requestedX);
+        setParticipantPreview({ [participant.id]: finalX });
+      } else {
+        reordered = resolveSequenceParticipantDragReorder(content.participants, participant.id, requestedX);
+        setParticipantPreview({ ...reordered.positions, [participant.id]: Math.max(90, requestedX) });
       }
     };
+    const cleanup = (): void => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', finish);
+      window.removeEventListener('pointercancel', cancel);
+      setParticipantPreview({});
+      setIsParticipantDragging(false);
+    };
+    const finish = (pointerEvent: PointerEvent): void => {
+      if (didMove) move(pointerEvent);
+      cleanup();
+      if (!didMove) return;
+      if (freePosition) {
+        if (Math.abs(finalX - original) <= 1) return;
+        const updated = content.participants.map((candidate) => candidate.id === participant.id ? { ...candidate, x: finalX } : candidate);
+        updated.sort((a, b) => a.x - b.x);
+        commit({ ...content, participants: updated });
+      } else if (reordered.order.some((id, index) => id !== originalOrder[index])) {
+        const byId = new Map(content.participants.map((candidate) => [candidate.id, candidate]));
+        commit({ ...content, participants: reordered.order.map((id) => ({ ...byId.get(id)!, x: reordered.positions[id] })) });
+      }
+    };
+    const cancel = (): void => cleanup();
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', finish, { once: true });
+    window.addEventListener('pointercancel', cancel, { once: true });
   };
 
   const startNoteDrag = (note: SequenceNote, event: ReactPointerEvent<SVGGElement>): void => {
@@ -2463,9 +2465,95 @@ export function SequenceDiagramEditor({
     });
   }, [content.notes, layout.noteLayouts]);
 
+  useEffect(() => {
+    const handleTimelineShortcuts = (event: KeyboardEvent): void => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest('input, textarea, select, [contenteditable="true"], dialog') !== null) return;
+      if (messageDraft !== null || quickMessage !== null) return;
+
+      if (!event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
+        && keyboardMode.stage === 'off' && !inlineNoteEditor
+        && !document.querySelector('[role="dialog"], dialog[open], [aria-modal="true"]')) {
+        if (event.key.toLowerCase() === 'n') {
+          event.preventDefault();
+          addNote();
+          return;
+        }
+        if (event.key === 'Enter' && selection?.kind === 'note') {
+          event.preventDefault();
+          handleEditNote(selection.id);
+          return;
+        }
+      }
+
+      if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey
+        && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')
+        && selection?.kind === 'participant' && keyboardMode.stage === 'off' && !inlineNoteEditor
+        && !document.querySelector('[role="dialog"], dialog[open], [aria-modal="true"]')) {
+        event.preventDefault();
+        moveParticipantHorizontal(selection.id, event.key === 'ArrowLeft' ? -1 : 1);
+        return;
+      }
+
+      if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+        if (selection?.kind === 'message' || selection?.kind === 'fragment' || selectedTimelineIds.length > 0) {
+          event.preventDefault();
+          moveSelectedItem(event.key === 'ArrowUp' ? -1 : 1);
+          return;
+        }
+      }
+
+      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'c') {
+        if (selectedTimelineIds.length > 0 || selection?.kind === 'message' || selection?.kind === 'fragment' || selection?.kind === 'note') {
+          event.preventDefault();
+          copyBlockSelection();
+          return;
+        }
+      }
+
+      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'v') {
+        const clipboard = blockClipboard.current;
+        if (clipboard && (clipboard.items.length > 0 || clipboard.notes.length > 0)) {
+          event.preventDefault();
+          pasteBlockSelection();
+          return;
+        }
+      }
+
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'd') {
+        if (selection?.kind === 'message' || selection?.kind === 'fragment') {
+          event.preventDefault();
+          duplicateSelectedItem();
+          return;
+        }
+      }
+
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'u') {
+        if (selection?.kind === 'fragment') {
+          event.preventDefault();
+          handleUnwrapFragment(selection.id);
+          return;
+        }
+      }
+    };
+    window.addEventListener('keydown', handleTimelineShortcuts);
+    return () => window.removeEventListener('keydown', handleTimelineShortcuts);
+  }, [moveParticipantHorizontal, addNote, handleEditNote, inlineNoteEditor, keyboardMode.stage, messageDraft, quickMessage, selection, selectedTimelineIds, moveSelectedItem, duplicateSelectedItem, copyBlockSelection, pasteBlockSelection, handleUnwrapFragment]);
+
   const commitInlineNoteEdit = useCallback((): void => {
     if (!inlineNoteEditor) return;
-    const { noteId, value } = inlineNoteEditor;
+    const { noteId, value, draft } = inlineNoteEditor;
+    if (draft) {
+      if (value.trim()) {
+        const note = { ...draft, text: value.trim(), height: Math.max(110, getSequenceNoteMinimumHeight({ text: value.trim(), width: draft.width })) };
+        if (commit({ ...content, notes: [...content.notes, note] })) {
+          setSelection({ kind: 'note', id: note.id });
+        }
+      }
+      setInlineNoteEditor(null);
+      setNotePreview({});
+      return;
+    }
     const targetNote = content.notes.find((n) => n.id === noteId);
     if (!targetNote) {
       setInlineNoteEditor(null);
@@ -2478,7 +2566,7 @@ export function SequenceDiagramEditor({
     commit({ ...content, notes: nextNotes }, true);
     setNotePreview({});
     setInlineNoteEditor(null);
-  }, [commit, content, inlineNoteEditor]);
+  }, [commit, content, inlineNoteEditor, setSelection]);
 
   const commitInlineFragmentEdit = useCallback((): void => {
     if (!inlineFragmentEditor) return;
@@ -3001,14 +3089,6 @@ export function SequenceDiagramEditor({
       participants: content.participants.map((participant) => participant.id === id ? { ...participant, ...values } : participant),
     }, false);
   };
-  const moveParticipantHorizontal = (participantId: string, direction: -1 | 1): void => {
-    const updated = reorderSequenceParticipants(content.participants, participantId, direction);
-    if (!updated || updated.every((participant) => {
-      const before = content.participants.find((candidate) => candidate.id === participant.id);
-      return before?.x === participant.x;
-    })) return;
-    commit({ ...content, participants: updated });
-  };
   const updateNote = (id: string, values: Partial<SequenceNote>): void => { void commit({
     ...content,
     notes: content.notes.map((note) => {
@@ -3063,24 +3143,36 @@ export function SequenceDiagramEditor({
     }), false);
   };
 
+  const importIntoModel = (): void => {
+    if (!associatedClassDiagram || !onImportSequenceIntoClassModel) return;
+    onImportSequenceIntoClassModel(associatedClassDiagram.id, content);
+    showFeedback('Novedades agregadas al modelo.');
+  };
   const createClassMethodFromSelectedMessage = (): void => {
-    if (selectedItem?.kind !== 'message' || onCreateClassMethod === undefined || associatedClassDiagram === undefined) {
+    if (selectedItem?.kind !== 'message' || associatedClassDiagram === undefined) {
       return;
     }
 
-    if (selectedItem.type !== 'synchronous' && selectedItem.type !== 'asynchronous') {
+    if (missingInModel?.participantIds.has(selectedItem.targetId)) {
+      importIntoModel();
       return;
     }
+    if (onCreateClassMethod === undefined || (selectedItem.type !== 'synchronous' && selectedItem.type !== 'asynchronous')) return;
 
     const participant = content.participants.find((candidate) => candidate.id === selectedItem.targetId);
     const classNode = associatedClassDiagram.content.nodes.find((candidate) =>
       (participant?.classifierNodeId !== undefined && candidate.id === participant.classifierNodeId)
       || (participant?.classifierNodeId === undefined
-        && participant?.classifierName.trim().toLocaleLowerCase() === candidate.data.name.trim().toLocaleLowerCase()),
+        && participant !== undefined && participantClassName(participant.classifierName, participant.name).toLocaleLowerCase() === candidate.data.name.trim().toLocaleLowerCase()),
     );
     // The message's arguments are what this call passes, not the method's
     // signature: the method is matched and created by name alone.
     const methodName = selectedItem.name.replace(/\(.*$/, '').trim();
+
+    if (classNode === undefined && onImportSequenceIntoClassModel) {
+      importIntoModel();
+      return;
+    }
 
     if (classNode === undefined || methodName.length === 0) {
       showFeedback('Seleccioná una clase y escribí una operación antes de sincronizar.');
@@ -3088,7 +3180,7 @@ export function SequenceDiagramEditor({
     }
 
     const matchingMethod = classNode.data.methods.find((method) =>
-      method.name.trim().toLocaleLowerCase() === methodName.toLocaleLowerCase(),
+      method.name.replace(/\(.*$/, '').trim().toLocaleLowerCase() === methodName.toLocaleLowerCase(),
     );
 
     if (matchingMethod !== undefined) {
@@ -3266,29 +3358,7 @@ export function SequenceDiagramEditor({
       }
     : insertionGuide;
 
-  const participantInspector = selectedParticipant ? (
-    <>
-
-      <div className="sequence-compact-action-row" style={{ marginTop: 2, marginBottom: 10 }}>
-        <button
-          className="secondary-action-sm"
-          type="button"
-          title="Mover participante a la izquierda"
-          onClick={() => moveParticipantHorizontal(selectedParticipant.id, -1)}
-        >
-          <ArrowLeft size={13} /> Mover Izq
-        </button>
-        <button
-          className="secondary-action-sm"
-          type="button"
-          title="Mover participante a la derecha"
-          onClick={() => moveParticipantHorizontal(selectedParticipant.id, 1)}
-        >
-          <ArrowRight size={13} /> Mover Der
-        </button>
-      </div>
-
-      {/* Objeto o actor, a la vista: antes solo se cambiaba en "Opciones técnicas". */}
+  const participantTypeSelector = selectedParticipant ? (
       <div className="v2-segmented" role="radiogroup" aria-label="Tipo de participante">
         {(['object', 'actor'] as const).map((kind) => {
           const active = kind === 'actor' ? selectedParticipant.kind === 'actor' : selectedParticipant.kind !== 'actor';
@@ -3312,6 +3382,12 @@ export function SequenceDiagramEditor({
           );
         })}
       </div>
+  ) : null;
+
+  const participantInspector = selectedParticipant ? (
+    <>
+
+      {participantTypeSelector}
 
       {selectedParticipant.kind === 'actor' ? (
         <label style={{ marginBottom: 10 }}>
@@ -3338,26 +3414,9 @@ export function SequenceDiagramEditor({
         </label>
       )}
 
-      <details className="sequence-inspector-section sequence-collapsible-section" style={{ marginBottom: 10 }}>
-        <summary><h4>Opciones técnicas</h4></summary>
-        <span style={{ fontSize: '0.72rem', color: 'var(--panel-muted-text)' }}>Tipo interno (compatibilidad)</span>
-        <div className="sequence-participant-kind-grid" style={{ marginTop: 6 }}>
-          {(['object', 'actor', 'boundary', 'control', 'entity'] as const).map((kind) => (
-            <button
-              key={kind}
-              type="button"
-              className={`sequence-participant-kind-pill ${selectedParticipant.kind === kind ? 'active' : ''}`}
-              onClick={() => updateParticipant(selectedParticipant.id, { kind })}
-            >
-              {participantKindLabels[kind]}
-            </button>
-          ))}
-        </div>
-        {/* El vínculo al diagrama de clases sigue disponible, pero no interrumpe
-            el flujo textual principal del participante. */}
         {selectedParticipant.kind !== 'actor' ? (
           <label style={{ marginTop: 10 }}>
-            <span>Vincular con clase del modelo</span>
+            <span>Clase del modelo</span>
             <select
               value={selectedParticipant.classifierNodeId ?? ''}
               onChange={(event) => {
@@ -3377,7 +3436,6 @@ export function SequenceDiagramEditor({
             </select>
           </label>
         ) : null}
-      </details>
 
       {/* Terminar línea de vida con cruz */}
       <div style={{ marginTop: 8, marginBottom: 10 }}>
@@ -3410,6 +3468,23 @@ export function SequenceDiagramEditor({
           <span>Terminar línea de vida con cruz (X) al finalizar participación</span>
         </label>
       </div>
+
+      <details className="sequence-inspector-section sequence-collapsible-section" style={{ marginBottom: 10 }}>
+        <summary><h4>Avanzado</h4></summary>
+        <span style={{ fontSize: '0.72rem', color: 'var(--panel-muted-text)' }}>Tipo interno (compatibilidad)</span>
+        <div className="sequence-participant-kind-grid" style={{ marginTop: 6 }}>
+          {(['object', 'actor', 'boundary', 'control', 'entity'] as const).map((kind) => (
+            <button
+              key={kind}
+              type="button"
+              className={`sequence-participant-kind-pill ${selectedParticipant.kind === kind ? 'active' : ''}`}
+              onClick={() => updateParticipant(selectedParticipant.id, { kind })}
+            >
+              {participantKindLabels[kind]}
+            </button>
+          ))}
+        </div>
+      </details>
 
       {/* Activaciones manuales */}
       <details className="sequence-inspector-section sequence-collapsible-section" style={{ marginTop: 8 }}>
@@ -3551,6 +3626,10 @@ export function SequenceDiagramEditor({
 
     return (
       <div className="sequence-message-inspector-root">
+        {missingInModel?.messageIds.has(selectedItem.id) ? <div className="sequence-model-notice" role="status">
+          <span>No está en el modelo de clases.</span>
+          <button className="sequence-sync-class-method-button" type="button" disabled={!onCreateClassMethod && !onImportSequenceIntoClassModel} onClick={createClassMethodFromSelectedMessage}>Agregar al modelo</button>
+        </div> : null}
 
         <div className="sequence-compact-action-row" style={{ marginTop: 4 }}>
           <button className="secondary-action" type="button" onClick={() => moveSelectedItem(-1)} title="Mover arriba (Alt+↑)"><ArrowUp size={13} /> Subir</button>
@@ -3773,21 +3852,6 @@ export function SequenceDiagramEditor({
               </select>
             </label>
           ) : null}
-
-          {selectedItem.kind === 'message'
-            && (selectedItem.type === 'synchronous' || selectedItem.type === 'asynchronous')
-            && associatedClassDiagram !== undefined
-            && onCreateClassMethod !== undefined ? (
-              <button
-                className="sequence-sync-class-method-button"
-                type="button"
-                disabled={selectedItem.name.trim().length === 0}
-                onClick={createClassMethodFromSelectedMessage}
-              >
-                <Link2 aria-hidden="true" size={14} />
-                {selectedMessageReferenceStatus?.method === 'missing' ? 'Reparar método en el modelo' : 'Sincronizar operación con clases'}
-              </button>
-            ) : null}
 
           <label style={{ marginTop: 6 }}>
             <span>Paso vinculado al flujo</span>
@@ -4400,7 +4464,7 @@ export function SequenceDiagramEditor({
           placeholder="Escribí aquí una nota de apoyo o aclaración..."
         />
         <small className="sequence-inspector-hint" style={{ marginTop: 4, display: 'block' }}>
-          Doble clic en el lienzo para editar · Tiradores para redimensionar en ancho y alto.
+          Doble clic o Enter en el lienzo para escribir · Tiradores para redimensionar en ancho y alto.
         </small>
       </label>
 
@@ -4611,6 +4675,10 @@ export function SequenceDiagramEditor({
           <>
             <EditorIdentity artifactKind="Diagrama de secuencia" artifactType={'sequence-diagram'} artifactName={artifact.name} projectName={project.name} />
             <ToolbarHistory canRedo={canRedo} canUndo={canUndo} saveStatus={saveStatus} onRedo={onRedo} onUndo={onUndo} />
+            {associatedClassDiagram ? <ToolMenu label={missingCount > 0 ? `${missingCount} ${missingCount === 1 ? 'falta' : 'faltan'} en el modelo` : '✓ Modelo al día'} title={`Modelo de clases: ${associatedClassDiagram.name}`} align="start" className={`sequence-model-status ${missingCount > 0 ? 'has-novelties' : ''}`}>
+              {missingCount > 0 ? <MenuItem disabled={!onImportSequenceIntoClassModel} onSelect={importIntoModel}>Agregar todo al modelo</MenuItem> : null}
+              <MenuItem icon={Link2} disabled={!onNavigateToArtifact} onSelect={() => onNavigateToArtifact?.(associatedClassDiagram.id)}>Abrir modelo</MenuItem>
+            </ToolMenu> : null}
           </>
         )}
         create={(
@@ -4952,7 +5020,30 @@ export function SequenceDiagramEditor({
           ) : null}
           <div className="sequence-canvas-scroll" ref={scrollRef} onScroll={(event) => handleCanvasScroll(event.currentTarget)}>
             <div className="sequence-canvas-scale" style={{ width: layout.width * zoom, height: layout.height * zoom }}>
-              <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: layout.width, height: layout.height, position: 'relative' }}>
+              <div
+                style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: layout.width, height: layout.height, position: 'relative' }}
+                onContextMenu={(event) => {
+                  const element = event.target instanceof Element ? event.target.closest('[data-participant-id]') : null;
+                  const id = element?.getAttribute('data-participant-id');
+                  if (!id) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  selectCanvasElement({ kind: 'participant', id });
+                }}
+                onPointerDownCapture={(event) => {
+                  if (!inlineNoteEditor?.draft || (event.target instanceof Element && event.target.closest('.sequence-inline-note-container'))) return;
+                  // Keep focus until the click saves the draft, so the canvas
+                  // cannot start a drag or clear the newly selected note.
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+                onClickCapture={(event) => {
+                  if (!inlineNoteEditor?.draft || (event.target instanceof Element && event.target.closest('.sequence-inline-note-container'))) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  commitInlineNoteEdit();
+                }}
+              >
                 <SequenceDiagramCanvas
                   content={interactionContent}
                   layout={layout}
@@ -4961,6 +5052,7 @@ export function SequenceDiagramEditor({
                   highlighted={highlightedSelection}
                   theme={theme}
                   classNodesById={classNodesById}
+                  missingInModel={missingInModel}
                   participantColorsEnabled={content.participantColors !== 'disabled'}
                   ariaDescriptionId="sequence-structured-description"
                   onSelect={selectCanvasElement}
@@ -5026,12 +5118,88 @@ export function SequenceDiagramEditor({
                     />
                   </div>
                 ) : null}
+                {selectedParticipant && !isParticipantDragging && selectionState.elements.length === 1 ? (() => {
+                  const box = layout.participantLayouts.get(selectedParticipant.id);
+                  if (!box) return null;
+                  const ordered = [...content.participants].sort((a, b) => a.x - b.x || a.id.localeCompare(b.id));
+                  const index = ordered.findIndex((participant) => participant.id === selectedParticipant.id);
+                  return (
+                    <div
+                      className="sequence-note-toolbar sequence-participant-toolbar"
+                      role="group"
+                      aria-label="Acciones del participante"
+                      data-export-control="true"
+                      style={{ left: Math.max(0, (layout.participantX.get(selectedParticipant.id) ?? selectedParticipant.x) - box.headerWidth / 2), top: Math.max(0, box.headerY - 36) }}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <button type="button" title="Mover a la izquierda (Alt+←)" aria-label="Mover participante a la izquierda" disabled={index === 0} onClick={() => moveParticipantHorizontal(selectedParticipant.id, -1)}>
+                        <ArrowLeft size={14} />
+                      </button>
+                      <button type="button" title="Mover a la derecha (Alt+→)" aria-label="Mover participante a la derecha" disabled={index === ordered.length - 1} onClick={() => moveParticipantHorizontal(selectedParticipant.id, 1)}>
+                        <ArrowRight size={14} />
+                      </button>
+                      {participantTypeSelector}
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={selectedParticipant.destroyedByMessageId !== undefined || (selectedParticipant.terminateLifeline ?? (selectedParticipant.createdByMessageId !== undefined))}
+                        aria-pressed={selectedParticipant.destroyedByMessageId !== undefined || (selectedParticipant.terminateLifeline ?? (selectedParticipant.createdByMessageId !== undefined))}
+                        disabled={selectedParticipant.destroyedByMessageId !== undefined}
+                        title={selectedParticipant.destroyedByMessageId !== undefined ? 'Finaliza automáticamente por el mensaje de destrucción asociado' : 'Terminar línea de vida con X'}
+                        onClick={() => updateParticipant(selectedParticipant.id, { terminateLifeline: !(selectedParticipant.terminateLifeline ?? (selectedParticipant.createdByMessageId !== undefined)) })}
+                      >Terminar con X</button>
+                      <button type="button" title="Eliminar participante" aria-label="Eliminar participante" onClick={deleteSelection}>
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  );
+                })() : null}
+                {selectedNote && !inlineNoteEditor && selectionState.elements.length === 1 ? (() => {
+                  const box = layout.noteLayouts.get(selectedNote.id);
+                  if (!box) return null;
+                  return (
+                    <div
+                      className="sequence-note-toolbar"
+                      role="group"
+                      aria-label="Acciones de la nota"
+                      data-export-control="true"
+                      style={{ left: box.x, top: Math.max(0, box.y - 40) }}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      {Object.entries(SEQUENCE_NOTE_COLORS).map(([color, scheme]) => (
+                        <button
+                          key={color}
+                          type="button"
+                          title={scheme.label}
+                          aria-label={scheme.label}
+                          aria-pressed={(selectedNote.color ?? 'yellow') === color}
+                          onClick={() => updateNote(selectedNote.id, { color: color as SequenceNote['color'] })}
+                        >
+                          <span className="sequence-note-toolbar-dot" style={{ background: scheme.dot }} />
+                        </button>
+                      ))}
+                      {selectedNote.anchorKind !== 'free' ? (
+                        <button type="button" title="Desanclar" aria-label="Desanclar" onClick={() => updateNote(selectedNote.id, { anchorKind: 'free', anchorId: undefined })}>
+                          <Unlink size={14} /><span>Desanclar</span>
+                        </button>
+                      ) : null}
+                      <button type="button" title="Eliminar nota" aria-label="Eliminar nota" onClick={deleteSelection}>
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  );
+                })() : null}
                 {inlineNoteEditor ? (() => {
-                  const targetNote = content.notes.find((n) => n.id === inlineNoteEditor.noteId);
+                  const targetNote = inlineNoteEditor.draft ?? content.notes.find((n) => n.id === inlineNoteEditor.noteId);
                   const scheme = SEQUENCE_NOTE_COLORS[targetNote?.color ?? 'yellow'];
                   return (
                     <div
                       className="sequence-inline-note-container"
+                      data-export-control="true"
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={(event) => event.stopPropagation()}
                       style={{
                         position: 'absolute',
                         left: inlineNoteEditor.x,
@@ -5052,7 +5220,7 @@ export function SequenceDiagramEditor({
                           color: scheme.text,
                           border: `1px solid ${theme.association.strokeSelected}`,
                           borderRadius: '4px',
-                          boxShadow: '0 2px 8px rgba(15, 23, 42, 0.12)',
+                          boxShadow: 'var(--shadow-popover)',
                           outline: 'none',
                           resize: 'none',
                           padding: `${SEQUENCE_NOTE_PADDING_TOP}px ${SEQUENCE_NOTE_PADDING_X}px`,
@@ -5064,7 +5232,8 @@ export function SequenceDiagramEditor({
                           overflowWrap: 'break-word',
                         }}
                         value={inlineNoteEditor.value}
-                        placeholder="Escribe el texto de la nota..."
+                        aria-label="Texto de la nota"
+                        placeholder="Escribí la nota…"
                         onChange={(e) => {
                           const val = e.target.value;
                           const minH = getSequenceNoteMinimumHeight({ text: val, width: inlineNoteEditor.width });
@@ -5073,7 +5242,7 @@ export function SequenceDiagramEditor({
                             value: val,
                             height: Math.max(targetNote?.height ?? 0, minH),
                           });
-                          if (targetNote) {
+                          if (targetNote && !inlineNoteEditor.draft) {
                             setNotePreview({ [targetNote.id]: { text: val } });
                           }
                         }}
@@ -5090,7 +5259,7 @@ export function SequenceDiagramEditor({
                         onBlur={() => commitInlineNoteEdit()}
                       />
                       <div className="sequence-inline-note-hint">
-                        ⌘Enter guarda · Esc cancela
+                        ⌘Enter o clic afuera guarda · Esc cancela
                       </div>
                     </div>
                   );

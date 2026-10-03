@@ -4370,3 +4370,122 @@
   color: var(--panel-muted-text);
 }
 
+
+.sequence-note-toolbar {
+  position: absolute;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background: var(--panel-background);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+}
+
+.sequence-note-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-width: var(--control-sm);
+  height: var(--control-sm);
+  padding: 0 var(--space-1);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--panel-text);
+  cursor: pointer;
+}
+
+.sequence-note-toolbar button:hover {
+  background: var(--ui-hover-background);
+}
+
+.sequence-note-toolbar button[aria-pressed="true"] {
+  border-color: var(--accent-border);
+  background: var(--button-active-background);
+}
+
+.sequence-note-toolbar button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.sequence-note-toolbar-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-pill);
+}
+
+.sequence-inline-note-textarea::placeholder {
+  color: inherit;
+  opacity: 0.75;
+}
+
+.app-shell .sequence-participant-toolbar {
+  padding: 2px;
+  white-space: nowrap;
+}
+
+.app-shell .sequence-participant-toolbar .v2-segmented {
+  margin: 0;
+  padding: 0;
+}
+
+.sequence-participant-toolbar button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.sequence-participant-toolbar button:disabled:hover {
+  background: transparent;
+}
+
+.app-shell .sequence-participant-toolbar button {
+  min-width: 24px;
+  min-height: 24px;
+  height: 24px;
+}
+
+/* Sequence/model synchronization stays in the contextual toolbar. */
+.sequence-model-status > summary {
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-xs);
+  color: var(--panel-secondary-text);
+  max-width: 340px;
+}
+.sequence-model-status .v2-tool-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sequence-model-status.has-novelties > summary {
+  color: var(--accent);
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+.sequence-model-sync-panel {
+  max-height: min(65vh, 560px);
+  overflow-y: auto;
+}
+.sequence-model-import-action {
+  padding: var(--space-2);
+}
+.sequence-model-import-action > .v2-menu-item {
+  color: var(--ui-selected-text);
+  background: var(--button-active-background);
+  font-weight: 600;
+}
+.sequence-model-import-action > .v2-menu-item:hover {
+  background: var(--accent-strong-fill);
+}
+.sequence-model-notice {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  color: var(--status-warning-text);
+  background: var(--status-warning-soft);
+  border-radius: var(--radius-sm);
+}

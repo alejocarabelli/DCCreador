@@ -34,6 +34,8 @@ const SECTIONS: Array<{ title: string; shortcuts: Shortcut[] }> = [
     title: 'Diagrama de secuencia',
     shortcuts: [
       ['M', 'Entrar o salir del modo teclado'],
+      ['N', 'Crear una nota'],
+      ['↵', 'Editar la nota seleccionada'],
       ['⌘D', 'Duplicar el elemento seleccionado'],
       ['⌘C  ⌘V', 'Copiar y pegar mensajes'],
       ['⌥↑  ⌥↓', 'Mover el elemento en la línea de tiempo'],

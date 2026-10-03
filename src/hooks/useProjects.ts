@@ -1,3 +1,4 @@
+import { linkNewSequenceToOnlyModel } from '../utils/sequenceModelLink';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ArtifactContent,
@@ -405,7 +406,7 @@ export const useProjects = () => {
       ? {
           ...project,
           activeArtifactId: artifact.id,
-          artifacts: [...project.artifacts, artifact],
+          artifacts: linkNewSequenceToOnlyModel(project.artifacts, artifact),
           updatedAt: now,
         }
       : project));

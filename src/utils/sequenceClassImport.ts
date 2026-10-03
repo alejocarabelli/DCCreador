@@ -59,16 +59,16 @@ export const accessorAttribute = (operation: Pick<ImportedOperation, 'name' | 'r
 const accessorAttributes = (
   operations: Pick<ImportedOperation, 'name' | 'returnType'>[],
   existing: Pick<ClassAttribute, 'name'>[],
-): ClassAttribute[] => {
+): Omit<ClassAttribute, 'id'>[] => {
   const taken = new Set(existing.map((attribute) => normalizeKey(attribute.name)));
-  const added = new Map<string, ClassAttribute>();
+  const added = new Map<string, Omit<ClassAttribute, 'id'>>();
   for (const operation of operations) {
     const attribute = accessorAttribute(operation);
     if (attribute === null) continue;
     const key = normalizeKey(attribute.name);
     if (taken.has(key)) continue;
     const pending = added.get(key);
-    if (pending === undefined) added.set(key, { id: createId(), ...attribute });
+    if (pending === undefined) added.set(key, attribute);
     // A setter seen first leaves the type empty; the getter can still fill it.
     else if (pending.type === '') pending.type = attribute.type;
   }
@@ -77,7 +77,7 @@ const accessorAttributes = (
 
 /** One operation per name: `buscar(id)` and `buscar(nro)` are the same method. */
 const sameOperation = (a: Pick<ImportedOperation, 'name'>, b: Pick<ImportedOperation, 'name'>): boolean =>
-  normalizeKey(a.name) === normalizeKey(b.name);
+  normalizeKey(a.name.replace(/\(.*$/, '')) === normalizeKey(b.name.replace(/\(.*$/, ''));
 
 /**
  * Brings every non-actor participant of the given sequence diagrams into the
@@ -88,38 +88,11 @@ const sameOperation = (a: Pick<ImportedOperation, 'name'>, b: Pick<ImportedOpera
 export const importClassesFromSequences = (
   classContent: ClassDiagramContent,
   sequences: SequenceDiagramContent[],
+  acceptedKeys?: ReadonlySet<string>,
 ): { content: ClassDiagramContent; summary: SequenceClassImportSummary } => {
-  const order: string[] = [];
-  const displayNames = new Map<string, string>();
-  const operations = new Map<string, ImportedOperation[]>();
-
-  for (const sequence of sequences) {
-    const participantClass = new Map<string, string>();
-    const participants = [...sequence.participants].sort((a, b) => a.x - b.x);
-
-    for (const participant of participants) {
-      if (participant.kind === 'actor') continue;
-      const className = participantClassName(participant.classifierName ?? '', participant.name ?? '');
-      if (className.length === 0) continue;
-      const key = normalizeKey(className);
-      participantClass.set(participant.id, key);
-      if (!displayNames.has(key)) {
-        displayNames.set(key, className);
-        order.push(key);
-        operations.set(key, []);
-      }
-    }
-
-    for (const { item } of flattenSequenceItems(sequence.items)) {
-      if (item.kind !== 'message') continue;
-      const key = participantClass.get(item.targetId);
-      const operation = operationFromMessage(item);
-      if (key === undefined || operation === null) continue;
-      const known = operations.get(key) ?? [];
-      if (!known.some((candidate) => sameOperation(candidate, operation))) known.push(operation);
-      operations.set(key, known);
-    }
-  }
+  const { order, displayNames, operations } = collectSequenceOperations(classContent, sequences);
+  const accepts = (type: SequenceClassImportNovelty['type'], classKey: string, name: string) =>
+    acceptedKeys === undefined || acceptedKeys.has(noveltyKey(type, classKey, name));
 
   const summary: SequenceClassImportSummary = { createdClasses: 0, addedAttributes: 0, addedMethods: 0, updatedClasses: 0 };
   const nodes: ClassDiagramNode[] = classContent.nodes.map((node) => {
@@ -128,8 +101,10 @@ export const importClassesFromSequences = (
     if (incoming === undefined) return node;
 
     const missing = incoming.filter((operation) =>
-      !node.data.methods.some((method) => sameOperation(method, operation)));
-    const attributes = accessorAttributes([...node.data.methods, ...incoming], node.data.attributes);
+      !node.data.methods.some((method) => sameOperation(method, operation)) && accepts('method', key, operation.name));
+    const attributes = accessorAttributes([...node.data.methods, ...incoming], node.data.attributes)
+      .filter((attribute) => accepts('attribute', key, attribute.name))
+      .map((attribute) => ({ id: createId(), ...attribute }));
     operations.delete(key);
     if (missing.length === 0 && attributes.length === 0) return node;
 
@@ -159,11 +134,14 @@ export const importClassesFromSequences = (
   let rowHeight = 0;
 
   for (const key of order) {
-    const incoming = operations.get(key);
-    if (incoming === undefined) continue;
+    const pending = operations.get(key);
+    if (pending === undefined || !accepts('class', key, key)) continue;
+    const incoming = pending.filter((operation) => accepts('method', key, operation.name));
 
     const name = displayNames.get(key) ?? key;
-    const attributes = accessorAttributes(incoming, []);
+    const attributes = accessorAttributes(pending, [])
+      .filter((attribute) => accepts('attribute', key, attribute.name))
+      .map((attribute) => ({ id: createId(), ...attribute }));
     const size = estimateClassSize({ name, attributes, methods: incoming });
     if (cursor.x > start.x && cursor.x + size.width > start.x + rowWidth) {
       cursor = { x: start.x, y: cursor.y + rowHeight + 60 };
@@ -193,4 +171,101 @@ export const importClassesFromSequences = (
   }
 
   return { content: { ...classContent, nodes }, summary };
+};
+
+export type SequenceClassImportNovelty = {
+  key: string;
+  type: 'class' | 'method' | 'attribute';
+  className: string;
+  elementName: string;
+  returnType?: string;
+  attributeType?: string;
+};
+
+const noveltyKey = (type: SequenceClassImportNovelty['type'], classKey: string, name: string): string =>
+  type === 'class' ? `class:${classKey}` : `${type}:${classKey}:${normalizeKey(name)}`;
+
+const collectSequenceOperations = (classContent: ClassDiagramContent, sequences: SequenceDiagramContent[]) => {
+  const order: string[] = [];
+  const displayNames = new Map<string, string>();
+  const operations = new Map<string, ImportedOperation[]>();
+
+  for (const sequence of sequences) {
+    const participantClass = new Map<string, string>();
+    const participants = [...sequence.participants].sort((a, b) => a.x - b.x);
+
+    for (const participant of participants) {
+      if (participant.kind === 'actor') continue;
+      const linkedNode = participant.classifierNodeId ? classContent.nodes.find((node) => node.id === participant.classifierNodeId) : undefined;
+      const className = linkedNode?.data.name ?? participantClassName(participant.classifierName ?? '', participant.name ?? '');
+      if (className.length === 0) continue;
+      const key = normalizeKey(className);
+      participantClass.set(participant.id, key);
+      if (!displayNames.has(key)) {
+        displayNames.set(key, className);
+        order.push(key);
+        operations.set(key, []);
+      }
+    }
+
+    for (const { item } of flattenSequenceItems(sequence.items)) {
+      if (item.kind !== 'message') continue;
+      const key = participantClass.get(item.targetId);
+      const operation = operationFromMessage(item);
+      if (key === undefined || operation === null) continue;
+      const known = operations.get(key) ?? [];
+      if (!known.some((candidate) => sameOperation(candidate, operation))) known.push(operation);
+      operations.set(key, known);
+    }
+  }
+
+  return { order, displayNames, operations };
+};
+
+/** A deterministic, read-only preview of everything an unfiltered import adds. */
+export const planSequenceClassImport = (
+  classContent: ClassDiagramContent,
+  sequences: SequenceDiagramContent[],
+): SequenceClassImportNovelty[] => {
+  const { order, displayNames, operations } = collectSequenceOperations(classContent, sequences);
+  return order.flatMap((key) => {
+    const node = classContent.nodes.find((candidate) => normalizeKey(candidate.data.name) === key);
+    const className = node?.data.name ?? displayNames.get(key)!;
+    const incoming = operations.get(key)!;
+    const result: SequenceClassImportNovelty[] = node ? [] : [{ key: noveltyKey('class', key, className), type: 'class', className, elementName: className }];
+    for (const operation of incoming) {
+      if (!node?.data.methods.some((method) => sameOperation(method, operation))) {
+        result.push({ key: noveltyKey('method', key, operation.name), type: 'method', className, elementName: operation.name, returnType: operation.returnType });
+      }
+    }
+    for (const attribute of accessorAttributes([...(node?.data.methods ?? []), ...incoming], node?.data.attributes ?? [])) {
+      result.push({ key: noveltyKey('attribute', key, attribute.name), type: 'attribute', className, elementName: attribute.name, attributeType: attribute.type });
+    }
+    return result;
+  });
+};
+
+export const findSequenceMessagesMissingInModel = (sequence: SequenceDiagramContent, classContent: ClassDiagramContent): { messageIds: Set<string>; participantIds: Set<string> } => {
+  const participantIds = new Set<string>();
+  const messageIds = new Set<string>();
+  const classes = new Map<string, ClassDiagramNode | undefined>();
+  for (const participant of sequence.participants) {
+    if (participant.kind === 'actor') continue;
+    const node = participant.classifierNodeId
+      ? classContent.nodes.find((candidate) => candidate.id === participant.classifierNodeId)
+      : classContent.nodes.find((candidate) => normalizeKey(candidate.data.name) === normalizeKey(participantClassName(participant.classifierName, participant.name)));
+    classes.set(participant.id, node);
+    if (!node) participantIds.add(participant.id);
+  }
+  for (const { item } of flattenSequenceItems(sequence.items)) {
+    if (item.kind !== 'message' || !classes.has(item.targetId)) continue;
+    if (participantIds.has(item.targetId)) {
+      messageIds.add(item.id);
+      continue;
+    }
+    const operation = operationFromMessage(item);
+    if (!operation) continue;
+    if (!classes.get(item.targetId)?.data.methods.some((method) => sameOperation(method, operation))) messageIds.add(item.id);
+  }
+  return { messageIds, participantIds };
 };
