@@ -265,6 +265,32 @@ export const resolveSequenceParticipantX = (
     Math.abs(candidate - desired) < Math.abs(closest - desired) ? candidate : closest));
 };
 
+/** Reuse the original horizontal slots, expanding only gaps that need more room. */
+export const resolveSequenceParticipantDragReorder = (
+  participants: SequenceParticipant[],
+  movingId: string,
+  pointerX: number,
+): { order: string[]; positions: Record<string, number> } => {
+  const sorted = [...participants].sort((a, b) => a.x - b.x || a.id.localeCompare(b.id));
+  const moving = sorted.find((participant) => participant.id === movingId);
+  const reordered = sorted.filter((participant) => participant.id !== movingId);
+  if (moving) {
+    const index = reordered.findIndex((participant) => pointerX < participant.x);
+    reordered.splice(index < 0 ? reordered.length : index, 0, moving);
+  }
+  const positions: Record<string, number> = {};
+  reordered.forEach((participant, index) => {
+    const previous = reordered[index - 1];
+    const minimum = previous
+      ? positions[previous.id]
+        + (getSequenceParticipantHeaderWidth(previous) + getSequenceParticipantHeaderWidth(participant)) / 2
+        + (SEQUENCE_MIN_PARTICIPANT_GAP - 160)
+      : 90;
+    positions[participant.id] = Math.max(sorted[index].x, Math.ceil(minimum));
+  });
+  return { order: reordered.map((participant) => participant.id), positions };
+};
+
 /**
  * Reorders one participant by one horizontal slot without placing the pair
  * on top of each other. The pair keeps its previous separation when that is
