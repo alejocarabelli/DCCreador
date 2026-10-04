@@ -20,6 +20,7 @@ export function SequenceMessageDialog({
   methodOptions = [],
   flowOptions = [],
   referenceStatus,
+  routeEditable = false,
   onChange,
   onSwap,
   onSubmit,
@@ -27,6 +28,8 @@ export function SequenceMessageDialog({
 }: {
   draft: QuickMessageDraft;
   participants: SequenceParticipant[];
+  /** From the toolbar the route is chosen here; dragging between lifelines already set it. */
+  routeEditable?: boolean;
   methodOptions?: SequenceMethodOption[];
   flowOptions?: SequenceFlowOption[];
   referenceStatus?: SequenceMessageReferenceStatus;
@@ -257,9 +260,20 @@ export function SequenceMessageDialog({
 
         {/* Route bar with swap button */}
         <div className="sequence-dialog-route-bar">
-          <span className="sequence-dialog-route-participant" title={participantName(draft.sourceId)}>
-            {participantName(draft.sourceId)}
-          </span>
+          {routeEditable ? (
+            <select
+              aria-label="Origen"
+              className="sequence-dialog-route-select"
+              value={draft.sourceId}
+              onChange={(event) => onChange(updateSequenceMessageEditModel(draft, { sourceId: event.target.value }))}
+            >
+              {participants.map((participant) => <option key={participant.id} value={participant.id}>{formatSequenceParticipantName(participant)}</option>)}
+            </select>
+          ) : (
+            <span className="sequence-dialog-route-participant" title={participantName(draft.sourceId)}>
+              {participantName(draft.sourceId)}
+            </span>
+          )}
           <button
             type="button"
             className="sequence-dialog-swap-btn"
@@ -271,9 +285,28 @@ export function SequenceMessageDialog({
             <span className="sequence-dialog-swap-arrow">{arrowSymbol}</span>
             <span className="sequence-dialog-swap-label">invertir</span>
           </button>
-          <span className="sequence-dialog-route-participant" title={participantName(draft.targetId)}>
-            {participantName(draft.targetId)}
-          </span>
+          {routeEditable && draft.type === 'create' ? (
+            <input
+              aria-label="Objeto nuevo"
+              className="sequence-dialog-route-select"
+              value={draft.newParticipantName ?? ''}
+              placeholder="nuevo:Clase"
+              onChange={(event) => onChange(updateSequenceMessageEditModel(draft, { newParticipantName: event.target.value }))}
+            />
+          ) : routeEditable ? (
+            <select
+              aria-label="Destino"
+              className="sequence-dialog-route-select"
+              value={draft.targetId}
+              onChange={(event) => onChange(updateSequenceMessageEditModel(draft, { targetId: event.target.value }))}
+            >
+              {participants.map((participant) => <option key={participant.id} value={participant.id}>{formatSequenceParticipantName(participant)}</option>)}
+            </select>
+          ) : (
+            <span className="sequence-dialog-route-participant" title={participantName(draft.targetId)}>
+              {participantName(draft.targetId)}
+            </span>
+          )}
         </div>
 
         {/* Multi-line auto-wrapping text area */}
@@ -322,7 +355,7 @@ export function SequenceMessageDialog({
               ))}
             </div>
           ) : null}
-          <span className="sequence-dialog-textarea-hint">{showSuggestions ? '↑↓ para elegir · Enter o Tab usa el método · Esc para escribir libre' : 'Ajuste automático de líneas · Enter para guardar'}</span>
+          {showSuggestions ? <span className="sequence-dialog-textarea-hint">↑↓ para elegir · Enter o Tab usa el método · Esc para escribir libre</span> : null}
         </div> : null}
 
         {/* Segmented type pills selector */}

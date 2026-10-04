@@ -4496,3 +4496,15 @@
   font-weight: 600;
   padding: var(--space-2) var(--space-2) var(--space-1);
 }
+.sequence-dialog-route-select {
+  min-width: 0;
+  max-width: 42%;
+  flex: 1 1 0;
+  font: inherit;
+  font-weight: 600;
+  padding: 4px 6px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-xs);
+  background: var(--panel-surface, transparent);
+  color: var(--panel-text);
+}

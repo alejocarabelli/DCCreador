@@ -43,7 +43,6 @@ describe('SequenceMessageDialog', () => {
     // Multi-line auto-wrapping textarea with rows="3" and complete signature
     expect(html).toContain('rows="3"');
     expect(html).toContain('comprobarConsultorInstanciado(codCliente, fechaInicio, estadoVigente, tokenSesion): ResultadoValidacion');
-    expect(html).toContain('Ajuste automático de líneas · Enter para guardar');
 
     // Clean segmented type selector pills
     expect(html).toContain('Síncrono');

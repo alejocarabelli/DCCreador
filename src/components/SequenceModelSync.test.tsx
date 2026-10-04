@@ -39,11 +39,12 @@ describe('sequence model synchronization UI', () => {
     expect(renderModel({ ...model, content: { ...model.content, linkedSequenceDiagramIds: [] } })).toContain('Sin secuencias vinculadas');
   });
   it('shows missing model elements and the import action only when necessary', () => {
-    expect(renderSequence()).toContain('2 faltan en el modelo');
+    expect(renderSequence()).toContain('2 faltan');
+    expect(renderSequence()).toContain('2 elementos faltan en «Modelo»');
     expect(renderSequence()).toContain('Agregar todo a «Modelo»');
     const synced = { ...model, content: { ...model.content, ...importClassesFromSequences(model.content, [sequence.content]).content } };
     const html = renderSequence({ ...project, artifacts: [synced, sequence] });
-    expect(html).toContain('✓ Modelo al día');
+    expect(html).toContain('✓ Al día');
     expect(html).not.toContain('Agregar todo a «Modelo»');
     expect(html).toContain('Abrir «Modelo»');
   });

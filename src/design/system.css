@@ -885,3 +885,27 @@
   display: flex;
   margin-bottom: var(--space-3);
 }
+
+/* When the toolbar is tight, the project name gives way first: the artifact
+   name keeps at least ~16 characters (the full text stays in the title). */
+.app-shell[data-ui-version='refined'] .v2-toolbar .editor-breadcrumb-project {
+  flex: 0 100 auto;
+  min-width: 0;
+}
+.app-shell[data-ui-version='refined'] .v2-toolbar .editor-breadcrumb h1 {
+  flex: 0 1 auto;
+  min-width: min(max-content, 16ch);
+}
+.app-shell[data-ui-version='refined'] .v2-toolbar .editor-identity {
+  flex-shrink: 1;
+  min-width: min(max-content, 22ch);
+}
+
+/* The sequence toolbar carries more controls: below 1240px of header the
+   project name (also in the sidebar and the title) leaves the breadcrumb. */
+@container v2-toolbar (max-width: 1240px) {
+  .app-shell[data-ui-version='refined'] .sequence-editor-shell .v2-toolbar .editor-breadcrumb-project,
+  .app-shell[data-ui-version='refined'] .sequence-editor-shell .v2-toolbar .editor-breadcrumb > svg:first-of-type {
+    display: none;
+  }
+}

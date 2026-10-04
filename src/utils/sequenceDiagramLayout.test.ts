@@ -267,7 +267,8 @@ describe('sequence diagram geometry contract', () => {
 
     expect(participantBox.nameLines.length).toBeGreaterThan(2);
     expect(messageBox.labelLines.length).toBeGreaterThan(12);
-    expect(messageBox.labelLines.join('')).toBe(formatSequenceMessageLabel(fragment.operands[0].items[0] as SequenceMessage, '1').replaceAll(' ', '').replaceAll('\n', ''));
+    expect(messageBox.labelLines.join('').replaceAll(' ', '')).toBe(formatSequenceMessageLabel(fragment.operands[0].items[0] as SequenceMessage, '1').replaceAll(' ', '').replaceAll('\n', ''));
+    expect(messageBox.labelLines[0].startsWith('1. ')).toBe(true);
     expect(fragmentBox.nameLines.join('')).toBe(veryLongText);
     expect(fragmentBox.operands[0].guardLines.join('')).toBe(veryLongText);
     expect(messageBox.labelTop).toBeGreaterThanOrEqual(fragmentBox.operands[0].contentTop);

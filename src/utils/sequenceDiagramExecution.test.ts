@@ -470,3 +470,32 @@ describe('reply reference cloning', () => {
     expect(clonedReturn.replyToMessageId).toBe(clonedCall.id);
   });
 });
+
+describe('actor activation', () => {
+  it('draws one bar for all the round trips of an actor, like Enterprise Architect', () => {
+    const content = normalizeSequenceDiagramContent({
+      ...createEmptySequenceDiagramContent(),
+      participants: [{ ...participant('cliente', 120), kind: 'actor' }, participant('pantalla', 360)],
+      items: [
+        message('pedir', 'cliente', 'pantalla'),
+        message('respuesta', 'pantalla', 'cliente', 'return', 'pedir'),
+        message('confirmar', 'cliente', 'pantalla'),
+        message('fin', 'pantalla', 'cliente', 'return', 'confirmar'),
+      ],
+    });
+    const actorBars = analyzeSequenceDiagramSemantics(content).activations.filter((activation) => activation.participantId === 'cliente');
+    expect(actorBars).toEqual([expect.objectContaining({ startMessageId: 'pedir', endMessageId: 'fin', level: 0 })]);
+    const objectBars = analyzeSequenceDiagramSemantics(content).activations.filter((activation) => activation.participantId === 'pantalla');
+    expect(objectBars).toHaveLength(2);
+  });
+
+  it('keeps separate bars for a plain object that is called twice', () => {
+    const content = diagram([
+      message('primera', 'a', 'b'),
+      message('vuelta-1', 'b', 'a', 'return', 'primera'),
+      message('segunda', 'a', 'b'),
+      message('vuelta-2', 'b', 'a', 'return', 'segunda'),
+    ], [], ['a', 'b']);
+    expect(analyzeSequenceDiagramSemantics(content).activations.filter((activation) => activation.participantId === 'a')).toHaveLength(2);
+  });
+});
