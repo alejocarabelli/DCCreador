@@ -1,4 +1,4 @@
-import { findSequenceMessagesMissingInModel, participantClassName, planSequenceClassImport } from '../utils/sequenceClassImport';
+import { findSequenceMessagesMissingInModel, planSequenceClassImport, resolveParticipantClassNode } from '../utils/sequenceClassImport';
 import {
   Download,
   Eye,
@@ -37,8 +37,8 @@ import { EXPORT_THEME, type DiagramTheme } from '../theme/themes';
 import { CanvasStartCard } from './CanvasStartCard';
 import { useDialogs } from '../hooks/useDialogs';
 import type {
-  ClassModelArtifact,
   ClassMethod,
+  ClassSequenceDiagramArtifact,
   DesignProject,
   SequenceActivation,
   SequenceDiagramArtifact,
@@ -184,6 +184,7 @@ type SequenceDiagramEditorProps = {
   onImportSequenceIntoClassModel?: (modelArtifactId: string, sequenceContent: SequenceDiagramContent) => void;
   onCreateClassMethod?: (artifactId: string, nodeId: string, method: ClassMethod) => void;
   onCreateSequenceDiagramArtifact?: (name: string, initialContent?: SequenceDiagramContent) => void;
+  onCreateSequenceModel?: () => void;
   onChangeContent: (content: SequenceDiagramContent, options?: { separateHistoryEntry?: boolean; alreadyNormalized?: boolean }) => void;
   onRedo: () => void;
   onUndo: () => void;
@@ -318,6 +319,7 @@ export function SequenceDiagramEditor({
   onCreateClassMethod,
   onImportSequenceIntoClassModel,
   onCreateSequenceDiagramArtifact,
+  onCreateSequenceModel,
   onChangeContent,
   onRedo,
   onUndo,
@@ -627,8 +629,10 @@ export function SequenceDiagramEditor({
     .filter((participant) => keyboardAliveParticipantIds.includes(participant.id))
     .sort((left, right) => left.x - right.x)
     .map((participant) => participant.id), [content.participants, keyboardAliveParticipantIds]);
-  const classDiagrams = project.artifacts.filter((candidate): candidate is ClassModelArtifact =>
-    candidate.type === 'class-diagram' || candidate.type === 'class-sequence-diagram',
+  // A sequence draws on a "Clases de secuencias" model only; a plain class
+  // diagram (the domain model) stays out of it.
+  const classDiagrams = project.artifacts.filter((candidate): candidate is ClassSequenceDiagramArtifact =>
+    candidate.type === 'class-sequence-diagram',
   );
   const flows = project.artifacts.filter((candidate): candidate is UseCaseFlowArtifact => candidate.type === 'use-case-flow');
   const otherSequenceDiagrams = useMemo(() =>
@@ -636,13 +640,7 @@ export function SequenceDiagramEditor({
       candidate.type === 'sequence-diagram' && candidate.id !== artifact.id
     ),
   [project.artifacts, artifact.id]);
-  // With no reference chosen, a project's only class diagram is the model: its
-  // methods feed the message suggestions without a trip to the settings.
-  const plainClassDiagrams = classDiagrams.filter((candidate) => candidate.type === 'class-diagram');
-  const defaultClassDiagram = content.classDiagramArtifactId === undefined && plainClassDiagrams.length === 1
-    ? plainClassDiagrams[0]
-    : undefined;
-  const associatedClassDiagram = classDiagrams.find((candidate) => candidate.id === content.classDiagramArtifactId) ?? defaultClassDiagram;
+  const associatedClassDiagram = classDiagrams.find((candidate) => candidate.id === content.classDiagramArtifactId);
   const missingInModel = associatedClassDiagram ? findSequenceMessagesMissingInModel(content, { nodes: associatedClassDiagram.content.nodes ?? [], edges: associatedClassDiagram.content.edges ?? [] }) : undefined;
   // Counted as the class model counts its novelties, so both editors agree.
   const missingCount = associatedClassDiagram
@@ -3160,11 +3158,7 @@ export function SequenceDiagramEditor({
     if (onCreateClassMethod === undefined || (selectedItem.type !== 'synchronous' && selectedItem.type !== 'asynchronous')) return;
 
     const participant = content.participants.find((candidate) => candidate.id === selectedItem.targetId);
-    const classNode = associatedClassDiagram.content.nodes.find((candidate) =>
-      (participant?.classifierNodeId !== undefined && candidate.id === participant.classifierNodeId)
-      || (participant?.classifierNodeId === undefined
-        && participant !== undefined && participantClassName(participant.classifierName, participant.name).toLocaleLowerCase() === candidate.data.name.trim().toLocaleLowerCase()),
-    );
+    const classNode = participant ? resolveParticipantClassNode(participant, associatedClassDiagram.content) : undefined;
     // The message's arguments are what this call passes, not the method's
     // signature: the method is matched and created by name alone.
     const methodName = selectedItem.name.replace(/\(.*$/, '').trim();
@@ -3198,7 +3192,7 @@ export function SequenceDiagramEditor({
     };
     onCreateClassMethod(associatedClassDiagram.id, classNode.id, method);
     updateMessageEditModel(selectedItem.id, { operationMethodId: method.id });
-    showFeedback(`Método ${method.name} agregado al modelo compartido.`);
+    showFeedback(`Método ${method.name} agregado a «${associatedClassDiagram.name}».`);
   };
   const invertMessage = (id: string): void => {
     const message = findSequenceItem(content.items, id);
@@ -4675,10 +4669,19 @@ export function SequenceDiagramEditor({
           <>
             <EditorIdentity artifactKind="Diagrama de secuencia" artifactType={'sequence-diagram'} artifactName={artifact.name} projectName={project.name} />
             <ToolbarHistory canRedo={canRedo} canUndo={canUndo} saveStatus={saveStatus} onRedo={onRedo} onUndo={onUndo} />
-            {associatedClassDiagram ? <ToolMenu label={missingCount > 0 ? `${missingCount} ${missingCount === 1 ? 'falta' : 'faltan'} en el modelo` : '✓ Modelo al día'} title={`Modelo de clases: ${associatedClassDiagram.name}`} align="start" className={`sequence-model-status ${missingCount > 0 ? 'has-novelties' : ''}`}>
-              {missingCount > 0 ? <MenuItem disabled={!onImportSequenceIntoClassModel} onSelect={importIntoModel}>Agregar todo al modelo</MenuItem> : null}
-              <MenuItem icon={Link2} disabled={!onNavigateToArtifact} onSelect={() => onNavigateToArtifact?.(associatedClassDiagram.id)}>Abrir modelo</MenuItem>
-            </ToolMenu> : null}
+            {associatedClassDiagram ? <ToolMenu label={missingCount > 0 ? `${missingCount} ${missingCount === 1 ? 'falta' : 'faltan'} en el modelo` : '✓ Modelo al día'} title={`Clases de secuencias: ${associatedClassDiagram.name}`} align="start" className={`sequence-model-status ${missingCount > 0 ? 'has-novelties' : ''}`}>
+              {missingCount > 0 ? <MenuItem disabled={!onImportSequenceIntoClassModel} onSelect={importIntoModel}>Agregar todo a «{associatedClassDiagram.name}»</MenuItem> : null}
+              <MenuItem icon={Link2} disabled={!onNavigateToArtifact} onSelect={() => onNavigateToArtifact?.(associatedClassDiagram.id)}>Abrir «{associatedClassDiagram.name}»</MenuItem>
+              <MenuItem icon={Unlink} onSelect={() => commit({ ...content, classDiagramArtifactId: undefined })}>Desvincular</MenuItem>
+            </ToolMenu> : (
+              <ToolMenu label="Sin modelo de clases" title="Vinculá la secuencia con un artefacto de clases de secuencias" align="start" className="sequence-model-status">
+                {classDiagrams.length > 0 ? <MenuLabel>Vincular con</MenuLabel> : null}
+                {classDiagrams.map((model) => (
+                  <MenuItem key={model.id} icon={Link2} onSelect={() => commit({ ...content, classDiagramArtifactId: model.id })}>{model.name}</MenuItem>
+                ))}
+                {onCreateSequenceModel ? <MenuItem icon={Plus} onSelect={onCreateSequenceModel}>Crear clases de secuencias</MenuItem> : null}
+              </ToolMenu>
+            )}
           </>
         )}
         create={(
@@ -4743,13 +4746,9 @@ export function SequenceDiagramEditor({
               </MenuField>
               <MenuSeparator />
               <MenuLabel>Referencias</MenuLabel>
-              <MenuField
-                label="Diagrama de clases"
-                hint={content.classDiagramArtifactId && !associatedClassDiagram ? 'El diagrama asociado ya no existe.' : undefined}
-              >
-                <select value={content.classDiagramArtifactId ?? ''} onChange={(event) => commit({ ...content, classDiagramArtifactId: event.target.value || undefined })}>
-                  {content.classDiagramArtifactId && !associatedClassDiagram ? <option value={content.classDiagramArtifactId}>Referencia no disponible</option> : null}
-                  <option value="">{defaultClassDiagram ? `Automático: ${defaultClassDiagram.name}` : 'Sin referencia'}</option>
+              <MenuField label="Clases de secuencias">
+                <select value={associatedClassDiagram?.id ?? ''} onChange={(event) => commit({ ...content, classDiagramArtifactId: event.target.value || undefined })}>
+                  <option value="">Sin modelo</option>
                   {classDiagrams.map((diagram) => <option key={diagram.id} value={diagram.id}>{diagram.name}</option>)}
                 </select>
               </MenuField>

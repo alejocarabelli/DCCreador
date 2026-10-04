@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type {
   ClassDiagramNode,
   ClassMethod,
-  DesignArtifact,
   SequenceDiagramContent,
   SequenceMessage,
   SequenceParticipant,
@@ -85,13 +84,9 @@ describe('applyClassModelRenamesToSequence', () => {
 });
 
 describe('isSequenceUsingClassModel', () => {
-  const classDiagram = { id: 'cd', type: 'class-diagram' } as DesignArtifact;
-
-  it('follows the explicit reference, or the only class diagram when there is none', () => {
-    const model = new Set(['cd']);
-    expect(isSequenceUsingClassModel(sequence({ classDiagramArtifactId: 'cd' }), model, [classDiagram])).toBe(true);
-    expect(isSequenceUsingClassModel(sequence({ classDiagramArtifactId: 'other' }), model, [classDiagram])).toBe(false);
-    expect(isSequenceUsingClassModel(sequence({}), model, [classDiagram])).toBe(true);
-    expect(isSequenceUsingClassModel(sequence({}), model, [classDiagram, { id: 'cd2', type: 'class-diagram' } as DesignArtifact])).toBe(false);
+  it('follows only the explicit reference to the model', () => {
+    expect(isSequenceUsingClassModel(sequence({ classDiagramArtifactId: 'csd' }), 'csd')).toBe(true);
+    expect(isSequenceUsingClassModel(sequence({ classDiagramArtifactId: 'other' }), 'csd')).toBe(false);
+    expect(isSequenceUsingClassModel(sequence({}), 'csd')).toBe(false);
   });
 });

@@ -148,6 +148,7 @@ function App() {
     importArtifact,
     moveArtifact,
     linkSequenceDiagramsToClassModel,
+    convertClassDiagramToSequenceModel,
     projects,
     renameArtifact,
     renameProject,
@@ -273,6 +274,29 @@ function App() {
       });
       historyBurstRef.current = null;
     }
+  };
+
+  const handleConvertToSequenceModel = async (projectId: string, artifactId: string): Promise<void> => {
+    const project = projects.find((currentProject) => currentProject.id === projectId);
+    const artifact = project?.artifacts.find((currentArtifact) => currentArtifact.id === artifactId);
+    if (artifact?.type !== 'class-diagram') return;
+    const shouldConvert = await confirm({
+      title: `¿Convertir "${artifact.name}" en clases de secuencias?`,
+      description: 'Conserva las clases y las relaciones, se vincula con las secuencias que todavía no tienen modelo y desde ahí se sincroniza con ellas. Deja de ser un diagrama de clases común. Si querés conservar el original, exportalo antes.',
+      confirmLabel: 'Convertir',
+      tone: 'neutral',
+    });
+    if (!shouldConvert) return;
+    convertClassDiagramToSequenceModel(projectId, artifactId);
+    // Earlier snapshots belong to the class diagram it was; undoing into them
+    // would mix both kinds of content.
+    updateHistory((currentHistory) => {
+      const nextHistory = { ...currentHistory };
+      delete nextHistory[`${projectId}:${artifactId}`];
+      return nextHistory;
+    });
+    historyBurstRef.current = null;
+    setActiveProjectId(projectId);
   };
 
   const handleSelectArtifact = (projectId: string, artifactId: string): void => {
@@ -596,6 +620,7 @@ function App() {
         onExportArtifact={handleExportArtifact}
         onImportArtifact={(projectId) => setArtifactTransferDialog({ mode: 'import', projectId })}
         onMoveArtifact={(projectId, artifactId) => setArtifactTransferDialog({ mode: 'move', projectId, artifactId })}
+        onConvertToSequenceModel={(projectId, artifactId) => { void handleConvertToSequenceModel(projectId, artifactId); }}
         onDownloadArtifactGuide={handleDownloadArtifactGuide}
         onOpenHome={handleOpenHome}
         onOpenShortcuts={() => setIsShortcutsOpen(true)}
@@ -696,6 +721,7 @@ function App() {
             onCreateSequenceDiagramArtifact={(name, initialContent) =>
               createSequenceDiagramArtifact(activeProject.id, name, initialContent)
             }
+            onCreateSequenceModel={() => createClassSequenceDiagramArtifact(activeProject.id, 'Clases de secuencias')}
             onChangeContent={handleChangeProjectContent}
             onRedo={handleRedo}
             onUndo={handleUndo}

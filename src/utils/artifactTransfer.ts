@@ -1,6 +1,7 @@
 import type { DesignArtifact, DiagramProject, SequenceTimelineItem } from '../types/diagram';
 import { normalizeArtifact } from './diagramNormalization';
 import { createId } from './id';
+import { reconcileSequenceModelLinks } from './sequenceModelLink';
 
 const interactionIds = (items: SequenceTimelineItem[]): string[] => items.flatMap((item) => item.kind === 'fragment'
   ? [...(item.interactionArtifactId ? [item.interactionArtifactId] : []), ...item.operands.flatMap((operand) => interactionIds(operand.items))]
@@ -16,14 +17,13 @@ const flowClassModelId = (artifact: Extract<DesignArtifact, { type: 'use-case-fl
 const artifactReferences = (artifact: DesignArtifact, artifacts: DesignArtifact[]): string[] => {
   switch (artifact.type) {
     case 'class-sequence-diagram':
-      return [...(artifact.content.sourceClassDiagramArtifactId ? [artifact.content.sourceClassDiagramArtifactId] : []), ...artifact.content.linkedSequenceDiagramIds];
+      return artifact.content.linkedSequenceDiagramIds;
     case 'use-case-flow': {
       const modelId = flowClassModelId(artifact, artifacts);
       return modelId ? [modelId] : [];
     }
     case 'sequence-diagram': {
-      const models = artifacts.filter((candidate) => candidate.type === 'class-diagram');
-      const modelId = artifact.content.classDiagramArtifactId ?? (models.length === 1 ? models[0].id : undefined);
+      const modelId = artifact.content.classDiagramArtifactId;
       return [...(modelId ? [modelId] : []), ...(artifact.content.flowArtifactId ? [artifact.content.flowArtifactId] : []), ...interactionIds(artifact.content.items)];
     }
     default:
@@ -60,7 +60,6 @@ export const relinkArtifactForProject = (
     const mapped = idMap.get(id) ?? id;
     return artifacts.some((candidate) => candidate.id === mapped && types.includes(candidate.type)) ? mapped : undefined;
   };
-  const classTypes: DesignArtifact['type'][] = ['class-diagram', 'class-sequence-diagram'];
   if (artifact.type === 'class-sequence-diagram') {
     return { ...artifact, content: {
       ...artifact.content,
@@ -73,10 +72,8 @@ export const relinkArtifactForProject = (
     return { ...artifact, content: { ...artifact.content, classDiagramArtifactId: resolve(flowClassModelId(artifact, originalArtifacts), ['class-diagram']) } };
   }
   if (artifact.type !== 'sequence-diagram') return artifact;
-  const plainModels = originalArtifacts.filter((candidate) => candidate.type === 'class-diagram');
-  const requestedModelId = artifact.content.classDiagramArtifactId ?? (plainModels.length === 1 ? plainModels[0].id : undefined);
-  // Make a former implicit model explicit: the destination may have several class diagrams.
-  const classDiagramArtifactId = resolve(requestedModelId, classTypes);
+  // A sequence draws only on a "Clases de secuencias" model.
+  const classDiagramArtifactId = resolve(artifact.content.classDiagramArtifactId, ['class-sequence-diagram']);
   const model = artifacts.find((candidate) => candidate.id === classDiagramArtifactId);
   const classNodes = model?.type === 'class-diagram' || model?.type === 'class-sequence-diagram' ? model.content.nodes : [];
   const nodeIds = new Set(classNodes.map((node) => node.id));
@@ -133,15 +130,15 @@ export const moveArtifactsBetweenProjects = (
   const now = new Date().toISOString();
   const moved = moving.map((candidate) => ({ ...candidate, id: idMap.get(candidate.id)!, updatedAt: now }));
   // Resolve transferred links only against the transferred group, never an unrelated destination artifact with the same id.
-  const targetArtifacts = [...target.artifacts, ...moved.map((candidate) => relinkArtifactForProject(candidate, moved, idMap, source.artifacts))];
+  const targetArtifacts = reconcileSequenceModelLinks([...target.artifacts, ...moved.map((candidate) => relinkArtifactForProject(candidate, moved, idMap, source.artifacts))]);
   let remaining = source.artifacts.filter((candidate) => !movingIds.has(candidate.id));
   if (remaining.length === 0) {
     const empty = normalizeArtifact({ id: uniqueId(used), type: 'class-diagram', name: 'Diagrama de clases', content: { nodes: [], edges: [] } }, { createdAt: now, updatedAt: now });
     if (empty) remaining = [empty];
   }
-  const sourceArtifacts = remaining.map((candidate) => artifactReferences(candidate, source.artifacts).some((id) => movingIds.has(id))
+  const sourceArtifacts = reconcileSequenceModelLinks(remaining.map((candidate) => artifactReferences(candidate, source.artifacts).some((id) => movingIds.has(id))
     ? relinkArtifactForProject(candidate, remaining, undefined, source.artifacts)
-    : candidate);
+    : candidate));
   return { idMap, projects: projects.map((project) => {
     if (project.id === sourceProjectId) return { ...project, artifacts: sourceArtifacts, activeArtifactId: sourceArtifacts.some((candidate) => candidate.id === project.activeArtifactId) ? project.activeArtifactId : sourceArtifacts[0].id, updatedAt: now };
     if (project.id === targetProjectId) return { ...project, artifacts: targetArtifacts, activeArtifactId: idMap.get(artifactId), updatedAt: now };

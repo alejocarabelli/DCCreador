@@ -40,12 +40,12 @@ describe('sequence model synchronization UI', () => {
   });
   it('shows missing model elements and the import action only when necessary', () => {
     expect(renderSequence()).toContain('2 faltan en el modelo');
-    expect(renderSequence()).toContain('Agregar todo al modelo');
+    expect(renderSequence()).toContain('Agregar todo a «Modelo»');
     const synced = { ...model, content: { ...model.content, ...importClassesFromSequences(model.content, [sequence.content]).content } };
     const html = renderSequence({ ...project, artifacts: [synced, sequence] });
     expect(html).toContain('✓ Modelo al día');
-    expect(html).not.toContain('Agregar todo al modelo');
-    expect(html).toContain('Abrir modelo');
+    expect(html).not.toContain('Agregar todo a «Modelo»');
+    expect(html).toContain('Abrir «Modelo»');
   });
   it('marks participant names and message labels with export-excluded warning lines', () => {
     const props = { content: sequence.content, layout: buildSequenceLayout(sequence.content), selected: null, theme: themes[0], onSelect: vi.fn(), onParticipantPointerDown: vi.fn(), onNotePointerDown: vi.fn(), onNoteResizePointerDown: vi.fn() };

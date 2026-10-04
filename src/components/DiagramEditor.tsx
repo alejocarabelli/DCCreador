@@ -85,6 +85,8 @@ type DiagramEditorProps = {
   toolbarContext?: ReactNode;
   /** A message raised by the wrapping editor (e.g. an import summary), shown like the editor's own. */
   externalFeedback?: string | null;
+  /** Each new value frames these classes (e.g. the ones an import just added), selected. */
+  revealRequest?: { key: number; nodeIds: string[] } | null;
   theme: DiagramTheme;
   onChangeContent: (content: DiagramContent, options?: ContentChangeOptions) => void;
   onRedo: () => void;
@@ -153,6 +155,7 @@ export function DiagramEditor({
   project,
   toolbarContext,
   externalFeedback = null,
+  revealRequest = null,
   theme,
   onChangeContent,
   onRedo,
@@ -930,6 +933,18 @@ export function DiagramEditor({
     const next = arrangeClasses(nodes, activeSelectedIds, action, new globalThis.Map(Object.entries(nodeSizes)));
     if (next !== nodes) updateNodes(next, { separateHistoryEntry: true });
   };
+
+  useEffect(() => {
+    if (revealRequest === null || reactFlowInstance === null) return undefined;
+    // Wait a frame so the new classes are measured before framing them.
+    const timer = window.setTimeout(() => {
+      const targets = reactFlowInstance.getNodes().filter((node) => revealRequest.nodeIds.includes(node.id));
+      if (targets.length === 0) return;
+      setSelectedNodeIds(targets.map((node) => node.id));
+      void reactFlowInstance.fitView({ nodes: targets, padding: 0.3, maxZoom: 1, duration: 300 });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [reactFlowInstance, revealRequest]);
 
   const focusIssue = (issue: DiagramIssue): void => {
     const edge = normalizedEdges.find(item => item.id === issue.edgeId);

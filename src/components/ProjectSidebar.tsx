@@ -2,6 +2,7 @@ import {
   Blocks,
   BookOpen,
   Download,
+  GitBranch,
   FolderClosed,
   FolderOpen,
   Home,
@@ -41,6 +42,7 @@ type ProjectSidebarProps = {
   onExportArtifact: (projectId: string, artifactId: string) => void;
   onImportArtifact: (projectId: string) => void;
   onMoveArtifact: (projectId: string, artifactId: string) => void;
+  onConvertToSequenceModel?: (projectId: string, artifactId: string) => void;
   onDownloadArtifactGuide: () => void;
   onRenameArtifact: (projectId: string, artifactId: string) => void;
   onRenameProject: (projectId: string) => void;
@@ -95,6 +97,7 @@ export function ProjectSidebar({
   onExportArtifact,
   onImportArtifact,
   onMoveArtifact,
+  onConvertToSequenceModel,
   onDownloadArtifactGuide,
   onRenameArtifact,
   onRenameProject,
@@ -431,6 +434,13 @@ export function ProjectSidebar({
                 onMoveArtifact(optionsMenu.projectId, optionsMenu.artifactId!);
                 setOptionsMenu(null);
               }}>Mover a otro proyecto…</MenuItem>
+              {onConvertToSequenceModel && projects.find((project) => project.id === optionsMenu.projectId)?.artifacts
+                .some((artifact) => artifact.id === optionsMenu.artifactId && artifact.type === 'class-diagram') ? (
+                <MenuItem icon={GitBranch} onSelect={() => {
+                  onConvertToSequenceModel(optionsMenu.projectId, optionsMenu.artifactId!);
+                  setOptionsMenu(null);
+                }}>Convertir en clases de secuencias…</MenuItem>
+              ) : null}
             </>
           ) : null}
           <MenuSeparator />
