@@ -23,7 +23,7 @@ const renderSequence = (currentProject = project) => renderToString(<DialogProvi
 
 describe('sequence model synchronization UI', () => {
   it('shows only linked sequence novelties, selected by default, with navigation and linking below', () => {
-    const unlinked = { ...sequence, id: 'unlinked', content: { ...sequence.content, participants: [{ ...sequence.content.participants[0], classifierName: 'Otra' }] } };
+    const unlinked = { ...sequence, id: 'unlinked', content: { ...sequence.content, classDiagramArtifactId: undefined, participants: [{ ...sequence.content.participants[0], classifierName: 'Otra' }] } };
     const html = renderModel(model, { ...project, artifacts: [...project.artifacts, unlinked] });
     expect(html).toContain('2 novedades');
     const syncMenu = html.slice(html.indexOf('sequence-model-status')).split('</details>')[0];
@@ -32,6 +32,14 @@ describe('sequence model synchronization UI', () => {
     expect(html).toContain('Abrir secuencia vinculada');
     expect(html).toContain('Vincular 1 secuencia sin vincular');
     expect(html).not.toContain('>Otra<');
+  });
+  it('does not offer to link sequences that already use another model', () => {
+    const otherModel = { ...model, id: 'other-model', content: { ...model.content, linkedSequenceDiagramIds: ['other-sequence'] } };
+    const otherSequence = { ...sequence, id: 'other-sequence', content: { ...sequence.content, classDiagramArtifactId: otherModel.id } };
+    const html = renderModel(model, { ...project, artifacts: [...project.artifacts, otherModel, otherSequence] });
+    expect(html).not.toContain('secuencia sin vincular');
+    expect(html).not.toContain('secuencias sin vincular');
+    expect(html).toContain('2 novedades');
   });
   it('shows the neutral up-to-date and no-linked-sequences states', () => {
     const synced = { ...model, content: { ...model.content, ...importClassesFromSequences(model.content, [sequence.content]).content } };

@@ -472,6 +472,26 @@ describe('reply reference cloning', () => {
 });
 
 describe('actor activation', () => {
+  it('does not merge closed actor activations from alternative paths', () => {
+    const fragment: SequenceFragment = {
+      id: 'choice', kind: 'fragment', operator: 'alt', name: '',
+      operands: [
+        { id: 'first', guard: 'válido', items: [message('call-1', 'a', 'b'), message('return-1', 'b', 'a', 'return', 'call-1')] },
+        { id: 'second', guard: 'else', items: [message('call-2', 'a', 'b'), message('return-2', 'b', 'a', 'return', 'call-2')] },
+      ],
+    };
+    const content = normalizeSequenceDiagramContent({
+      ...diagram([fragment], [], ['a', 'b']),
+      participants: [{ ...participant('a', 120), kind: 'actor' }, participant('b', 360)],
+    });
+    const actorBars = analyzeSequenceDiagramSemantics(content).activations.filter((activation) => activation.participantId === 'a');
+    expect(actorBars).toHaveLength(2);
+    expect(actorBars).toEqual(expect.arrayContaining([
+      expect.objectContaining({ startMessageId: 'call-1', endMessageId: 'return-1' }),
+      expect.objectContaining({ startMessageId: 'call-2', endMessageId: 'return-2' }),
+    ]));
+  });
+
   it('draws one bar for all the round trips of an actor, like Enterprise Architect', () => {
     const content = normalizeSequenceDiagramContent({
       ...createEmptySequenceDiagramContent(),

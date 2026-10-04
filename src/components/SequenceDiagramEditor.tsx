@@ -36,6 +36,7 @@ import { EditorToolbar, MenuField, MenuItem, MenuLabel, MenuSeparator, ReviewBut
 import { InspectorDeleteButton, InspectorPanel, type InspectorTone } from './ui/Panel';
 import { EXPORT_THEME, type DiagramTheme } from '../theme/themes';
 import { CanvasStartCard } from './CanvasStartCard';
+import { SequenceParticipantClassField } from './SequenceParticipantClassField';
 import { useDialogs } from '../hooks/useDialogs';
 import type {
   ClassMethod,
@@ -380,7 +381,7 @@ export function SequenceDiagramEditor({
   const templateDialogRef = useRef<HTMLDivElement | null>(null);
   const [quickMessage, setQuickMessage] = useState<QuickMessageDraft | null>(null);
   const [quickMessageRouteEditable, setQuickMessageRouteEditable] = useState(false);
-  const [participantDraft, setParticipantDraft] = useState<{ editId?: string; text: string; kind?: 'object' | 'actor' } | null>(null);
+  const [participantDraft, setParticipantDraft] = useState<{ text: string; kind: 'object' | 'actor' } | null>(null);
   const [participantEditDraft, setParticipantEditDraft] = useState<{ id: string; text: string } | null>(null);
   const [messageSignatureDraft, setMessageSignatureDraft] = useState<SequenceSignatureDraft | null>(null);
   const outlinePreferenceRef = useRef(readStoredSequenceOutlineVisibility() !== null);
@@ -413,10 +414,7 @@ export function SequenceDiagramEditor({
     edge?: 'top' | 'bottom' | 'move';
     isReallocated?: boolean;
   } | null>(null);
-  const [messageDragPreview, setMessageDragPreview] = useState<{
-    messageId: string;
-    followPointer: { x: number; y: number };
-  } | { blockIds: string[]; items: SequenceTimelineItem[] } | null>(null);
+  const [messageDragPreview, setMessageDragPreview] = useState<{ blockIds: string[]; items: SequenceTimelineItem[] } | null>(null);
   const [includingMessageOperandId, setIncludingMessageOperandId] = useState<string | null>(null);
   const [activeOperandId, setActiveOperandId] = useState<string | null>(null);
   const [includeSearchFilter, setIncludeSearchFilter] = useState('');
@@ -517,30 +515,12 @@ export function SequenceDiagramEditor({
   const flatEntries = useMemo(() => flattenSequenceItems(content.items), [content.items]);
   const baseLayout = useMemo(() => buildSequenceLayout(displayContent, semantics), [displayContent, semantics]);
   const interactionContent = useMemo(() => {
-    const previewItems = messageDragPreview && 'items' in messageDragPreview
-      ? messageDragPreview.items
-      : activeFragmentResize?.previewItems;
+    const previewItems = messageDragPreview?.items ?? activeFragmentResize?.previewItems;
     return previewItems === undefined ? displayContent : { ...displayContent, items: previewItems };
   }, [activeFragmentResize?.previewItems, displayContent, messageDragPreview]);
   const layout = useMemo(() => {
-    if (messageDragPreview && 'items' in messageDragPreview) {
+    if (messageDragPreview) {
       return buildSequenceLayout(interactionContent);
-    }
-    if (messageDragPreview && 'followPointer' in messageDragPreview) {
-      const messageLayout = baseLayout.messageLayouts.get(messageDragPreview.messageId);
-      if (messageLayout) {
-        const dy = messageDragPreview.followPointer.y - messageLayout.y;
-        const nextMessageLayouts = new Map(baseLayout.messageLayouts);
-        nextMessageLayouts.set(messageDragPreview.messageId, {
-          ...messageLayout,
-          y: messageDragPreview.followPointer.y,
-          labelTop: messageLayout.labelTop + dy,
-          labelBottom: messageLayout.labelBottom + dy,
-          labelBaselineY: messageLayout.labelBaselineY + dy,
-          flowBaselineY: messageLayout.flowBaselineY !== undefined ? messageLayout.flowBaselineY + dy : undefined,
-        });
-        return { ...baseLayout, messageLayouts: nextMessageLayouts };
-      }
     }
     if (activeFragmentResize?.previewItems) {
       return buildSequenceLayout(interactionContent);
@@ -1371,7 +1351,7 @@ export function SequenceDiagramEditor({
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return;
-        setQuickMessage(null);
+      setQuickMessage(null);
       setParticipantDraft(null);
       setParticipantPreview({});
       setNotePreview({});
@@ -1788,7 +1768,7 @@ export function SequenceDiagramEditor({
   const submitParticipantDraft = useCallback((event: FormEvent): void => {
     event.preventDefault();
     if (!participantDraft) return;
-    if (participantDraft.kind === 'actor' && !participantDraft.editId) {
+    if (participantDraft.kind === 'actor') {
       // An actor is a name ("Consultor"), not instancia:Clase.
       const name = participantDraft.text.replace(/[\r\n]+/g, ' ').trim();
       if (!name) {
@@ -1811,17 +1791,6 @@ export function SequenceDiagramEditor({
     const parsed = parseSequenceParticipantLabel(participantDraft.text);
     if (!participantLabelIsValid(parsed)) {
       showFeedback('Escribí una clase válida después de “:”.');
-      return;
-    }
-    if (participantDraft.editId) {
-      const existing = content.participants.find((participant) => participant.id === participantDraft.editId);
-      if (!existing) return;
-      const nextParticipant = { ...existing, name: parsed.instanceName, classifierName: parsed.classifierName };
-      const saved = commit({
-        ...content,
-        participants: content.participants.map((participant) => participant.id === existing.id ? nextParticipant : participant),
-      });
-      if (saved) setParticipantDraft(null);
       return;
     }
     const participant = createSequenceParticipantFromLabel({
@@ -3451,28 +3420,13 @@ export function SequenceDiagramEditor({
         </label>
       )}
 
-        {selectedParticipant.kind !== 'actor' ? (
-          <label style={{ marginTop: 10 }}>
-            <span>Clase del modelo</span>
-            <select
-              value={selectedParticipant.classifierNodeId ?? ''}
-              onChange={(event) => {
-                const node = associatedClassDiagram?.content.nodes.find((candidate) => candidate.id === event.target.value);
-                updateParticipant(selectedParticipant.id, {
-                  classifierNodeId: event.target.value || undefined,
-                  classifierName: node?.data.name || selectedParticipant.classifierName,
-                });
-              }}
-            >
-              <option value="">Sin vínculo (manual)</option>
-              {associatedClassDiagram?.content.nodes.map((node) => (
-                <option key={node.id} value={node.id}>
-                  {node.data.name || 'Clase sin nombre'}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
+      {selectedParticipant.kind !== 'actor' ? (
+        <SequenceParticipantClassField
+          participant={selectedParticipant}
+          model={associatedClassDiagram}
+          onChange={(values) => updateParticipant(selectedParticipant.id, values)}
+        />
+      ) : null}
 
       {/* Terminar línea de vida con cruz */}
       <div style={{ marginTop: 8, marginBottom: 10 }}>
@@ -4879,11 +4833,10 @@ export function SequenceDiagramEditor({
           onSubmit={submitParticipantDraft}
         >
           <div>
-            <h2 id="sequence-participant-composer-title">{participantDraft.editId ? 'Editar participante' : participantDraft.kind === 'actor' ? 'Nuevo actor' : 'Nuevo participante'}</h2>
+            <h2 id="sequence-participant-composer-title">{participantDraft.kind === 'actor' ? 'Nuevo actor' : 'Nuevo participante'}</h2>
             <span id="sequence-participant-composer-help">{participantDraft.kind === 'actor' ? 'El nombre del actor, como en el caso de uso.' : 'Usá la notación instancia:Clase o :Clase.'}</span>
           </div>
-          {participantDraft.editId ? null : (
-            <div className="v2-segmented" role="radiogroup" aria-label="Tipo de participante">
+          <div className="v2-segmented" role="radiogroup" aria-label="Tipo de participante">
               {(['actor', 'object'] as const).map((kind) => (
                 <button
                   aria-checked={participantDraft.kind === kind}
@@ -4897,8 +4850,7 @@ export function SequenceDiagramEditor({
                   {kind === 'actor' ? 'Actor' : 'Objeto'}
                 </button>
               ))}
-            </div>
-          )}
+          </div>
           <input
             autoFocus
             key={participantDraft.kind}
@@ -4913,7 +4865,7 @@ export function SequenceDiagramEditor({
               }
             }}
           />
-          <button className="primary-action" type="submit"><Plus size={15} /> {participantDraft.editId ? 'Guardar' : 'Crear'}</button>
+          <button className="primary-action" type="submit"><Plus size={15} /> Crear</button>
           <button aria-label="Cancelar participante" className="icon-button" type="button" title="Cancelar" onClick={() => setParticipantDraft(null)}><X size={16} /></button>
         </form>
       ) : null}

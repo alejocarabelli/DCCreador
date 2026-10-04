@@ -44,6 +44,24 @@ const content = (items: SequenceDiagramContent['items'], notes: SequenceDiagramC
   });
 
 describe('sequence diagram geometry contract', () => {
+  it.each([undefined, 'compact'] as const)('reserves the created participant header with spacing %s', (spacing) => {
+    const created = { ...participant('b', 400), classifierName: 'PedidoConUnNombreDeClaseMuyLargoQueOcupaVariasLineas'.repeat(2) };
+    const diagram = normalizeSequenceDiagramContent({
+      ...createEmptySequenceDiagramContent(), spacing,
+      participants: [participant('a', 120), created],
+      items: [
+        { ...message('create', 'a', 'b'), type: 'create' },
+        message('next', 'a', 'b'),
+      ],
+    });
+    const layout = buildSequenceLayout(diagram);
+    const header = layout.participantLayouts.get('b')!;
+    const creation = layout.messageLayouts.get('create')!;
+    const next = layout.messageLayouts.get('next')!;
+    expect(header.headerY).toBeGreaterThanOrEqual(creation.y - creation.height / 2);
+    expect(next.labelTop).toBeGreaterThanOrEqual(header.headerY + header.headerHeight);
+  });
+
   it('moves a fragment and its explicit nested geometry by 400px without leaving timeline content behind', () => {
     const inner: SequenceFragment = {
       id: 'inner',

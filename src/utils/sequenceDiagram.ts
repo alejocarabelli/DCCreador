@@ -1458,7 +1458,8 @@ export const analyzeSequenceDiagramSemantics = (
 
   // The actor starts the use case and waits for it: like Enterprise Architect,
   // its round trips draw one bar, from its first activation to its last.
-  // Bars bound to a branch (endScope) and nested callbacks stay as they are.
+  // Bars inside a fragment (even when explicitly closed) and nested callbacks
+  // stay as they are: alternative paths cannot become one execution.
   const actorIds = new Set(content.participants.filter((participant) => participant.kind === 'actor').map((participant) => participant.id));
   const messageOrderOf = (messageId: string | undefined): number => messageId === undefined
     ? Number.POSITIVE_INFINITY
@@ -1468,7 +1469,9 @@ export const analyzeSequenceDiagramSemantics = (
     const byActor = new Map<string, SequenceActivation[]>();
     const rest: SequenceActivation[] = [];
     activations.forEach((activation) => {
-      if (!actorIds.has(activation.participantId) || activation.level !== 0 || activation.endScope !== undefined) {
+      const startScope = messagePositions.get(activation.startMessageId)?.scopePath;
+      if (!actorIds.has(activation.participantId) || activation.level !== 0
+        || activation.endScope !== undefined || (startScope?.length ?? 0) > 0) {
         rest.push(activation);
         return;
       }

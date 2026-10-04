@@ -4,7 +4,9 @@ import {
   createSequenceParticipantFromLabel,
   formatSequenceParticipantLabel,
   parseSequenceParticipantLabel,
+  resolveSequenceParticipantInsertionX,
 } from './sequenceParticipantEditing';
+import { getSequenceParticipantHeaderWidth } from './sequenceDiagramGeometry';
 
 describe('sequence participant textual editing', () => {
   it.each([
@@ -43,6 +45,16 @@ describe('sequence participant textual editing', () => {
     expect(buildSequenceParticipantFromLabel({ id: 'valid', text: ':Clase', x: 120 })).toMatchObject({
       name: '', classifierName: 'Clase', kind: 'object',
     });
+  });
+
+  it.each([-1, 1] as const)('leaves 40 px between headers when inserting to side %s', (side) => {
+    const existing = { id: 'base', kind: 'object' as const, name: 'unaInstanciaLarga', classifierName: 'ClaseBase', x: 700 };
+    const participant = { kind: 'object' as const, name: '', classifierName: 'ClaseNueva' };
+    const x = resolveSequenceParticipantInsertionX([existing], participant, side);
+    const gap = Math.abs(x - existing.x)
+      - getSequenceParticipantHeaderWidth(existing) / 2
+      - getSequenceParticipantHeaderWidth(participant) / 2;
+    expect(gap).toBeCloseTo(40, 0);
   });
 
   it('shows legacy leading classifier separators only once', () => {

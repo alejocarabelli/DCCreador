@@ -11,6 +11,7 @@ import type {
   SequenceDiagramArtifact,
 } from '../types/diagram';
 import { importClassesFromSequences, planSequenceClassImport } from '../utils/sequenceClassImport';
+import { findUnlinkedSequences } from '../utils/sequenceModelLink';
 import { DiagramEditor } from './DiagramEditor';
 import { MenuItem, MenuLabel, MenuSeparator, ToolMenu } from './ui/Toolbar';
 import type { DiagramSaveStatus } from '../hooks/useProjects';
@@ -62,7 +63,7 @@ export function ClassSequenceDiagramEditor({
   const acceptedKeys = new Set(pending.filter((novelty) => !rejectedKeys.has(novelty.key)).map((novelty) => novelty.key));
   const pendingGroups = new Map<string, typeof pending>();
   for (const novelty of pending) pendingGroups.set(novelty.className, [...(pendingGroups.get(novelty.className) ?? []), novelty]);
-  const unlinkedCount = sequenceDiagrams.filter((sequence) => !artifact.content.linkedSequenceDiagramIds.includes(sequence.id)).length;
+  const unlinkedCount = findUnlinkedSequences(project.artifacts).length;
 
   const handleChangeContent = useCallback(
     (content: DiagramContent, options?: { separateHistoryEntry?: boolean }): void => {

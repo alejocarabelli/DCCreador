@@ -340,13 +340,15 @@ export const buildSequenceLayout = (
     const labelHeight = labelText?.height ?? 0;
     const flowHeight = flowText?.height ?? 0;
     const isSelf = message.sourceId === message.targetId;
+    const createdHeaderHalfHeight = message.type === 'create' ? (targetHeader?.headerHeight ?? SEQUENCE_HEADER_HEIGHT) / 2 : 0;
     // Normal spacing centers the arrow in a fixed row; compact spacing puts it
     // right under its label and keeps only what the row really needs below.
-    const compactArrowOffset = labelHeight > 0 ? labelHeight + 14 : 10;
+    const compactArrowOffset = Math.max(labelHeight > 0 ? labelHeight + 14 : 10, createdHeaderHalfHeight + 10);
     const height = compact
       ? Math.max(
         SEQUENCE_COMPACT_ROW_HEIGHT,
         compactArrowOffset + (isSelf ? 40 : 10),
+        compactArrowOffset + createdHeaderHalfHeight + 10,
         flowHeight > 0 ? compactArrowOffset + 9 + flowHeight + 6 : 0,
       )
       : Math.max(
@@ -354,6 +356,7 @@ export const buildSequenceLayout = (
         labelHeight > 0 ? 2 * (labelHeight + 14) : 0,
         flowHeight > 0 ? 2 * (flowHeight + 20) : 0,
         isSelf ? 84 : 0,
+        createdHeaderHalfHeight * 2 + 20,
       );
     const y = compact ? cursorY + compactArrowOffset : cursorY + height / 2;
     const labelCenterX = message.sourceId === message.targetId

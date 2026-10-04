@@ -34,7 +34,7 @@ Guardá el JSON en un archivo `.json`. En el destino, usá **Nuevo artefacto →
 
 ### 1.2. IDs y coordenadas
 
-- Usá IDs no vacíos, sin espacios iniciales/finales y únicos dentro de cada dominio de referencias. Preferí IDs únicos en todo el proyecto para artefactos, clases, métodos, pasos, participantes, mensajes, fragmentos, operandos y notas. Las copias sincronizadas de un modelo de clases conservan intencionalmente los IDs internos del modelo fuente. Los IDs distinguen mayúsculas y minúsculas.
+- Usá IDs no vacíos, sin espacios iniciales/finales y únicos dentro de cada dominio de referencias. Preferí IDs únicos en todo el proyecto para artefactos, clases, métodos, pasos, participantes, mensajes, fragmentos, operandos y notas. Los IDs distinguen mayúsculas y minúsculas.
 - Una referencia apunta a un `id`, no a un nombre ni a la posición en un arreglo. Diferenciá el ID de un artefacto, el de un nodo de clase, el de una operación y el de un participante: representan objetos diferentes.
 - Los números de coordenadas y tamaños son números JSON finitos, no strings. No generes `NaN`, `Infinity`, `undefined` ni valores de JavaScript.
 - En clases y casos de uso, `position.x/y` es la esquina superior izquierda del nodo. En secuencias, `participant.x` es el centro horizontal de su línea de vida. La posición de una nota es su esquina superior izquierda.
@@ -684,6 +684,8 @@ Una secuencia representa interacciones ordenadas en el tiempo. No usa nodos ni e
 | `numbering` | `sequential`, `hierarchical` o `none`. La numeración se calcula; no la escribas dentro del nombre del mensaje. |
 | `showActivations` | Booleano para mostrar barras de activación. |
 | `participantColors` | `automatic` o `disabled`; no admite colores hexadecimales por participante. |
+| `spacing` | Opcional: `"compact"` reduce el espacio vertical entre mensajes. Omitilo para el espaciado normal. |
+| `classDiagramArtifactId` | Opcional: ID de un artefacto `class-sequence-diagram` del mismo proyecto. No admite un `class-diagram`. |
 | `participants` | Arreglo de participantes. Planificá sus X y ordenalos de izquierda a derecha. |
 | `items` | Arreglo temporal de mensajes y fragmentos. Su orden determina el orden vertical. |
 | `activations` | Arreglo de activaciones manuales o guardadas; usá `[]` para inferencia automática. |
@@ -693,7 +695,7 @@ Una secuencia representa interacciones ordenadas en el tiempo. No usa nodos ni e
 
 Cada participante tiene `id`, `kind`, `name`, `classifierName` y `x`. `kind` admite `actor`, `boundary`, `control`, `entity` u `object`. Para actores, el nombre identifica el rol. Para otros participantes, `name: "cliente"` y `classifierName: "Cliente"` producen el encabezado `cliente : Cliente`. No escribas los dos puntos dentro del nombre de instancia ni inventes un campo `stereotype`.
 
-`x` es el centro de la línea de vida, no la esquina del encabezado. El normalizador acepta centros desde 90 hasta 100000. Un vínculo opcional de clase es `classifierNodeId`, con el ID del nodo dentro del modelo de clases asociado, **no el ID del artefacto de clases**.
+`x` es el centro de la línea de vida, no la esquina del encabezado. El normalizador acepta centros desde 90 hasta 100000. Un vínculo opcional de clase es `classifierNodeId`, con el ID del nodo dentro del modelo de clases de secuencias asociado, **no el ID del artefacto de clases**. La aplicación vincula por nombre los participantes y las operaciones con las clases y métodos de ese modelo; conserva los vínculos explícitos que siguen siendo válidos.
 
 `createdByMessageId` y `destroyedByMessageId` se recalculan desde los mensajes de creación/destrucción. Para expresar esos eventos, generá mensajes `create` / `destroy`. `terminateLifeline: true` permite terminar una línea de vida sin inventar un mensaje; usalo solo cuando corresponda al escenario.
 
@@ -943,20 +945,20 @@ Este es el quinto tipo de artefacto, distinto de un `class-diagram` y de un `seq
 | Campo | Uso |
 | --- | --- |
 | `version` | Número `1`. |
-| `sourceClassDiagramArtifactId` | Opcional: ID de un `class-diagram` del mismo proyecto que actúa como modelo fuente. |
-| `linkedSequenceDiagramIds` | Arreglo de IDs de secuencias vinculadas; `[]` para un artefacto independiente. |
+| `sourceClassDiagramArtifactId` | Opcional, por compatibilidad: ID del `class-diagram` de origen. No activa sincronización; omitilo en archivos nuevos. |
+| `linkedSequenceDiagramIds` | Lista derivada de las secuencias cuyo `content.classDiagramArtifactId` apunta a este modelo. La aplicación la reconcilia; `[]` si ninguna lo usa. |
 
-Si lo generás como copia vinculada al modelo fuente, **copiá sus `nodes` y `edges` completos y conservá los IDs internos**. La aplicación sincroniza cambios de clases y métodos entre el modelo fuente y sus copias de clases de secuencias. No apuntes al modelo fuente con un contenido parcial o contradictorio si querés esa sincronización.
+El modelo de clases de secuencias es independiente del diagrama de clases común: sus nodos, relaciones y cambios no se sincronizan con él. Podés partir de sus clases, pero no necesitás conservar los IDs de un modelo fuente para activar ningún vínculo. **Convertir en clases de secuencias…** cambia el tipo de un diagrama de clases, conserva su contenido y lo vincula con las secuencias que todavía no tienen modelo.
 
-Para que una secuencia use este modelo, su `content.classDiagramArtifactId` debe apuntar al ID del artefacto `class-sequence-diagram`. Registrá también su ID en `linkedSequenceDiagramIds`. La lista de secuencias no reemplaza el vínculo desde la secuencia; son dos campos diferentes.
+Para que una secuencia use este modelo, su `content.classDiagramArtifactId` debe apuntar al ID del artefacto `class-sequence-diagram`. La aplicación deriva `linkedSequenceDiagramIds` de esos vínculos; no edites esa lista para vincular una secuencia. Los cambios de nombre de clases y métodos se propagan a los participantes y mensajes vinculados de sus secuencias.
 
-Si generás clases a partir de secuencias sin un modelo fuente, omití `sourceClassDiagramArtifactId`. Tomá los clasificadores y las operaciones que recibe cada participante; no deduzcas que todos los mensajes representan asociaciones persistentes, herencias o composiciones. Un actor externo no se convierte en una entidad del dominio solo por ser un participante.
+Si generás clases a partir de secuencias, omití `sourceClassDiagramArtifactId`. Tomá los clasificadores y las operaciones que recibe cada participante; no deduzcas que todos los mensajes representan asociaciones persistentes, herencias o composiciones. Un actor externo no se convierte en una entidad del dominio solo por ser un participante.
 
 Usá los mismos criterios de espaciado, puertos y símbolos UML que en la sección 2. No uses `participants` o `items` aquí ni un supuesto tipo de nodo «clase de secuencia».
 
 ### 6.1. Ejemplo completo e importable
 
-Este ejemplo independiente contiene las clases relevantes de la interacción. La sección 7 explica cómo convertirlo en una copia sincronizada del modelo completo y vincularlo a la secuencia.
+Este ejemplo independiente contiene las clases relevantes de la interacción. La sección 7 explica cómo vincularlo a la secuencia dentro de un proyecto.
 
 ```json
 {
@@ -1087,13 +1089,13 @@ Para generar un proyecto con los cinco ejemplos, reuní sus objetos en `artifact
 | Campo | ID que espera | Valor en el proyecto de ejemplo |
 | --- | --- | --- |
 | Flujo: `content.classDiagramArtifactId` | Artefacto `class-diagram`. | `artefacto-clases` |
-| Secuencia: `content.classDiagramArtifactId` | Artefacto `class-diagram` o `class-sequence-diagram`. | `artefacto-clases-secuencias` |
+| Secuencia: `content.classDiagramArtifactId` | Artefacto `class-sequence-diagram`. | `artefacto-clases-secuencias` |
 | Secuencia: `content.flowArtifactId` | Artefacto `use-case-flow`. | `artefacto-flujo` |
-| Clases de secuencias: `content.sourceClassDiagramArtifactId` | Artefacto `class-diagram`. | `artefacto-clases` |
-| Clases de secuencias: `content.linkedSequenceDiagramIds` | Arreglo de IDs de `sequence-diagram`. | `["artefacto-secuencia"]` |
+| Clases de secuencias: `content.sourceClassDiagramArtifactId` | Origen opcional de tipo `class-diagram`, sin sincronización. | Omitir. |
+| Clases de secuencias: `content.linkedSequenceDiagramIds` | Arreglo derivado de los vínculos desde las secuencias. | La aplicación deriva `["artefacto-secuencia"]`. |
 | Fragmento `ref`: `interactionArtifactId` | Otra secuencia del mismo proyecto. | Solo escribirlo si se agrega esa otra secuencia. |
 
-En el proyecto vinculado, reemplazá `nodes` y `edges` del ejemplo de clases de secuencias por una copia completa de los del ejemplo de clases, conservando IDs. Esto produce una copia sincronizada consistente, con las cinco clases del modelo fuente. El ejemplo independiente de la sección 6 puede quedarse parcial porque no declara ese vínculo.
+En el proyecto vinculado, conservá los `nodes` y `edges` del ejemplo de clases de secuencias y apuntá la secuencia a `artefacto-clases-secuencias`. El diagrama de clases común sigue siendo independiente; no hace falta copiar todo su contenido ni declarar un modelo fuente.
 
 ### 7.3. Referencias internas de la secuencia
 
@@ -1114,7 +1116,7 @@ Los mensajes dentro de un fragmento tienen el mismo formato de referencias; reco
 ### 7.4. Coherencia del proyecto
 
 - El nombre del caso de uso del modelo, `description.useCaseName` del flujo y el escenario de la secuencia deben describir el mismo objetivo cuando se pretende que se correspondan. No existe un vínculo JSON directo entre el óvalo de caso de uso y el flujo.
-- Los clasificadores y métodos vinculados deben existir en el modelo asociado. Conservá sus IDs cuando generás una copia sincronizada.
+- Los clasificadores y métodos vinculados deben existir en el modelo de clases de secuencias asociado. Sus referencias usan los IDs internos de ese modelo, aunque las clases del diagrama de clases común tengan otros IDs.
 - Todos los IDs de artefactos referidos deben existir en el mismo proyecto y ser del tipo correcto. No copies IDs externos esperando que se resuelvan por nombre.
 - Al importar un artefacto individual, estos vínculos se quitan para evitar asociaciones accidentales con un proyecto diferente. Para trasladar un conjunto ya existente, usá **Mover a otro proyecto… → Incluir artefactos vinculados**.
 
@@ -1126,7 +1128,7 @@ Los mensajes dentro de un fragmento tienen el mismo formato de referencias; reco
 4. En casos de uso, los actores quedan fuera del límite, los óvalos dentro, y include/extend/generalización apuntan al destino adecuado.
 5. En flujos, la numeración está en el texto, las alternativas se derivan desde un paso real y las referencias a caminos y pasos existen.
 6. En secuencias, los participantes no se superponen, los mensajes siguen el orden requerido, las respuestas se enlazan a llamadas previas y la creación/destrucción y los fragmentos son consistentes.
-7. En clases de secuencias, la estructura de clases es válida, los enlaces a la fuente y a las secuencias apuntan a artefactos existentes, y las copias sincronizadas conservan el modelo completo.
+7. En clases de secuencias, la estructura de clases es válida, las secuencias apuntan a ese artefacto con `content.classDiagramArtifactId` y `linkedSequenceDiagramIds` coincide con esos vínculos. No se requiere sincronización con el diagrama de clases común.
 8. Importá el resultado y verificá su presentación, nombres y referencias en el editor correspondiente. En editores que tienen **Revisar**, corregí los problemas reales detectados; la ausencia de avisos no demuestra que el negocio esté modelado correctamente.
 9. Exportá un artefacto o el proyecto como JSON para contrastar el formato real. No presentes como editable un campo que el normalizador elimina o recalcula.
 
