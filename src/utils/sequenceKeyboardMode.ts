@@ -105,7 +105,7 @@ export const resolveKeyboardTargetMessageType = (
   if (currentType === 'create' || currentType === 'destroy') return currentType;
   if (sourceIndex >= 0 && targetIndex >= 0) {
     if (targetIndex < sourceIndex) return 'return';
-    if (targetIndex > sourceIndex) return 'synchronous';
+    if (targetIndex > sourceIndex) return currentType === 'asynchronous' ? 'asynchronous' : 'synchronous';
   }
   return currentType;
 };
@@ -474,14 +474,16 @@ export const getSequenceKeyboardInstruction = (state: SequenceKeyboardModeState)
   if (state.stage === 'aim') {
     return state.messageType === 'create'
       ? '← → ubicación · ↑ ↓ tipo · Enter confirmar · Esc volver'
-      : '← → destino · ↑ ↓ tipo · Enter confirmar · Esc volver';
+      : state.messageType === 'return'
+        ? '← vuelve a quien llamó · ↑ ↓ tipo · Enter confirmar · Esc volver'
+        : '← → destino · ↑ ↓ tipo · Enter confirmar · Esc volver';
   }
   if (state.stage === 'typing') {
     return state.messageType === 'create'
       ? 'Escribí nombre : Clase · Enter crear · Esc volver'
       : state.messageType === 'return'
         ? 'Enter guardar retorno · Esc volver'
-        : 'Enter guardar · ⇧ Enter guardar + retorno · Esc volver';
+        : 'Enter guardar (vacío: toma la sugerencia) · ⇧ Enter guardar + retorno · Esc volver';
   }
   if (state.stage === 'participant') {
     return 'Escribí instancia:Clase o :Clase · Enter crear · Esc cancelar';

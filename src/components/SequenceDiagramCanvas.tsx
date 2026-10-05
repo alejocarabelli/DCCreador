@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import type {
   SequenceDiagramContent,
   SequenceFragment,
@@ -451,49 +451,54 @@ function SequenceDiagramCanvasImpl({
         }}
       >
         <rect x={box.x} y={box.y} width={box.width} height={box.height} fill={surfaceFill} stroke={fragmentStroke} strokeWidth={isInvalidResize ? 2.4 : isSelected ? 1.8 : isHighlighted ? 2.2 : 1.1} cursor="move" />
-        <path d={`M ${box.x} ${box.y} H ${box.x + 82} L ${box.x + 94} ${box.y + 22} H ${box.x} Z`} fill={fragmentTabFill} stroke={fragmentStroke} cursor="move" />
-        <text x={box.x + 9} y={box.y + 16} fill={textColor} fontSize="12" fontWeight="bold" cursor="move">{fragment.operator}</text>
-        {box.nameLines.length > 0 ? (
-          <text
-            x={box.x + 104}
-            y={box.y + 17}
-            fill={muted}
-            fontSize="11"
-            cursor="pointer"
-            aria-label="Doble clic para editar nombre"
-            onDoubleClick={(event) => {
-              event.stopPropagation();
-              onEditFragmentName?.(fragment.id, fragment.name, {
-                x: box.x + 100,
-                y: box.y + 2,
-                width: Math.max(160, box.width - 120),
-              });
-            }}
-          >
-            {box.nameLines.map((line, index) => <tspan key={`${fragment.id}:name:${index}`} x={box.x + 104} dy={index === 0 ? 0 : 14}>{line}</tspan>)}
-          </text>
-        ) : isPrimarySelected ? (
-          <text
-            x={box.x + 104}
-            y={box.y + 17}
-            fill={muted}
-            fontSize="11"
-            fontStyle="italic"
-            cursor="pointer"
-            opacity="0.65"
-            aria-label="Doble clic para nombrar fragmento"
-            onDoubleClick={(event) => {
-              event.stopPropagation();
-              onEditFragmentName?.(fragment.id, fragment.name, {
-                x: box.x + 100,
-                y: box.y + 2,
-                width: Math.max(160, box.width - 120),
-              });
-            }}
-          >
-            + nombre
-          </text>
-        ) : null}
+        {(() => {
+          // The tab reads "operator name" like Enterprise Architect and grows with the name.
+          const tabHeight = Math.max(22, box.headerHeight - 4);
+          const tabWidth = box.tabWidth ?? 94;
+          const firstLine = box.tabLines?.[0] ?? fragment.operator;
+          const editName = (event: ReactMouseEvent<SVGElement>): void => {
+            event.stopPropagation();
+            onEditFragmentName?.(fragment.id, fragment.name, {
+              x: box.x + 4,
+              y: box.y + 2,
+              width: Math.max(180, Math.min(box.width - 8, tabWidth + 80)),
+            });
+          };
+          return (
+            <>
+              <path d={`M ${box.x} ${box.y} H ${box.x + tabWidth - 12} L ${box.x + tabWidth} ${box.y + tabHeight} H ${box.x} Z`} fill={fragmentTabFill} stroke={fragmentStroke} cursor="move" />
+              <text
+                x={box.x + 9}
+                y={box.y + 16}
+                fill={textColor}
+                fontSize="12"
+                cursor="move"
+                aria-label={fragment.name ? 'Doble clic para editar el nombre' : undefined}
+                onDoubleClick={editName}
+              >
+                <tspan fontWeight="bold">{fragment.operator}</tspan>
+                {firstLine.length > fragment.operator.length ? <tspan>{firstLine.slice(fragment.operator.length)}</tspan> : null}
+                {(box.tabLines ?? []).slice(1).map((line, index) => <tspan key={`${fragment.id}:tab:${index}`} x={box.x + 9} dy={14}>{line}</tspan>)}
+              </text>
+              {!fragment.name && isPrimarySelected ? (
+                <text
+                  data-export-control="true"
+                  x={box.x + tabWidth + 10}
+                  y={box.y + 16}
+                  fill={muted}
+                  fontSize="11"
+                  fontStyle="italic"
+                  cursor="pointer"
+                  opacity="0.65"
+                  aria-label="Doble clic para nombrar fragmento"
+                  onDoubleClick={editName}
+                >
+                  + nombre
+                </text>
+              ) : null}
+            </>
+          );
+        })()}
         {isInvalidResize && boundaryResizePreview?.reason ? (() => {
           const showErrorBelow = boundaryResizePreview.edge === 'bottom' || box.y < 24;
           return (
@@ -561,11 +566,23 @@ function SequenceDiagramCanvasImpl({
                 });
               }}
             >
-              <rect x={box.x + 8} y={operand.top + 3} width={guardSurfaceWidth} height={guardSurfaceHeight} rx="2" fill={guardFill} opacity="0.82" />
-              <text x={box.x + 12} y={operand.top + 17} fill={guardText} fontSize="11" fontWeight={650} fontStyle="italic">
-                {operand.guardLines.map((line, lineIndex) => <tspan key={`${operand.id}:guard:${lineIndex}`} x={box.x + 12} dy={lineIndex === 0 ? 0 : 14}>{lineIndex === 0 ? `[${line}` : line}</tspan>)}
-                {operand.guardLines.length > 0 ? <tspan>]</tspan> : <tspan fill={muted} fontStyle="italic">[condición]</tspan>}
-              </text>
+              {operand.guardLines.length > 0 ? (
+                <>
+                  <rect x={box.x + 8} y={operand.top + 3} width={guardSurfaceWidth} height={guardSurfaceHeight} rx="2" fill={guardFill} opacity="0.82" />
+                  <text x={box.x + 12} y={operand.top + 17} fill={guardText} fontSize="11" fontWeight={650} fontStyle="italic">
+                    {operand.guardLines.map((line, lineIndex) => <tspan key={`${operand.id}:guard:${lineIndex}`} x={box.x + 12} dy={lineIndex === 0 ? 0 : 14}>{lineIndex === 0 ? `[${line}` : line}</tspan>)}
+                    <tspan>]</tspan>
+                  </text>
+                </>
+              ) : interactive && isPrimarySelected ? (
+                // Without a guard nothing is drawn; while the fragment is selected a
+                // hint offers to write one (never exported).
+                <text data-export-control="true" x={box.x + box.width - 12} y={operand.top + 11} fill={muted} fontSize="10" fontStyle="italic" opacity="0.75" textAnchor="end">
+                  doble clic: [condición]
+                </text>
+              ) : (
+                <rect data-export-control="true" x={box.x + 8} y={operand.top} width={Math.min(140, box.width - 16)} height={12} fill="transparent" />
+              )}
             </g>
             {showEmptyCta ? (
               <g data-export-control="true" opacity={isSelected ? 1 : 0.85}>

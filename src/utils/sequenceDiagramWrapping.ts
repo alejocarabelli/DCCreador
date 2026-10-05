@@ -14,34 +14,13 @@ export type WrapSequenceItemsResult = {
   createdFragment: SequenceFragment;
 };
 
-const defaultFragmentName = (operator: SequenceFragmentOperator): string => {
-  switch (operator) {
-    case 'alt':
-      return 'Alternativa';
-    case 'loop':
-      return 'Bucle';
-    case 'opt':
-      return 'Opcional';
-    case 'par':
-      return 'Paralelo';
-    case 'critical':
-      return 'Región crítica';
-    default:
-      return 'Fragmento';
-  }
-};
-
-const defaultFragmentGuard = (operator: SequenceFragmentOperator): string => {
-  switch (operator) {
-    case 'loop':
-      return 'mientras condición';
-    case 'alt':
-    case 'opt':
-      return 'condición';
-    default:
-      return '';
-  }
-};
+/**
+ * The same starting guards as a fragment inserted from the toolbar: only the
+ * branches of an `alt` get a placeholder to overwrite. A fragment has no name
+ * until the person writes one; the tab already shows its operator.
+ */
+const defaultFragmentGuard = (operator: SequenceFragmentOperator): string =>
+  operator === 'alt' ? 'condición' : '';
 
 export const wrapSequenceItems = (
   items: SequenceTimelineItem[],
@@ -65,15 +44,16 @@ export const wrapSequenceItems = (
     items: orderedSelectedItems,
   };
 
-  const operands = operator === 'alt'
-    ? [primaryOperand, { id: createId(), guard: 'else', items: [] }]
+  // alt and par always have two branches; the second starts empty.
+  const operands = operator === 'alt' || operator === 'par'
+    ? [primaryOperand, { id: createId(), guard: operator === 'alt' ? 'else' : '', items: [] }]
     : [primaryOperand];
 
   const createdFragment: SequenceFragment = {
     id: createId(),
     kind: 'fragment',
     operator,
-    name: fragmentName ?? defaultFragmentName(operator),
+    name: fragmentName ?? '',
     operands,
   };
 

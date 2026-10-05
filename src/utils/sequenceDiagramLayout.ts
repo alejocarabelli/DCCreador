@@ -29,6 +29,13 @@ export const SEQUENCE_TIMELINE_START = 134;
 export const SEQUENCE_PARTICIPANT_GAP = 230;
 export const SEQUENCE_MARGIN_X = 110;
 export const SEQUENCE_ROW_HEIGHT = 58;
+/** Row of a one-line message in compact spacing, like Enterprise Architect. */
+export const SEQUENCE_COMPACT_ROW_HEIGHT = 32;
+/** A label may run past a short arrow before it wraps (about 200 px). */
+const MESSAGE_LABEL_MIN_CHARACTERS = 32;
+/** Widest the fragment tab grows before its text wraps. */
+const FRAGMENT_TAB_MAX_WIDTH = 360;
+const FRAGMENT_TAB_MIN_WIDTH = 94;
 
 const FRAGMENT_INSET = 12;
 const FRAGMENT_MIN_WIDTH = 270;
@@ -76,6 +83,9 @@ export type SequenceFragmentLayout = {
   depth: number;
   headerHeight: number;
   nameLines: string[];
+  /** The tab reads "operator name", as in Enterprise Architect; it grows with the name. */
+  tabLines: string[];
+  tabWidth: number;
   operands: SequenceOperandLayout[];
 };
 
@@ -138,6 +148,18 @@ const containedMessages = (fragment: SequenceFragment): SequenceMessage[] => fra
 const containedFragments = (fragment: SequenceFragment): SequenceFragment[] => fragment.operands.flatMap((operand) =>
   operand.items.flatMap((item) => item.kind === 'fragment' ? [item] : []));
 
+/** A label never leaves its number alone on the first line ("1." / "buscar()"). */
+const keepNumberWithName = (text: { lines: string[]; width: number; height: number }) => {
+  if (text.lines.length < 2 || !/^\d+(\.\d+)*\.$/.test(text.lines[0])) return text;
+  const [number, first, ...rest] = text.lines;
+  const lines = [`${number} ${first}`, ...rest];
+  return {
+    lines,
+    width: Math.max(...lines.map((line) => line.length * 6.3)),
+    height: lines.length * MESSAGE_LINE_HEIGHT,
+  };
+};
+
 const getHorizontalEnvelope = (
   fragment: SequenceFragment,
   participantX: Map<string, number>,
@@ -150,14 +172,23 @@ const getHorizontalEnvelope = (
   return { left: Math.min(...xs) - 86, right: Math.max(...xs) + 86 };
 };
 
+const measureFragmentTab = (fragment: SequenceFragment): { lines: string[]; width: number; height: number } => {
+  const text = fragment.name.trim() ? `${fragment.operator} ${fragment.name.trim()}` : fragment.operator;
+  const capacity = Math.floor((FRAGMENT_TAB_MAX_WIDTH - 30) / 6.6);
+  const measured = measureSequenceText(text, capacity, 6.6, MESSAGE_LINE_HEIGHT);
+  return {
+    lines: measured.lines,
+    width: Math.max(FRAGMENT_TAB_MIN_WIDTH, Math.ceil(measured.width + 30)),
+    height: measured.height,
+  };
+};
+
 const getFragmentMinimumWidth = (
   fragment: SequenceFragment,
   participantX: Map<string, number>,
 ): number => {
   const envelope = getHorizontalEnvelope(fragment, participantX);
-  const nameWidth = fragment.name
-    ? measureSequenceText(fragment.name, 40, 6.3, MESSAGE_LINE_HEIGHT).width + 120
-    : 0;
+  const nameWidth = fragment.name ? measureFragmentTab(fragment).width + 24 : 0;
   const guardWidth = Math.max(...fragment.operands.map((operand) =>
     measureSequenceText(operand.guard || 'condición', 44, 6.1, MESSAGE_LINE_HEIGHT).width + 28), 0);
   const nestedWidth = Math.max(...containedFragments(fragment).map((nested) =>
@@ -181,6 +212,13 @@ const defaultFragmentFrame = (
   const maxDiagramX = allParticipantXs.length > 0 ? Math.max(...allParticipantXs) : minDiagramX + 520;
   const startX = fragment.startParticipantId ? participantX.get(fragment.startParticipantId) : undefined;
   const endX = fragment.endParticipantId ? participantX.get(fragment.endParticipantId) : undefined;
+  // With no lifelines chosen, the frame covers the lifelines its messages use
+  // (as Enterprise Architect does); an empty fragment spans the diagram.
+  const envelope = startX === undefined && endX === undefined ? getHorizontalEnvelope(fragment, participantX) : undefined;
+  if (envelope !== undefined) {
+    const width = Math.max(FRAGMENT_MIN_WIDTH, envelope.right - envelope.left - depth * 16);
+    return { x: envelope.left + depth * 8, width };
+  }
   const minBound = Math.min(startX ?? minDiagramX, endX ?? (startX !== undefined ? startX + 230 : maxDiagramX));
   const maxBound = Math.max(endX ?? maxDiagramX, startX ?? (endX !== undefined ? endX - 230 : minDiagramX));
   const left = minBound - 86;
@@ -272,6 +310,7 @@ export const buildSequenceLayout = (
   const maxParticipantHeaderHeight = Math.max(SEQUENCE_HEADER_HEIGHT, ...topHeaders.map((header) => header.headerHeight));
   const timelineStart = Math.max(SEQUENCE_TIMELINE_START, SEQUENCE_HEADER_Y + maxParticipantHeaderHeight + 42);
   const messageNumbers = buildSequenceMessageNumbers(content);
+  const compact = content.spacing === 'compact';
   const messageLayouts = new Map<string, SequenceMessageLayout>();
   const fragmentLayouts = new Map<string, SequenceFragmentLayout>();
   const orderedMessages: SequenceMessage[] = [];
@@ -291,22 +330,35 @@ export const buildSequenceLayout = (
     const effectiveTargetX = message.type === 'create'
       ? targetX - direction * targetHalfWidth
       : targetX;
-    const span = Math.max(18, Math.floor(Math.abs(effectiveTargetX - sourceX) / 7.6));
+    const span = Math.max(MESSAGE_LABEL_MIN_CHARACTERS, Math.floor(Math.abs(effectiveTargetX - sourceX) / 7.6));
     const label = message.type === 'return' ? '' : formatSequenceMessageLabel(message, messageNumbers.get(message.id));
-    const labelText = label.length > 0 ? measureSequenceText(label, span, 6.3, MESSAGE_LINE_HEIGHT) : undefined;
+    const labelText = label.length > 0 ? keepNumberWithName(measureSequenceText(label, span, 6.3, MESSAGE_LINE_HEIGHT)) : undefined;
     const flowReference = message.flowReference ?? '';
     const flowText = flowReference.length > 0
       ? measureSequenceText(`Ref. ${flowReference}`, Math.max(18, span), 5.3, 12)
       : undefined;
     const labelHeight = labelText?.height ?? 0;
     const flowHeight = flowText?.height ?? 0;
-    const height = Math.max(
-      SEQUENCE_ROW_HEIGHT,
-      labelHeight > 0 ? 2 * (labelHeight + 14) : 0,
-      flowHeight > 0 ? 2 * (flowHeight + 20) : 0,
-      message.sourceId === message.targetId ? 84 : 0,
-    );
-    const y = cursorY + height / 2;
+    const isSelf = message.sourceId === message.targetId;
+    const createdHeaderHalfHeight = message.type === 'create' ? (targetHeader?.headerHeight ?? SEQUENCE_HEADER_HEIGHT) / 2 : 0;
+    // Normal spacing centers the arrow in a fixed row; compact spacing puts it
+    // right under its label and keeps only what the row really needs below.
+    const compactArrowOffset = Math.max(labelHeight > 0 ? labelHeight + 14 : 10, createdHeaderHalfHeight + 10);
+    const height = compact
+      ? Math.max(
+        SEQUENCE_COMPACT_ROW_HEIGHT,
+        compactArrowOffset + (isSelf ? 40 : 10),
+        compactArrowOffset + createdHeaderHalfHeight + 10,
+        flowHeight > 0 ? compactArrowOffset + 9 + flowHeight + 6 : 0,
+      )
+      : Math.max(
+        SEQUENCE_ROW_HEIGHT,
+        labelHeight > 0 ? 2 * (labelHeight + 14) : 0,
+        flowHeight > 0 ? 2 * (flowHeight + 20) : 0,
+        isSelf ? 84 : 0,
+        createdHeaderHalfHeight * 2 + 20,
+      );
+    const y = compact ? cursorY + compactArrowOffset : cursorY + height / 2;
     const labelCenterX = message.sourceId === message.targetId
       ? sourceX + 38 * direction
       : (sourceX + effectiveTargetX) / 2;
@@ -362,18 +414,25 @@ export const buildSequenceLayout = (
       const nameText = item.name
         ? measureSequenceText(item.name, Math.max(12, Math.floor((horizontal.width - 114) / 6.3)), 6.3, MESSAGE_LINE_HEIGHT)
         : { lines: [] as string[], width: 0, height: 0 };
-      const headerHeight = Math.max(26, item.name ? nameText.height + 12 : 26);
+      const tab = measureFragmentTab(item);
+      const tabWidth = Math.min(tab.width, Math.max(FRAGMENT_TAB_MIN_WIDTH, horizontal.width - 24));
+      const headerHeight = Math.max(26, tab.height + 10);
       cursorY = y + headerHeight;
       const operands: SequenceOperandLayout[] = [];
       item.operands.forEach((operand) => {
         const top = cursorY;
-        const guardText = measureSequenceText(
-          operand.guard || 'condición',
-          Math.max(12, Math.floor((horizontal.width - 24) / 6.1)),
-          6.1,
-          MESSAGE_LINE_HEIGHT,
-        );
-        const guardHeight = Math.max(24, guardText.height + 10);
+        // An operand without a guard draws none (as in Enterprise Architect)
+        // and keeps only a small gap under the tab or the separator.
+        const hasGuard = operand.guard.trim().length > 0;
+        const guardText = hasGuard
+          ? measureSequenceText(
+            operand.guard,
+            Math.max(12, Math.floor((horizontal.width - 24) / 6.1)),
+            6.1,
+            MESSAGE_LINE_HEIGHT,
+          )
+          : { lines: [] as string[], width: 0, height: 0 };
+        const guardHeight = hasGuard ? Math.max(24, guardText.height + 10) : 12;
         const contentTop = top + guardHeight;
         cursorY = contentTop;
         layoutItems(operand.items, depth + 1, item.id, operand.id, horizontal);
@@ -410,6 +469,8 @@ export const buildSequenceLayout = (
         depth,
         headerHeight,
         nameLines: nameText.lines,
+        tabLines: tab.lines,
+        tabWidth,
         operands,
       });
       cursorY = y + height + FRAGMENT_BOTTOM_GAP;

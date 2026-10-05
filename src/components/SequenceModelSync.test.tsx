@@ -23,7 +23,7 @@ const renderSequence = (currentProject = project) => renderToString(<DialogProvi
 
 describe('sequence model synchronization UI', () => {
   it('shows only linked sequence novelties, selected by default, with navigation and linking below', () => {
-    const unlinked = { ...sequence, id: 'unlinked', content: { ...sequence.content, participants: [{ ...sequence.content.participants[0], classifierName: 'Otra' }] } };
+    const unlinked = { ...sequence, id: 'unlinked', content: { ...sequence.content, classDiagramArtifactId: undefined, participants: [{ ...sequence.content.participants[0], classifierName: 'Otra' }] } };
     const html = renderModel(model, { ...project, artifacts: [...project.artifacts, unlinked] });
     expect(html).toContain('2 novedades');
     const syncMenu = html.slice(html.indexOf('sequence-model-status')).split('</details>')[0];
@@ -33,19 +33,28 @@ describe('sequence model synchronization UI', () => {
     expect(html).toContain('Vincular 1 secuencia sin vincular');
     expect(html).not.toContain('>Otra<');
   });
+  it('does not offer to link sequences that already use another model', () => {
+    const otherModel = { ...model, id: 'other-model', content: { ...model.content, linkedSequenceDiagramIds: ['other-sequence'] } };
+    const otherSequence = { ...sequence, id: 'other-sequence', content: { ...sequence.content, classDiagramArtifactId: otherModel.id } };
+    const html = renderModel(model, { ...project, artifacts: [...project.artifacts, otherModel, otherSequence] });
+    expect(html).not.toContain('secuencia sin vincular');
+    expect(html).not.toContain('secuencias sin vincular');
+    expect(html).toContain('2 novedades');
+  });
   it('shows the neutral up-to-date and no-linked-sequences states', () => {
     const synced = { ...model, content: { ...model.content, ...importClassesFromSequences(model.content, [sequence.content]).content } };
     expect(renderModel(synced)).toContain('✓ Al día con 1 secuencia');
     expect(renderModel({ ...model, content: { ...model.content, linkedSequenceDiagramIds: [] } })).toContain('Sin secuencias vinculadas');
   });
   it('shows missing model elements and the import action only when necessary', () => {
-    expect(renderSequence()).toContain('2 faltan en el modelo');
-    expect(renderSequence()).toContain('Agregar todo al modelo');
+    expect(renderSequence()).toContain('2 faltan');
+    expect(renderSequence()).toContain('2 elementos faltan en «Modelo»');
+    expect(renderSequence()).toContain('Agregar todo a «Modelo»');
     const synced = { ...model, content: { ...model.content, ...importClassesFromSequences(model.content, [sequence.content]).content } };
     const html = renderSequence({ ...project, artifacts: [synced, sequence] });
-    expect(html).toContain('✓ Modelo al día');
-    expect(html).not.toContain('Agregar todo al modelo');
-    expect(html).toContain('Abrir modelo');
+    expect(html).toContain('✓ Al día');
+    expect(html).not.toContain('Agregar todo a «Modelo»');
+    expect(html).toContain('Abrir «Modelo»');
   });
   it('marks participant names and message labels with export-excluded warning lines', () => {
     const props = { content: sequence.content, layout: buildSequenceLayout(sequence.content), selected: null, theme: themes[0], onSelect: vi.fn(), onParticipantPointerDown: vi.fn(), onNotePointerDown: vi.fn(), onNoteResizePointerDown: vi.fn() };

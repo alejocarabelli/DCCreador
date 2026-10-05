@@ -101,11 +101,11 @@ export const resolveSequenceParticipantInsertionX = (
       left,
       current.x - getSequenceParticipantHeaderWidth(current) / 2,
     ), Number.POSITIVE_INFINITY);
-    return Math.max(90, Math.round(leftmost - participantWidth / 2 - 20));
+    return Math.max(90, Math.round(leftmost - participantWidth / 2 - 40));
   }
   const rightmost = participants.reduce((right, current) => Math.max(
     right,
     current.x + getSequenceParticipantHeaderWidth(current) / 2,
   ), Number.NEGATIVE_INFINITY);
-  return Math.round(rightmost + participantWidth / 2 + 20);
+  return Math.round(rightmost + participantWidth / 2 + 40);
 };

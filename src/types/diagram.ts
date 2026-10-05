@@ -284,7 +284,9 @@ export type SequenceDiagramProblemCode =
   | 'ambiguous-lifecycle-marker'
   | 'invalid-manual-activation'
   | 'broken-interaction-reference'
-  | 'unlinked-interaction-reference';
+  | 'unlinked-interaction-reference'
+  | 'unnamed-message'
+  | 'incomplete-fragment';
 
 export type SequenceDiagramProblem = {
   id: string;
@@ -364,6 +366,8 @@ export type SequenceNote = {
 };
 
 export type SequenceParticipantColorMode = 'automatic' | 'disabled';
+/** Compact packs one-line messages tightly, as Enterprise Architect draws them. */
+export type SequenceSpacingMode = 'normal' | 'compact';
 
 export type SequenceDiagramContent = {
   version: 1;
@@ -372,6 +376,7 @@ export type SequenceDiagramContent = {
   numbering: SequenceNumberingMode;
   showActivations: boolean;
   participantColors?: SequenceParticipantColorMode;
+  spacing?: SequenceSpacingMode;
   participants: SequenceParticipant[];
   items: SequenceTimelineItem[];
   activations: SequenceActivation[];

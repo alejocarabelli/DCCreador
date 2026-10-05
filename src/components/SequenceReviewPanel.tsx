@@ -70,7 +70,7 @@ export const SequenceReviewPanel: React.FC<SequenceReviewPanelProps> = ({
             <CheckCircle2 size={36} className="text-success" />
             <p className="sequence-review-empty-title">Diagrama válido</p>
             <p className="sequence-review-empty-subtitle">
-              No se detectaron errores de ciclo de vida ni referencias rotas.
+              Sin errores de ciclo de vida, referencias rotas, mensajes sin nombre ni fragmentos vacíos.
             </p>
           </div>
         ) : (

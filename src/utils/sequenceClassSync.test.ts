@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ClassDiagramContent, ClassDiagramNode, SequenceDiagramContent } from '../types/diagram';
 import { createEmptySequenceDiagramContent, createSequenceFragment, createSequenceMessage } from './sequenceDiagram';
-import { findSequenceMessagesMissingInModel, importClassesFromSequences, planSequenceClassImport } from './sequenceClassImport';
+import { bindSequenceToModel, findSequenceMessagesMissingInModel, importClassesFromSequences, planSequenceClassImport } from './sequenceClassImport';
 
 const empty: ClassDiagramContent = { nodes: [], edges: [] };
 const node: ClassDiagramNode = { id: 'class-t', type: 'classNode', position: { x: 0, y: 0 }, data: { name: 'Tramite', methods: [], attributes: [] } };
@@ -86,14 +86,61 @@ describe('missing sequence elements', () => {
     expect([...missing.messageIds]).toEqual(['set']);
   });
 
-  it('uses classifier ids strictly, and falls back to the participant name only without an id', () => {
+  it('follows the classifier id first, and the class name when the id is missing or stale', () => {
     const model = importClassesFromSequences(empty, [sequence]).content;
     const linked = { ...sequence, participants: sequence.participants.map((participant) => participant.id === 't' ? { ...participant, classifierNodeId: model.nodes[0].id, classifierName: 'Otra' } : participant) };
     expect(findSequenceMessagesMissingInModel(linked, model).messageIds.size).toBe(0);
     linked.participants[1].classifierNodeId = 'deleted';
     linked.participants[1].classifierName = 'Tramite';
+    expect(findSequenceMessagesMissingInModel(linked, model).participantIds.size).toBe(0);
+    linked.participants[1].classifierName = 'Otra';
     expect([...findSequenceMessagesMissingInModel(linked, model).participantIds]).toEqual(['t']);
     const fallback = { ...sequence, participants: [{ ...sequence.participants[1], classifierName: '', name: 'tramite' }] };
     expect(findSequenceMessagesMissingInModel(fallback, model).participantIds.size).toBe(0);
+  });
+});
+
+describe('novelties come only from the sequences', () => {
+  const tramite: ClassDiagramNode = { id: 'class-t', type: 'classNode', position: { x: 0, y: 0 }, data: { name: 'Tramite', attributes: [], methods: [
+    { id: 'm-estado', visibility: '+', name: 'getEstadoActual', parameters: '', returnType: 'EstadoTramite' },
+  ] } };
+  const estado: ClassDiagramNode = { id: 'class-e', type: 'classNode', position: { x: 300, y: 0 }, data: { name: 'EstadoTramite', attributes: [], methods: [] } };
+  const calls: SequenceDiagramContent = {
+    ...createEmptySequenceDiagramContent(),
+    participants: [
+      { id: 'g', kind: 'control', name: '', classifierName: 'Gestor', x: 0 },
+      { id: 't', kind: 'entity', name: 'actual', classifierName: 'Tramite', x: 200 },
+    ],
+    items: [
+      { ...createSequenceMessage('synchronous', 'g', 't'), id: 'nro', name: 'getNroTramite', returnType: 'int' },
+      { ...createSequenceMessage('synchronous', 'g', 't'), id: 'lista', name: 'getListEstados', returnType: 'List<EstadoTramite>' },
+    ],
+  };
+
+  it('does not suggest attributes for model methods the sequence never calls, nor for getters of other classes', () => {
+    const plan = planSequenceClassImport({ nodes: [tramite, estado], edges: [] }, [calls]);
+    expect(plan.filter((novelty) => novelty.type === 'attribute').map((novelty) => novelty.elementName)).toEqual(['nroTramite']);
+  });
+});
+
+describe('bindSequenceToModel', () => {
+  const model: ClassDiagramContent = { nodes: [{ ...node, data: { ...node.data, methods: [{ id: 'm-nombre', visibility: '+', name: 'getNombre', parameters: '', returnType: 'String' }] } }], edges: [] };
+
+  it('links participants and calls by name and keeps the content when nothing changes', () => {
+    const bound = bindSequenceToModel(sequence, model);
+    expect(bound.participants.find((participant) => participant.id === 't')?.classifierNodeId).toBe('class-t');
+    expect(bound.participants.find((participant) => participant.id === 'actor')?.classifierNodeId).toBeUndefined();
+    expect(bound.items.find((item) => item.id === 'get')).toMatchObject({ operationMethodId: 'm-nombre' });
+    expect(bound.items.find((item) => item.id === 'set')).not.toHaveProperty('operationMethodId');
+    expect(bindSequenceToModel(bound, model)).toBe(bound);
+  });
+
+  it('re-resolves links to deleted elements and keeps a deliberate link to another class name', () => {
+    const stale = { ...sequence, participants: sequence.participants.map((participant) => participant.id === 't' ? { ...participant, classifierNodeId: 'deleted' } : participant) };
+    expect(bindSequenceToModel(stale, model).participants[1].classifierNodeId).toBe('class-t');
+    const renamed = { ...sequence, participants: sequence.participants.map((participant) => participant.id === 't' ? { ...participant, classifierName: 'Otra', classifierNodeId: 'class-t' } : participant) };
+    expect(bindSequenceToModel(renamed, model).participants[1].classifierNodeId).toBe('class-t');
+    const orphan = { ...sequence, participants: sequence.participants.map((participant) => participant.id === 't' ? { ...participant, classifierName: 'Otra', classifierNodeId: 'deleted' } : participant) };
+    expect(bindSequenceToModel(orphan, model).participants[1].classifierNodeId).toBeUndefined();
   });
 });

@@ -1,6 +1,5 @@
 import type {
   ClassDiagramContent,
-  DesignArtifact,
   SequenceDiagramContent,
   SequenceTimelineItem,
 } from '../types/diagram';
@@ -70,7 +69,10 @@ export const applyClassModelRenamesToSequence = (
 
   const participants = content.participants.map((participant) => {
     const rename = participant.classifierNodeId ? renames.classes.get(participant.classifierNodeId) : undefined;
-    if (rename === undefined || normalizeClassName(participant.classifierName) !== normalizeClassName(rename.from)) {
+    // A rename typed by clearing the name first arrives as `'' → nuevo`; the
+    // linked participant still follows it.
+    if (rename === undefined || (rename.from.length > 0
+      && normalizeClassName(participant.classifierName) !== normalizeClassName(rename.from))) {
       return participant;
     }
     changed = true;
@@ -91,19 +93,8 @@ export const applyClassModelRenamesToSequence = (
   return changed ? { ...content, participants, items } : null;
 };
 
-/**
- * The sequence diagrams whose class model is `modelArtifactIds`: those that
- * reference one of them, plus those with no reference when the project's only
- * class diagram is among them (the editor treats that one as their model).
- */
+/** A sequence follows only the "Clases de secuencias" model it points at. */
 export const isSequenceUsingClassModel = (
   content: SequenceDiagramContent,
-  modelArtifactIds: ReadonlySet<string>,
-  artifacts: DesignArtifact[],
-): boolean => {
-  if (content.classDiagramArtifactId !== undefined) {
-    return modelArtifactIds.has(content.classDiagramArtifactId);
-  }
-  const plainClassDiagrams = artifacts.filter((artifact) => artifact.type === 'class-diagram');
-  return plainClassDiagrams.length === 1 && modelArtifactIds.has(plainClassDiagrams[0].id);
-};
+  modelArtifactId: string,
+): boolean => content.classDiagramArtifactId === modelArtifactId;

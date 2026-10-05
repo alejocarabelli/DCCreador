@@ -1,4 +1,4 @@
-import { linkNewSequenceToOnlyModel } from '../utils/sequenceModelLink';
+import { findUnlinkedSequences, linkNewSequenceToOnlyModel, linkSequencesToModel, reconcileSequenceModelLinks } from '../utils/sequenceModelLink';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ArtifactContent,
@@ -303,35 +303,22 @@ export const useProjects = () => {
         return project;
       }
 
-      const source = project.artifacts.find(
-        (candidate): candidate is ClassDiagramArtifact => candidate.type === 'class-diagram',
-      );
-      const sequenceIds = project.artifacts
-        .filter((candidate): candidate is SequenceDiagramArtifact => candidate.type === 'sequence-diagram')
-        .map((candidate) => candidate.id);
+      // A new model starts empty and takes the sequences that have none yet; a
+      // sequence already drawn on another model keeps it.
       const artifact: ClassSequenceDiagramArtifact = {
         id: createId(),
         type: 'class-sequence-diagram',
-        name: name.trim() || 'Diagrama de clases (Secuencia)',
+        name: name.trim() || 'Clases de secuencias',
         createdAt: now,
         updatedAt: now,
-        content: createClassSequenceContent(source, sequenceIds),
+        content: createClassSequenceContent(undefined, []),
       };
-      const linkedArtifacts = project.artifacts.map((candidate) => candidate.type === 'sequence-diagram'
-        ? {
-            ...candidate,
-            content: {
-              ...candidate.content,
-              classDiagramArtifactId: artifact.id,
-            },
-            updatedAt: now,
-          }
-        : candidate);
+      const unlinkedIds = findUnlinkedSequences(project.artifacts).map((sequence) => sequence.id);
 
       return {
         ...project,
         activeArtifactId: artifact.id,
-        artifacts: [...linkedArtifacts, artifact],
+        artifacts: linkSequencesToModel([...project.artifacts, artifact], unlinkedIds, artifact.id, now),
         updatedAt: now,
       };
     }));
@@ -412,7 +399,11 @@ export const useProjects = () => {
       : project));
   };
 
-  const linkSequenceDiagramsToClassModel = (projectId: string, classModelArtifactId: string): void => {
+  /**
+   * Points sequences at a "Clases de secuencias" model. With no list, it takes
+   * the sequences that have no model yet, never one drawn on another model.
+   */
+  const linkSequenceDiagramsToClassModel = (projectId: string, classModelArtifactId: string, sequenceIds?: string[]): void => {
     const now = new Date().toISOString();
 
     setProjects((currentProjects) => currentProjects.map((project) => {
@@ -420,23 +411,53 @@ export const useProjects = () => {
         return project;
       }
 
+      const ids = sequenceIds ?? findUnlinkedSequences(project.artifacts).map((sequence) => sequence.id);
+      const artifacts = linkSequencesToModel(project.artifacts, ids, classModelArtifactId, now);
+      return artifacts === project.artifacts ? project : { ...project, updatedAt: now, artifacts };
+    }));
+  };
+
+  /**
+   * Turns a plain class diagram into a "Clases de secuencias" model in place:
+   * same id, name, classes and relations. It takes the sequences that have no
+   * model yet. Flows that pointed at it lose that link, since a flow reads a
+   * plain class diagram.
+   */
+  const convertClassDiagramToSequenceModel = (projectId: string, artifactId: string): void => {
+    const now = new Date().toISOString();
+
+    setProjects((currentProjects) => currentProjects.map((project) => {
+      if (project.id !== projectId) {
+        return project;
+      }
+      const source = project.artifacts.find((artifact): artifact is ClassDiagramArtifact =>
+        artifact.id === artifactId && artifact.type === 'class-diagram');
+      if (source === undefined) return project;
+
+      const converted: ClassSequenceDiagramArtifact = {
+        id: source.id,
+        type: 'class-sequence-diagram',
+        name: source.name,
+        createdAt: source.createdAt,
+        updatedAt: now,
+        content: createClassSequenceContent(source, []),
+      };
+      // The copy is the diagram itself now, not a link to a source.
+      converted.content.sourceClassDiagramArtifactId = undefined;
+      const artifacts = project.artifacts.map((artifact): DesignArtifact => {
+        if (artifact.id === source.id) return converted;
+        if (artifact.type === 'use-case-flow' && artifact.content.classDiagramArtifactId === source.id) {
+          return { ...artifact, updatedAt: now, content: { ...artifact.content, classDiagramArtifactId: undefined } };
+        }
+        return artifact;
+      });
+      const unlinkedIds = findUnlinkedSequences(artifacts).map((sequence) => sequence.id);
+
       return {
         ...project,
+        activeArtifactId: source.id,
         updatedAt: now,
-        artifacts: project.artifacts.map((artifact) => {
-          if (artifact.type === 'sequence-diagram') {
-            return {
-              ...artifact,
-              content: {
-                ...artifact.content,
-                classDiagramArtifactId: classModelArtifactId,
-              },
-              updatedAt: now,
-            };
-          }
-
-          return artifact;
-        }),
+        artifacts: linkSequencesToModel(artifacts, unlinkedIds, source.id, now),
       };
     }));
   };
@@ -474,7 +495,7 @@ export const useProjects = () => {
           return project;
         }
 
-        const nextArtifacts = project.artifacts.filter((artifact) => artifact.id !== artifactId);
+        const nextArtifacts = reconcileSequenceModelLinks(project.artifacts.filter((artifact) => artifact.id !== artifactId), now);
 
         if (nextArtifacts.length === project.artifacts.length || nextArtifacts.length === 0) {
           return project;
@@ -521,63 +542,29 @@ export const useProjects = () => {
                 : normalizeClassSequenceDiagramContent(content as Partial<ClassSequenceDiagramContent>))
               : (options?.alreadyNormalized ? content as ClassDiagramContent : normalizeDiagramContent(content as Partial<ClassDiagramContent>));
 
-      const isClassModelUpdate = targetArtifact.type === 'class-diagram' || targetArtifact.type === 'class-sequence-diagram';
-      const targetClassContent = isClassModelUpdate
-        ? cloneClassContent(normalizedTargetContent as ClassDiagramContent)
+      // Only a "Clases de secuencias" model talks to sequences: its renamed
+      // classes and methods reach the sequences drawn on it. Undo replays
+      // through here, so it carries the old names back. A plain class diagram
+      // stays on its own.
+      const renames = targetArtifact.type === 'class-sequence-diagram'
+        ? findClassModelRenames(targetArtifact.content, normalizedTargetContent as ClassDiagramContent)
         : undefined;
-      const sourceClassDiagramArtifactId = targetArtifact.type === 'class-sequence-diagram'
-        ? targetArtifact.content.sourceClassDiagramArtifactId ?? targetArtifact.id
-        : targetArtifact.type === 'class-diagram'
-          ? targetArtifact.id
-          : undefined;
+      const propagatesRenames = renames !== undefined && hasClassModelRenames(renames);
 
-      // Renamed classes and methods reach the sequence diagrams drawn on this
-      // model. Undo replays through here, so it carries the old names back.
-      const renames = isClassModelUpdate && targetClassContent !== undefined
-        ? findClassModelRenames(targetArtifact.content as ClassDiagramContent, targetClassContent)
-        : undefined;
-      const modelArtifactIds = renames !== undefined && hasClassModelRenames(renames) && sourceClassDiagramArtifactId !== undefined
-        ? new Set(project.artifacts
-          .filter((artifact) => (artifact.type === 'class-diagram' && artifact.id === sourceClassDiagramArtifactId)
-            || (artifact.type === 'class-sequence-diagram'
-              && (artifact.content.sourceClassDiagramArtifactId ?? artifact.id) === sourceClassDiagramArtifactId))
-          .map((artifact) => artifact.id))
-        : undefined;
-
-      const artifacts = project.artifacts.map((artifact) => {
+      const updatedArtifacts = project.artifacts.map((artifact) => {
         if (artifact.id === artifactId) {
           return { ...artifact, content: normalizedTargetContent, updatedAt: now } as typeof artifact;
         }
 
-        if (artifact.type === 'sequence-diagram' && renames !== undefined && modelArtifactIds !== undefined
-          && isSequenceUsingClassModel(artifact.content, modelArtifactIds, project.artifacts)) {
+        if (propagatesRenames && artifact.type === 'sequence-diagram' && isSequenceUsingClassModel(artifact.content, artifactId)) {
           const renamedContent = applyClassModelRenamesToSequence(artifact.content, renames);
           return renamedContent === null ? artifact : { ...artifact, content: renamedContent, updatedAt: now };
         }
 
-        if (!isClassModelUpdate || targetClassContent === undefined || sourceClassDiagramArtifactId === undefined) {
-          return artifact;
-        }
-
-        if (artifact.type === 'class-diagram' && artifact.id === sourceClassDiagramArtifactId) {
-          return { ...artifact, content: targetClassContent, updatedAt: now };
-        }
-
-        if (artifact.type === 'class-sequence-diagram'
-          && (artifact.content.sourceClassDiagramArtifactId ?? artifact.id) === sourceClassDiagramArtifactId) {
-          return {
-            ...artifact,
-            content: {
-              ...artifact.content,
-              ...targetClassContent,
-              version: 1 as const,
-            },
-            updatedAt: now,
-          };
-        }
-
         return artifact;
       });
+      const linksMayChange = targetArtifact.type === 'sequence-diagram' || targetArtifact.type === 'class-sequence-diagram';
+      const artifacts = linksMayChange ? reconcileSequenceModelLinks(updatedArtifacts, now) : updatedArtifacts;
 
       return {
         ...project,
@@ -669,6 +656,7 @@ export const useProjects = () => {
     createUseCaseModelArtifact,
     createSequenceDiagramArtifact,
     linkSequenceDiagramsToClassModel,
+    convertClassDiagramToSequenceModel,
     createProject,
     deleteArtifact,
     deleteProject,

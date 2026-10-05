@@ -1,4 +1,5 @@
 import { isClassGroupColor } from '../constants/classGroupColors';
+import { reconcileSequenceModelLinks } from './sequenceModelLink';
 import type {
   ClassDiagramArtifact,
   ClassDiagramContent,
@@ -406,11 +407,11 @@ export const normalizeDiagramProject = (project: Partial<DiagramProject> | Parti
         .filter((artifact): artifact is DesignArtifact => artifact !== null)
     : [];
 
-  const artifacts = ensureUniqueIds(
+  const artifacts = reconcileSequenceModelLinks(ensureUniqueIds(
     normalizedArtifacts.length > 0
       ? normalizedArtifacts
       : [normalizeClassDiagramArtifact(undefined, { createdAt, updatedAt })],
-  );
+  ));
   const requestedActiveArtifactId =
     typeof project.activeArtifactId === 'string' ? project.activeArtifactId : undefined;
   const activeArtifactId = artifacts.some((artifact) => artifact.id === requestedActiveArtifactId)

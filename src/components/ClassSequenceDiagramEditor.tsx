@@ -11,6 +11,7 @@ import type {
   SequenceDiagramArtifact,
 } from '../types/diagram';
 import { importClassesFromSequences, planSequenceClassImport } from '../utils/sequenceClassImport';
+import { findUnlinkedSequences } from '../utils/sequenceModelLink';
 import { DiagramEditor } from './DiagramEditor';
 import { MenuItem, MenuLabel, MenuSeparator, ToolMenu } from './ui/Toolbar';
 import type { DiagramSaveStatus } from '../hooks/useProjects';
@@ -48,6 +49,7 @@ export function ClassSequenceDiagramEditor({
   onUndo,
 }: ClassSequenceDiagramEditorProps) {
   const [importFeedback, setImportFeedback] = useState<string | null>(null);
+  const [revealRequest, setRevealRequest] = useState<{ key: number; nodeIds: string[] } | null>(null);
   const sequenceDiagrams = useMemo(
     () => project.artifacts.filter((candidate): candidate is SequenceDiagramArtifact => candidate.type === 'sequence-diagram'),
     [project.artifacts],
@@ -61,7 +63,7 @@ export function ClassSequenceDiagramEditor({
   const acceptedKeys = new Set(pending.filter((novelty) => !rejectedKeys.has(novelty.key)).map((novelty) => novelty.key));
   const pendingGroups = new Map<string, typeof pending>();
   for (const novelty of pending) pendingGroups.set(novelty.className, [...(pendingGroups.get(novelty.className) ?? []), novelty]);
-  const unlinkedCount = sequenceDiagrams.filter((sequence) => !artifact.content.linkedSequenceDiagramIds.includes(sequence.id)).length;
+  const unlinkedCount = findUnlinkedSequences(project.artifacts).length;
 
   const handleChangeContent = useCallback(
     (content: DiagramContent, options?: { separateHistoryEntry?: boolean }): void => {
@@ -78,17 +80,11 @@ export function ClassSequenceDiagramEditor({
     [artifact.content, onChangeContent],
   );
 
+  // Links live on the sequences; the model's list follows them. Only the
+  // sequences with no model yet are taken, never one drawn on another model.
   const refreshLinks = useCallback((): void => {
     onLinkAllSequenceDiagrams?.(artifact.id);
-    onChangeContent(
-      {
-        ...artifact.content,
-        linkedSequenceDiagramIds: [...new Set([...artifact.content.linkedSequenceDiagramIds, ...sequenceDiagrams.map((sequence) => sequence.id)])],
-        version: 1,
-      },
-      { separateHistoryEntry: true, alreadyNormalized: true },
-    );
-  }, [artifact.content, artifact.id, onChangeContent, onLinkAllSequenceDiagrams, sequenceDiagrams]);
+  }, [artifact.id, onLinkAllSequenceDiagrams]);
 
   useEffect(() => {
     if (importFeedback === null) return undefined;
@@ -108,11 +104,15 @@ export function ClassSequenceDiagramEditor({
       return;
     }
 
-    const linkedIds = new Set([...artifact.content.linkedSequenceDiagramIds, ...sources.map((source) => source.id)]);
     onChangeContent(
-      { ...artifact.content, ...content, linkedSequenceDiagramIds: [...linkedIds], version: 1 },
+      { ...artifact.content, ...content, version: 1 },
       { separateHistoryEntry: true },
     );
+    // Frame what changed: the new classes, or the classes that gained members.
+    const previousNodes = new Map(artifact.content.nodes.map((node) => [node.id, node]));
+    const created = content.nodes.filter((node) => !previousNodes.has(node.id)).map((node) => node.id);
+    const updated = content.nodes.filter((node) => previousNodes.has(node.id) && previousNodes.get(node.id) !== node).map((node) => node.id);
+    setRevealRequest({ key: Date.now(), nodeIds: created.length > 0 ? created : updated });
 
     const parts = [
       summary.createdClasses > 0 ? `${summary.createdClasses} ${summary.createdClasses === 1 ? 'clase nueva' : 'clases nuevas'}` : null,
@@ -144,7 +144,7 @@ export function ClassSequenceDiagramEditor({
     >
       {[...pendingGroups].map(([className, novelties]) => (
         <div key={className} role="presentation">
-          <MenuLabel>{className}</MenuLabel>
+          <div className="sequence-model-class-label" role="presentation">{className}</div>
           {novelties.map((novelty) => {
             const parentRejected = novelty.type !== 'class' && rejectedKeys.has(`class:${className.trim().toLocaleLowerCase()}`);
             return <MenuItem key={novelty.key} checked={acceptedKeys.has(novelty.key) && !parentRejected} disabled={parentRejected} keepOpen onSelect={() => setRejectedKeys((current) => {
@@ -182,6 +182,7 @@ export function ClassSequenceDiagramEditor({
       theme={theme}
       toolbarContext={toolbarContext}
       externalFeedback={importFeedback}
+      revealRequest={revealRequest}
       onChangeContent={handleChangeContent}
       onRedo={onRedo}
       onUndo={onUndo}

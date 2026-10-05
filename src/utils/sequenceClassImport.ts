@@ -5,6 +5,8 @@ import type {
   ClassMethod,
   SequenceDiagramContent,
   SequenceMessage,
+  SequenceParticipant,
+  SequenceTimelineItem,
 } from '../types/diagram';
 import { estimateClassSize, findFreeClassPosition } from './classPlacement';
 import { createId } from './id';
@@ -55,16 +57,25 @@ export const accessorAttribute = (operation: Pick<ImportedOperation, 'name' | 'r
   return { name, type: type.toLocaleLowerCase() === 'void' ? '' : type };
 };
 
-/** Attributes the accessors among `operations` need and `existing` lacks. */
+/** True when `type` names one of `classNames`, alone or inside `List<…>`. */
+const mentionsClass = (type: string, classNames: ReadonlySet<string>): boolean =>
+  type.split(/[^\wÁÉÍÓÚÜÑáéíóúüñ]+/).some((token) => token.length > 0 && classNames.has(normalizeKey(token)));
+
+/**
+ * Attributes the accessors among `operations` need and `existing` lacks. A
+ * getter that returns another class (`getEstado(): Estado`, `getLista():
+ * List<Item>`) navigates a relation, so it does not become an attribute.
+ */
 const accessorAttributes = (
   operations: Pick<ImportedOperation, 'name' | 'returnType'>[],
   existing: Pick<ClassAttribute, 'name'>[],
+  classNames: ReadonlySet<string> = new Set(),
 ): Omit<ClassAttribute, 'id'>[] => {
   const taken = new Set(existing.map((attribute) => normalizeKey(attribute.name)));
   const added = new Map<string, Omit<ClassAttribute, 'id'>>();
   for (const operation of operations) {
     const attribute = accessorAttribute(operation);
-    if (attribute === null) continue;
+    if (attribute === null || mentionsClass(attribute.type, classNames)) continue;
     const key = normalizeKey(attribute.name);
     if (taken.has(key)) continue;
     const pending = added.get(key);
@@ -80,6 +91,75 @@ const sameOperation = (a: Pick<ImportedOperation, 'name'>, b: Pick<ImportedOpera
   normalizeKey(a.name.replace(/\(.*$/, '')) === normalizeKey(b.name.replace(/\(.*$/, ''));
 
 /**
+ * The class a participant stands for: the one it is linked to, or else the
+ * one with its class name. A link to a class that no longer exists falls back
+ * to the name, so deleting and re-importing a class never strands it.
+ */
+export const resolveParticipantClassNode = (
+  participant: Pick<SequenceParticipant, 'kind' | 'name' | 'classifierName' | 'classifierNodeId'>,
+  classContent: Pick<ClassDiagramContent, 'nodes'>,
+): ClassDiagramNode | undefined => {
+  if (participant.kind === 'actor') return undefined;
+  const linked = participant.classifierNodeId
+    ? classContent.nodes.find((node) => node.id === participant.classifierNodeId)
+    : undefined;
+  if (linked) return linked;
+  const key = normalizeKey(participantClassName(participant.classifierName ?? '', participant.name ?? ''));
+  return key.length === 0 ? undefined : classContent.nodes.find((node) => normalizeKey(node.data.name) === key);
+};
+
+const knownClassNames = (classContent: ClassDiagramContent, displayNames: Map<string, string>): Set<string> =>
+  new Set([...classContent.nodes.map((node) => normalizeKey(node.data.name)), ...displayNames.keys()]);
+
+/**
+ * Ties a sequence to its model by name: each participant to the class it
+ * names and each call to the method of that class with its name. Existing
+ * links that still resolve are kept (a participant may be linked to a class
+ * with another name on purpose); links to deleted elements are re-resolved
+ * or dropped. With these links, renaming in the model reaches the sequence.
+ * Returns the same content when nothing changes.
+ */
+export const bindSequenceToModel = (
+  sequence: SequenceDiagramContent,
+  classContent: Pick<ClassDiagramContent, 'nodes'>,
+): SequenceDiagramContent => {
+  let changed = false;
+  const nodeByParticipant = new Map<string, ClassDiagramNode>();
+  const participants = sequence.participants.map((participant) => {
+    const node = resolveParticipantClassNode(participant, classContent);
+    if (node) nodeByParticipant.set(participant.id, node);
+    const nextId = node?.id;
+    if (participant.classifierNodeId === nextId) return participant;
+    changed = true;
+    return { ...participant, classifierNodeId: nextId };
+  });
+
+  const bindItems = (items: SequenceTimelineItem[]): SequenceTimelineItem[] => items.map((item) => {
+    if (item.kind === 'fragment') {
+      let operandsChanged = false;
+      const operands = item.operands.map((operand) => {
+        const nextItems = bindItems(operand.items);
+        if (nextItems === operand.items) return operand;
+        operandsChanged = true;
+        return { ...operand, items: nextItems };
+      });
+      return operandsChanged ? { ...item, operands } : item;
+    }
+    if (item.type !== 'synchronous' && item.type !== 'asynchronous') return item;
+    const methods = nodeByParticipant.get(item.targetId)?.data.methods ?? [];
+    const current = item.operationMethodId ? methods.find((method) => method.id === item.operationMethodId) : undefined;
+    const operation = operationFromMessage(item);
+    const next = current ?? (operation ? methods.find((method) => sameOperation(method, operation)) : undefined);
+    if (item.operationMethodId === next?.id) return item;
+    changed = true;
+    return { ...item, operationMethodId: next?.id };
+  });
+  const items = bindItems(sequence.items);
+
+  return changed ? { ...sequence, participants, items } : sequence;
+};
+
+/**
  * Brings every non-actor participant of the given sequence diagrams into the
  * class model, each with the operations it receives. Existing classes (matched
  * by name) only gain the operations they are missing, so importing twice is a
@@ -91,6 +171,7 @@ export const importClassesFromSequences = (
   acceptedKeys?: ReadonlySet<string>,
 ): { content: ClassDiagramContent; summary: SequenceClassImportSummary } => {
   const { order, displayNames, operations } = collectSequenceOperations(classContent, sequences);
+  const classNames = knownClassNames(classContent, displayNames);
   const accepts = (type: SequenceClassImportNovelty['type'], classKey: string, name: string) =>
     acceptedKeys === undefined || acceptedKeys.has(noveltyKey(type, classKey, name));
 
@@ -102,7 +183,7 @@ export const importClassesFromSequences = (
 
     const missing = incoming.filter((operation) =>
       !node.data.methods.some((method) => sameOperation(method, operation)) && accepts('method', key, operation.name));
-    const attributes = accessorAttributes([...node.data.methods, ...incoming], node.data.attributes)
+    const attributes = accessorAttributes(incoming, node.data.attributes, classNames)
       .filter((attribute) => accepts('attribute', key, attribute.name))
       .map((attribute) => ({ id: createId(), ...attribute }));
     operations.delete(key);
@@ -139,7 +220,7 @@ export const importClassesFromSequences = (
     const incoming = pending.filter((operation) => accepts('method', key, operation.name));
 
     const name = displayNames.get(key) ?? key;
-    const attributes = accessorAttributes(pending, [])
+    const attributes = accessorAttributes(pending, [], classNames)
       .filter((attribute) => accepts('attribute', key, attribute.name))
       .map((attribute) => ({ id: createId(), ...attribute }));
     const size = estimateClassSize({ name, attributes, methods: incoming });
@@ -196,8 +277,8 @@ const collectSequenceOperations = (classContent: ClassDiagramContent, sequences:
 
     for (const participant of participants) {
       if (participant.kind === 'actor') continue;
-      const linkedNode = participant.classifierNodeId ? classContent.nodes.find((node) => node.id === participant.classifierNodeId) : undefined;
-      const className = linkedNode?.data.name ?? participantClassName(participant.classifierName ?? '', participant.name ?? '');
+      const className = resolveParticipantClassNode(participant, classContent)?.data.name
+        ?? participantClassName(participant.classifierName ?? '', participant.name ?? '');
       if (className.length === 0) continue;
       const key = normalizeKey(className);
       participantClass.set(participant.id, key);
@@ -228,6 +309,7 @@ export const planSequenceClassImport = (
   sequences: SequenceDiagramContent[],
 ): SequenceClassImportNovelty[] => {
   const { order, displayNames, operations } = collectSequenceOperations(classContent, sequences);
+  const classNames = knownClassNames(classContent, displayNames);
   return order.flatMap((key) => {
     const node = classContent.nodes.find((candidate) => normalizeKey(candidate.data.name) === key);
     const className = node?.data.name ?? displayNames.get(key)!;
@@ -238,7 +320,7 @@ export const planSequenceClassImport = (
         result.push({ key: noveltyKey('method', key, operation.name), type: 'method', className, elementName: operation.name, returnType: operation.returnType });
       }
     }
-    for (const attribute of accessorAttributes([...(node?.data.methods ?? []), ...incoming], node?.data.attributes ?? [])) {
+    for (const attribute of accessorAttributes(incoming, node?.data.attributes ?? [], classNames)) {
       result.push({ key: noveltyKey('attribute', key, attribute.name), type: 'attribute', className, elementName: attribute.name, attributeType: attribute.type });
     }
     return result;
@@ -251,9 +333,7 @@ export const findSequenceMessagesMissingInModel = (sequence: SequenceDiagramCont
   const classes = new Map<string, ClassDiagramNode | undefined>();
   for (const participant of sequence.participants) {
     if (participant.kind === 'actor') continue;
-    const node = participant.classifierNodeId
-      ? classContent.nodes.find((candidate) => candidate.id === participant.classifierNodeId)
-      : classContent.nodes.find((candidate) => normalizeKey(candidate.data.name) === normalizeKey(participantClassName(participant.classifierName, participant.name)));
+    const node = resolveParticipantClassNode(participant, classContent);
     classes.set(participant.id, node);
     if (!node) participantIds.add(participant.id);
   }

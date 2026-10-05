@@ -28,6 +28,8 @@ export type SequenceMessageEditModel = {
   replyToMessageId?: string;
   flowReference?: string;
   placement?: 'before' | 'after' | 'end';
+  /** A new message from the toolbar goes right after this item (else at the end). */
+  anchorItemId?: string;
   newParticipantKind?: SequenceParticipantKind;
   newParticipantName?: string;
 };

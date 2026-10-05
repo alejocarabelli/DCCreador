@@ -87,6 +87,8 @@ export function SequenceKeyboardComposer({
     };
   }, [position.left, position.top, state.stage, placement, sourceName, targetName]);
   const [suggestionIndex, setSuggestionIndex] = useState(0);
+  // Arrow keys mean "I am choosing a suggestion": Enter then takes it.
+  const [browsedSuggestions, setBrowsedSuggestions] = useState(false);
   const suggestions = useMemo(() => {
     const query = state.text.trim().toLocaleLowerCase().split(/[(:]/)[0];
     if (!query) return methodOptions.slice(0, 5);
@@ -117,11 +119,13 @@ export function SequenceKeyboardComposer({
     }
     if (event.key === 'ArrowDown' && suggestions.length > 0) {
       event.preventDefault();
+      setBrowsedSuggestions(true);
       setSuggestionIndex((current) => (current + 1) % suggestions.length);
       return;
     }
     if (event.key === 'ArrowUp' && suggestions.length > 0) {
       event.preventDefault();
+      setBrowsedSuggestions(true);
       setSuggestionIndex((current) => (current - 1 + suggestions.length) % suggestions.length);
       return;
     }
@@ -132,6 +136,14 @@ export function SequenceKeyboardComposer({
     }
     if (event.key === 'Enter') {
       event.preventDefault();
+      const isCall = state.stage === 'typing' && state.messageType !== 'create';
+      // An empty field never saves a nameless message: Enter takes the
+      // highlighted suggestion instead, as it does after browsing them.
+      if (isCall && suggestions.length > 0 && (browsedSuggestions || state.text.trim().length === 0)) {
+        setBrowsedSuggestions(false);
+        onMethodSelect(suggestions[Math.min(suggestionIndex, suggestions.length - 1)] ?? suggestions[0]);
+        return;
+      }
       onSubmit(event.shiftKey);
     }
   };
@@ -219,6 +231,7 @@ export function SequenceKeyboardComposer({
                   }
                   onChange={(event) => {
                     setSuggestionIndex(0);
+                    setBrowsedSuggestions(false);
                     onTextChange(event.target.value);
                   }}
                   onKeyDown={handleTextKeyDown}

@@ -16,14 +16,14 @@ const model: ClassDiagramArtifact = {
 const flow: UseCaseFlowArtifact = { ...dates, id: 'flow', type: 'use-case-flow', name: 'Flujo', content: { ...normalizeUseCaseFlowContent(undefined), classDiagramArtifactId: model.id } };
 const reference: SequenceDiagramArtifact = { ...dates, id: 'reference', type: 'sequence-diagram', name: 'Referencia', content: createEmptySequenceDiagramContent() };
 const sequence: SequenceDiagramArtifact = { ...dates, id: 'sequence', type: 'sequence-diagram', name: 'Secuencia', content: {
-  ...createEmptySequenceDiagramContent(), classDiagramArtifactId: model.id, flowArtifactId: flow.id,
+  ...createEmptySequenceDiagramContent(), classDiagramArtifactId: 'class-sequence', flowArtifactId: flow.id,
   participants: [{ id: 'actor', kind: 'object', name: 'cliente', classifierName: 'Persona', classifierNodeId: 'person', x: 120 }],
   items: [{ id: 'fragment', kind: 'fragment', operator: 'ref', name: 'Referencia', interactionArtifactId: reference.id, operands: [{ id: 'operand', guard: '', items: [
     { id: 'message', kind: 'message', type: 'synchronous', sourceId: 'actor', targetId: 'actor', name: 'saludar', arguments: '', parameterValues: '', returnType: 'void', flowReference: '1', operationMethodId: 'greet' },
   ] }] }],
   notes: [{ id: 'note', text: 'Mantener esta nota', x: 450, y: 250, width: 180, height: 90, anchorKind: 'message', anchorId: 'message' }],
 } };
-const classSequence: ClassSequenceDiagramArtifact = { ...dates, id: 'class-sequence', type: 'class-sequence-diagram', name: 'Clases de secuencias', content: { ...model.content, version: 1, sourceClassDiagramArtifactId: model.id, linkedSequenceDiagramIds: [sequence.id] } };
+const classSequence: ClassSequenceDiagramArtifact = { ...dates, id: 'class-sequence', type: 'class-sequence-diagram', name: 'Clases de secuencias', content: { ...model.content, version: 1, linkedSequenceDiagramIds: [sequence.id] } };
 const unrelated: DesignArtifact = { ...dates, id: 'use-cases', type: 'use-case-model', name: 'Casos de uso', content: { nodes: [], edges: [] } };
 const project = (id: string, artifacts: DesignArtifact[], activeArtifactId = artifacts[0].id): DiagramProject => ({ ...dates, id, name: id, activeArtifactId, artifacts });
 const source = project('source', [model, flow, sequence, reference, classSequence, unrelated], sequence.id);
@@ -83,21 +83,18 @@ describe('moving artifacts between projects', () => {
     expect(result.projects[1].artifacts).toHaveLength(6);
     expect(result.projects[1].activeArtifactId).toBe(sequence.id);
     for (const original of source.artifacts.filter((artifact) => artifact !== unrelated)) {
-      const expected = original.type === 'sequence-diagram'
-        ? { ...original.content, classDiagramArtifactId: original.content.classDiagramArtifactId ?? model.id }
-        : original.content;
-      expect(result.projects[1].artifacts.find((artifact) => artifact.id === original.id)?.content).toEqual(expected);
+      expect(result.projects[1].artifacts.find((artifact) => artifact.id === original.id)?.content).toEqual(original.content);
     }
   });
 
-  it('preserves an implicit class model when the destination already has another class diagram', () => {
-    const implicit = { ...sequence, content: { ...sequence.content, classDiagramArtifactId: undefined } };
-    const original = project('source', [model, implicit]);
-    const target = project('destination', [{ ...model, id: 'different-model' }]);
-    const result = moveArtifactsBetweenProjects([original, target], original.id, target.id, implicit.id, true);
+  it('keeps a sequence without a model without one at the destination', () => {
+    const unlinked = { ...sequence, content: { ...sequence.content, classDiagramArtifactId: undefined } };
+    const original = project('source', [model, unlinked]);
+    const target = project('destination', [{ ...classSequence, id: 'different-model', content: { ...classSequence.content, linkedSequenceDiagramIds: [] } }]);
+    const result = moveArtifactsBetweenProjects([original, target], original.id, target.id, unlinked.id, true);
     const moved = result.projects[1].artifacts.at(-1) as SequenceDiagramArtifact;
-    expect(moved.content.classDiagramArtifactId).toBe(model.id);
-    expect(moved.content.participants[0].classifierNodeId).toBe('person');
+    expect(moved.content.classDiagramArtifactId).toBeUndefined();
+    expect(moved.content.participants[0].classifierNodeId).toBeUndefined();
   });
 
   it('preserves the implicit class model used by a flow at a destination with several models', () => {
@@ -110,11 +107,11 @@ describe('moving artifacts between projects', () => {
     expect(moved.content.classDiagramArtifactId).toBe(model.id);
   });
 
-  it('does not rewrite unrelated preexisting references at the source', () => {
+  it('keeps the content of unrelated artifacts at the source and only drops a stale model link', () => {
     const broken = { ...sequence, content: { ...sequence.content, classDiagramArtifactId: 'previously-missing-model', flowArtifactId: undefined, items: [] } };
     const original = project('source', [model, broken]);
     const result = moveArtifactsBetweenProjects([original, destination], original.id, destination.id, model.id, false);
-    expect(result.projects[0].artifacts[0]).toBe(broken);
+    expect(result.projects[0].artifacts[0].content).toEqual({ ...broken.content, classDiagramArtifactId: undefined });
   });
 
   it('remaps colliding artifact IDs and every transferred link without attaching to destination artifacts', () => {
@@ -123,11 +120,10 @@ describe('moving artifacts between projects', () => {
     const artifacts = result.projects[1].artifacts;
     expect(new Set(artifacts.map((artifact) => artifact.id)).size).toBe(artifacts.length);
     const moved = artifacts.find((artifact) => artifact.id === result.idMap.get(sequence.id)) as SequenceDiagramArtifact;
-    expect(moved.content.classDiagramArtifactId).toBe(result.idMap.get(model.id));
+    expect(moved.content.classDiagramArtifactId).toBe(result.idMap.get(classSequence.id));
     expect(moved.content.flowArtifactId).toBe(result.idMap.get(flow.id));
     expect(moved.content.items[0]).toMatchObject({ interactionArtifactId: result.idMap.get(reference.id) });
     const movedModel = artifacts.find((artifact) => artifact.id === result.idMap.get(classSequence.id)) as ClassSequenceDiagramArtifact;
-    expect(movedModel.content.sourceClassDiagramArtifactId).toBe(result.idMap.get(model.id));
     expect(movedModel.content.linkedSequenceDiagramIds).toEqual([result.idMap.get(sequence.id)]);
     expect(artifacts.slice(0, 5)).toEqual(collision.artifacts);
   });
@@ -144,16 +140,16 @@ describe('moving artifacts between projects', () => {
     expect(moved.content.notes).toEqual(sequence.content.notes);
   });
 
-  it('moving a class model alone detaches its consumers at the source without deleting their data', () => {
-    const result = moveArtifactsBetweenProjects([source, destination], source.id, destination.id, model.id, false);
+  it('moving a sequence model alone detaches its sequences at the source without deleting their data', () => {
+    const result = moveArtifactsBetweenProjects([source, destination], source.id, destination.id, classSequence.id, false);
     const remaining = result.projects[0].artifacts.find((artifact) => artifact.id === sequence.id) as SequenceDiagramArtifact;
     expect(remaining.content.classDiagramArtifactId).toBeUndefined();
     expect(remaining.content.participants[0].classifierNodeId).toBeUndefined();
     expect(remaining.content.participants[0].classifierName).toBe('Persona');
     expect(remaining.content.flowArtifactId).toBe(flow.id);
-    const remainingClassSequence = result.projects[0].artifacts.find((artifact) => artifact.id === classSequence.id) as ClassSequenceDiagramArtifact;
-    expect(remainingClassSequence.content.sourceClassDiagramArtifactId).toBeUndefined();
-    expect(remainingClassSequence.content.nodes).toEqual(model.content.nodes);
+    const movedModel = result.projects[1].artifacts.at(-1) as ClassSequenceDiagramArtifact;
+    expect(movedModel.content.linkedSequenceDiagramIds).toEqual([]);
+    expect(movedModel.content.nodes).toEqual(model.content.nodes);
   });
 
   it('keeps a project usable after moving its last artifact', () => {

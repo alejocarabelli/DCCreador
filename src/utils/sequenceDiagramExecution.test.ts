@@ -470,3 +470,52 @@ describe('reply reference cloning', () => {
     expect(clonedReturn.replyToMessageId).toBe(clonedCall.id);
   });
 });
+
+describe('actor activation', () => {
+  it('does not merge closed actor activations from alternative paths', () => {
+    const fragment: SequenceFragment = {
+      id: 'choice', kind: 'fragment', operator: 'alt', name: '',
+      operands: [
+        { id: 'first', guard: 'válido', items: [message('call-1', 'a', 'b'), message('return-1', 'b', 'a', 'return', 'call-1')] },
+        { id: 'second', guard: 'else', items: [message('call-2', 'a', 'b'), message('return-2', 'b', 'a', 'return', 'call-2')] },
+      ],
+    };
+    const content = normalizeSequenceDiagramContent({
+      ...diagram([fragment], [], ['a', 'b']),
+      participants: [{ ...participant('a', 120), kind: 'actor' }, participant('b', 360)],
+    });
+    const actorBars = analyzeSequenceDiagramSemantics(content).activations.filter((activation) => activation.participantId === 'a');
+    expect(actorBars).toHaveLength(2);
+    expect(actorBars).toEqual(expect.arrayContaining([
+      expect.objectContaining({ startMessageId: 'call-1', endMessageId: 'return-1' }),
+      expect.objectContaining({ startMessageId: 'call-2', endMessageId: 'return-2' }),
+    ]));
+  });
+
+  it('draws one bar for all the round trips of an actor, like Enterprise Architect', () => {
+    const content = normalizeSequenceDiagramContent({
+      ...createEmptySequenceDiagramContent(),
+      participants: [{ ...participant('cliente', 120), kind: 'actor' }, participant('pantalla', 360)],
+      items: [
+        message('pedir', 'cliente', 'pantalla'),
+        message('respuesta', 'pantalla', 'cliente', 'return', 'pedir'),
+        message('confirmar', 'cliente', 'pantalla'),
+        message('fin', 'pantalla', 'cliente', 'return', 'confirmar'),
+      ],
+    });
+    const actorBars = analyzeSequenceDiagramSemantics(content).activations.filter((activation) => activation.participantId === 'cliente');
+    expect(actorBars).toEqual([expect.objectContaining({ startMessageId: 'pedir', endMessageId: 'fin', level: 0 })]);
+    const objectBars = analyzeSequenceDiagramSemantics(content).activations.filter((activation) => activation.participantId === 'pantalla');
+    expect(objectBars).toHaveLength(2);
+  });
+
+  it('keeps separate bars for a plain object that is called twice', () => {
+    const content = diagram([
+      message('primera', 'a', 'b'),
+      message('vuelta-1', 'b', 'a', 'return', 'primera'),
+      message('segunda', 'a', 'b'),
+      message('vuelta-2', 'b', 'a', 'return', 'segunda'),
+    ], [], ['a', 'b']);
+    expect(analyzeSequenceDiagramSemantics(content).activations.filter((activation) => activation.participantId === 'a')).toHaveLength(2);
+  });
+});

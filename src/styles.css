@@ -3140,7 +3140,6 @@ textarea {
 .sequence-inspector-heading span,
 .sequence-reference-settings label span,
 .sequence-inspector-content > label > span,
-.sequence-message-composer label span,
 .sequence-inspector-section h4 {
   color: var(--panel-muted-text);
   font-size: 0.74rem;
@@ -3369,8 +3368,7 @@ textarea {
 }
 
 .sequence-reference-settings label,
-.sequence-inspector-content > label,
-.sequence-message-composer label {
+.sequence-inspector-content > label {
   display: grid;
   gap: 4px;
 }
@@ -3405,25 +3403,6 @@ textarea {
 .sequence-fragment-span { display: grid; gap: 7px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .sequence-fragment-span label { display: grid; gap: 4px; }
 .sequence-fragment-span label span { color: var(--panel-muted-text); font-size: 0.74rem; font-weight: 700; text-transform: uppercase; }
-
-.sequence-message-composer {
-  align-items: end;
-  background: var(--panel-background);
-  border-bottom: 1px solid var(--panel-border);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-  overflow-x: auto;
-  padding: 9px 12px;
-}
-
-.sequence-message-composer > div { display: grid; min-width: 150px; }
-.sequence-message-composer > div strong { font-size: 0.78rem; }
-.sequence-message-composer > div span { color: var(--panel-muted-text); font-size: 0.73rem; }
-.sequence-message-composer label { min-width: 140px; }
-.sequence-message-composer input,
-.sequence-message-composer select { font-size: 0.74rem; min-height: 32px; }
-.sequence-message-composer button { min-height: 32px; white-space: nowrap; }
 
 .sequence-menu-check { align-items: center; display: flex; font-size: 0.76rem; gap: 7px; padding: 6px 9px; }
 .sequence-menu-check input { min-height: auto; width: auto; }
@@ -3581,7 +3560,6 @@ textarea {
 @media (max-width: 1180px) {
   .sequence-workspace { grid-template-columns: 210px minmax(0, 1fr) var(--sequence-inspector-width, 260px); }
   .sequence-workspace.sequence-inspector-collapsed { grid-template-columns: 210px minmax(0, 1fr) 44px; }
-  .sequence-message-composer > div span { display: none; }
 }
 
 @media (max-width: 920px) {

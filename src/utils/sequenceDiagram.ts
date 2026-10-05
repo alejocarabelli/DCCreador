@@ -498,6 +498,7 @@ export const normalizeSequenceDiagramContent = (value: unknown): SequenceDiagram
       : 'sequential',
     showActivations: content.showActivations !== false,
     participantColors: (content as { participantColors?: unknown }).participantColors === 'disabled' ? 'disabled' : 'automatic',
+    ...((content as { spacing?: unknown }).spacing === 'compact' ? { spacing: 'compact' as const } : {}),
     participants,
     items: remappedItems,
     activations,
@@ -1455,6 +1456,43 @@ export const analyzeSequenceDiagramSemantics = (
     }];
   });
 
+  // The actor starts the use case and waits for it: like Enterprise Architect,
+  // its round trips draw one bar, from its first activation to its last.
+  // Bars inside a fragment (even when explicitly closed) and nested callbacks
+  // stay as they are: alternative paths cannot become one execution.
+  const actorIds = new Set(content.participants.filter((participant) => participant.kind === 'actor').map((participant) => participant.id));
+  const messageOrderOf = (messageId: string | undefined): number => messageId === undefined
+    ? Number.POSITIVE_INFINITY
+    : messagePositions.get(messageId)?.order ?? -1;
+  const mergeActorActivations = (activations: SequenceActivation[]): SequenceActivation[] => {
+    if (actorIds.size === 0) return activations;
+    const byActor = new Map<string, SequenceActivation[]>();
+    const rest: SequenceActivation[] = [];
+    activations.forEach((activation) => {
+      const startScope = messagePositions.get(activation.startMessageId)?.scopePath;
+      if (!actorIds.has(activation.participantId) || activation.level !== 0
+        || activation.endScope !== undefined || (startScope?.length ?? 0) > 0) {
+        rest.push(activation);
+        return;
+      }
+      byActor.set(activation.participantId, [...(byActor.get(activation.participantId) ?? []), activation]);
+    });
+    const merged = Array.from(byActor, ([participantId, bars]): SequenceActivation[] => {
+      if (bars.length < 2) return bars;
+      const first = bars.reduce((earliest, bar) => messageOrderOf(bar.startMessageId) < messageOrderOf(earliest.startMessageId) ? bar : earliest);
+      const last = bars.reduce((latest, bar) => messageOrderOf(bar.endMessageId) > messageOrderOf(latest.endMessageId) ? bar : latest);
+      return [{
+        id: `derived:${participantId}:actor`,
+        participantId,
+        startMessageId: first.startMessageId,
+        ...(last.endMessageId !== undefined ? { endMessageId: last.endMessageId } : {}),
+        level: 0,
+        manual: false,
+      }];
+    }).flat();
+    return [...rest, ...merged];
+  };
+
   const sameScopePath = (
     left: Required<SemanticScope>[],
     right: Required<SemanticScope>[],
@@ -1589,8 +1627,8 @@ export const analyzeSequenceDiagramSemantics = (
   });
   const manualKeys = new Set(manualActivations.map((activation) =>
     `${activation.participantId}:${activation.startMessageId}:${activation.level}`));
-  const derivedActivations = allDerivedActivations.filter((activation) =>
-    !manualKeys.has(`${activation.participantId}:${activation.startMessageId}:${activation.level}`));
+  const derivedActivations = mergeActorActivations(allDerivedActivations.filter((activation) =>
+    !manualKeys.has(`${activation.participantId}:${activation.startMessageId}:${activation.level}`)));
 
   return {
     activations: [...derivedActivations, ...manualActivations],
@@ -1598,6 +1636,41 @@ export const analyzeSequenceDiagramSemantics = (
     validMessageIds,
     lifecycle: { createdByParticipant, destroyedByParticipant },
   };
+};
+
+/**
+ * Everything "Revisar" lists: the repairs kept from reading the file, the
+ * temporal problems, and authoring gaps a student usually wants to fix before
+ * handing the diagram in (a call without a name, a fragment left empty, an
+ * alt or par with a single branch). Duplicates are listed once.
+ */
+export const collectSequenceReviewProblems = (
+  content: SequenceDiagramContent,
+  semanticProblems: SequenceDiagramProblem[],
+): SequenceDiagramProblem[] => {
+  const authoring: SequenceDiagramProblem[] = [];
+  const visit = (items: SequenceTimelineItem[]): void => items.forEach((item) => {
+    if (item.kind === 'message') {
+      if ((item.type === 'synchronous' || item.type === 'asynchronous') && item.name.replace(/\(.*$/, '').trim().length === 0) {
+        authoring.push({ id: `unnamed-message:${item.id}`, code: 'unnamed-message', severity: 'warning', message: 'El mensaje no tiene nombre.', messageId: item.id });
+      }
+      return;
+    }
+    if (item.operator !== 'ref' && item.operands.every((operand) => operand.items.length === 0)) {
+      authoring.push({ id: `empty-fragment:${item.id}`, code: 'incomplete-fragment', severity: 'warning', message: `El fragmento ${item.operator} está vacío.`, fragmentId: item.id });
+    } else if ((item.operator === 'alt' || item.operator === 'par') && item.operands.length < 2) {
+      authoring.push({ id: `single-branch:${item.id}`, code: 'incomplete-fragment', severity: 'warning', message: `El fragmento ${item.operator} tiene una sola rama; agregá otra o cambiá el operador.`, fragmentId: item.id });
+    }
+    item.operands.forEach((operand) => visit(operand.items));
+  });
+  visit(content.items);
+  const repairs = content.problems.filter((problem) => problem.code === 'normalization-repair');
+  const seen = new Set<string>();
+  return [...semanticProblems, ...repairs, ...authoring].filter((problem) => {
+    if (seen.has(problem.id)) return false;
+    seen.add(problem.id);
+    return true;
+  });
 };
 
 export const findSequenceItem = (
