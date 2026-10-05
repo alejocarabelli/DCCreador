@@ -53,6 +53,7 @@ import type { DiagramTheme } from '../theme/themes';
 import { createId } from '../utils/id';
 import { reorderItemsByIds } from '../utils/reorder';
 import { useDiagramImageExport } from '../hooks/useDiagramImageExport';
+import { useGentleWheelZoom } from '../hooks/useGentleWheelZoom';
 import { getDiagramImageExportBounds } from '../utils/diagramImageExport';
 import { readUiPreference, writeUiPreference } from '../storage/uiPreferences';
 import { getAssociationMarker, normalizeAssociationData, normalizeAssociationEdge } from '../utils/association';
@@ -189,6 +190,7 @@ export function DiagramEditor({
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [connectionSourceNodeId, setConnectionSourceNodeId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
+  useGentleWheelZoom(canvasRef, reactFlowInstance);
   const toolbarRef = useRef<HTMLElement | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const feedbackTimeoutRef = useRef<number | null>(null);
@@ -1533,6 +1535,8 @@ export function DiagramEditor({
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             onInit={setReactFlowInstance}
+            // Dos dedos (o la rueda) desplazan; pellizcar o Ctrl + rueda hace zoom.
+            panOnScroll
             zoomOnDoubleClick={false}
             onNodesChange={handleNodesChange}
             onNodeDragStart={(_, node, group) => {
