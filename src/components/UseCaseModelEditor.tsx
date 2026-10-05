@@ -39,6 +39,7 @@ import type { DiagramTheme } from '../theme/themes';
 import { createId } from '../utils/id';
 import { createPdfFromJpegDataUrl, downloadBlob, downloadDataUrl } from '../utils/pdfExport';
 import { applyExportThemeVariables } from '../hooks/useTheme';
+import { useGentleWheelZoom } from '../hooks/useGentleWheelZoom';
 import { readUiPreference, writeUiPreference } from '../storage/uiPreferences';
 import { normalizeUseCaseModelContent } from '../utils/diagramNormalization';
 import { CanvasControls } from './CanvasControls';
@@ -188,6 +189,7 @@ export function UseCaseModelEditor({
   const carriedByBoundaryRef = useRef<{ boundaryId: string; ids: string[] } | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
+  useGentleWheelZoom(canvasRef, reactFlowInstance, 0.2, 2);
   const toolbarRef = useRef<HTMLElement | null>(null);
   const feedbackTimeoutRef = useRef<number | null>(null);
   const normalizedContent = useMemo(() => normalizeUseCaseModelContent(artifact.content), [artifact.content]);
@@ -720,6 +722,8 @@ export function UseCaseModelEditor({
             onConnect={onConnect}
             onEdgesChange={onEdgesChange}
             onInit={setReactFlowInstance}
+            // Dos dedos (o la rueda) desplazan; pellizcar o Ctrl + rueda hace zoom.
+            panOnScroll
             zoomOnDoubleClick={false}
             onNodesChange={onNodesChange}
             connectionRadius={34}
