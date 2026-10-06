@@ -416,6 +416,9 @@
   flex-direction: column;
   gap: 0;
   height: 100%;
+  /* It is a button: without this, a card taller than its content (a longer
+     neighbour in the row) centres it and leaves a blank band above the cover. */
+  justify-content: flex-start;
   min-height: 0;
   overflow: hidden;
   padding: 0;

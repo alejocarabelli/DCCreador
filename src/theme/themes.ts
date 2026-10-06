@@ -231,7 +231,7 @@ export const academicLightTheme: DiagramTheme = {
     selectedText: '#134A52',
     danger: '#A8392F',
     feedbackBackground: '#1C2326',
-    projectTones: ['#8F6235', '#3F6E80', '#5E7048', '#735A78', '#8A633F', '#2F6E6A', '#6E5A43'],
+    projectTones: ['#55728F', '#4C7A7A', '#60785C', '#887550', '#70688D', '#886876', '#5E6A73'],
   },
   status: {
     danger: { soft: '#FCF0EE', softStrong: '#F8E0DC', border: '#EDB5AD', borderStrong: '#D9776B', text: '#A12F25' },
@@ -329,7 +329,7 @@ export const academicDarkTheme: DiagramTheme = {
     selectedText: '#A9DADC',
     danger: '#E48A7F',
     feedbackBackground: '#2E3435',
-    projectTones: ['#C49A6C', '#7FA7BE', '#9CAE84', '#B096B6', '#C29A74', '#7CB3AE', '#AE977A'],
+    projectTones: ['#86AACF', '#7AB4B2', '#96B28A', '#CCAE79', '#AB9CCD', '#CC9CAD', '#929EA8'],
   },
   status: {
     danger: { soft: '#35201D', softStrong: '#442622', border: '#6E3B34', borderStrong: '#B35C50', text: '#F0A89E' },

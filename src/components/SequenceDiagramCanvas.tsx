@@ -1038,8 +1038,10 @@ function SequenceDiagramCanvasImpl({
         ) : null}
         {box.labelLines.length > 0 ? (
           <g>
-            <rect x={box.labelCenterX - box.labelWidth / 2} y={box.labelTop - 2} width={box.labelWidth} height={box.labelBottom - box.labelTop + 4} rx="3" fill={canvasBackground} opacity="0.92" />
-            <text x={box.labelCenterX} y={box.labelBaselineY} fill={textColor} fontSize="11.5" fontWeight={540} textAnchor="middle">
+            {/* Hit area only: a filled box showed as a white patch inside fragments. */}
+            <rect x={box.labelCenterX - box.labelWidth / 2} y={box.labelTop - 2} width={box.labelWidth} height={box.labelBottom - box.labelTop + 4} fill="transparent" />
+            {/* A halo the shape of the letters keeps lifelines from crossing the text. */}
+            <text x={box.labelCenterX} y={box.labelBaselineY} fill={textColor} fontSize="11.5" fontWeight={540} textAnchor="middle" paintOrder="stroke" stroke={canvasBackground} strokeWidth={3.5} strokeLinejoin="round">
               {missingInModel?.messageIds.has(message.id) ? <title>No está en el modelo de clases</title> : null}
               {box.labelLines.map((line, index) => <tspan key={`${message.id}:${index}`} x={box.labelCenterX} dy={index === 0 ? 0 : 14}>{line}</tspan>)}
             </text>
