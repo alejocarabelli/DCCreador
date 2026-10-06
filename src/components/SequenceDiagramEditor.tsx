@@ -697,6 +697,7 @@ export function SequenceDiagramEditor({
       return false;
     }
     onChangeContent(result.content, { separateHistoryEntry, alreadyNormalized: true });
+    if (result.newWarnings.length > 0) showFeedback(`Guardado con un aviso: ${result.newWarnings[0].message} Lo ves en Revisar.`);
     return true;
   }, [content, onChangeContent, showFeedback]);
 

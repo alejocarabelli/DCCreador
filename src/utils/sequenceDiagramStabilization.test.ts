@@ -239,20 +239,20 @@ describe('sequence mutation gate stabilization', () => {
     expect(problems.map((problem) => problem.operandId)).toEqual(['first', 'second']);
   });
 
-  it('blocks a newly introduced unmatched return warning', () => {
+  it('accepts a newly introduced unmatched return warning and reports it', () => {
     const current = normalizeSequenceDiagramContent({ ...createEmptySequenceDiagramContent(), participants });
     const candidate = { ...current, items: [message('orphan', 'b', 'a', 'return')] };
 
     const mutation = applySequenceDiagramMutation(current, candidate);
 
-    expect(mutation.accepted).toBe(false);
-    expect(mutation.newProblems).toContainEqual(expect.objectContaining({
+    expect(mutation.accepted).toBe(true);
+    expect(mutation.newWarnings).toContainEqual(expect.objectContaining({
       code: 'unmatched-return',
       messageId: 'orphan',
     }));
   });
 
-  it('treats the same temporal problem in another operand as a new scoped problem', () => {
+  it('reports the same temporal problem in another operand as a new scoped warning', () => {
     const current = normalizeSequenceDiagramContent({
       ...createEmptySequenceDiagramContent(),
       participants,
@@ -271,8 +271,8 @@ describe('sequence mutation gate stabilization', () => {
 
     const mutation = applySequenceDiagramMutation(current, candidate);
 
-    expect(mutation.accepted).toBe(false);
-    expect(mutation.newProblems).toContainEqual(expect.objectContaining({
+    expect(mutation.accepted).toBe(true);
+    expect(mutation.newWarnings).toContainEqual(expect.objectContaining({
       code: 'unmatched-return',
       fragmentId: 'choice',
       operandId: 'second',
@@ -293,7 +293,7 @@ describe('sequence mutation gate stabilization', () => {
     expect(mutation.newProblems).toEqual([]);
   });
 
-  it('blocks a duplicate-create warning introduced inside an operand', () => {
+  it('accepts a duplicate-create warning introduced inside an operand and reports it', () => {
     const current = normalizeSequenceDiagramContent({
       ...createEmptySequenceDiagramContent(),
       participants,
@@ -312,8 +312,8 @@ describe('sequence mutation gate stabilization', () => {
 
     const mutation = applySequenceDiagramMutation(current, candidate);
 
-    expect(mutation.accepted).toBe(false);
-    expect(mutation.newProblems).toContainEqual(expect.objectContaining({
+    expect(mutation.accepted).toBe(true);
+    expect(mutation.newWarnings).toContainEqual(expect.objectContaining({
       code: 'duplicate-create',
       severity: 'warning',
       operandId: 'first',
