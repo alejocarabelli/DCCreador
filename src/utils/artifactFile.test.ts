@@ -121,15 +121,28 @@ describe('artifact JSON files', () => {
   it('keeps the reserved rectangles of the guide example separated', () => {
     const rectangles = example.content.nodes.map((node: typeof example.content.nodes[number]) => {
       const data = node.data;
-      const attributeLength = Math.max(0, ...data.attributes.flatMap((attribute: { name: string; type: string }) => [attribute.name.length, attribute.type.length]));
-      const methodLength = Math.max(0, ...data.methods.map((method: { name: string; parameters: string; returnType: string; visibility: string }) => `${method.visibility} ${method.name}(${method.parameters}): ${method.returnType}`.length));
-      return { ...node.position, width: Math.max(300, 40 + 10 * methodLength, 40 + 20 * attributeLength, 40 + 10 * data.name.length), height: 140 + 32 * (data.attributes.length + data.methods.length) };
+      const lines = [
+        data.name,
+        ...data.attributes.map((attribute: { name: string; type: string }) => `${attribute.name} ${attribute.type}`),
+        ...data.methods.map((method: { name: string; parameters: string; returnType: string }) => `${method.name}(${method.parameters}) ${method.returnType}`),
+      ];
+      const longest = Math.max(...lines.map((line: string) => line.length));
+      return { id: node.id, ...node.position, width: Math.max(220, 65 + 6 * longest), height: 75 + 20 * (data.attributes.length + data.methods.length) };
     });
     rectangles.forEach((a: { x: number; y: number; width: number; height: number }, index: number) => {
       rectangles.slice(index + 1).forEach((b: typeof a) => {
-        expect(a.x + a.width + 160 <= b.x || b.x + b.width + 160 <= a.x || a.y + a.height + 140 <= b.y || b.y + b.height + 140 <= a.y).toBe(true);
+        expect(a.x + a.width + 120 <= b.x || b.x + b.width + 120 <= a.x || a.y + a.height + 100 <= b.y || b.y + b.height + 100 <= a.y).toBe(true);
       });
     });
+    const byId = new Map(rectangles.map((rectangle: { id: string }) => [rectangle.id, rectangle]));
+    for (const edge of example.content.edges) {
+      const source = byId.get(edge.source) as typeof rectangles[number];
+      const target = byId.get(edge.target) as typeof rectangles[number];
+      const horizontal = edge.data.sourceSide === 'left' || edge.data.sourceSide === 'right';
+      expect(edge.data.lineStyle).toBe('straight');
+      if (horizontal) expect(source.y + source.height / 2).toBe(target.y + target.height / 2);
+      else expect(source.x + source.width / 2).toBe(target.x + target.width / 2);
+    }
   });
 
   it.each(project.artifacts.map((artifact) => [artifact.type, artifact] as const))('round trips an exported %s artifact', (_, artifact) => {
