@@ -17,8 +17,8 @@ CONTENTS_DIR="$APP_BUNDLE/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
 DELIVERY_DIR="$ROOT_DIR/build"
-DELIVERY_ZIP="$DELIVERY_DIR/Modelador-de-Sistemas-2.1.2-macOS.zip"
-DELIVERY_DMG="$DELIVERY_DIR/Modelador-de-Sistemas-2.1.2-macOS.dmg"
+DELIVERY_ZIP="$DELIVERY_DIR/Modelador-de-Sistemas-2.2.0-macOS.zip"
+DELIVERY_DMG="$DELIVERY_DIR/Modelador-de-Sistemas-2.2.0-macOS.dmg"
 
 cd "$ROOT_DIR"
 npm run build

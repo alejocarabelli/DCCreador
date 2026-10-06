@@ -758,7 +758,7 @@
   background: var(--ui-feedback-background);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-popover);
-  color: #fffefb;
+  color: #ffffff;
   font-size: var(--text-md);
   font-weight: 500;
   padding: var(--space-2) var(--space-4);

@@ -24,96 +24,96 @@ export type ParticipantVisualIdentity = {
 };
 
 /**
- * Paleta de 8 familias cromáticas diseñadas específicamente para diagramas UML
- * sobre fondos claros (blanco y gris perla).
+ * Ocho familias para los participantes, derivadas de los mismos tonos que los
+ * grupos de clases (azul, turquesa, verde, ámbar, violeta, rosa) más pizarra y
+ * terracota, para que todos los artefactos hablen el mismo idioma de color
+ * sobre la hoja blanca.
  *
- * Características:
- * - Fondos de encabezados pastel muy claros (~95-97% luminosidad, baja saturación) para máxima legibilidad.
- * - Bordes de encabezados suaves pero nítidos.
- * - Líneas de vida tenues (stroke-dasharray) que guían la mirada vertical sin competir con flechas.
- * - Activaciones con relleno derivado y contraste adecuado respecto a la línea de vida y mensajes.
- * - Ausencia total de colores fluorescentes, estridentes o saturados.
+ * Cada familia sale del tono base con mezclas fijas: el encabezado lleva el
+ * mismo tinte (16 %) que el encabezado de una clase con color; el borde y las
+ * activaciones mezclan el tono con la tinta del documento, y la línea de vida
+ * es ese borde aclarado para guiar la mirada sin competir con los mensajes.
  */
 export const SEQUENCE_PARTICIPANT_PALETTE: readonly ParticipantVisualFamily[] = [
   {
-    id: 'technical-sand',
-    name: 'Arena técnica',
-    headerFill: '#F2EDE3',
-    headerBorder: '#9A8564',
-    lifelineStroke: '#A69A87',
-    activationFill: '#EEE8DC',
-    activationBorder: '#8D7A60',
-    glyphStroke: '#78664D',
+    id: 'blue',
+    name: 'Azul',
+    headerFill: '#E8EFF6',
+    headerBorder: '#55728F',
+    lifelineStroke: '#96A8BA',
+    activationFill: '#E0E9F3',
+    activationBorder: '#506B85',
+    glyphStroke: '#486076',
   },
   {
-    id: 'soft-blue',
-    name: 'Azul técnico',
-    headerFill: '#E8F0F6',
-    headerBorder: '#6684A0',
-    lifelineStroke: '#8295A6',
-    activationFill: '#E3ECF3',
-    activationBorder: '#66829B',
-    glyphStroke: '#536F88',
+    id: 'teal',
+    name: 'Turquesa',
+    headerFill: '#E6F1F1',
+    headerBorder: '#4C7A7A',
+    lifelineStroke: '#90ADAD',
+    activationFill: '#DDECEB',
+    activationBorder: '#487172',
+    glyphStroke: '#426667',
   },
   {
-    id: 'technical-slate',
-    name: 'Pizarra clara',
-    headerFill: '#EDF0F4',
-    headerBorder: '#728394',
-    lifelineStroke: '#8997A4',
-    activationFill: '#E8EDF0',
-    activationBorder: '#6F838C',
-    glyphStroke: '#5E7180',
+    id: 'green',
+    name: 'Verde',
+    headerFill: '#EBF0E9',
+    headerBorder: '#60785C',
+    lifelineStroke: '#9CAB9A',
+    activationFill: '#E4EBE1',
+    activationBorder: '#5A7058',
+    glyphStroke: '#506451',
   },
   {
-    id: 'soft-clay',
-    name: 'Arcilla suave',
-    headerFill: '#F3EEE7',
-    headerBorder: '#9A7F67',
-    lifelineStroke: '#AA9684',
-    activationFill: '#F0E8E1',
-    activationBorder: '#92745E',
-    glyphStroke: '#81614D',
+    id: 'amber',
+    name: 'Ámbar',
+    headerFill: '#F5F0E6',
+    headerBorder: '#887550',
+    lifelineStroke: '#B5A992',
+    activationFill: '#F2EADC',
+    activationBorder: '#7D6E4D',
+    glyphStroke: '#6D6248',
   },
   {
-    id: 'muted-indigo',
-    name: 'Índigo apagado',
-    headerFill: '#ECECF5',
-    headerBorder: '#787E9D',
-    lifelineStroke: '#9195AB',
-    activationFill: '#E8E9F2',
-    activationBorder: '#747B98',
-    glyphStroke: '#626985',
+    id: 'violet',
+    name: 'Violeta',
+    headerFill: '#EFECF6',
+    headerBorder: '#70688D',
+    lifelineStroke: '#A6A1B8',
+    activationFill: '#E9E5F2',
+    activationBorder: '#676283',
+    glyphStroke: '#5C5975',
   },
   {
-    id: 'blue-mist',
-    name: 'Azul bruma',
-    headerFill: '#E7F1F4',
-    headerBorder: '#5F8392',
-    lifelineStroke: '#8299A2',
-    activationFill: '#E2EDF1',
-    activationBorder: '#607F8C',
-    glyphStroke: '#506E7A',
+    id: 'rose',
+    name: 'Rosa',
+    headerFill: '#F5ECF0',
+    headerBorder: '#886876',
+    lifelineStroke: '#B5A1AA',
+    activationFill: '#F2E5EA',
+    activationBorder: '#7D626F',
+    glyphStroke: '#6D5864',
   },
   {
-    id: 'dusty-rose',
-    name: 'Rosa mineral',
-    headerFill: '#F3EBEB',
-    headerBorder: '#9A777B',
-    lifelineStroke: '#AA9294',
-    activationFill: '#F0E6E7',
-    activationBorder: '#916D72',
-    glyphStroke: '#805D62',
+    id: 'slate',
+    name: 'Pizarra',
+    headerFill: '#EBEDEF',
+    headerBorder: '#5E6A73',
+    lifelineStroke: '#9BA3A8',
+    activationFill: '#E3E6E9',
+    activationBorder: '#57636C',
+    glyphStroke: '#4F5A61',
   },
   {
-    id: 'warm-stone',
-    name: 'Piedra cálida',
-    headerFill: '#F0EFEC',
-    headerBorder: '#87837A',
-    lifelineStroke: '#99958C',
-    activationFill: '#ECEAE6',
-    activationBorder: '#7D786F',
-    glyphStroke: '#6C675F',
+    id: 'terracotta',
+    name: 'Terracota',
+    headerFill: '#F6ECE8',
+    headerBorder: '#886859',
+    lifelineStroke: '#B5A198',
+    activationFill: '#F2E5E0',
+    activationBorder: '#7D6255',
+    glyphStroke: '#6E584F',
   },
 ] as const;
 

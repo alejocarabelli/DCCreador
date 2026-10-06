@@ -73,12 +73,17 @@ const getOpenChevronPath = (
   return `M ${baseX + perpendicularX} ${baseY + perpendicularY} L ${endpoint.x} ${endpoint.y} L ${baseX - perpendicularX} ${baseY - perpendicularY}`;
 };
 
+// Marker depths along the line. The line stops exactly at the marker's base,
+// so a hollow triangle or diamond closes against it with no gap.
+const TRIANGLE_LENGTH = 20;
+const DIAMOND_LENGTH = 22;
+
 const getTrianglePoints = (
   endpoint: { x: number; y: number },
   towardLine: { x: number; y: number },
 ): string => {
-  const baseX = endpoint.x + towardLine.x * 20;
-  const baseY = endpoint.y + towardLine.y * 20;
+  const baseX = endpoint.x + towardLine.x * TRIANGLE_LENGTH;
+  const baseY = endpoint.y + towardLine.y * TRIANGLE_LENGTH;
   const perpendicularX = -towardLine.y * 9;
   const perpendicularY = towardLine.x * 9;
   return `${endpoint.x},${endpoint.y} ${baseX + perpendicularX},${baseY + perpendicularY} ${baseX - perpendicularX},${baseY - perpendicularY}`;
@@ -88,10 +93,10 @@ const getDiamondPoints = (
   endpoint: { x: number; y: number },
   towardLine: { x: number; y: number },
 ): string => {
-  const middleX = endpoint.x + towardLine.x * 11;
-  const middleY = endpoint.y + towardLine.y * 11;
-  const farX = endpoint.x + towardLine.x * 22;
-  const farY = endpoint.y + towardLine.y * 22;
+  const middleX = endpoint.x + towardLine.x * (DIAMOND_LENGTH / 2);
+  const middleY = endpoint.y + towardLine.y * (DIAMOND_LENGTH / 2);
+  const farX = endpoint.x + towardLine.x * DIAMOND_LENGTH;
+  const farY = endpoint.y + towardLine.y * DIAMOND_LENGTH;
   const perpendicularX = -towardLine.y * 7;
   const perpendicularY = towardLine.x * 7;
   return `${endpoint.x},${endpoint.y} ${middleX + perpendicularX},${middleY + perpendicularY} ${farX},${farY} ${middleX - perpendicularX},${middleY - perpendicularY}`;
@@ -166,7 +171,13 @@ export function AssociationEdge({
   });
   const sourcePathOutward = preliminaryPath.style === 'straight' ? { x: unitX, y: unitY } : sourceOutward;
   const targetPathOutward = preliminaryPath.style === 'straight' ? { x: -unitX, y: -unitY } : targetOutward;
-  const lineInset = relationType === 'association' ? 0 : 24;
+  // Open arrows (association, dependency) end at the tip; triangles and diamonds at their base.
+  const lineInset =
+    relationType === 'generalization' || relationType === 'realization'
+      ? TRIANGLE_LENGTH
+      : relationType === 'aggregation' || relationType === 'composition'
+        ? DIAMOND_LENGTH
+        : 0;
   const hasSourceNavigationArrow =
     relationType === 'association' &&
     (edgeData.navigability === 'target-to-source' || edgeData.navigability === 'bidirectional');
@@ -284,31 +295,31 @@ export function AssociationEdge({
       />
       {hasSourceNavigationArrow ? (
         <path
-          className="association-navigation-chevron"
+          className={`association-navigation-chevron${selected ? ' is-selected' : ''}`}
           d={getOpenChevronPath(sourceEndpoint, sourcePathOutward)}
         />
       ) : null}
       {hasTargetNavigationArrow ? (
         <path
-          className="association-navigation-chevron"
+          className={`association-navigation-chevron${selected ? ' is-selected' : ''}`}
           d={getOpenChevronPath(targetEndpoint, targetPathOutward)}
         />
       ) : null}
       {hasDependencyArrow ? (
         <path
-          className="association-navigation-chevron"
+          className={`association-navigation-chevron${selected ? ' is-selected' : ''}`}
           d={getOpenChevronPath(targetEndpoint, targetPathOutward)}
         />
       ) : null}
       {relationType === 'generalization' ? (
         <polygon
-          className="association-uml-marker association-uml-marker-open"
+          className={`association-uml-marker association-uml-marker-open${selected ? ' is-selected' : ''}`}
           points={getTrianglePoints(markerEndpoint, markerOutward)}
         />
       ) : null}
       {relationType === 'realization' ? (
         <polygon
-          className="association-uml-marker association-uml-marker-open"
+          className={`association-uml-marker association-uml-marker-open${selected ? ' is-selected' : ''}`}
           points={getTrianglePoints(markerEndpoint, markerOutward)}
         />
       ) : null}
@@ -316,7 +327,7 @@ export function AssociationEdge({
         <polygon
           className={`association-uml-marker ${
             relationType === 'composition' ? 'association-uml-marker-filled' : 'association-uml-marker-open'
-          }`}
+          }${selected ? ' is-selected' : ''}`}
           points={getDiamondPoints(markerEndpoint, markerOutward)}
         />
       ) : null}

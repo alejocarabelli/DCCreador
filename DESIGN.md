@@ -17,19 +17,29 @@ sharpest thing on screen, and the chrome is quieter paper around it.**
 
 Ink on paper with one petrol accent.
 
-- **Canvas** is off-white paper (`#F8F7F3`) with a faint dot grid. Classes are
-  white cards with a 1px ink border and a small offset shadow, like a printed
-  box on a sheet — the same look the PDF export produces.
-- **Chrome** (sidebar, toolbar, inspector) is a slightly warmer paper, so the
-  canvas always reads as the lightest plane.
+- **Canvas** is a white sheet (`#FFFFFF`). Class diagrams sit on millimetre
+  paper: a faint grey line every 20px and a stronger one every 100px.
+- **Classes ("lámina técnica")** are ink boxes in three equal compartments:
+  1.5px ink border and rules, 2px corners, no shadow — the same look the PDF
+  export produces. The name is centred in Plex Sans Condensed; members read as
+  a table (visibility · name · type pushed right in grey). A group colour only
+  tints the header; without one the header stays white.
+- **Relations** share the line weight (1.5px). The line stops exactly at the
+  base of a hollow triangle or diamond, and runs to the tip of an open arrow.
+  Multiplicities are knocked out of the paper without a frame; relation names
+  are italic.
+- **Chrome** (sidebar, toolbar, inspector) is a neutral, barely cool grey, so
+  the canvas always reads as the lightest plane.
 - **Petrol** (`#1C6570`) is the only accent: primary actions, selection, focus,
-  the current item. It never tints the document itself.
+  the current item. In the document it marks only member types that name
+  another class of the diagram.
 - **Dark mode is "Pizarra"**: light ink on warm graphite, the same accent lifted
   to `#63B7BC`. Not an inverted grey.
 
 ## Type
 
-IBM Plex, bundled with the app (`@fontsource/ibm-plex-sans`, `…-mono`), so it
+IBM Plex, bundled with the app (`@fontsource/ibm-plex-sans`, `…-sans-condensed`,
+`…-mono`), so it
 renders the same on every Mac and in every export.
 
 | Token | Size | Use |
@@ -43,8 +53,11 @@ renders the same on every Mac and in every export.
 | `--text-2xl` | 26px | page title (home) |
 
 - **Plex Sans** for the interface. Weights 400, 500 (controls), 600 (titles).
-- **Plex Mono** for anything that is code: attributes and methods in class
-  boxes, message signatures, key caps, eyebrow labels.
+- **Plex Sans Condensed** 600 for class names on the canvas.
+- Class members (attributes, methods) are **Plex Sans** 12.75px with tabular
+  figures: at that size it reads better than mono and long names stay short.
+- **Plex Mono** for the rest of what is code: message signatures, key caps,
+  eyebrow labels.
 - Controls never inherit the page size: `button`, `input`, `select`,
   `textarea` and `summary` are set to `--text-md` at element level.
 
