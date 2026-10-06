@@ -121,16 +121,17 @@ La navegabilidad configurable se dibuja para `relationType: "association"`. Para
 1. Definí primero el modelo y luego la disposición. Ordená clases por grupos del dominio y operaciones por responsabilidad. Evitá duplicar una misma relación con nombres distintos sin una justificación del modelo.
 2. Organizá grupos en columnas o filas estables. Colocá las superclases encima de sus subclases. Para colaboraciones o pertenencia, seguí un sentido predominante de izquierda a derecha. Mantené las clases que más se relacionan próximas, con corredores para las líneas.
 3. Calculá espacio según el contenido. Las clases no tienen una medida fija: su nombre, atributos y firmas pueden ensancharlas o aumentar su altura. No uses un salto fijo de coordenadas sin revisar los textos.
-4. Como **estimación conservadora**, reservá una altura `H = 140 + 32 × (cantidad de atributos + cantidad de métodos)`. Reservá una anchura `W = max(300, 40 + 10 × longitud de la firma más larga, 40 + 20 × longitud del mayor nombre o tipo de atributo, 40 + 10 × longitud del nombre de clase)`. Estas fórmulas son una ayuda para planificar; el tamaño real depende de la fuente y de la presentación.
-5. Dejá al menos **160 unidades libres entre los rectángulos reservados** de clases vecinas en horizontal y **140 en vertical**. Si hay muchos roles, multiplicidades o relaciones, ampliá el corredor a 220–300. La distancia es entre bordes estimados, no entre coordenadas superiores izquierdas.
-6. Para cada fila, calculá `xSiguiente = xActual + WActual + separación`. Para la siguiente fila, calculá `ySiguiente = yFila + max(H de esa fila) + separación`. Un origen como `(100, 100)` y una cuadrícula de 20 unidades facilitan la alineación. Distribuí horizontalmente cada nivel de herencia según su ancho total.
-7. Separá los puertos de relaciones que salen de una misma clase usando `-start`, centro y `-end`. Evitá líneas que atraviesen clases, etiquetas que se superpongan y rombos o triángulos sobre otras relaciones. Usá nombres breves y roles claros; si desplazás una etiqueta mediante `labelOffset`, reservá su espacio.
-8. No escales todo para meterlo en una pantalla: un diagrama grande se recorre con zoom y desplazamiento. Priorizá la legibilidad a escala normal. Para dominios muy grandes, acordá una división lógica en varios artefactos antes de generar archivos independientes.
-9. Revisá todos los pares de rectángulos reservados: no deben intersectarse. Revisá los corredores de cada relación y el área de notas. La aplicación importa las coordenadas tal como están; confirmar el resultado visual es parte de la entrega.
+4. Estimá el tamaño real de cada clase (calibrado sobre el render actual): altura `H ≈ 75 + 20 × (atributos + métodos)` y ancho `W ≈ max(220, 65 + 6 × L)`, donde `L` es la cantidad de caracteres de la línea más larga (firma `nombre(parámetros) tipo`, `atributo tipo` o nombre de la clase). No uses estimaciones mucho mayores: los rectángulos reales quedan chicos dentro de huecos enormes y las relaciones se estiran.
+5. Dejá **120–160 unidades libres entre clases vecinas en horizontal y 100–120 en vertical**, medidas entre bordes estimados. Es suficiente para multiplicidades; ampliá solo si hay roles o nombres de relación largos.
+6. Usá una grilla de columnas y filas. **Centrá cada clase dentro de su columna** (mismo centro X) y **centrala verticalmente dentro de su fila** (mismo centro Y). Así las relaciones entre vecinas de la misma columna o fila quedan rectas. Calculá el ancho de cada columna con la clase más ancha y la altura de cada fila con la clase más alta.
+7. **Ubicá juntas las clases relacionadas**: cada asociación debería unir clases vecinas en la misma fila o columna. Buscá ciclos de relaciones (A–B–C–D–A) y ubicalos como rectángulos de la grilla. Dejá para el final las pocas relaciones que no puedan ser vecinas.
+8. **No dejes los lados en `"automatic"` en un diagrama importado**: el enrutado automático tiende a sacar varias líneas por el borde superior y rodear el diagrama. Para vecinas horizontales usá `sourceSide`/`targetSide` `"right"`→`"left"` (o al revés) con los handles centrales y `lineStyle: "straight"`; para vecinas verticales, `"bottom"`→`"top"`. Para una relación entre clases no vecinas, usá handles `-start`/`-end` en un lado libre, dejá los lados en `"automatic"` y `lineStyle: "orthogonal"`, y verificá que el recorrido pase por un corredor vacío. Varias relaciones que llegan a una misma clase por el mismo lado van por `-start`, centro y `-end`.
+9. No escales todo para meterlo en una pantalla: un diagrama grande se recorre con zoom y desplazamiento. Priorizá la legibilidad a escala normal. Para dominios muy grandes, acordá una división lógica en varios artefactos antes de generar archivos independientes.
+10. Revisá todos los pares de rectángulos reservados: no deben intersectarse. Revisá los corredores de cada relación y el área de notas. La aplicación importa las coordenadas tal como están; confirmar el resultado visual es parte de la entrega.
 
 ### 2.4. Ejemplo completo e importable
 
-Este ejemplo incluye cinco clases, herencia, asociaciones navegables y composición. Las coordenadas dejan dos filas y tres columnas con corredores amplios.
+Este ejemplo incluye cinco clases, herencia, asociaciones navegables y composición. Sigue la grilla de la sección 2.3: dos filas y tres columnas de 220 de ancho, clases centradas en su fila y su columna, corredores de 140 × 110 y lados explícitos para que las relaciones entre vecinas queden rectas.
 
 ```json
 {
@@ -143,7 +144,7 @@ Este ejemplo incluye cinco clases, herencia, asociaciones navegables y composici
         "type": "classNode",
         "position": {
           "x": 100,
-          "y": 100
+          "y": 110
         },
         "data": {
           "name": "EntidadComercial",
@@ -172,7 +173,7 @@ Este ejemplo incluye cinco clases, herencia, asociaciones navegables y composici
         "type": "classNode",
         "position": {
           "x": 100,
-          "y": 540
+          "y": 365
         },
         "data": {
           "name": "Cliente",
@@ -205,8 +206,8 @@ Este ejemplo incluye cinco clases, herencia, asociaciones navegables y composici
         "id": "clase-pedido",
         "type": "classNode",
         "position": {
-          "x": 700,
-          "y": 540
+          "x": 460,
+          "y": 345
         },
         "data": {
           "name": "Pedido",
@@ -251,8 +252,8 @@ Este ejemplo incluye cinco clases, herencia, asociaciones navegables y composici
         "id": "clase-linea-pedido",
         "type": "classNode",
         "position": {
-          "x": 1320,
-          "y": 540
+          "x": 820,
+          "y": 365
         },
         "data": {
           "name": "LineaPedido",
@@ -285,7 +286,7 @@ Este ejemplo incluye cinco clases, herencia, asociaciones navegables y composici
         "id": "clase-producto",
         "type": "classNode",
         "position": {
-          "x": 1320,
+          "x": 820,
           "y": 100
         },
         "data": {
@@ -333,9 +334,9 @@ Este ejemplo incluye cinco clases, herencia, asociaciones navegables y composici
           "targetMultiplicity": "",
           "sourceRole": "",
           "targetRole": "",
-          "sourceSide": "automatic",
-          "targetSide": "automatic",
-          "lineStyle": "orthogonal"
+          "sourceSide": "top",
+          "targetSide": "bottom",
+          "lineStyle": "straight"
         }
       },
       {
@@ -353,9 +354,9 @@ Este ejemplo incluye cinco clases, herencia, asociaciones navegables y composici
           "targetMultiplicity": "0..*",
           "sourceRole": "cliente",
           "targetRole": "pedidos",
-          "sourceSide": "automatic",
-          "targetSide": "automatic",
-          "lineStyle": "orthogonal"
+          "sourceSide": "right",
+          "targetSide": "left",
+          "lineStyle": "straight"
         }
       },
       {
@@ -374,9 +375,9 @@ Este ejemplo incluye cinco clases, herencia, asociaciones navegables y composici
           "targetMultiplicity": "1..*",
           "sourceRole": "pedido",
           "targetRole": "lineas",
-          "sourceSide": "automatic",
-          "targetSide": "automatic",
-          "lineStyle": "orthogonal"
+          "sourceSide": "right",
+          "targetSide": "left",
+          "lineStyle": "straight"
         }
       },
       {
@@ -394,9 +395,9 @@ Este ejemplo incluye cinco clases, herencia, asociaciones navegables y composici
           "targetMultiplicity": "1",
           "sourceRole": "lineas",
           "targetRole": "producto",
-          "sourceSide": "automatic",
-          "targetSide": "automatic",
-          "lineStyle": "orthogonal"
+          "sourceSide": "top",
+          "targetSide": "bottom",
+          "lineStyle": "straight"
         }
       }
     ]
@@ -974,7 +975,7 @@ Este ejemplo independiente contiene las clases relevantes de la interacción. La
         "type": "classNode",
         "position": {
           "x": 100,
-          "y": 100
+          "y": 120
         },
         "data": {
           "name": "Cliente",
@@ -1007,7 +1008,7 @@ Este ejemplo independiente contiene las clases relevantes de la interacción. La
         "id": "clase-pedido",
         "type": "classNode",
         "position": {
-          "x": 700,
+          "x": 460,
           "y": 100
         },
         "data": {
@@ -1066,9 +1067,9 @@ Este ejemplo independiente contiene las clases relevantes de la interacción. La
           "targetMultiplicity": "0..*",
           "sourceRole": "cliente",
           "targetRole": "pedidos",
-          "sourceSide": "automatic",
-          "targetSide": "automatic",
-          "lineStyle": "orthogonal"
+          "sourceSide": "right",
+          "targetSide": "left",
+          "lineStyle": "straight"
         }
       }
     ]
