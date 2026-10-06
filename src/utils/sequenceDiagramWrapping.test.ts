@@ -6,7 +6,7 @@ import type {
   SequenceParticipant,
   SequenceTimelineItem,
 } from '../types/diagram';
-import { createEmptySequenceDiagramContent } from './sequenceDiagram';
+import { createEmptySequenceDiagramContent, normalizeSequenceDiagramContent } from './sequenceDiagram';
 import { buildSequenceLayout } from './sequenceDiagramLayout';
 import {
   applyFragmentBoundaryChanges,
@@ -959,9 +959,14 @@ describe('sequenceDiagramWrapping', () => {
       expect(changes).not.toBeNull();
       expect(changes?.itemsToAbsorb.map((i) => i.id)).toEqual(['c1']);
 
+      // A create inside the opt leaves p2 conditionally alive afterwards: allowed, reported as a warning.
       const validation = validateFragmentMoveChanges(diagram, changes!);
-      expect(validation.valid).toBe(false);
-      expect(validation.reason).toContain('caminos');
+      expect(validation.valid).toBe(true);
+      const moved = normalizeSequenceDiagramContent({ ...diagram, items: validation.newItems! });
+      expect(moved.problems).toContainEqual(expect.objectContaining({
+        code: 'conditional-participant-lifecycle',
+        severity: 'warning',
+      }));
     });
 
     it('mantiene la histeresis bidireccional continua (16px deadband) usando prevChanges para evitar jitter', () => {

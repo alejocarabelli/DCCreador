@@ -399,10 +399,12 @@ describe('sequence temporal semantics', () => {
       fragmentId: 'destination-alt',
       operandId: 'one',
     });
-    expect(applySequenceDiagramMutation(rootCreate, {
+    const intoOneBranch = applySequenceDiagramMutation(rootCreate, {
       ...rootCreate,
       items: movedCreateIntoOneBranch,
-    }).accepted).toBe(false);
+    });
+    expect(intoOneBranch.accepted).toBe(true);
+    expect(intoOneBranch.newWarnings.map((problem) => problem.code)).toContain('conditional-participant-lifecycle');
 
     const rootCreateLoop = normalizeSequenceDiagramContent({
       ...createEmptySequenceDiagramContent(),

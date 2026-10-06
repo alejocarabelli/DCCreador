@@ -1051,18 +1051,16 @@ export const analyzeSequenceDiagramSemantics = (
       return false;
     }
 
-    const isInsideFragment = scope.fragmentId !== undefined;
+    // Created in only some paths (a create inside an opt, alt or loop): authors
+    // commonly keep using it afterwards, so it is a review warning, not a block.
     addProblem(
       'conditional-participant-lifecycle',
       'El participante no está vivo en todos los caminos que llegan a este mensaje.',
       { messageId: message.id, participantId, ...scope },
-      isInsideFragment ? 'warning' : 'error',
+      'warning',
     );
-    if (isInsideFragment) {
-      state.lifecycle.set(participantId, 'alive');
-      return true;
-    }
-    return false;
+    state.lifecycle.set(participantId, 'alive');
+    return true;
   };
 
   const openActivation = (
