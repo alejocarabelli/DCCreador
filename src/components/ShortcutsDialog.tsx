@@ -21,6 +21,18 @@ const SECTIONS: Array<{ title: string; shortcuts: Shortcut[] }> = [
     ],
   },
   {
+    title: 'Pestañas de artefactos',
+    shortcuts: [
+      ['⌃Tab  ⌃⇧Tab', 'Pestaña siguiente o anterior'],
+      ['⌘1…⌘8', 'Ir a la pestaña por su posición'],
+      ['⌘9', 'Ir a la última pestaña'],
+      ['⌘W', 'Cerrar la pestaña activa'],
+      ['←  →  Home  End', 'Mover el foco entre pestañas'],
+      ['↵  Espacio', 'Activar la pestaña enfocada'],
+      ['Supr', 'Cerrar la pestaña enfocada'],
+    ],
+  },
+  {
     title: 'Diagramas de clases y casos de uso',
     shortcuts: [
       ['Doble clic', 'Crear en el lugar (clase o caso de uso)'],
@@ -97,7 +109,7 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
               <dl>
                 {section.shortcuts.map(([keys, description]) => (
                   <div key={keys}>
-                    <dt>{keys.split(/\s{2,}/).map((key) => <kbd className="v2-kbd" key={key}>{key}</kbd>)}</dt>
+                    <dt>{keys.split(/\s{2,}/).map((key) => <kbd className="v2-kbd" key={key}>{/Mac|iPhone|iPad/.test(typeof navigator === 'undefined' ? 'Mac' : navigator.platform) ? key : key.replaceAll('⌘', 'Ctrl+').replaceAll('⌃', 'Ctrl+')}</kbd>)}</dt>
                     <dd>{description}</dd>
                   </div>
                 ))}

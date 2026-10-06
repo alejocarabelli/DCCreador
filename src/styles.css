@@ -2541,36 +2541,6 @@ textarea {
   padding: 7px 11px 7px 14px;
 }
 
-.editor-identity {
-  display: grid;
-  flex: 1 1 210px;
-  gap: 2px;
-  min-width: 150px;
-  overflow: hidden;
-}
-
-
-.editor-breadcrumb {
-  align-items: center;
-  color: var(--panel-muted-text);
-  display: flex;
-  font-size: 0.84rem;
-  gap: 3px;
-  min-width: 0;
-  white-space: nowrap;
-}
-
-.editor-breadcrumb span,
-.editor-breadcrumb strong {
-  max-width: 190px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.editor-breadcrumb strong {
-  color: var(--panel-text);
-  font-weight: 750;
-}
 
 .editor-toolbar-actions {
   flex: 0 1 auto;
@@ -2900,17 +2870,6 @@ textarea {
     grid-template-columns: 240px minmax(0, 1fr);
   }
 
-  .editor-identity {
-    flex-basis: 150px;
-  }
-
-  .editor-breadcrumb span {
-    display: none;
-  }
-
-  .editor-breadcrumb svg {
-    display: none;
-  }
 
   .editor-toolbar-actions .toolbar-primary-action {
     font-size: 0;

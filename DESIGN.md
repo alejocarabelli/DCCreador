@@ -108,7 +108,7 @@ editor.**
 
 One bar, three zones, identical order in all five editors:
 
-1. **Start** — breadcrumb (`Proyecto › icono Artefacto`), save state (a check
+1. **Start** — save state (a check
    that expands to "Guardado" on hover; "Guardando…" and errors stay expanded),
    Deshacer, Rehacer.
 2. **Create** — the editor's own tools. The most common creation is the one
@@ -120,6 +120,21 @@ One bar, three zones, identical order in all five editors:
 
 Project-level actions (export/import the whole project as JSON) are not in the
 editor toolbar: they live in the project menu and on the home screen.
+
+### Artifact tabs — `ArtifactTabs`
+
+A shared 36px row above the editor toolbar identifies the project and its open
+artifacts. The project label is muted and truncates at 22ch. Tabs are 28px high,
+200px wide, shrinking to 112px before the list scrolls. The selected tab shares
+the toolbar background and joins it without a bottom rule; inactive tabs sit
+on the sidebar chrome. Each carries its artifact icon, name and close button.
+Overflow uses directional 24px masks and a menu of all open tabs. The artifact
+name remains the view's single, visually hidden `h1`.
+
+Open order is a UI preference per project, outside the exported model. Opening
+inserts beside the current tab; closing selects the next neighbor. Tabs support
+pointer reordering, middle-click closing and keyboard navigation. Viewports,
+zoom and scroll positions stay in memory for the session.
 
 ### Tool buttons — `ToolButton`
 
@@ -165,7 +180,7 @@ scrim; primary action on the right. Toasts are ink pills at the bottom.
 
 ## Layout contracts
 
-1. **Toolbars never overflow.** The start zone shrinks (breadcrumb ellipsis)
+1. **Toolbars never overflow.** The start zone shrinks
    before the create and end zones do; labels in the create zone collapse to
    icons at narrow widths. Every collapsible label has an `aria-label` and a
    tooltip on its control, so collapsing costs no accessible name.

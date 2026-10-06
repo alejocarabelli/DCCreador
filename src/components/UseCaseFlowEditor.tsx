@@ -53,7 +53,8 @@ import { reviewUseCaseFlow, type FlowIssue } from '../utils/useCaseFlowReview';
 import { createFlowDocx } from '../utils/flowExportDocx';
 import { downloadBlob } from '../utils/pdfExport';
 import { EditorToolbar, MenuItem, ReviewButton, ToolButton, ToolMenu } from './ui/Toolbar';
-import { EditorIdentity } from './EditorIdentity';
+import { useArtifactScrollMemory } from '../hooks/useArtifactViewMemory';
+import { artifactViewKey, readArtifactScrollView } from '../utils/artifactViewMemory';
 import { ToolbarHistory } from './ToolbarHistory';
 import { DiagramReviewPanel } from './DiagramReviewPanel';
 import { FlowRichTextarea } from './FlowRichTextarea';
@@ -247,6 +248,10 @@ export function UseCaseFlowEditor({
 }: UseCaseFlowEditorProps) {
   const content = useMemo(() => normalizeUseCaseFlowContent(artifact.content), [artifact.content]);
   const toolbarRef = useRef<HTMLElement | null>(null);
+  const scrollRef = useRef<HTMLElement | null>(null);
+  const viewKey = artifactViewKey(project.id, artifact.id);
+  const [initialView] = useState(() => readArtifactScrollView(viewKey));
+  useArtifactScrollMemory(viewKey, scrollRef, initialView);
   const feedbackTimeoutRef = useRef<number | null>(null);
   const cellRefs = useRef(new Map<string, HTMLTextAreaElement>());
   const caretPositions = useRef(new Map<string, number>());
@@ -1545,7 +1550,6 @@ export function UseCaseFlowEditor({
         toolbarRef={toolbarRef}
         start={(
           <>
-            <EditorIdentity artifactKind="Especificación de caso de uso" artifactType={'use-case-flow'} artifactName={artifact.name} projectName={project.name} />
             <ToolbarHistory canRedo={canRedo} canUndo={canUndo} saveStatus={saveStatus} onRedo={onRedo} onUndo={onUndo} />
           </>
         )}
@@ -1583,7 +1587,7 @@ export function UseCaseFlowEditor({
       {feedbackMessage !== null ? <div className="editor-feedback" role="status">{feedbackMessage}</div> : null}
 
       <div className={`flow-editor-body${reviewOpen ? ' review-open' : ''}`}>
-        <section className="flow-document">
+        <section className="flow-document" ref={scrollRef}>
           <nav className="flow-section-nav" aria-label="Secciones de la especificación">
             <a href="#descripcion-general">Especificación</a>
             <a href="#camino-basico">Camino básico <span>{basicStepCount}</span></a>
