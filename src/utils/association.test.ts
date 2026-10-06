@@ -2,22 +2,32 @@ import { describe, expect, it } from 'vitest';
 import { normalizeAssociationData, normalizeAssociationEdge, resolveAssociationLineStyle } from './association';
 
 describe('association routing', () => {
-  it('uses orthogonal routing automatically for diagonal endpoints', () => {
-    expect(resolveAssociationLineStyle('automatic', 280, 160)).toBe('orthogonal');
+  it('uses orthogonal routing for diagonal endpoints by default', () => {
+    expect(resolveAssociationLineStyle(undefined, 280, 160)).toBe('orthogonal');
+    expect(resolveAssociationLineStyle('orthogonal', 280, 160)).toBe('orthogonal');
   });
 
-  it('keeps aligned endpoints straight in automatic mode', () => {
-    expect(resolveAssociationLineStyle('automatic', 280, 4)).toBe('straight');
-    expect(resolveAssociationLineStyle('automatic', 5, 220)).toBe('straight');
+  it('straightens nearly aligned endpoints in orthogonal mode', () => {
+    expect(resolveAssociationLineStyle('orthogonal', 280, 4)).toBe('straight');
+    expect(resolveAssociationLineStyle('orthogonal', 5, 220)).toBe('straight');
   });
 
   it('respects an explicitly selected line style', () => {
     expect(resolveAssociationLineStyle('straight', 280, 160)).toBe('straight');
-    expect(resolveAssociationLineStyle('orthogonal', 280, 0)).toBe('orthogonal');
+    expect(resolveAssociationLineStyle('orthogonal', 280, 160)).toBe('orthogonal');
   });
 
-  it('defaults new and incomplete associations to automatic routing', () => {
-    expect(normalizeAssociationData(undefined).lineStyle).toBe('automatic');
+  it('defaults new and incomplete associations to orthogonal routing', () => {
+    expect(normalizeAssociationData(undefined).lineStyle).toBe('orthogonal');
+    expect(normalizeAssociationData({}).lineStyle).toBe('orthogonal');
+  });
+
+  it.each(['automatic', 'invalid', null, 42])('normalizes saved line style %s to orthogonal', (lineStyle) => {
+    expect(normalizeAssociationData({ lineStyle }).lineStyle).toBe('orthogonal');
+  });
+
+  it.each(['straight', 'orthogonal'] as const)('preserves the saved %s line style', (lineStyle) => {
+    expect(normalizeAssociationData({ lineStyle }).lineStyle).toBe(lineStyle);
   });
 
   it('preserves an optional relationship label for old and new projects', () => {

@@ -4,6 +4,7 @@ import { Position, ReactFlowProvider } from 'reactflow';
 import { describe, expect, it, vi } from 'vitest';
 import { normalizeAssociationData } from '../utils/association';
 import { AssociationEdge } from './AssociationEdge';
+import type { AssociationEdgeData } from '../types/diagram';
 
 // Keep portal content visible during server rendering; the edge and its labels
 // still use the real React Flow provider and components.
@@ -13,6 +14,40 @@ vi.mock('reactflow', async (importOriginal) => {
     ...actual,
     EdgeLabelRenderer: ({ children }: { children: ReactNode }) => children,
   };
+});
+
+const renderEdge = (data: Partial<AssociationEdgeData>, selected = true) => renderToString(
+  <ReactFlowProvider>
+    <AssociationEdge
+      id="edge" source="source" target="target" selected={selected}
+      sourceX={100} sourceY={100} targetX={500} targetY={108}
+      sourcePosition={Position.Right} targetPosition={Position.Left}
+      data={normalizeAssociationData(data)}
+    />
+  </ReactFlowProvider>,
+);
+
+describe('association canvas controls', () => {
+  it.each(['association', 'aggregation', 'composition', 'generalization', 'dependency', 'realization'] as const)(
+    'shows the line style toolbar for a selected %s', (relationType) => {
+      const html = renderEdge({ relationType });
+      expect(html).toContain('aria-label="Recorrido de la relación"');
+      expect(html).toContain('aria-label="Recto" aria-pressed="false"');
+      expect(html).toContain('aria-label="Con codos" aria-pressed="true"');
+      const supportsEndpoints = ['association', 'aggregation', 'composition'].includes(relationType);
+      expect(html.match(/association-multiplicity-chips/g) ?? []).toHaveLength(supportsEndpoints ? 2 : 0);
+    },
+  );
+
+  it('hides controls and empty ends when the relation is not selected', () => {
+    const empty = renderEdge({}, false);
+    expect(empty).not.toContain('association-quick-controls');
+    expect(empty).not.toContain('association-label-end');
+    const filled = renderEdge({ sourceMultiplicity: '2..5' }, false);
+    expect(filled).toContain('2..5');
+    expect(filled.match(/association-label-end/g)).toHaveLength(1);
+    expect(filled).not.toContain('association-quick-controls');
+  });
 });
 
 describe('association endpoint roles', () => {
@@ -59,6 +94,26 @@ describe('association endpoint roles', () => {
 });
 
 describe('association UML markers', () => {
+  it.each([
+    ['aggregation', 'source', [122, 104, 500, 104]],
+    ['composition', 'target', [100, 104, 478, 104]],
+    ['generalization', 'target', [100, 104, 480, 104]],
+    ['realization', 'target', [100, 104, 480, 104]],
+  ] as const)('keeps the %s marker attached and axis-aligned on a nearly aligned line', (relationType, end, coordinates) => {
+    const html = renderEdge({ relationType, diamondEnd: end, triangleEnd: end, lineStyle: 'orthogonal' });
+    const tip = html.match(/<polygon[^>]*points="([^ ]+)/)?.[1];
+    const path = html.match(/class="association-edge-hit-area" d="([^"]+)"/)?.[1];
+    expect(tip).toBe(end === 'source' ? '100,104' : '500,104');
+    expect(path?.match(/-?\d+(?:\.\d+)?/g)?.map(Number)).toEqual(coordinates);
+  });
+
+  it('aligns navigation arrows and multiplicity labels with the snapped endpoints', () => {
+    const html = renderEdge({ navigability: 'source-to-target', sourceMultiplicity: '1', targetMultiplicity: '*', lineStyle: 'orthogonal' });
+    expect(html).toContain('d="M 486 97 L 500 104 L 486 111"');
+    const positions = [...html.matchAll(/class="[^"]*association-label-end[^"]*"[^>]*style="([^"]*)"/g)]
+      .map(match => Number(match[1].match(/(?:^|;)top:([^;]+)px/)?.[1]));
+    expect(positions).toEqual([124, 84]);
+  });
   it.each(['source', 'target'] as const)('places the inheritance triangle at the configured %s endpoint', (triangleEnd) => {
     const html = renderToString(
       <ReactFlowProvider>

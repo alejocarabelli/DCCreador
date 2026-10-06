@@ -56,6 +56,7 @@ import { useDiagramImageExport } from '../hooks/useDiagramImageExport';
 import { useGentleWheelZoom } from '../hooks/useGentleWheelZoom';
 import { getDiagramImageExportBounds } from '../utils/diagramImageExport';
 import { readUiPreference, writeUiPreference } from '../storage/uiPreferences';
+import { readAssociationLineStyle, writeAssociationLineStyle } from '../storage/associationPreferences';
 import { getAssociationMarker, normalizeAssociationData, normalizeAssociationEdge } from '../utils/association';
 import {
   oppositeConnectionSide,
@@ -171,6 +172,7 @@ export function DiagramEditor({
   const [hideGroupColors, setHideGroupColors] = useState(() => readUiPreference('class-diagram-hide-group-colors') === 'true');
   const [hideMethods, setHideMethods] = useState(() => readUiPreference('class-diagram-hide-methods') === 'true');
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [associationLineStyle, setAssociationLineStyle] = useState(readAssociationLineStyle);
   const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(
     () => readUiPreference(INSPECTOR_COLLAPSED_KEY) === 'true',
   );
@@ -392,28 +394,33 @@ export function DiagramEditor({
   const handleConnect = useCallback(
     (connection: Connection): void => {
       const navigability = 'source-to-target';
-      updateEdges(
-        addEdge(
-          {
-            ...connection,
-            id: createId(),
-            type: 'association',
-            data: normalizeAssociationData({
-              navigability,
-              lineStyle: 'automatic',
-              sourceSide: 'automatic',
-              targetSide: 'automatic',
-            }),
-            markerStart: getAssociationMarker(navigability, 'source', 'association'),
-            markerEnd: getAssociationMarker(navigability, 'target', 'association'),
-          },
-          normalizedEdges,
-        ) as ClassDiagramEdge[],
-        { separateHistoryEntry: true },
-      );
+      const edgeId = createId();
+      const nextEdges = addEdge(
+        {
+          ...connection,
+          id: edgeId,
+          type: 'association',
+          data: normalizeAssociationData({
+            navigability,
+            lineStyle: associationLineStyle,
+            sourceSide: 'automatic',
+            targetSide: 'automatic',
+          }),
+          markerStart: getAssociationMarker(navigability, 'source', 'association'),
+          markerEnd: getAssociationMarker(navigability, 'target', 'association'),
+        },
+        normalizedEdges,
+      ) as ClassDiagramEdge[];
+      if (nextEdges.some(edge => edge.id === edgeId)) {
+        updateEdges(nextEdges, { separateHistoryEntry: true });
+        setContextMenu(null);
+        setSelectedEdgeId(edgeId);
+        setSelectedNodeId(null);
+        setSelectedNoteNodeId(null);
+      }
       setConnectionSourceNodeId(null);
     },
-    [normalizedEdges, updateEdges],
+    [associationLineStyle, normalizedEdges, updateEdges, setSelectedNodeId],
   );
 
   // Without an explicit point (toolbar, empty-state card), the class lands in
@@ -974,6 +981,10 @@ export function DiagramEditor({
   };
 
   const updateAssociation = useCallback((edgeId: string, values: Partial<AssociationEdgeData>): void => {
+    if (values.lineStyle !== undefined) {
+      setAssociationLineStyle(values.lineStyle);
+      writeAssociationLineStyle(values.lineStyle);
+    }
     updateEdges(
       normalizedEdges.map((edge) => {
         if (edge.id !== edgeId) {
@@ -1196,6 +1207,7 @@ export function DiagramEditor({
             ...edge.data,
             onUpdateMultiplicity: updateAssociationMultiplicity,
             onUpdateLabel: updateAssociation,
+            onUpdateAssociation: updateAssociation,
             routingObstacles: nodes.map(node => {
               // Handles sit one pixel inside the class border. Other classes get an 8px clearance.
               const inset = node.id === edge.source || node.id === edge.target ? 2 : -8;

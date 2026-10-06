@@ -95,13 +95,14 @@ export type AssociationRelationType =
   | 'dependency'
   | 'realization';
 export type AssociationDiamondEnd = 'source' | 'target';
-export type AssociationLineStyle = 'automatic' | 'straight' | 'orthogonal';
+export type AssociationLineStyle = 'straight' | 'orthogonal';
 export type AssociationConnectionSide = 'automatic' | ConnectionSide;
 
 export type AssociationEdgeData = {
   labelOffset?: XYPosition;
   routingObstacles?: Array<{ x: number; y: number; width: number; height: number }>;
   onUpdateLabel?: (edgeId: string, values: Partial<AssociationEdgeData>) => void;
+  onUpdateAssociation?: (edgeId: string, values: Partial<AssociationEdgeData>) => void;
   name: string;
   sourceMultiplicity: string;
   targetMultiplicity: string;
