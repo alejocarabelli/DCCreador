@@ -40,6 +40,8 @@ export type AssociationPathResolution = {
   style: ResolvedAssociationLineStyle;
   labelX: number;
   labelY: number;
+  source: XYPosition;
+  target: XYPosition;
 };
 
 export type AssociationLabelPosition = {
@@ -169,12 +171,36 @@ export const buildAssociationPath = ({
   lineStyle,
   obstacles = [],
 }: AssociationPathInput): AssociationPathResolution => {
-  const style = resolveAssociationLineStyle(lineStyle, targetX - sourceX, targetY - sourceY);
+  const deltaX = targetX - sourceX;
+  const deltaY = targetY - sourceY;
+  let style = resolveAssociationLineStyle(lineStyle, deltaX, deltaY);
+  const source = { x: sourceX, y: sourceY };
+  const target = { x: targetX, y: targetY };
+
+  if (lineStyle !== 'straight' && style === 'straight') {
+    const horizontal = Math.abs(deltaX) >= Math.abs(deltaY);
+    const facingSides = horizontal
+      ? deltaX >= 0
+        ? sourcePosition === Position.Right && targetPosition === Position.Left
+        : sourcePosition === Position.Left && targetPosition === Position.Right
+      : deltaY >= 0
+        ? sourcePosition === Position.Bottom && targetPosition === Position.Top
+        : sourcePosition === Position.Top && targetPosition === Position.Bottom;
+
+    if (facingSides) {
+      // Shift at most 6px along each class border; markers share these endpoints.
+      if (horizontal) source.y = target.y = (sourceY + targetY) / 2;
+      else source.x = target.x = (sourceX + targetX) / 2;
+    } else {
+      style = 'orthogonal';
+    }
+  }
+
   const pathParams = {
-    sourceX,
-    sourceY,
-    targetX,
-    targetY,
+    sourceX: source.x,
+    sourceY: source.y,
+    targetX: target.x,
+    targetY: target.y,
     sourcePosition,
     targetPosition,
   };
@@ -183,8 +209,6 @@ export const buildAssociationPath = ({
     : getSmoothStepPath({ ...pathParams, borderRadius: 0, offset: 24 });
 
   if (lineStyle !== 'straight' && obstacles.length > 0) {
-    const source = { x: sourceX, y: sourceY };
-    const target = { x: targetX, y: targetY };
     const direction = (position: Position): XYPosition => ({
       x: position === Position.Right ? 1 : position === Position.Left ? -1 : 0,
       y: position === Position.Bottom ? 1 : position === Position.Top ? -1 : 0,
@@ -202,12 +226,12 @@ export const buildAssociationPath = ({
         }
         return {
           path: points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x},${point.y}`).join(' '),
-          style: 'orthogonal', labelX: center.x, labelY: center.y,
+          style: 'orthogonal', labelX: center.x, labelY: center.y, source, target,
         };
       }
     }
   }
-  return { path, style, labelX, labelY };
+  return { path, style, labelX, labelY, source, target };
 };
 
 export const getAssociationCenterLabelPosition = (

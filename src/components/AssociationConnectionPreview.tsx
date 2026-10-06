@@ -1,5 +1,6 @@
 import type { ConnectionLineComponentProps } from 'reactflow';
 import { buildAssociationPath } from '../utils/associationRouting';
+import { readAssociationLineStyle } from '../storage/associationPreferences';
 
 export function AssociationConnectionPreview({
   connectionLineStyle,
@@ -17,7 +18,7 @@ export function AssociationConnectionPreview({
     targetY: toY,
     sourcePosition: fromPosition,
     targetPosition: toPosition,
-    lineStyle: 'automatic',
+    lineStyle: readAssociationLineStyle(),
   });
 
   return (

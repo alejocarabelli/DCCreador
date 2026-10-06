@@ -170,7 +170,7 @@ export function AssociationInspector({ edge, onUpdateAssociation }: AssociationI
       ) : null}
 
       <button type="button" onClick={() => onUpdateAssociation(edge.id, {
-        lineStyle: 'automatic', waypoints: [], labelOffset: { x: 0, y: 0 },
+        lineStyle: 'orthogonal', waypoints: [], labelOffset: { x: 0, y: 0 },
       })}>Restablecer recorrido y etiqueta</button>
       <div className="association-routing-control">
         <label className="field compact-field">
@@ -184,13 +184,12 @@ export function AssociationInspector({ edge, onUpdateAssociation }: AssociationI
               })
             }
           >
-            <option value="automatic">Adaptable</option>
-            <option value="orthogonal">Con codos</option>
             <option value="straight">Recto</option>
+            <option value="orthogonal">Con codos</option>
           </select>
         </label>
         <p className="helper-text">
-          Adaptable usa una línea recta cuando puede y agrega codos cuando hace falta. No mueve los puntos elegidos.
+          Con codos endereza los extremos casi alineados y rodea las clases cuando puede. También podés cambiar el recorrido desde la línea seleccionada.
         </p>
       </div>
 

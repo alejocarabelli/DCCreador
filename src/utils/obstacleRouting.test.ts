@@ -35,8 +35,21 @@ describe('obstacle routing', () => {
     expect(result.style).toBe('straight');
   });
   it('falls back without crashing when overlapping classes block the starting point', () => {
-    const result = buildAssociationPath({ sourceX: source.x, sourceY: source.y, targetX: target.x, targetY: target.y, sourcePosition: Position.Right, targetPosition: Position.Left, lineStyle: 'automatic', obstacles: [{ x: 200, y: 0, width: 800, height: 800 }] });
+    const result = buildAssociationPath({ sourceX: source.x, sourceY: source.y, targetX: target.x, targetY: target.y, sourcePosition: Position.Right, targetPosition: Position.Left, lineStyle: 'orthogonal', obstacles: [{ x: 200, y: 0, width: 800, height: 800 }] });
     expect(result.path).not.toContain('NaN');
     expect(result.path).toContain('M');
+  });
+  it('routes nearly aligned orthogonal endpoints around a class blocking the snapped line', () => {
+    const result = buildAssociationPath({ sourceX: source.x, sourceY: source.y, targetX: target.x, targetY: source.y + 8, sourcePosition: Position.Right, targetPosition: Position.Left, lineStyle: 'orthogonal', obstacles });
+    const coordinates = result.path.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+    const points = Array.from({ length: coordinates.length / 2 }, (_, index) => ({ x: coordinates[index * 2], y: coordinates[index * 2 + 1] }));
+    expect(result.style).toBe('orthogonal');
+    expect(result.source).toEqual({ x: source.x, y: source.y + 4 });
+    expect(result.target).toEqual({ x: target.x, y: source.y + 4 });
+    for (let index = 1; index < points.length; index++) {
+      const a = points[index - 1]; const b = points[index];
+      expect(a.x === b.x || a.y === b.y).toBe(true);
+      expect(obstacles.some(rect => segmentCrossesObstacle(a, b, rect))).toBe(false);
+    }
   });
 });

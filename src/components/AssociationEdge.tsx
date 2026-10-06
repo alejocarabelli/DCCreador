@@ -3,12 +3,15 @@ import {
   BaseEdge,
   EdgeLabelRenderer,
   Position,
+  useStore,
   type EdgeProps,
 } from 'reactflow';
 import { useRef, useState, type MouseEvent } from 'react';
 import type { AssociationConnectionSide, AssociationEdgeData } from '../types/diagram';
 import { buildAssociationPath, getAssociationCenterLabelPosition } from '../utils/associationRouting';
 import { MultiplicityInput } from './MultiplicityInput';
+import { DEFAULT_ASSOCIATION_DATA } from '../utils/association';
+import { AssociationLineStyleToolbar, AssociationMultiplicityChips } from './AssociationQuickControls';
 
 const edgeLabelStyle = {
   position: 'absolute',
@@ -57,6 +60,36 @@ const getEndpointLabelPosition = (
     x: endpoint.x + outward.x * alongOffset + perpendicularX,
     y: endpoint.y + outward.y * alongOffset + perpendicularY + rowDirection * rowOffset,
   };
+};
+
+const getMultiplicityChipsStyle = (
+  label: { x: number; y: number },
+  outward: { x: number; y: number },
+  bounds: { left: number; right: number } | null,
+) => {
+  const width = 156;
+  let alignEnd = outward.x < 0 || outward.y > 0;
+  let left = label.x + outward.x * 14;
+  let transform = outward.x > 0 ? 'translateY(-50%)'
+    : outward.x < 0 ? 'translate(-100%, -50%)'
+      : outward.y > 0 ? 'translate(-100%, 0)'
+        : 'translateY(-100%)';
+
+  if (bounds !== null) {
+    // On vertical lines, switch sides before clamping so chips stay clear of the line.
+    if (outward.y > 0 && left - width < bounds.left) {
+      left = label.x + 40;
+      alignEnd = false;
+      transform = 'none';
+    } else if (outward.y < 0 && left + width > bounds.right) {
+      left = label.x - 40;
+      alignEnd = true;
+      transform = 'translate(-100%, -100%)';
+    }
+    left = Math.max(bounds.left + (alignEnd ? width : 0), Math.min(left, bounds.right - (alignEnd ? 0 : width)));
+  }
+
+  return { ...edgeLabelStyle, left, top: label.y + outward.y * 54 + outward.x * 62, transform, width };
 };
 
 const getOpenChevronPath = (
@@ -114,26 +147,20 @@ export function AssociationEdge({
   targetY,
 }: EdgeProps<AssociationEdgeData>) {
   const [editingMultiplicity, setEditingMultiplicity] = useState<MultiplicityEnd | null>(null);
+  const [editingRole, setEditingRole] = useState<MultiplicityEnd | null>(null);
   const originalMultiplicityRef = useRef('');
-  const edgeData = data ?? {
-    name: '',
-    sourceMultiplicity: '',
-    targetMultiplicity: '',
-    sourceRole: '',
-    targetRole: '',
-    navigability: 'none',
-    relationType: 'association',
-    diamondEnd: 'source',
-    triangleEnd: 'target',
-    lineStyle: 'automatic',
-    sourceSide: 'automatic',
-    targetSide: 'automatic',
-  };
+  const viewportTransform = useStore(state => selected ? state.transform : null);
+  const canvasWidth = useStore(state => selected ? state.width : 0);
+  const chipsBounds = viewportTransform !== null && canvasWidth > 0 ? {
+    left: (8 - viewportTransform[0]) / viewportTransform[2],
+    right: (canvasWidth - 8 - viewportTransform[0]) / viewportTransform[2],
+  } : null;
+  const edgeData = data ?? DEFAULT_ASSOCIATION_DATA;
   const relationType = edgeData.relationType ?? 'association';
   const supportsEndpoints = relationType === 'association'
     || relationType === 'aggregation'
     || relationType === 'composition';
-  const lineStyle = edgeData.lineStyle ?? 'automatic';
+  const lineStyle = edgeData.lineStyle ?? 'orthogonal';
   const effectiveSourcePosition =
     edgeData.sourceSide !== undefined && edgeData.sourceSide !== 'automatic'
       ? sideToPosition[edgeData.sourceSide]
@@ -150,15 +177,6 @@ export function AssociationEdge({
         : edgeData.diamondEnd === 'target'
         ? 'target'
         : 'source';
-  const sourceEndpoint = { x: sourceX, y: sourceY };
-  const targetEndpoint = { x: targetX, y: targetY };
-  const deltaX = targetEndpoint.x - sourceEndpoint.x;
-  const deltaY = targetEndpoint.y - sourceEndpoint.y;
-  const length = Math.hypot(deltaX, deltaY) || 1;
-  const unitX = deltaX / length;
-  const unitY = deltaY / length;
-  const sourceOutward = getOutwardUnit(effectiveSourcePosition, { x: unitX, y: unitY });
-  const targetOutward = getOutwardUnit(effectiveTargetPosition, { x: -unitX, y: -unitY });
   const preliminaryPath = buildAssociationPath({
     sourcePosition: effectiveSourcePosition,
     sourceX,
@@ -169,6 +187,15 @@ export function AssociationEdge({
     lineStyle,
     obstacles: edgeData.routingObstacles,
   });
+  const sourceEndpoint = preliminaryPath.source;
+  const targetEndpoint = preliminaryPath.target;
+  const deltaX = targetEndpoint.x - sourceEndpoint.x;
+  const deltaY = targetEndpoint.y - sourceEndpoint.y;
+  const length = Math.hypot(deltaX, deltaY) || 1;
+  const unitX = deltaX / length;
+  const unitY = deltaY / length;
+  const sourceOutward = getOutwardUnit(effectiveSourcePosition, { x: unitX, y: unitY });
+  const targetOutward = getOutwardUnit(effectiveTargetPosition, { x: -unitX, y: -unitY });
   const sourcePathOutward = preliminaryPath.style === 'straight' ? { x: unitX, y: unitY } : sourceOutward;
   const targetPathOutward = preliminaryPath.style === 'straight' ? { x: -unitX, y: -unitY } : targetOutward;
   // Open arrows (association, dependency) end at the tip; triangles and diamonds at their base.
@@ -219,6 +246,12 @@ export function AssociationEdge({
     adjustedTargetX,
     adjustedTargetY,
   );
+  const horizontal = Math.abs(deltaX) >= Math.abs(deltaY);
+  const centerLabelOffset = relationType === 'generalization' ? undefined : edgeData.labelOffset;
+  const toolbarPosition = {
+    x: centerLabelPosition.x + (centerLabelOffset?.x ?? 0),
+    y: centerLabelPosition.y + (centerLabelOffset?.y ?? 0),
+  };
 
   const sourceLabelPosition = getEndpointLabelPosition(sourceEndpoint, sourceOutward);
   const targetLabelPosition = getEndpointLabelPosition(targetEndpoint, targetOutward);
@@ -252,29 +285,54 @@ export function AssociationEdge({
     }
 
     return (
-      <div
-        className="association-label association-label-end nodrag nopan"
-        data-empty={!value}
-        style={{ ...edgeLabelStyle, left: x, top: y }}
-        onClick={(event) => event.stopPropagation()}
-        onContextMenu={(event) => event.stopPropagation()}
-        onDoubleClick={(event) => startMultiplicityEditing(end, event)}
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        {isEditing ? (
-          <MultiplicityInput
-            ariaLabel={end === 'source' ? 'Multiplicidad origen' : 'Multiplicidad destino'}
-            autoFocus
-            compact
+      <>
+        <div
+          className="association-label association-label-end nodrag nopan"
+          data-empty={!value}
+          style={{ ...edgeLabelStyle, left: x, top: y }}
+          onClick={(event) => event.stopPropagation()}
+          onContextMenu={(event) => event.stopPropagation()}
+          onDoubleClick={(event) => startMultiplicityEditing(end, event)}
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          {isEditing ? (
+            <MultiplicityInput
+              ariaLabel={end === 'source' ? 'Multiplicidad origen' : 'Multiplicidad destino'}
+              autoFocus
+              compact
+              value={value}
+              onCancel={cancelMultiplicityEditing}
+              onChange={(nextValue) => updateMultiplicity(end, nextValue)}
+              onConfirm={() => setEditingMultiplicity(null)}
+            />
+          ) : (
+            <button
+              type="button"
+              className="association-multiplicity-value"
+              aria-label={`Editar multiplicidad de ${end === 'source' ? 'origen' : 'destino'}`}
+              title="Doble clic para editar un valor libre"
+              onKeyDown={(event) => {
+                event.stopPropagation();
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  originalMultiplicityRef.current = value;
+                  setEditingMultiplicity(end);
+                }
+              }}
+            >
+              {value || '…'}
+            </button>
+          )}
+        </div>
+        {selected && !isEditing && editingRole === null ? (
+          <AssociationMultiplicityChips
+            end={end}
             value={value}
-            onCancel={cancelMultiplicityEditing}
+            style={getMultiplicityChipsStyle({ x, y }, end === 'source' ? sourceOutward : targetOutward, chipsBounds)}
             onChange={(nextValue) => updateMultiplicity(end, nextValue)}
-            onConfirm={() => setEditingMultiplicity(null)}
           />
-        ) : (
-          value || '…'
-        )}
-      </div>
+        ) : null}
+      </>
     );
   };
 
@@ -341,9 +399,11 @@ export function AssociationEdge({
           {supportsEndpoints ? <>
             <AssociationTextLabel value={edgeData.sourceRole} placeholder="Rol de origen"
               x={sourceRolePosition.x} y={sourceRolePosition.y} className="association-role-label"
+              onEditingChange={editing => setEditingRole(editing ? 'source' : null)}
               onCommit={sourceRole => edgeData.onUpdateLabel?.(id, { sourceRole })} />
             <AssociationTextLabel value={edgeData.targetRole} placeholder="Rol de destino"
               x={targetRolePosition.x} y={targetRolePosition.y} className="association-role-label"
+              onEditingChange={editing => setEditingRole(editing ? 'target' : null)}
               onCommit={targetRole => edgeData.onUpdateLabel?.(id, { targetRole })} />
           </> : null}
         </> : null}
@@ -353,6 +413,19 @@ export function AssociationEdge({
         {supportsEndpoints
           ? renderMultiplicity('target', edgeData.targetMultiplicity, targetLabelPosition.x, targetLabelPosition.y)
           : null}
+        {selected ? (
+          <AssociationLineStyleToolbar
+            edgeId={id}
+            lineStyle={lineStyle}
+            style={{
+              ...edgeLabelStyle,
+              left: toolbarPosition.x + (horizontal ? 0 : 18),
+              top: toolbarPosition.y - 18,
+              transform: horizontal ? 'translate(-50%, -100%)' : 'translateY(-100%)',
+            }}
+            onUpdateAssociation={edgeData.onUpdateAssociation}
+          />
+        ) : null}
       </EdgeLabelRenderer>
     </>
   );

@@ -80,13 +80,43 @@ describe('association geometry', () => {
       targetY: 180,
       sourcePosition: Position.Right,
       targetPosition: Position.Left,
-      lineStyle: 'automatic',
+      lineStyle: 'orthogonal',
     });
 
     expect(resolution.style).toBe('orthogonal');
     expect(resolution.path).toContain('L');
     expect(Number.isFinite(resolution.labelX)).toBe(true);
     expect(Number.isFinite(resolution.labelY)).toBe(true);
+  });
+
+  it.each([
+    { sourceX: 100, sourceY: 100, targetX: 500, targetY: 112, sourcePosition: Position.Right, targetPosition: Position.Left, source: { x: 100, y: 106 }, target: { x: 500, y: 106 } },
+    { sourceX: 500, sourceY: 100, targetX: 100, targetY: 92, sourcePosition: Position.Left, targetPosition: Position.Right, source: { x: 500, y: 96 }, target: { x: 100, y: 96 } },
+    { sourceX: 100, sourceY: 100, targetX: 112, targetY: 500, sourcePosition: Position.Bottom, targetPosition: Position.Top, source: { x: 106, y: 100 }, target: { x: 106, y: 500 } },
+    { sourceX: 100, sourceY: 500, targetX: 92, targetY: 100, sourcePosition: Position.Top, targetPosition: Position.Bottom, source: { x: 96, y: 500 }, target: { x: 96, y: 100 } },
+  ])('draws a perfectly axis-aligned orthogonal line between $sourcePosition and $targetPosition', (input) => {
+    const resolution = buildAssociationPath({ ...input, lineStyle: 'orthogonal' });
+    const coordinates = resolution.path.match(/-?\d+(?:\.\d+)?/g)?.map(Number);
+
+    expect(resolution.style).toBe('straight');
+    expect(resolution.source).toEqual(input.source);
+    expect(resolution.target).toEqual(input.target);
+    expect(coordinates).toEqual([input.source.x, input.source.y, input.target.x, input.target.y]);
+    expect(resolution.source.x === resolution.target.x || resolution.source.y === resolution.target.y).toBe(true);
+  });
+
+  it('keeps elbows outside the alignment tolerance or with endpoints facing away', () => {
+    const input = { sourceX: 100, sourceY: 100, targetX: 500, targetY: 113, sourcePosition: Position.Right, targetPosition: Position.Left, lineStyle: 'orthogonal' as const };
+    expect(buildAssociationPath(input).style).toBe('orthogonal');
+    expect(buildAssociationPath({ ...input, targetY: 106, targetPosition: Position.Right })).toMatchObject({
+      style: 'orthogonal', source: { x: 100, y: 100 }, target: { x: 500, y: 106 },
+    });
+  });
+
+  it('preserves a deliberately straight diagonal without snapping its endpoints', () => {
+    expect(buildAssociationPath({ sourceX: 100, sourceY: 100, targetX: 500, targetY: 106, sourcePosition: Position.Right, targetPosition: Position.Left, lineStyle: 'straight' })).toMatchObject({
+      style: 'straight', source: { x: 100, y: 100 }, target: { x: 500, y: 106 },
+    });
   });
 
   it('places a relationship label above predominantly horizontal paths', () => {

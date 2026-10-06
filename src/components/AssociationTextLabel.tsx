@@ -10,9 +10,10 @@ type Props = {
   className?: string;
   onCommit: (value: string) => void;
   onMove?: (offset: XYPosition) => void;
+  onEditingChange?: (editing: boolean) => void;
 };
 
-export function AssociationTextLabel({ value, placeholder, x, y, offset, className = '', onCommit, onMove }: Props) {
+export function AssociationTextLabel({ value, placeholder, x, y, offset, className = '', onCommit, onMove, onEditingChange }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [dragOffset, setDragOffset] = useState<XYPosition | null>(null);
@@ -26,8 +27,8 @@ export function AssociationTextLabel({ value, placeholder, x, y, offset, classNa
     position: 'absolute', left: x + displayedOffset.x, top: y + displayedOffset.y,
     transform: 'translate(-50%, -50%)', pointerEvents: 'all',
   };
-  const startEditing = () => { cancelled.current = false; setDraft(value); setEditing(true); };
-  const finish = () => { if (!cancelled.current) onCommit(draft.trim()); setEditing(false); };
+  const startEditing = () => { cancelled.current = false; setDraft(value); setEditing(true); onEditingChange?.(true); };
+  const finish = () => { if (!cancelled.current) onCommit(draft.trim()); setEditing(false); onEditingChange?.(false); };
   return (
     <div className={`association-label nodrag nopan ${className}`} style={style} data-empty={!value}
       onMouseDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}
@@ -59,7 +60,7 @@ export function AssociationTextLabel({ value, placeholder, x, y, offset, classNa
         onKeyDown={event => {
           event.stopPropagation();
           if (event.key === 'Enter') { event.preventDefault(); finish(); }
-          if (event.key === 'Escape') { event.preventDefault(); cancelled.current = true; setEditing(false); }
+          if (event.key === 'Escape') { event.preventDefault(); cancelled.current = true; setEditing(false); onEditingChange?.(false); }
         }} /> : <span role="button" tabIndex={0} aria-label={`Editar ${placeholder.toLowerCase()}`}
         title={`Doble clic para editar${onMove ? ' · Alt + arrastrar para mover' : ''}`}
         onKeyDown={event => {

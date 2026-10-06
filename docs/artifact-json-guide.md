@@ -89,7 +89,7 @@ Cada relación tiene `id` único, `type: "association"`, `source` y `target` con
 | `navigability` | `"source-to-target"`, `"target-to-source"`, `"bidirectional"` o `"none"`. |
 | `diamondEnd` | `"source"` o `"target"`; extremo del rombo para agregación/composición. |
 | `triangleEnd` | `"source"` o `"target"`; extremo del triángulo (la superclase) en una generalización. Si falta, vale `"target"`. |
-| `lineStyle` | `"automatic"`, `"straight"` u `"orthogonal"`. |
+| `lineStyle` | `"straight"` (Recto) u `"orthogonal"` (Con codos, valor predeterminado). |
 | `sourceSide`, `targetSide` | `"automatic"`, `"top"`, `"right"`, `"bottom"` o `"left"`. |
 | `labelOffset` | Opcional: `{ "x": número, "y": número }`; desplazamiento de la etiqueta central respecto del recorrido. |
 
@@ -112,7 +112,7 @@ La navegabilidad configurable se dibuja para `relationType: "association"`. Para
 - Para un recorrido automático, usá ambos lados de `data` como `"automatic"` y omití los handles. El editor elige los lados y puertos según las posiciones.
 - Para conservar puertos concretos, escribí handles válidos y mantené `sourceSide` / `targetSide` en `"automatic"`. El editor conserva esos handles.
 - Para fijar el centro de un lado, escribí ese lado en `sourceSide` / `targetSide` y el handle central correspondiente. Un lado explícito normaliza el handle al centro: no lo combines esperando que conserve un sufijo `-start` / `-end`.
-- `lineStyle: "automatic"` usa líneas rectas cuando los extremos están alineados y ortogonales en otros casos. `"orthogonal"` permite rodear clases; el enrutado no garantiza que todas las relaciones queden libres de cruces.
+- `lineStyle: "orthogonal"` endereza los extremos casi alineados (hasta 12 px de diferencia) sobre una coordenada común y agrega codos en otros casos. Permite rodear clases; el enrutado no garantiza que todas las relaciones queden libres de cruces. `"straight"` une los extremos directamente. Los proyectos anteriores con `"automatic"`, sin estilo o con un valor inválido se normalizan a `"orthogonal"`.
 - Usá `waypoints: []` u omití ese campo. No bases la disposición en puntos intermedios manuales: el renderizado actual calcula el recorrido.
 - No escribas `markerStart`, `markerEnd`, SVG, `routingObstacles` ni estilos internos para forzar símbolos UML. Los símbolos se obtienen de `data`.
 
@@ -335,7 +335,7 @@ Este ejemplo incluye cinco clases, herencia, asociaciones navegables y composici
           "targetRole": "",
           "sourceSide": "automatic",
           "targetSide": "automatic",
-          "lineStyle": "automatic"
+          "lineStyle": "orthogonal"
         }
       },
       {
@@ -355,7 +355,7 @@ Este ejemplo incluye cinco clases, herencia, asociaciones navegables y composici
           "targetRole": "pedidos",
           "sourceSide": "automatic",
           "targetSide": "automatic",
-          "lineStyle": "automatic"
+          "lineStyle": "orthogonal"
         }
       },
       {
@@ -376,7 +376,7 @@ Este ejemplo incluye cinco clases, herencia, asociaciones navegables y composici
           "targetRole": "lineas",
           "sourceSide": "automatic",
           "targetSide": "automatic",
-          "lineStyle": "automatic"
+          "lineStyle": "orthogonal"
         }
       },
       {
@@ -396,7 +396,7 @@ Este ejemplo incluye cinco clases, herencia, asociaciones navegables y composici
           "targetRole": "producto",
           "sourceSide": "automatic",
           "targetSide": "automatic",
-          "lineStyle": "automatic"
+          "lineStyle": "orthogonal"
         }
       }
     ]
@@ -1068,7 +1068,7 @@ Este ejemplo independiente contiene las clases relevantes de la interacción. La
           "targetRole": "pedidos",
           "sourceSide": "automatic",
           "targetSide": "automatic",
-          "lineStyle": "automatic"
+          "lineStyle": "orthogonal"
         }
       }
     ]

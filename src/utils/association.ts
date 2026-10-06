@@ -19,23 +19,21 @@ export const DEFAULT_ASSOCIATION_DATA: AssociationEdgeData = {
   relationType: 'association',
   diamondEnd: 'source',
   triangleEnd: 'target',
-  lineStyle: 'automatic',
+  lineStyle: 'orthogonal',
   sourceSide: 'automatic',
   targetSide: 'automatic',
   waypoints: [],
 };
 
-export type ResolvedAssociationLineStyle = Exclude<AssociationLineStyle, 'automatic'>;
+export type ResolvedAssociationLineStyle = AssociationLineStyle;
 
 export const resolveAssociationLineStyle = (
   lineStyle: AssociationLineStyle | undefined,
   deltaX: number,
   deltaY: number,
 ): ResolvedAssociationLineStyle => {
-  const normalizedStyle: AssociationLineStyle = lineStyle ?? DEFAULT_ASSOCIATION_DATA.lineStyle ?? 'automatic';
-
-  if (normalizedStyle !== 'automatic') {
-    return normalizedStyle;
+  if (lineStyle === 'straight') {
+    return 'straight';
   }
 
   const alignmentTolerance = 12;
@@ -63,10 +61,12 @@ const relationTypes: readonly AssociationRelationType[] = [
   'realization',
 ];
 const diamondEnds: readonly AssociationDiamondEnd[] = ['source', 'target'];
-const lineStyles: readonly AssociationLineStyle[] = ['automatic', 'straight', 'orthogonal'];
+const lineStyles: readonly AssociationLineStyle[] = ['straight', 'orthogonal'];
 const connectionSides: readonly AssociationConnectionSide[] = ['automatic', 'top', 'right', 'bottom', 'left'];
 
-export const normalizeAssociationData = (data: Partial<AssociationEdgeData> | undefined): AssociationEdgeData => ({
+type AssociationDataInput = Partial<Omit<AssociationEdgeData, 'lineStyle'>> & { lineStyle?: unknown };
+
+export const normalizeAssociationData = (data: AssociationDataInput | undefined): AssociationEdgeData => ({
   name: normalizeString(data?.name),
   ...(Number.isFinite(data?.labelOffset?.x) && Number.isFinite(data?.labelOffset?.y)
     ? { labelOffset: { x: data!.labelOffset!.x, y: data!.labelOffset!.y } } : {}),
