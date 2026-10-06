@@ -108,6 +108,195 @@
 
 /* ─── Toolbar ───────────────────────────────────────────────────────────── */
 
+.app-shell[data-ui-version='refined'] .artifact-editor-column {
+  display: grid;
+  grid-template-rows: 36px minmax(0, 1fr);
+  min-height: 0;
+  min-width: 0;
+}
+
+.app-shell[data-ui-version='refined'] .artifact-editor-panel {
+  display: grid;
+  min-height: 0;
+  min-width: 0;
+}
+
+.app-shell[data-ui-version='refined'] .artifact-tabs {
+  align-items: stretch;
+  background: var(--ui-sidebar-background);
+  border-bottom: 1px solid var(--panel-border);
+  display: flex;
+  gap: var(--space-2);
+  height: 36px;
+  min-width: 0;
+  padding: 0 var(--space-2);
+  position: relative;
+  z-index: 30;
+}
+
+.app-shell[data-ui-version='refined'] .artifact-tabs-project {
+  align-self: center;
+  color: var(--panel-muted-text);
+  flex: 0 0 auto;
+  font-size: var(--text-sm);
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell[data-ui-version='refined'] .artifact-tabs-divider {
+  align-self: center;
+  background: var(--panel-border);
+  flex: 0 0 1px;
+  height: 16px;
+}
+
+.app-shell[data-ui-version='refined'] .artifact-tabs-list {
+  align-items: flex-end;
+  display: flex;
+  flex: 1 1 auto;
+  margin-bottom: -1px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  padding-bottom: 1px;
+  position: relative;
+  scrollbar-width: none;
+}
+
+.app-shell[data-ui-version='refined'] .artifact-tabs-list::-webkit-scrollbar { display: none; }
+.app-shell[data-ui-version='refined'] .artifact-tabs-list[data-hidden-left='true'][data-hidden-right='false'] {
+  mask-image: linear-gradient(to right, transparent, black 24px);
+}
+.app-shell[data-ui-version='refined'] .artifact-tabs-list[data-hidden-left='false'][data-hidden-right='true'] {
+  mask-image: linear-gradient(to left, transparent, black 24px);
+}
+.app-shell[data-ui-version='refined'] .artifact-tabs-list[data-hidden-left='true'][data-hidden-right='true'] {
+  mask-image: linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent);
+}
+
+.app-shell[data-ui-version='refined'] .artifact-tab {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  color: var(--panel-secondary-text);
+  cursor: default;
+  display: flex;
+  flex: 0 1 200px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  gap: 6px;
+  height: 28px;
+  min-width: 112px;
+  padding: 0 4px 0 10px;
+  position: relative;
+  touch-action: pan-y;
+  transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+  user-select: none;
+}
+
+.app-shell[data-ui-version='refined'] .artifact-tab::after {
+  background: var(--panel-border);
+  content: '';
+  height: 14px;
+  position: absolute;
+  right: -1px;
+  top: 7px;
+  width: 1px;
+}
+
+.app-shell[data-ui-version='refined'] .artifact-tab:last-child::after,
+.app-shell[data-ui-version='refined'] .artifact-tab:is(.is-active, :hover, :focus-within)::after,
+.app-shell[data-ui-version='refined'] .artifact-tab:has(+ .artifact-tab:is(.is-active, :hover, :focus-within))::after { opacity: 0; }
+
+.app-shell[data-ui-version='refined'] .artifact-tab:hover { background: var(--ui-hover-background); }
+.app-shell[data-ui-version='refined'] .artifact-tab.is-active {
+  background: var(--toolbar-background);
+  border-color: var(--panel-border);
+  color: var(--panel-text);
+  font-weight: 600;
+  margin-bottom: -1px;
+  z-index: 1;
+}
+
+.app-shell[data-ui-version='refined'] .artifact-tab-icon {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 14px;
+}
+.app-shell[data-ui-version='refined'] .artifact-tab.is-active .artifact-tab-icon { color: var(--accent); }
+.app-shell[data-ui-version='refined'] .artifact-tab-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell[data-ui-version='refined'] .artifact-tab-close {
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-xs);
+  color: inherit;
+  flex: 0 0 18px;
+  gap: 0;
+  height: 18px;
+  justify-content: center;
+  min-height: 0;
+  min-width: 0;
+  opacity: 0;
+  padding: 0;
+  transition: background-color var(--duration-fast) var(--ease-out), opacity var(--duration-fast) var(--ease-out);
+  width: 18px;
+}
+.app-shell[data-ui-version='refined'] .artifact-tab:is(.is-active, :hover, :focus-within) .artifact-tab-close { opacity: 1; }
+.app-shell[data-ui-version='refined'] .artifact-tab-close:hover { background: color-mix(in srgb, var(--ui-hover-background) 65%, var(--panel-border)); }
+.app-shell[data-ui-version='refined'] .artifact-tab.is-dragging {
+  background: var(--toolbar-background);
+  cursor: grabbing;
+  z-index: 3;
+}
+
+.app-shell[data-ui-version='refined'] .artifact-tabs-all {
+  align-self: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-xs);
+  color: var(--panel-secondary-text);
+  flex: 0 0 var(--control-sm);
+  height: var(--control-sm);
+  justify-content: center;
+  min-height: 0;
+  min-width: 0;
+  padding: 0;
+  transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+}
+.app-shell[data-ui-version='refined'] .artifact-tabs-all:hover { background: var(--ui-hover-background); color: var(--panel-text); }
+.app-shell[data-ui-version='refined'] .artifact-tab:focus-visible,
+.app-shell[data-ui-version='refined'] .artifact-tab-close:focus-visible,
+.app-shell[data-ui-version='refined'] .artifact-tabs-all:focus-visible { box-shadow: var(--focus-ring); outline: none; }
+
+.app-shell[data-ui-version='refined'] .artifact-tabs-menu {
+  max-height: calc(100dvh - var(--space-4));
+  max-width: min(360px, calc(100vw - var(--space-4)));
+  overflow-y: auto;
+  position: fixed;
+  z-index: 80;
+}
+.app-shell[data-ui-version='refined'] .artifact-tabs-menu button > svg { flex: 0 0 auto; color: var(--panel-muted-text); }
+.app-shell[data-ui-version='refined'] .artifact-tabs-menu button[aria-checked='true'] { color: var(--accent); background: var(--accent-soft); }
+.app-shell[data-ui-version='refined'] .artifact-tabs-menu button[aria-checked='true'] > svg { color: var(--accent); }
+.app-shell[data-ui-version='refined'] .artifact-tabs-menu button:disabled { color: var(--panel-placeholder-text); cursor: default; }
+.app-shell[data-ui-version='refined'] .artifact-tabs-menu button:focus-visible { box-shadow: var(--focus-ring); }
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell[data-ui-version='refined'] :is(.artifact-tab, .artifact-tab-close, .artifact-tabs-all) { transition-timing-function: linear; }
+}
+
 .app-shell .v2-toolbar {
   background: var(--toolbar-background);
   border-bottom: 1px solid var(--panel-border);
@@ -160,8 +349,7 @@
 
 /* Layout contract 1: the toolbar never overflows. The row is a size
    container; as it narrows, labels fold into their icons — first the
-   secondary tools and the end zone, then the primary action — and the
-   breadcrumb keeps only the artifact name. Every tool keeps its name in
+   secondary tools and the end zone, then the primary action. Every tool keeps its name in
    aria-label and title, so folding costs nothing to VoiceOver. */
 .app-shell .v2-toolbar-row {
   container: v2-toolbar / inline-size;
@@ -176,10 +364,6 @@
     padding-inline: 7px;
   }
 
-  .app-shell[data-ui-version='refined'] .v2-toolbar .editor-breadcrumb-project,
-  .app-shell[data-ui-version='refined'] .v2-toolbar .editor-breadcrumb > svg:first-of-type {
-    display: none;
-  }
 }
 
 @container v2-toolbar (max-width: 720px) {
@@ -192,47 +376,6 @@
   }
 }
 
-/* Breadcrumb: where am I. */
-.app-shell[data-ui-version='refined'] .v2-toolbar .editor-identity {
-  min-width: 0;
-}
-
-.app-shell[data-ui-version='refined'] .v2-toolbar .editor-breadcrumb {
-  align-items: center;
-  display: flex;
-  gap: 6px;
-  min-width: 0;
-}
-
-.app-shell[data-ui-version='refined'] .v2-toolbar .editor-breadcrumb-project {
-  color: var(--panel-muted-text);
-  font-size: var(--text-md);
-  max-width: 22ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.app-shell[data-ui-version='refined'] .v2-toolbar .editor-breadcrumb > svg {
-  color: var(--panel-placeholder-text);
-  flex: 0 0 auto;
-}
-
-.app-shell[data-ui-version='refined'] .v2-toolbar .editor-breadcrumb-type {
-  color: var(--accent);
-  display: inline-flex;
-}
-
-.app-shell[data-ui-version='refined'] .v2-toolbar .editor-breadcrumb h1 {
-  color: var(--panel-text);
-  font-size: var(--text-md);
-  font-weight: 600;
-  letter-spacing: -0.005em;
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 /* Save state + history. */
 .app-shell .v2-history {
@@ -884,28 +1027,4 @@
 .app-shell .v2-inspector-body .v2-segmented {
   display: flex;
   margin-bottom: var(--space-3);
-}
-
-/* When the toolbar is tight, the project name gives way first: the artifact
-   name keeps at least ~16 characters (the full text stays in the title). */
-.app-shell[data-ui-version='refined'] .v2-toolbar .editor-breadcrumb-project {
-  flex: 0 100 auto;
-  min-width: 0;
-}
-.app-shell[data-ui-version='refined'] .v2-toolbar .editor-breadcrumb h1 {
-  flex: 0 1 auto;
-  min-width: min(max-content, 16ch);
-}
-.app-shell[data-ui-version='refined'] .v2-toolbar .editor-identity {
-  flex-shrink: 1;
-  min-width: min(max-content, 22ch);
-}
-
-/* The sequence toolbar carries more controls: below 1240px of header the
-   project name (also in the sidebar and the title) leaves the breadcrumb. */
-@container v2-toolbar (max-width: 1240px) {
-  .app-shell[data-ui-version='refined'] .sequence-editor-shell .v2-toolbar .editor-breadcrumb-project,
-  .app-shell[data-ui-version='refined'] .sequence-editor-shell .v2-toolbar .editor-breadcrumb > svg:first-of-type {
-    display: none;
-  }
 }

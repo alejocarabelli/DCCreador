@@ -294,65 +294,6 @@
   padding: 6px 10px 6px 14px;
 }
 
-.app-shell[data-ui-version='refined'] .editor-identity {
-  flex-basis: 200px;
-  gap: 1px;
-}
-
-
-.app-shell[data-ui-version='refined'] .editor-breadcrumb {
-  color: var(--panel-muted-text);
-  font-size: 0.8rem;
-  gap: 2px;
-}
-
-.app-shell[data-ui-version='refined'] .editor-breadcrumb h1 {
-  color: var(--panel-text);
-  font-size: inherit;
-  font-weight: 700;
-  line-height: 1.2;
-  margin: 0;
-}
-
-/* Single-line identity. The project name gives way first; the artifact name,
-   which is what the person is editing, keeps its width the longest. */
-.app-shell[data-ui-version='refined'] .editor-identity {
-  align-items: center;
-  display: flex;
-}
-
-.app-shell[data-ui-version='refined'] .editor-breadcrumb {
-  font-size: 0.82rem;
-  gap: 4px;
-  min-width: 0;
-}
-
-.app-shell[data-ui-version='refined'] .editor-breadcrumb > svg {
-  color: var(--panel-placeholder-text);
-  flex: 0 0 auto;
-}
-
-.app-shell[data-ui-version='refined'] .editor-breadcrumb-project {
-  flex: 0 3 auto;
-  max-width: 180px;
-  min-width: 3.5em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.app-shell[data-ui-version='refined'] .editor-breadcrumb-type {
-  color: var(--button-active-background);
-  display: inline-flex;
-  flex: 0 0 auto;
-  margin-left: 2px;
-}
-
-.app-shell[data-ui-version='refined'] .editor-breadcrumb h1 {
-  flex: 0 1 auto;
-  min-width: 4em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 
 .visually-hidden {
   border: 0;
@@ -1174,16 +1115,10 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .app-shell[data-ui-version='refined']:not(.project-home-mode) > .diagram-editor,
-  .app-shell[data-ui-version='refined']:not(.project-home-mode) > .sequence-editor-shell {
+  .app-shell[data-ui-version='refined']:not(.project-home-mode) > .artifact-editor-column {
     grid-column: 2;
     min-width: 0;
   }
-
-  .app-shell[data-ui-version='refined'] .editor-identity {
-    flex-basis: 140px;
-  }
-
 }
 
 @media (max-width: 900px) {
@@ -1230,15 +1165,7 @@
 }
 
 @media (max-width: 700px) {
-  .app-shell[data-ui-version='refined'] .editor-identity,
-  .app-shell[data-ui-version='refined'] .sequence-editor-shell .editor-identity {
-    clip-path: inset(50%);
-    height: 1px;
-    overflow: hidden;
-    position: absolute;
-    white-space: nowrap;
-    width: 1px;
-  }
+
 
   .app-shell[data-ui-version='refined'] .editor-toolbar-actions {
     flex: 1 1 auto;
@@ -3434,9 +3361,6 @@
 }
 
 
-
-
-
 /* ---- Inspector robustness (panel Propiedades): nunca recorta en horizontal ---- */
 /* Los tracks de grid usan minmax(0, 1fr) para que el min-content no los estire. */
 .sequence-inspector-content,
@@ -3548,11 +3472,6 @@
   row-gap: 4px;
 }
 
-.app-shell[data-ui-version='refined'] .sequence-editor-shell .editor-identity {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-}
 
 /* Collapsible control labels. Every button carrying one also carries an
    aria-label and a title, so hiding the text costs no name and no affordance. */
@@ -3804,11 +3723,6 @@
     padding-inline: 6px;
   }
 
-  /* The breadcrumb takes whatever the controls leave and truncates before they
-     wrap; it carries a title. */
-  .app-shell[data-ui-version='refined'] .sequence-editor-shell .editor-identity {
-    flex: 1 1 160px;
-  }
 
   .app-shell[data-ui-version='refined'] .sequence-editor-shell .editor-toolbar-actions {
     flex: 0 1 auto;
@@ -3855,10 +3769,6 @@
     padding-inline: 8px;
   }
 
-  .app-shell[data-ui-version='refined'] .sequence-editor-shell .editor-identity {
-    flex: 0 1 118px;
-    min-width: 96px;
-  }
 
   .app-shell[data-ui-version='refined'] .sequence-toolbar-actions-refined {
     flex: 1 1 auto;
@@ -3896,14 +3806,7 @@
 }
 
 @media (max-width: 980px) {
-  .app-shell[data-ui-version='refined'] .sequence-editor-shell .editor-identity {
-    clip-path: inset(50%);
-    height: 1px;
-    overflow: hidden;
-    position: absolute;
-    white-space: nowrap;
-    width: 1px;
-  }
+
 
   .app-shell[data-ui-version='refined'] .sequence-toolbar-actions-refined {
     width: 100%;

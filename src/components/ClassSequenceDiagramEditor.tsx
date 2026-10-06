@@ -173,8 +173,6 @@ export function ClassSequenceDiagramEditor({
   return (
     <DiagramEditor
       artifact={displayArtifact}
-      artifactKind="Clases de secuencias"
-      artifactType="class-sequence-diagram"
       canRedo={canRedo}
       canUndo={canUndo}
       saveStatus={saveStatus}

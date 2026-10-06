@@ -164,7 +164,8 @@ import {
   participantLabelIsValid,
   resolveSequenceParticipantInsertionX,
 } from '../utils/sequenceParticipantEditing';
-import { EditorIdentity } from './EditorIdentity';
+import { useArtifactScrollMemory } from '../hooks/useArtifactViewMemory';
+import { artifactViewKey, readArtifactScrollView } from '../utils/artifactViewMemory';
 import { ToolbarHistory } from './ToolbarHistory';
 import { SequenceDiagramCanvas } from './SequenceDiagramCanvas';
 import { SequenceExportDialog } from './SequenceExportDialog';
@@ -393,8 +394,10 @@ export function SequenceDiagramEditor({
   const [inspectorWidth, setInspectorWidth] = useState(320);
   const [searchQuery, setSearchQuery] = useState('');
   const [collapsedFragments, setCollapsedFragments] = useState<Set<string>>(() => new Set());
-  const [zoom, setZoom] = useState(1);
-  const [scrollPosition, setScrollPosition] = useState({ left: 0, top: 0 });
+  const viewKey = artifactViewKey(project.id, artifact.id);
+  const [initialView] = useState(() => readArtifactScrollView(viewKey));
+  const [zoom, setZoom] = useState(initialView?.zoom ?? 1);
+  const [scrollPosition, setScrollPosition] = useState({ left: initialView?.scrollLeft ?? 0, top: initialView?.scrollTop ?? 0 });
   const [feedback, setFeedback] = useState<string | null>(null);
   const [activeFragmentResize, setActiveFragmentResize] = useState<{
     id: string;
@@ -444,7 +447,10 @@ export function SequenceDiagramEditor({
   const [highlightedSelection, setHighlightedSelection] = useState<SequenceSelection>(null);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [exportOptions, setExportOptions] = useState<SequenceExportOptions>(defaultSequenceExportOptions);
-  const [viewportCanvasSize, setViewportCanvasSize] = useState({ width: content.canvas.width, height: content.canvas.height });
+  const [viewportCanvasSize, setViewportCanvasSize] = useState({
+    width: Math.max(content.canvas.width, initialView?.canvasSize?.width ?? 0),
+    height: Math.max(content.canvas.height, initialView?.canvasSize?.height ?? 0),
+  });
   const [keyboardMode, dispatchKeyboardMode] = useReducer(
     sequenceKeyboardModeReducer,
     undefined,
@@ -453,6 +459,7 @@ export function SequenceDiagramEditor({
   const svgRef = useRef<SVGSVGElement | null>(null);
   const exportSvgRef = useRef<SVGSVGElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  useArtifactScrollMemory(viewKey, scrollRef, initialView, zoom, viewportCanvasSize);
   const editorRootRef = useRef<HTMLElement | null>(null);
   const toolbarRef = useRef<HTMLElement | null>(null);
   const canvasExpansionRef = useRef(0);
@@ -4671,7 +4678,6 @@ export function SequenceDiagramEditor({
         toolbarRef={toolbarRef}
         start={(
           <>
-            <EditorIdentity artifactKind="Diagrama de secuencia" artifactType={'sequence-diagram'} artifactName={artifact.name} projectName={project.name} />
             <ToolbarHistory canRedo={canRedo} canUndo={canUndo} saveStatus={saveStatus} onRedo={onRedo} onUndo={onUndo} />
             {associatedClassDiagram ? <ToolMenu icon={GitBranch} label={missingCount > 0 ? `${missingCount} ${missingCount === 1 ? 'falta' : 'faltan'}` : '✓ Al día'} title={missingCount > 0 ? `${missingCount} ${missingCount === 1 ? 'elemento falta' : 'elementos faltan'} en «${associatedClassDiagram.name}»` : `Al día con «${associatedClassDiagram.name}»`} align="start" className={`sequence-model-status ${missingCount > 0 ? 'has-novelties' : ''}`}>
               {missingCount > 0 ? <MenuItem disabled={!onImportSequenceIntoClassModel} onSelect={importIntoModel}>Agregar todo a «{associatedClassDiagram.name}»</MenuItem> : null}

@@ -7,6 +7,10 @@ import { ArtifactMoveDialog } from './components/ArtifactMoveDialog';
 import { ProjectHome } from './components/ProjectHome';
 import { ProjectSidebar } from './components/ProjectSidebar';
 import { ShortcutsDialog } from './components/ShortcutsDialog';
+import { ArtifactTabs } from './components/ArtifactTabs';
+import { useArtifactTabs } from './hooks/useArtifactTabs';
+import { artifactTabShortcut, closeArtifactTabs, closeOtherArtifactTabs, closeArtifactTabsToRight, type ArtifactTabState } from './utils/artifactTabs';
+import { artifactViewKey, forgetArtifactView } from './utils/artifactViewMemory';
 import { downloadProjectFile } from './utils/projectFile';
 import { downloadArtifactFile, downloadTextFile } from './utils/artifactFile';
 import { relinkArtifactForProject } from './utils/artifactTransfer';
@@ -100,6 +104,10 @@ const cloneContentForType = (artifactType: DesignArtifact['type'], content: Arti
 const areArtifactContentsEqual = (left: ArtifactContent, right: ArtifactContent): boolean =>
   JSON.stringify(left) === JSON.stringify(right);
 
+const blurFocusedElement = (): void => {
+  if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+};
+
 function EditorLoadingState() {
   return (
     <main className="editor-shell editor-loading" aria-live="polite">
@@ -158,12 +166,31 @@ function App() {
     storageWarning,
     updateProjectArtifactContent,
   } = useProjects();
+  const { tabsByProject, setOpenArtifactIds } = useArtifactTabs(projects, activeProjectId);
+
+  const getProjectTabState = (projectId: string): ArtifactTabState => ({
+    openArtifactIds: tabsByProject[projectId] ?? [],
+    activeArtifactId: projects.find((project) => project.id === projectId)?.activeArtifactId ?? null,
+  });
+
+  const applyTabState = (projectId: string, next: ArtifactTabState, openHomeIfEmpty = true): void => {
+    if (projectId === activeProjectId && next.activeArtifactId !== getProjectTabState(projectId).activeArtifactId) blurFocusedElement();
+    historyBurstRef.current = null;
+    setOpenArtifactIds(projectId, next.openArtifactIds);
+    if (next.activeArtifactId !== null) setActiveArtifactId(projectId, next.activeArtifactId);
+    else if (openHomeIfEmpty && projectId === activeProjectId) setActiveProjectId(null);
+  };
+
+  const handleCloseArtifactTab = (projectId: string, artifactId: string): void => {
+    applyTabState(projectId, closeArtifactTabs(getProjectTabState(projectId), [artifactId]));
+  };
 
   const handleCreateProject = (): void => {
     setProjectDialog({ mode: 'create', initialName: 'Nuevo proyecto' });
   };
 
   const handleOpenHome = (): void => {
+    blurFocusedElement();
     setActiveProjectId(null);
   };
 
@@ -193,6 +220,7 @@ function App() {
       } else {
         createClassDiagramArtifact(projectDialog.projectId, name);
       }
+      setActiveProjectId(projectDialog.projectId);
     }
 
     if (projectDialog?.mode === 'renameArtifact') {
@@ -211,6 +239,7 @@ function App() {
 
     if (shouldDelete) {
       deleteProject(projectId);
+      for (const artifact of project?.artifacts ?? []) forgetArtifactView(artifactViewKey(projectId, artifact.id));
       updateHistory((currentHistory) =>
         Object.fromEntries(Object.entries(currentHistory).filter(([key]) => !key.startsWith(`${projectId}:`))),
       );
@@ -267,6 +296,8 @@ function App() {
 
     if (shouldDelete) {
       deleteArtifact(projectId, artifactId);
+      handleCloseArtifactTab(projectId, artifactId);
+      forgetArtifactView(artifactViewKey(projectId, artifactId));
       updateHistory((currentHistory) => {
         const nextHistory = { ...currentHistory };
         delete nextHistory[`${projectId}:${artifactId}`];
@@ -296,10 +327,11 @@ function App() {
       return nextHistory;
     });
     historyBurstRef.current = null;
-    setActiveProjectId(projectId);
+    handleSelectArtifact(projectId, artifactId);
   };
 
   const handleSelectArtifact = (projectId: string, artifactId: string): void => {
+    if (projectId !== activeProjectId || artifactId !== activeProject?.activeArtifactId) blurFocusedElement();
     historyBurstRef.current = null;
     setActiveProjectId(projectId);
     setActiveArtifactId(projectId, artifactId);
@@ -310,6 +342,7 @@ function App() {
     [activeProject],
   );
   const isProjectHome = activeProject === null || activeArtifact === null;
+  const openArtifactIds = useMemo(() => activeProject === null ? [] : tabsByProject[activeProject.id] ?? [], [activeProject, tabsByProject]);
   const activeHistoryKey = activeProject !== null && activeArtifact !== null
     ? `${activeProject.id}:${activeArtifact.id}`
     : null;
@@ -527,6 +560,30 @@ function App() {
     writeUiPreference(PROJECT_SIDEBAR_COLLAPSED_KEY, String(isProjectSidebarCollapsed));
   }, [isProjectSidebarCollapsed]);
 
+  useEffect(() => {
+    if (activeProject === null || activeArtifact === null) return;
+    const handleTabShortcut = (event: KeyboardEvent): void => {
+      if (document.querySelector('.modal-backdrop, [aria-modal="true"], dialog[open]') !== null) return;
+      const action = artifactTabShortcut(event, {
+        openArtifactIds,
+        activeArtifactId: activeArtifact.id,
+      }, /Mac|iPhone|iPad/.test(navigator.platform));
+      if (action === null) return;
+      event.preventDefault();
+      event.stopPropagation();
+      blurFocusedElement();
+      historyBurstRef.current = null;
+      if (action.type === 'close') {
+        const next = closeArtifactTabs({ openArtifactIds, activeArtifactId: activeArtifact.id }, [action.artifactId]);
+        setOpenArtifactIds(activeProject.id, next.openArtifactIds);
+        if (next.activeArtifactId !== null) setActiveArtifactId(activeProject.id, next.activeArtifactId);
+        else setActiveProjectId(null);
+      } else setActiveArtifactId(activeProject.id, action.artifactId);
+    };
+    document.addEventListener('keydown', handleTabShortcut, true);
+    return () => document.removeEventListener('keydown', handleTabShortcut, true);
+  }, [activeArtifact, activeProject, openArtifactIds, setActiveArtifactId, setActiveProjectId, setOpenArtifactIds]);
+
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
   // `?` opens the shortcuts panel and ⌘\ toggles the sidebar, unless the user is typing.
@@ -570,6 +627,7 @@ function App() {
     if (!transferProject || !transferArtifact) return;
     const result = moveArtifact(transferProject.id, targetProjectId, transferArtifact.id, includeLinked);
     if (result.idMap.size === 0) return;
+    applyTabState(transferProject.id, closeArtifactTabs(getProjectTabState(transferProject.id), [...result.idMap.keys()]), false);
     updateHistory((currentHistory) => {
       const nextHistory = { ...currentHistory };
       // Carry undo/redo with the artifact, and keep old snapshots from restoring links across projects.
@@ -647,87 +705,103 @@ function App() {
           onOpenProject={setActiveProjectId}
         />
       ) : (
-        <Suspense fallback={<EditorLoadingState />}>
-          {activeArtifact.type === 'class-diagram' ? (
-          <DiagramEditor
-            key={`${activeProject.id}:${activeArtifact.id}`}
-            artifact={activeArtifact}
-            canRedo={canRedo}
-            canUndo={canUndo}
-            saveStatus={saveStatus}
-            project={activeProject}
-            theme={theme}
-            onChangeContent={handleChangeProjectContent}
-            onRedo={handleRedo}
-            onUndo={handleUndo}
+        <div className="artifact-editor-column">
+          <ArtifactTabs
+            key={activeProject.id}
+            projectName={activeProject.name}
+            artifacts={activeProject.artifacts}
+            openArtifactIds={openArtifactIds}
+            activeArtifactId={activeArtifact.id}
+            onSelect={(artifactId) => handleSelectArtifact(activeProject.id, artifactId)}
+            onClose={(artifactId) => handleCloseArtifactTab(activeProject.id, artifactId)}
+            onCloseOthers={(artifactId) => applyTabState(activeProject.id, closeOtherArtifactTabs(getProjectTabState(activeProject.id), artifactId))}
+            onCloseRight={(artifactId) => applyTabState(activeProject.id, closeArtifactTabsToRight(getProjectTabState(activeProject.id), artifactId))}
+            onReorder={(ids) => setOpenArtifactIds(activeProject.id, ids)}
           />
-        ) : activeArtifact.type === 'class-sequence-diagram' ? (
-          <ClassSequenceDiagramEditor
-            key={`${activeProject.id}:${activeArtifact.id}`}
-            artifact={activeArtifact}
-            canRedo={canRedo}
-            canUndo={canUndo}
-            saveStatus={saveStatus}
-            project={activeProject}
-            theme={theme}
-            onNavigateToArtifact={(targetArtifactId) => setActiveArtifactId(activeProject.id, targetArtifactId)}
-            onLinkAllSequenceDiagrams={(classModelArtifactId) =>
-              linkSequenceDiagramsToClassModel(activeProject.id, classModelArtifactId)
-            }
-            onChangeContent={handleChangeProjectContent}
-            onRedo={handleRedo}
-            onUndo={handleUndo}
-          />
-        ) : activeArtifact.type === 'use-case-model' ? (
-          <UseCaseModelEditor
-            key={`${activeProject.id}:${activeArtifact.id}`}
-            artifact={activeArtifact}
-            canRedo={canRedo}
-            canUndo={canUndo}
-            saveStatus={saveStatus}
-            project={activeProject}
-            theme={theme}
-            onChangeContent={handleChangeProjectContent}
-            onRedo={handleRedo}
-            onUndo={handleUndo}
-          />
-        ) : activeArtifact.type === 'use-case-flow' ? (
-          <UseCaseFlowEditor
-            key={`${activeProject.id}:${activeArtifact.id}`}
-            artifact={activeArtifact}
-            canRedo={canRedo}
-            canUndo={canUndo}
-            saveStatus={saveStatus}
-            project={activeProject}
-            theme={theme}
-            onChangeContent={handleChangeProjectContent}
-            onRedo={handleRedo}
-            onUndo={handleUndo}
-          />
-        ) : (
-          <SequenceDiagramEditor
-            key={`${activeProject.id}:${activeArtifact.id}`}
-            artifact={activeArtifact}
-            canRedo={canRedo}
-            canUndo={canUndo}
-            saveStatus={saveStatus}
-            project={activeProject}
-            theme={theme}
-            onNavigateToArtifact={(targetArtifactId) =>
-              setActiveArtifactId(activeProject.id, targetArtifactId)
-            }
-            onCreateClassMethod={handleCreateClassMethodFromSequence}
-            onImportSequenceIntoClassModel={handleImportSequenceIntoClassModel}
-            onCreateSequenceDiagramArtifact={(name, initialContent) =>
-              createSequenceDiagramArtifact(activeProject.id, name, initialContent)
-            }
-            onCreateSequenceModel={() => createClassSequenceDiagramArtifact(activeProject.id, 'Clases de secuencias')}
-            onChangeContent={handleChangeProjectContent}
-            onRedo={handleRedo}
-            onUndo={handleUndo}
-          />
-          )}
-        </Suspense>
+          <div id="artifact-editor-panel" className="artifact-editor-panel" role="tabpanel" aria-labelledby={`artifact-tab-${activeArtifact.id}`}>
+            <Suspense fallback={<EditorLoadingState />}>
+              {activeArtifact.type === 'class-diagram' ? (
+                <DiagramEditor
+                  key={`${activeProject.id}:${activeArtifact.id}`}
+                  artifact={activeArtifact}
+                  canRedo={canRedo}
+                  canUndo={canUndo}
+                  saveStatus={saveStatus}
+                  project={activeProject}
+                  theme={theme}
+                  onChangeContent={handleChangeProjectContent}
+                  onRedo={handleRedo}
+                  onUndo={handleUndo}
+                />
+              ) : activeArtifact.type === 'class-sequence-diagram' ? (
+                <ClassSequenceDiagramEditor
+                  key={`${activeProject.id}:${activeArtifact.id}`}
+                  artifact={activeArtifact}
+                  canRedo={canRedo}
+                  canUndo={canUndo}
+                  saveStatus={saveStatus}
+                  project={activeProject}
+                  theme={theme}
+                  onNavigateToArtifact={(targetArtifactId) => handleSelectArtifact(activeProject.id, targetArtifactId)}
+                  onLinkAllSequenceDiagrams={(classModelArtifactId) =>
+                    linkSequenceDiagramsToClassModel(activeProject.id, classModelArtifactId)
+                  }
+                  onChangeContent={handleChangeProjectContent}
+                  onRedo={handleRedo}
+                  onUndo={handleUndo}
+                />
+              ) : activeArtifact.type === 'use-case-model' ? (
+                <UseCaseModelEditor
+                  key={`${activeProject.id}:${activeArtifact.id}`}
+                  artifact={activeArtifact}
+                  canRedo={canRedo}
+                  canUndo={canUndo}
+                  saveStatus={saveStatus}
+                  project={activeProject}
+                  theme={theme}
+                  onChangeContent={handleChangeProjectContent}
+                  onRedo={handleRedo}
+                  onUndo={handleUndo}
+                />
+              ) : activeArtifact.type === 'use-case-flow' ? (
+                <UseCaseFlowEditor
+                  key={`${activeProject.id}:${activeArtifact.id}`}
+                  artifact={activeArtifact}
+                  canRedo={canRedo}
+                  canUndo={canUndo}
+                  saveStatus={saveStatus}
+                  project={activeProject}
+                  theme={theme}
+                  onChangeContent={handleChangeProjectContent}
+                  onRedo={handleRedo}
+                  onUndo={handleUndo}
+                />
+              ) : (
+                <SequenceDiagramEditor
+                  key={`${activeProject.id}:${activeArtifact.id}`}
+                  artifact={activeArtifact}
+                  canRedo={canRedo}
+                  canUndo={canUndo}
+                  saveStatus={saveStatus}
+                  project={activeProject}
+                  theme={theme}
+                  onNavigateToArtifact={(targetArtifactId) =>
+                    handleSelectArtifact(activeProject.id, targetArtifactId)
+                  }
+                  onCreateClassMethod={handleCreateClassMethodFromSequence}
+                  onImportSequenceIntoClassModel={handleImportSequenceIntoClassModel}
+                  onCreateSequenceDiagramArtifact={(name, initialContent) =>
+                    createSequenceDiagramArtifact(activeProject.id, name, initialContent)
+                  }
+                  onCreateSequenceModel={() => createClassSequenceDiagramArtifact(activeProject.id, 'Clases de secuencias')}
+                  onChangeContent={handleChangeProjectContent}
+                  onRedo={handleRedo}
+                  onUndo={handleUndo}
+                />
+              )}
+            </Suspense>
+          </div>
+        </div>
       )}
       {projectDialog !== null ? (
         <ProjectNameDialog

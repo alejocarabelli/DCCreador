@@ -48,7 +48,7 @@ import { InspectorDeleteButton, InspectorPanel } from './ui/Panel';
 import { CanvasStartCard } from './CanvasStartCard';
 import { SystemBoundaryNode, UseCaseActorNode, UseCaseOvalNode } from './useCaseNodes';
 import { UseCaseRelationEdge } from './UseCaseRelationEdge';
-import { EditorIdentity } from './EditorIdentity';
+import { useArtifactViewport } from '../hooks/useArtifactViewMemory';
 import { ToolbarHistory } from './ToolbarHistory';
 import type { DiagramSaveStatus } from '../hooks/useProjects';
 import { findFreeClassPosition } from '../utils/classPlacement';
@@ -181,6 +181,7 @@ export function UseCaseModelEditor({
     });
   };
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
+  const { defaultViewport, onMoveEnd } = useArtifactViewport(project.id, artifact.id, reactFlowInstance);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   // While a relation is being dragged: the node it starts from.
   const [connectingFromId, setConnectingFromId] = useState<string | null>(null);
@@ -665,7 +666,6 @@ export function UseCaseModelEditor({
         toolbarRef={toolbarRef}
         start={(
           <>
-            <EditorIdentity artifactKind="Modelo de casos de uso" artifactType={'use-case-model'} artifactName={artifact.name} projectName={project.name} />
             <ToolbarHistory canRedo={canRedo} canUndo={canUndo} saveStatus={saveStatus} onRedo={onRedo} onUndo={onUndo} />
           </>
         )}
@@ -722,6 +722,8 @@ export function UseCaseModelEditor({
             onConnect={onConnect}
             onEdgesChange={onEdgesChange}
             onInit={setReactFlowInstance}
+            defaultViewport={defaultViewport}
+            onMoveEnd={onMoveEnd}
             // Dos dedos (o la rueda) desplazan; pellizcar o Ctrl + rueda hace zoom.
             panOnScroll
             zoomOnDoubleClick={false}

@@ -71,16 +71,14 @@ import { InspectorDeleteButton, InspectorPanel } from './ui/Panel';
 import { ClassInspector } from './ClassInspector';
 import { ClassNode } from './ClassNode';
 import { ParametricValuesNote } from './ParametricValuesNote';
-import { EditorIdentity } from './EditorIdentity';
+import { useArtifactViewport } from '../hooks/useArtifactViewMemory';
 import { ToolbarHistory } from './ToolbarHistory';
 import type { DiagramSaveStatus } from '../hooks/useProjects';
 import { DEFAULT_CLASS_SIZE, findFreeClassPosition } from '../utils/classPlacement';
 
 type DiagramEditorProps = {
   artifact: ClassDiagramArtifact;
-  artifactKind?: string;
   saveStatus?: DiagramSaveStatus;
-  artifactType?: 'class-diagram' | 'class-sequence-diagram';
   canRedo: boolean;
   canUndo: boolean;
   project: DiagramProject;
@@ -149,9 +147,7 @@ const isEditableElement = (element: Element | null): boolean => {
 
 export function DiagramEditor({
   artifact,
-  artifactKind = 'Diagrama de clases',
   saveStatus = 'saved',
-  artifactType = 'class-diagram',
   canRedo,
   canUndo,
   project,
@@ -187,6 +183,7 @@ export function DiagramEditor({
   const [methodEditingRequest, setMethodEditingRequest] = useState<{ nodeId: string; methodId: string } | null>(null);
   const [selectedNoteNodeId, setSelectedNoteNodeId] = useState<string | null>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
+  const { defaultViewport, onMoveEnd } = useArtifactViewport(project.id, artifact.id, reactFlowInstance);
   const [openedWithContent] = useState(() => (artifact.content.nodes?.length ?? 0) > 0);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
@@ -1458,7 +1455,6 @@ export function DiagramEditor({
         toolbarRef={toolbarRef}
         start={(
           <>
-            <EditorIdentity artifactKind={artifactKind} artifactType={artifactType} artifactName={artifact.name} projectName={project.name} />
             <ToolbarHistory
               canRedo={canRedo}
               canUndo={canUndo}
@@ -1549,6 +1545,8 @@ export function DiagramEditor({
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             onInit={setReactFlowInstance}
+            defaultViewport={defaultViewport}
+            onMoveEnd={onMoveEnd}
             // Dos dedos (o la rueda) desplazan; pellizcar o Ctrl + rueda hace zoom.
             panOnScroll
             zoomOnDoubleClick={false}
@@ -1637,7 +1635,7 @@ export function DiagramEditor({
             // first time nodes appear, so on an empty diagram it used to jump the
             // view to the first class — away from where it was double-clicked
             // and half under the inspector. Never above 100%.
-            fitView={openedWithContent}
+            fitView={openedWithContent && defaultViewport === undefined}
             fitViewOptions={{ maxZoom: 1, padding: 0.2 }}
           >
             {isGridEnabled ? (
