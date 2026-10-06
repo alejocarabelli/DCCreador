@@ -501,8 +501,8 @@ describe('mapeo de hueco para arrastre', () => {
     const gate = applySequenceDiagramMutation(diagram, { ...diagram, items: [returned, call] });
 
     expect(validation.valid).toBe(true);
-    expect(gate.accepted).toBe(false);
-    expect(gate.newProblems[0]?.code).toBe('unmatched-return');
+    expect(gate.accepted).toBe(true);
+    expect(gate.newWarnings[0]?.code).toBe('unmatched-return');
   });
 
   it('ancla la guía del bloque al primer elemento visual del candidato, no al primer id recibido', () => {

@@ -529,40 +529,29 @@ export type SequenceDiagramMutationResult = {
   content: SequenceDiagramContent;
   accepted: boolean;
   newProblems: SequenceDiagramProblem[];
+  newWarnings: SequenceDiagramProblem[];
 };
-
-const mutationBlockingWarningCodes = new Set<SequenceDiagramProblemCode>([
-  'unmatched-return',
-  'duplicate-create',
-  'create-after-destroy',
-  'destroy-before-create',
-  'duplicate-destroy',
-  'ambiguous-activation',
-  'ambiguous-lifecycle-marker',
-]);
-
-const isMutationBlockingProblem = (problem: SequenceDiagramProblem): boolean =>
-  problem.severity === 'error' || mutationBlockingWarningCodes.has(problem.code);
 
 /**
  * Single gate for editor mutations. Imports call the normalizer directly so
  * malformed projects remain recoverable; interactive changes may not add a
- * new temporal error to the current document.
+ * new error. Temporal warnings (a return left outside its call's fragment,
+ * an ambiguous activation across branches...) are accepted and listed in the
+ * review panel, so fragments can be placed wherever the author wants.
  */
 export const applySequenceDiagramMutation = (
   current: SequenceDiagramContent,
   candidate: SequenceDiagramContent,
 ): SequenceDiagramMutationResult => {
-  const currentProblems = new Set(current.problems
-    .filter(isMutationBlockingProblem)
-    .map((problem) => problem.id));
+  const currentProblems = new Set(current.problems.map((problem) => problem.id));
   const content = normalizeSequenceDiagramContent(candidate);
-  const newProblems = content.problems.filter((problem) =>
-    isMutationBlockingProblem(problem) && !currentProblems.has(problem.id));
+  const added = content.problems.filter((problem) => !currentProblems.has(problem.id));
+  const newProblems = added.filter((problem) => problem.severity === 'error');
   return {
     content,
     accepted: newProblems.length === 0,
     newProblems,
+    newWarnings: added.filter((problem) => problem.severity !== 'error'),
   };
 };
 
