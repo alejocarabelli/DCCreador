@@ -56,11 +56,11 @@ describe('sequence model synchronization UI', () => {
     expect(html).not.toContain('Agregar todo a «Modelo»');
     expect(html).toContain('Abrir «Modelo»');
   });
-  it('marks participant names and message labels with export-excluded warning lines', () => {
+  it('flags missing participants and messages with a tooltip, without dotted underlines', () => {
     const props = { content: sequence.content, layout: buildSequenceLayout(sequence.content), selected: null, theme: themes[0], onSelect: vi.fn(), onParticipantPointerDown: vi.fn(), onNotePointerDown: vi.fn(), onNoteResizePointerDown: vi.fn() };
     const html = renderToString(<SequenceDiagramCanvas {...props} missingInModel={{ messageIds: new Set(['call']), participantIds: new Set(['t']) }} />);
     const warningLines = html.match(/<line data-export-control="true"[^>]*stroke-dasharray="2 3"[^>]*>/g) ?? [];
-    expect(warningLines).toHaveLength(2);
+    expect(warningLines).toHaveLength(0);
     expect(html).toContain('<title>No está en el modelo de clases</title>');
     const exportHtml = renderToString(<SequenceDiagramCanvas {...props} interactive={false} />);
     expect(exportHtml).not.toContain('No está en el modelo de clases');

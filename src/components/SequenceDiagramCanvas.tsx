@@ -1043,7 +1043,6 @@ function SequenceDiagramCanvasImpl({
               {missingInModel?.messageIds.has(message.id) ? <title>No está en el modelo de clases</title> : null}
               {box.labelLines.map((line, index) => <tspan key={`${message.id}:${index}`} x={box.labelCenterX} dy={index === 0 ? 0 : 14}>{line}</tspan>)}
             </text>
-            {missingInModel?.messageIds.has(message.id) ? <line data-export-control="true" x1={box.labelCenterX - box.labelWidth / 2} x2={box.labelCenterX + box.labelWidth / 2} y1={box.labelBottom + 2} y2={box.labelBottom + 2} stroke={theme.ui.warningText} strokeDasharray="2 3" strokeWidth="1"><title>No está en el modelo de clases</title></line> : null}
           </g>
         ) : null}
         {box.flowLines.length > 0 && box.flowBaselineY !== undefined ? (
@@ -1451,7 +1450,6 @@ function SequenceDiagramCanvasImpl({
                   </text>
                 </>
               )}
-              {missingInModel?.participantIds.has(participant.id) ? <line data-export-control="true" x1={x - headerWidth / 2 + 8} x2={x + headerWidth / 2 - 8} y1={nameBaselineY + (nameLines.length - 1) * 14 + 3} y2={nameBaselineY + (nameLines.length - 1) * 14 + 3} stroke={theme.ui.warningText} strokeDasharray="2 3" strokeWidth="1"><title>No está en el modelo de clases</title></line> : null}
             </g>
           </g>
         );
