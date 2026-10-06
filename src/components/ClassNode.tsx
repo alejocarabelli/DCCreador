@@ -72,6 +72,19 @@ const getClosestHandleSide = (event: MouseEvent<HTMLElement>): ConnectionSide =>
   return distances.sort((first, second) => first.distance - second.distance)[0].side;
 };
 
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * True when a member type names a class of the diagram as a whole word, also
+ * inside List<…> or …[] and for names with spaces ("Cliente VIP").
+ */
+const refersToKnownClass = (type: string, knownClassNames: readonly string[] | undefined): boolean =>
+  knownClassNames !== undefined &&
+  type.trim().length > 0 &&
+  knownClassNames.some((name) =>
+    new RegExp(`(?:^|[^\\p{L}\\p{N}_])${escapeRegExp(name)}(?:$|[^\\p{L}\\p{N}_])`, 'u').test(type),
+  );
+
 export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
   const groupColor = getClassGroupColor(data.groupColor);
   const shouldStartNameEditing = data.shouldStartNameEditing;
@@ -674,12 +687,7 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
         data.isConnectionInProgress ? 'connection-in-progress' : ''
       } ${data.isConnectionSource ? 'connection-source' : 'connection-target'}`}
       data-group-color={groupColor?.id}
-      style={groupColor ? {
-        '--group-border': groupColor.border,
-        '--group-name': groupColor.name,
-        '--group-border-dark': groupColor.darkBorder,
-        '--group-name-dark': groupColor.darkName,
-      } as CSSProperties : undefined}
+      style={groupColor ? { '--group-swatch': groupColor.swatch } as CSSProperties : undefined}
       data-active-handle-side={activeHandleSide ?? undefined}
       onContextMenu={(event) => data.onOpenContextMenu?.(id, event)}
       onMouseMove={(event) => setActiveHandleSide(getClosestHandleSide(event))}
@@ -806,9 +814,12 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
               </div>
             ) : (
               <div className="attribute-row" key={attribute.id} onDoubleClick={(event) => startAttributeEditing(attribute, event)}>
-                <span>{attribute.name || 'atributo'}</span>
+                <span className="member-visibility">+</span>
+                <span className="member-name">{attribute.name || 'atributo'}</span>
                 <span className="attribute-separator">:</span>
-                <span>{attribute.type || 'tipo'}</span>
+                <span className={`member-type${refersToKnownClass(attribute.type, data.knownClassNames) ? ' is-class-reference' : ''}`}>
+                  {attribute.type || 'tipo'}
+                </span>
               </div>
             ),
           )
@@ -876,11 +887,15 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
               </div>
             ) : (
               <div className="method-row" key={method.id} onDoubleClick={(event) => startMethodEditing(method, event)}>
-                <span>{method.visibility}</span>
-                <span>{method.name || 'método'}</span>
-                <span>({method.parameters})</span>
+                <span className="member-visibility">{method.visibility}</span>
+                <span className="member-name">
+                  {method.name || 'método'}
+                  <span className="member-params">({method.parameters})</span>
+                </span>
                 <span className="attribute-separator">:</span>
-                <span>{method.returnType || 'void'}</span>
+                <span className={`member-type${refersToKnownClass(method.returnType, data.knownClassNames) ? ' is-class-reference' : ''}`}>
+                  {method.returnType || 'void'}
+                </span>
               </div>
             ),
           )}

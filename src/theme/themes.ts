@@ -9,6 +9,9 @@ export type DiagramTheme = {
     background: string;
     gridColor: string;
     gridColorStrong: string;
+    /** Millimetre paper under class diagrams: a fine line every 20px, a stronger one every 100px. */
+    paperLine: string;
+    paperLineStrong: string;
   };
   classNode: {
     background: string;
@@ -127,15 +130,15 @@ export type DiagramThemeId = 'academic-light' | 'academic-dark';
 
 /**
  * "Cuaderno técnico": tinta sobre papel con acento petróleo. El documento
- * (lienzo, clases, líneas) se lee como UML impreso; el chrome es papel un poco
- * más cálido que el lienzo, para que el diagrama siempre sea lo más claro.
+ * (lienzo, clases, líneas) se lee como UML impreso sobre hoja blanca; el chrome
+ * es gris neutro apenas frío, para que el diagrama siempre sea lo más claro.
  */
 export const academicLightTheme: DiagramTheme = {
   id: 'academic-light',
   name: 'Cuaderno',
   description: 'Tinta sobre papel, acento petróleo',
   appearance: 'light',
-  canvas: { background: '#F8F7F3', gridColor: '#DDD8CC', gridColorStrong: '#C9C2B3' },
+  canvas: { background: '#FFFFFF', gridColor: '#DADDE0', gridColorStrong: '#C5CACE', paperLine: '#F0F2F3', paperLineStrong: '#E2E5E8' },
   classNode: {
     background: '#FFFFFF',
     border: '#3B4347',
@@ -143,7 +146,7 @@ export const academicLightTheme: DiagramTheme = {
     text: '#273034',
     mutedText: '#5F6668',
     headerText: '#1C2326',
-    divider: '#D6D0C3',
+    divider: '#D9DCDF',
     shadow: '3px 3px 0 rgba(28, 35, 38, 0.07)',
     borderRadius: '3px',
     borderWidth: '1px',
@@ -159,7 +162,7 @@ export const academicLightTheme: DiagramTheme = {
   association: {
     stroke: '#3B4347',
     strokeSelected: '#1C6570',
-    strokeWidth: 1.4,
+    strokeWidth: 1.5,
     multiplicityText: '#1C2326',
     markerStroke: '#3B4347',
     markerFill: 'none',
@@ -182,13 +185,13 @@ export const academicLightTheme: DiagramTheme = {
     participantBorder: '#5F6668',
     text: '#273034',
     mutedText: '#5F6668',
-    canvasBackground: '#F8F7F3',
-    canvasGrid: '#E4DFD4',
+    canvasBackground: '#FFFFFF',
+    canvasGrid: '#E3E6E9',
     lifeline: '#8A8F8F',
     fragmentStroke: '#5F6668',
-    fragmentFill: 'rgba(236, 232, 222, 0.42)',
-    nestedFragmentFill: 'rgba(228, 223, 211, 0.36)',
-    fragmentTabFill: '#ECE8DE',
+    fragmentFill: 'rgba(232, 235, 238, 0.42)',
+    nestedFragmentFill: 'rgba(222, 226, 230, 0.36)',
+    fragmentTabFill: '#ECEEF0',
     guardFill: '#E6F0EF',
     guardText: '#134A52',
   },
@@ -199,31 +202,31 @@ export const academicLightTheme: DiagramTheme = {
     accentSoftStrong: '#DCEAE8',
     accentOutline: '#A9C8C6',
     warningText: '#8A5A12',
-    panelBackground: '#FFFEFB',
-    panelSubtleBackground: '#FAF8F3',
-    panelMutedBackground: '#F3F0E9',
-    panelStrongBackground: '#E9E5DC',
-    panelBorder: '#E3DED2',
+    panelBackground: '#FCFCFD',
+    panelSubtleBackground: '#F7F8F9',
+    panelMutedBackground: '#F0F2F3',
+    panelStrongBackground: '#E5E8EA',
+    panelBorder: '#E1E4E7',
     panelText: '#1C2326',
     panelMutedText: '#5F6668',
-    toolbarBackground: '#FFFEFB',
-    buttonBackground: '#FFFEFB',
-    buttonBorder: '#D8D2C4',
+    toolbarBackground: '#FCFCFD',
+    buttonBackground: '#FFFFFF',
+    buttonBorder: '#D3D7DB',
     buttonText: '#273034',
     buttonActiveBackground: '#1C6570',
     buttonActiveText: '#FFFFFF',
     inputBackground: '#FFFFFF',
     inputText: '#1C2326',
-    inputBorder: '#D8D2C4',
-    panelBorderStrong: '#C6BFAF',
+    inputBorder: '#D3D7DB',
+    panelBorderStrong: '#BEC4C9',
     panelSecondaryText: '#3D4548',
     panelFaintText: '#6B7173',
-    panelPlaceholderText: '#979B98',
+    panelPlaceholderText: '#959A9E',
     accentBorder: '#5E9A9F',
     accentStrongFill: '#155059',
-    appBackground: '#F2EFE8',
-    sidebarBackground: '#EEEBE3',
-    hoverBackground: '#E8E4DA',
+    appBackground: '#F1F2F4',
+    sidebarBackground: '#EDEEF0',
+    hoverBackground: '#E5E8EB',
     selectedBackground: '#DFEAE8',
     selectedText: '#134A52',
     danger: '#A8392F',
@@ -246,7 +249,7 @@ export const academicDarkTheme: DiagramTheme = {
   name: 'Pizarra',
   description: 'Tinta clara sobre grafito, acento petróleo',
   appearance: 'dark',
-  canvas: { background: '#131617', gridColor: '#2A3031', gridColorStrong: '#3B4344' },
+  canvas: { background: '#131617', gridColor: '#2A3031', gridColorStrong: '#3B4344', paperLine: '#1B1F20', paperLineStrong: '#252B2C' },
   classNode: {
     ...academicLightTheme.classNode,
     background: '#1B1F20',

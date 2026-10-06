@@ -1788,10 +1788,6 @@ textarea {
   white-space: nowrap;
 }
 
-.attribute-row span:first-child::before {
-  content: "+ ";
-}
-
 .muted-attribute {
   color: var(--class-muted-text);
   font-style: italic;
@@ -2004,14 +2000,15 @@ textarea {
   stroke: var(--marker-stroke);
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.8;
+  stroke-width: var(--association-stroke-width);
 }
 
+/* Same weight as the line, sharp corners, so a triangle or diamond reads as part of it. */
 .association-uml-marker {
   pointer-events: none;
   stroke: var(--marker-stroke);
-  stroke-linejoin: round;
-  stroke-width: 1.8;
+  stroke-linejoin: miter;
+  stroke-width: var(--association-stroke-width);
 }
 
 .association-uml-marker-open {
@@ -2020,6 +2017,17 @@ textarea {
 
 .association-uml-marker-filled {
   fill: var(--marker-stroke);
+}
+
+/* A selected relation recolours its markers with the line. */
+.association-navigation-chevron.is-selected,
+.association-uml-marker.is-selected {
+  stroke: var(--association-stroke-selected);
+  stroke-width: calc(var(--association-stroke-width) + 0.9);
+}
+
+.association-uml-marker-filled.is-selected {
+  fill: var(--association-stroke-selected);
 }
 
 .association-navigation-arrow {
@@ -2985,17 +2993,6 @@ textarea {
 .class-alignment-guides line { stroke: #4f7ee8; stroke-width: 1; stroke-dasharray: 4 4; }
 .exporting-png .class-alignment-guides { display: none !important; }
 
-/* Optional class grouping: only the outline and class name carry the color. */
-.class-node[data-group-color] { border-color: var(--group-border); }
-.class-node[data-group-color] .class-node-title { color: var(--group-name); }
-.app-shell[data-theme='academic-dark'] .class-node[data-group-color] { border-color: var(--group-border-dark); }
-.app-shell[data-theme='academic-dark'] .class-node[data-group-color] .class-node-title { color: var(--group-name-dark); }
-.app-shell[data-theme='academic-dark'] .exporting-png .class-node[data-group-color] { border-color: var(--group-border); }
-.app-shell[data-theme='academic-dark'] .exporting-png .class-node[data-group-color] .class-node-title { color: var(--group-name); }
-.class-node[data-group-color].selected {
-  box-shadow: 0 0 0 2px var(--canvas-background), 0 0 0 4px var(--class-border-selected), var(--class-shadow);
-}
-.exporting-png .class-node[data-group-color].selected { box-shadow: var(--class-shadow); }
 .class-color-picker { border-bottom: 1px solid var(--panel-border); margin-bottom: 4px; padding: 5px 6px 9px; }
 .class-color-picker-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 2px 7px; color: var(--panel-muted-text); font-size: 11px; font-weight: 600; }
 .class-color-count { font-size: 11.5px; font-weight: 400; }

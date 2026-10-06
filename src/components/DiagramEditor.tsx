@@ -1064,6 +1064,7 @@ export function DiagramEditor({
 
   const renderedNodes = useMemo<Node[]>(
     () => {
+      const knownClassNames = nodes.map((node) => node.data.name.trim()).filter((name) => name.length > 0);
       const classNodes = nodes.map((node) => {
         const measuredNode = nodeSizes[node.id];
         const measuredDimensions =
@@ -1083,6 +1084,7 @@ export function DiagramEditor({
             hideMethods: hideMethods || node.data.hideMethods,
             isConnectionInProgress: connectionSourceNodeId !== null,
             isConnectionSource: connectionSourceNodeId === node.id,
+            knownClassNames,
             shouldStartNameEditing: node.id === nameEditingNodeId,
             shouldStartAttributeEditing:
               node.id === attributeEditingRequest?.nodeId ? attributeEditingRequest.attributeId : undefined,
@@ -1627,13 +1629,22 @@ export function DiagramEditor({
             fitViewOptions={{ maxZoom: 1, padding: 0.2 }}
           >
             {isGridEnabled ? (
-              <Background
-                color={theme.canvas.gridColorStrong}
-                gap={20}
-                lineWidth={1}
-                size={1.4}
-                variant={BackgroundVariant.Dots}
-              />
+              <>
+                <Background
+                  color={theme.canvas.paperLine}
+                  gap={20}
+                  id="paper-fine"
+                  lineWidth={1}
+                  variant={BackgroundVariant.Lines}
+                />
+                <Background
+                  color={theme.canvas.paperLineStrong}
+                  gap={100}
+                  id="paper-major"
+                  lineWidth={1}
+                  variant={BackgroundVariant.Lines}
+                />
+              </>
             ) : null}
             {renderedNodes.length === 0 ? (
               <CanvasStartCard

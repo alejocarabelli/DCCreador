@@ -4465,12 +4465,20 @@ export function SequenceDiagramEditor({
             Color
           </label>
           <div className="sequence-note-color-grid">
+            {/* The swatches come from the same schemes the canvas draws with. */}
             {([
-              { id: 'yellow', label: 'Amarillo', desc: 'General / Nota estándar', dot: '#F59F00', bg: '#FFF9DB', border: '#F08C00' },
-              { id: 'red', label: 'Rojo', desc: 'Alerta / Condición SINO', dot: '#E03131', bg: '#FFE3E3', border: '#FA5252' },
-              { id: 'green', label: 'Verde', desc: 'Precondición / Éxito', dot: '#2F9E44', bg: '#EBFBEE', border: '#40C057' },
-              { id: 'blue', label: 'Azul', desc: 'Técnico / Requisito', dot: '#1971C2', bg: '#E7F5FF', border: '#339AF0' },
-            ] as const).map((colorOpt) => {
+              { id: 'yellow', desc: 'General / Nota estándar' },
+              { id: 'red', desc: 'Alerta / Condición SINO' },
+              { id: 'green', desc: 'Precondición / Éxito' },
+              { id: 'blue', desc: 'Técnico / Requisito' },
+            ] as const).map(({ id, desc }) => ({
+              id,
+              desc,
+              label: SEQUENCE_NOTE_COLORS[id].label,
+              dot: SEQUENCE_NOTE_COLORS[id].dot,
+              bg: SEQUENCE_NOTE_COLORS[id].background,
+              border: SEQUENCE_NOTE_COLORS[id].border,
+            })).map((colorOpt) => {
               const isSelected = (selectedNote.color ?? 'yellow') === colorOpt.id;
               return (
                 <button

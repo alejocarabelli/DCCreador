@@ -43,6 +43,8 @@ export type ClassNodeData = {
   shouldStartMethodEditing?: string;
   isConnectionInProgress?: boolean;
   isConnectionSource?: boolean;
+  /** Names of the classes in the same diagram, so member types that refer to one can be told apart. */
+  knownClassNames?: readonly string[];
   onCreateAttribute?: (nodeId: string, attribute: ClassAttribute) => void;
   onCreateMethod?: (nodeId: string, method: ClassMethod) => void;
   onDeleteAttribute?: (nodeId: string, attributeId: string) => void;
