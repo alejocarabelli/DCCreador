@@ -1,0 +1,29 @@
+/* Ventana secundaria de solo lectura: el diagrama ocupa todo, sin edición. */
+.app-shell.artifact-viewer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100vh;
+  width: 100vw;
+  background: var(--canvas-background, #fff);
+}
+
+.artifact-viewer-bar {
+  align-items: center;
+  background: var(--toolbar-background);
+  border-bottom: 1px solid var(--panel-border);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 8px 14px;
+}
+
+.artifact-viewer-title { display: grid; min-width: 0; }
+.artifact-viewer-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.artifact-viewer-title span { color: var(--text-muted, #6b7280); font-size: 0.75rem; }
+
+.artifact-viewer-canvas { min-height: 0; position: relative; }
+.artifact-viewer-canvas .react-flow__node { cursor: default; pointer-events: none; }
+.artifact-viewer-canvas .react-flow__pane { cursor: grab; }
+.artifact-viewer-empty { color: var(--text-muted, #6b7280); margin: 48px auto; max-width: 420px; text-align: center; }
+.artifact-viewer-flow { height: 100%; width: 100%; }

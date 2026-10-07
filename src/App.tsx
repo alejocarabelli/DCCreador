@@ -16,6 +16,7 @@ import { downloadArtifactFile, downloadTextFile } from './utils/artifactFile';
 import { relinkArtifactForProject } from './utils/artifactTransfer';
 import artifactGuide from '../docs/artifact-json-guide.md?raw';
 import { useProjects } from './hooks/useProjects';
+import { openArtifactWindow } from './storage/nativeWindows';
 import { useTheme } from './hooks/useTheme';
 import { readUiPreference, writeUiPreference } from './storage/uiPreferences';
 import type { ArtifactContent, ClassMethod, ClassModelArtifact, ClassSequenceDiagramContent, DesignArtifact, SequenceDiagramContent } from './types/diagram';
@@ -28,7 +29,7 @@ import {
 } from './utils/diagramNormalization';
 import { normalizeSequenceDiagramContent } from './utils/sequenceDiagram';
 import { changeHistory, redoHistory, undoHistory, type ArtifactHistory } from './utils/artifactHistory';
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 
 const DiagramEditor = lazy(() => import('./components/DiagramEditor').then(({ DiagramEditor: editor }) => ({ default: editor })));
 const UseCaseModelEditor = lazy(() => import('./components/UseCaseModelEditor').then(({ UseCaseModelEditor: editor }) => ({ default: editor })));
@@ -336,6 +337,23 @@ function App() {
     setActiveProjectId(projectId);
     setActiveArtifactId(projectId, artifactId);
   };
+
+  // A read-only window asks to edit its diagram here: the main window is the only one that saves.
+  const selectArtifactFromWindow = useEffectEvent((projectId: string, artifactId: string): void => {
+    const project = projects.find((candidate) => candidate.id === projectId);
+    if (!project?.artifacts.some((artifact) => artifact.id === artifactId)) return;
+    const tabState = getProjectTabState(projectId);
+    if (!tabState.openArtifactIds.includes(artifactId)) setOpenArtifactIds(projectId, [...tabState.openArtifactIds, artifactId]);
+    handleSelectArtifact(projectId, artifactId);
+  });
+  useEffect(() => {
+    const onSelect = (event: Event): void => {
+      const detail = (event as CustomEvent<{ projectId?: string; artifactId?: string }>).detail;
+      if (detail?.projectId && detail?.artifactId) selectArtifactFromWindow(detail.projectId, detail.artifactId);
+    };
+    window.addEventListener('modelador:select-artifact', onSelect);
+    return () => window.removeEventListener('modelador:select-artifact', onSelect);
+  }, []);
 
   const activeArtifact = useMemo(
     () => (activeProject !== null ? getActiveArtifact(activeProject) : null),
@@ -717,6 +735,11 @@ function App() {
             onCloseOthers={(artifactId) => applyTabState(activeProject.id, closeOtherArtifactTabs(getProjectTabState(activeProject.id), artifactId))}
             onCloseRight={(artifactId) => applyTabState(activeProject.id, closeArtifactTabsToRight(getProjectTabState(activeProject.id), artifactId))}
             onReorder={(ids) => setOpenArtifactIds(activeProject.id, ids)}
+            onOpenInWindow={(artifactId) => openArtifactWindow(
+              activeProject.id,
+              artifactId,
+              `${activeProject.artifacts.find((candidate) => candidate.id === artifactId)?.name ?? 'Diagrama'} · vista`,
+            )}
           />
           <div id="artifact-editor-panel" className="artifact-editor-panel" role="tabpanel" aria-labelledby={`artifact-tab-${activeArtifact.id}`}>
             <Suspense fallback={<EditorLoadingState />}>
