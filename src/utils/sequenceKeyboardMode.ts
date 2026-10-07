@@ -7,7 +7,7 @@ import type {
   SequenceParticipantKind,
   SequenceTimelineItem,
 } from '../types/diagram';
-import { analyzeSequenceDiagramSemantics, insertSequenceItemAtY } from './sequenceDiagram';
+import { analyzeSequenceDiagramSemantics, insertSequenceItem, insertSequenceItemBefore } from './sequenceDiagram';
 import type { SequenceLayout } from './sequenceDiagramLayout';
 import { parseMessageSignature } from './sequenceMessageEditing';
 import { parseSequenceParticipantLabel } from './sequenceParticipantEditing';
@@ -99,17 +99,54 @@ export type SequenceKeyboardModeAction =
 
 const signatureName = (text: string): string => text.split(/[(:]/)[0].trim();
 
-export const resolveKeyboardTargetMessageType = (
-  sourceIndex: number,
-  targetIndex: number,
-  currentType: SequenceMessageType = 'synchronous',
-): SequenceMessageType => {
-  if (currentType === 'create' || currentType === 'destroy') return currentType;
-  if (sourceIndex >= 0 && targetIndex >= 0) {
-    if (targetIndex < sourceIndex) return 'return';
-    if (targetIndex > sourceIndex) return currentType === 'asynchronous' ? 'asynchronous' : 'synchronous';
+export type KeyboardReturnCall = { id: string; sourceId: string };
+
+export type KeyboardRouteChange = {
+  targetId?: string;
+  returnCandidateIds?: string[];
+  returnCandidateIndex?: number;
+  /** Why the move did nothing, when the user should be told. */
+  feedback?: string;
+};
+
+export const noPendingCallFeedback = 'No hay llamada pendiente para retornar.';
+
+/**
+ * Where ← / → send the target. The arrows only move the destination: the
+ * message type is chosen explicitly (S, R, C, D, ↑ ↓) and never changes here,
+ * so a call can go either way and a return can go back to either side.
+ *
+ * A return can only go back to someone who has a call waiting for it, so its
+ * arrows step through those callers (in lifeline order) instead of every
+ * participant. `returnCalls` lists them most recent first.
+ */
+export const resolveKeyboardTargetMove = ({
+  participantIds,
+  targetId,
+  messageType,
+  direction,
+  returnCalls,
+}: {
+  participantIds: string[];
+  targetId: string;
+  messageType: SequenceMessageType;
+  direction: -1 | 1;
+  returnCalls: KeyboardReturnCall[];
+}): KeyboardRouteChange => {
+  if (messageType === 'return') {
+    const callers = participantIds.filter((id) => returnCalls.some((call) => call.sourceId === id));
+    if (callers.length === 0) return { feedback: noPendingCallFeedback };
+    const next = moveCircular(callers, targetId, direction);
+    if (next === undefined) return {};
+    const callsToNext = returnCalls.filter((call) => call.sourceId === next);
+    return {
+      targetId: next,
+      returnCandidateIds: callsToNext.map((call) => call.id),
+      returnCandidateIndex: 0,
+    };
   }
-  return currentType;
+  const next = moveCircular(participantIds, targetId, direction);
+  return next === undefined ? {} : { targetId: next };
 };
 
 export const sequenceKeyboardModeReducer = (
@@ -272,12 +309,33 @@ export type SequenceKeyboardInsertionSlot = {
   itemIds: string[];
 };
 
+/**
+ * Puts an item exactly where the keyboard cursor is. The cursor already knows
+ * its branch and position, so nothing is guessed from a Y coordinate: guessing
+ * moved a message out of the fragment the cursor was inside (the branch has to
+ * horizontally cover the new message) or next to the wrong neighbour.
+ */
+export const insertSequenceItemAtSlot = (
+  items: SequenceTimelineItem[],
+  item: SequenceTimelineItem,
+  slot: SequenceKeyboardInsertionSlot,
+): SequenceTimelineItem[] => {
+  const previousId = slot.itemIds[slot.index - 1];
+  if (previousId !== undefined) return insertSequenceItem(items, item, { afterItemId: previousId });
+  const nextId = slot.itemIds[slot.index];
+  if (nextId !== undefined) return insertSequenceItemBefore(items, item, nextId);
+  if (slot.parentFragmentId !== undefined && slot.operandId !== undefined) {
+    return insertSequenceItem(items, item, { fragmentId: slot.parentFragmentId, operandId: slot.operandId });
+  }
+  return insertSequenceItem(items, item);
+};
+
 type ItemBounds = { top: number; bottom: number };
 
 const getItemBounds = (item: SequenceTimelineItem, layout: SequenceLayout): ItemBounds | undefined => {
   if (item.kind === 'message') {
     const message = layout.messageLayouts.get(item.id);
-    return message ? { top: message.y - message.height / 2, bottom: message.y + message.height / 2 } : undefined;
+    return message ? { top: message.top, bottom: message.top + message.height } : undefined;
   }
   const fragment = layout.fragmentLayouts.get(item.id);
   return fragment ? { top: fragment.y, bottom: fragment.y + fragment.height } : undefined;
@@ -426,7 +484,7 @@ export const findCompatibleSequenceReturnCalls = (
     const probe = makeReturnProbe(sourceId, call);
     const candidate: SequenceDiagramContent = {
       ...content,
-      items: insertSequenceItemAtY(content.items, probe, layout, slot.y),
+      items: insertSequenceItemAtSlot(content.items, probe, slot),
     };
     return !analyzeSequenceDiagramSemantics(candidate).problems.some((problem) => (
       problem.code === 'unmatched-return' && problem.messageId === probe.id
@@ -435,7 +493,7 @@ export const findCompatibleSequenceReturnCalls = (
 
 export const getSequenceParticipantIdsAliveAtSlot = (
   content: SequenceDiagramContent,
-  layout: SequenceLayout,
+  _layout: SequenceLayout,
   slot: SequenceKeyboardInsertionSlot,
 ): string[] => content.participants.flatMap((participant) => {
   const probe: SequenceMessage = {
@@ -452,7 +510,7 @@ export const getSequenceParticipantIdsAliveAtSlot = (
   };
   const candidate: SequenceDiagramContent = {
     ...content,
-    items: insertSequenceItemAtY(content.items, probe, layout, slot.y),
+    items: insertSequenceItemAtSlot(content.items, probe, slot),
   };
   const invalid = analyzeSequenceDiagramSemantics(candidate).problems.some((problem) => (
     problem.severity === 'error' && problem.messageId === probe.id
@@ -484,7 +542,7 @@ export const getSequenceKeyboardInstruction = (state: SequenceKeyboardModeState)
     return state.messageType === 'create'
       ? '← → ubicación · ↑ ↓ tipo · Enter confirmar · Esc volver'
       : state.messageType === 'return'
-        ? '← vuelve a quien llamó · ↑ ↓ tipo · Enter confirmar · Esc volver'
+        ? '← → quién llamó · ↑ ↓ tipo · Enter confirmar · Esc volver'
         : '← → destino · ↑ ↓ tipo · Enter confirmar · Esc volver';
   }
   if (state.stage === 'typing') {

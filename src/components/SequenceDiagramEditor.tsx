@@ -151,7 +151,9 @@ import {
   getSequenceParticipantIdsAliveAtSlot,
   parseSequenceCreatedParticipant,
   parseSequenceKeyboardSignature,
-  resolveKeyboardTargetMessageType,
+  insertSequenceItemAtSlot,
+  resolveKeyboardTargetMove,
+  noPendingCallFeedback,
   sequenceKeyboardCreateKinds,
   sequenceKeyboardFragmentOperators,
   sequenceKeyboardMessageTypes,
@@ -795,19 +797,15 @@ export function SequenceDiagramEditor({
     if (!keyboardSlot) return;
     if (type === 'return') {
       const calls = findCompatibleSequenceReturnCalls(content, layout, keyboardSlot, keyboardMode.sourceId);
-      const sourceIndex = keyboardParticipantIds.indexOf(keyboardMode.sourceId);
-      const leftTarget = sourceIndex > 0 ? keyboardParticipantIds[sourceIndex - 1] : undefined;
-      const rightTarget = sourceIndex >= 0 && sourceIndex < keyboardParticipantIds.length - 1
-        ? keyboardParticipantIds[sourceIndex + 1]
-        : undefined;
-      const defaultTarget = calls[0]?.sourceId
-        ?? leftTarget
-        ?? rightTarget
-        ?? keyboardMode.sourceId;
+      // A return answers a pending call; without one there is nothing to aim at.
+      if (calls.length === 0 && !keyboardMode.editId) {
+        showFeedback(noPendingCallFeedback);
+        return;
+      }
       dispatchKeyboardMode({
         type: 'begin',
         messageType: 'return',
-        targetId: defaultTarget,
+        targetId: calls[0]?.sourceId ?? keyboardMode.sourceId,
         returnCandidateIds: calls.map((call) => call.id),
         preserveEdit: Boolean(keyboardMode.editId),
       });
@@ -819,19 +817,20 @@ export function SequenceDiagramEditor({
         ? keyboardMode.sourceId
         : keyboardParticipantIds[0] ?? keyboardMode.sourceId;
     dispatchKeyboardMode({ type: 'begin', messageType: type, targetId: defaultTarget });
-  }, [content, keyboardMode.editId, keyboardMode.sourceId, keyboardParticipantIds, keyboardSlot, layout]);
+  }, [content, keyboardMode.editId, keyboardMode.sourceId, keyboardParticipantIds, keyboardSlot, layout, showFeedback]);
 
   const setKeyboardMessageType = useCallback((type: SequenceMessageType): void => {
     if (type === 'return') {
       const calls = findCompatibleSequenceReturnCalls(content, layout, keyboardSlot, keyboardMode.sourceId);
-      const defaultTarget = calls[0]?.sourceId
-        ?? keyboardParticipantIds.find((id) => id !== keyboardMode.sourceId)
-        ?? keyboardMode.sourceId;
+      if (calls.length === 0) {
+        showFeedback(noPendingCallFeedback);
+        return;
+      }
       dispatchKeyboardMode({
         type: 'set-route',
         messageType: 'return',
-        targetId: defaultTarget,
-        returnCandidateIds: calls.map((call) => call.id),
+        targetId: calls[0].sourceId,
+        returnCandidateIds: calls.filter((call) => call.sourceId === calls[0].sourceId).map((call) => call.id),
         returnCandidateIndex: 0,
       });
       return;
@@ -845,7 +844,7 @@ export function SequenceDiagramEditor({
       returnCandidateIds: [],
       returnCandidateIndex: 0,
     });
-  }, [content, keyboardMode.sourceId, keyboardMode.targetId, keyboardParticipantIds, keyboardSlot, layout]);
+  }, [content, keyboardMode.sourceId, keyboardMode.targetId, keyboardParticipantIds, keyboardSlot, layout, showFeedback]);
 
   const moveKeyboardSlot = useCallback((direction: -1 | 1, extendSelection = false): void => {
     if (!keyboardSlot || keyboardSlots.length === 0) return;
@@ -892,41 +891,21 @@ export function SequenceDiagramEditor({
       return;
     }
 
-    const sourceIndex = keyboardParticipantIds.indexOf(keyboardMode.sourceId);
-    const targetIndex = keyboardParticipantIds.indexOf(nextId);
-    const resolvedType = resolveKeyboardTargetMessageType(sourceIndex, targetIndex, keyboardMode.messageType);
-    if (resolvedType === 'return' && targetIndex < sourceIndex) {
-      const calls = keyboardSlot
+    const route = resolveKeyboardTargetMove({
+      participantIds: keyboardParticipantIds,
+      targetId: keyboardMode.targetId || keyboardMode.sourceId,
+      messageType: keyboardMode.messageType,
+      direction,
+      returnCalls: keyboardMode.messageType === 'return' && keyboardSlot
         ? findCompatibleSequenceReturnCalls(content, layout, keyboardSlot, keyboardMode.sourceId)
-        : [];
-      // A return goes back to whoever made the call: the first ← lands right
-      // on that lifeline, however far it is. Once there, ← walks on as usual.
-      const alreadyOnCaller = keyboardMode.messageType === 'return'
-        && calls.some((call) => call.sourceId === keyboardMode.targetId);
-      const destinationId = !alreadyOnCaller && calls[0] !== undefined ? calls[0].sourceId : nextId;
-      const targetCalls = calls.filter((call) => call.sourceId === destinationId);
-      dispatchKeyboardMode({
-        type: 'set-route',
-        targetId: destinationId,
-        messageType: 'return',
-        returnCandidateIds: targetCalls.length > 0 ? targetCalls.map((call) => call.id) : calls.map((call) => call.id),
-        returnCandidateIndex: 0,
-      });
-    } else if ((resolvedType === 'synchronous' || resolvedType === 'asynchronous') && targetIndex > sourceIndex) {
-      dispatchKeyboardMode({
-        type: 'set-route',
-        targetId: nextId,
-        messageType: resolvedType,
-        returnCandidateIds: [],
-        returnCandidateIndex: 0,
-      });
-    } else {
-      dispatchKeyboardMode({
-        type: 'set-route',
-        targetId: nextId,
-      });
+        : [],
+    });
+    if (route.feedback) {
+      showFeedback(route.feedback);
+      return;
     }
-  }, [content, keyboardMode.messageType, keyboardMode.sourceId, keyboardMode.targetId, keyboardParticipantIds, keyboardSlot, layout]);
+    if (Object.keys(route).length > 0) dispatchKeyboardMode({ type: 'set-route', ...route });
+  }, [content, keyboardMode.messageType, keyboardMode.sourceId, keyboardMode.targetId, keyboardParticipantIds, keyboardSlot, layout, showFeedback]);
 
   const openKeyboardEdit = useCallback((): void => {
     if (!keyboardSlot) return;
@@ -999,7 +978,7 @@ export function SequenceDiagramEditor({
       return;
     }
     const fragment = createSequenceFragment(keyboardMode.fragmentOperator);
-    const items = insertSequenceItemAtY(content.items, fragment, layout, keyboardSlot.y);
+    const items = insertSequenceItemAtSlot(content.items, fragment, keyboardSlot);
     const nextContent = keepAnchoredNotesWithTimeline({ ...content, items });
     if (commit(nextContent)) {
       const nextSlots = buildSequenceKeyboardInsertionSlots(nextContent, buildSequenceLayout(nextContent));
@@ -1011,7 +990,7 @@ export function SequenceDiagramEditor({
       });
       showFeedback(`Fragmento ${keyboardMode.fragmentOperator} creado.`);
     }
-  }, [commit, content, keepAnchoredNotesWithTimeline, keyboardMode.fragmentOperator, keyboardMode.sourceId, keyboardSlot, layout, selectedTimelineIds, setSelectedTimelineIds, setSelection, showFeedback]);
+  }, [commit, content, keepAnchoredNotesWithTimeline, keyboardMode.fragmentOperator, keyboardMode.sourceId, keyboardSlot, selectedTimelineIds, setSelectedTimelineIds, setSelection, showFeedback]);
 
   const commitKeyboardMessage = useCallback((addAutomaticReturn = false): void => {
     if (!keyboardSlot || (keyboardMode.stage !== 'aim' && keyboardMode.stage !== 'typing')) return;
@@ -1107,10 +1086,7 @@ export function SequenceDiagramEditor({
         } as SequenceMessage;
       });
     } else {
-      const insertionLayout = createdParticipant
-        ? buildSequenceLayout({ ...content, participants })
-        : layout;
-      items = insertSequenceItemAtY(content.items, message, insertionLayout, keyboardSlot.y);
+      items = insertSequenceItemAtSlot(content.items, message, keyboardSlot);
     }
 
     if (createdParticipant) createdParticipant.createdByMessageId = message.id;
@@ -1164,7 +1140,7 @@ export function SequenceDiagramEditor({
     showFeedback(addAutomaticReturn && keyboardMode.messageType === 'synchronous'
       ? 'Llamada y retorno creados.'
       : keyboardMode.editId ? 'Mensaje actualizado.' : 'Mensaje creado.');
-  }, [commit, content, keepAnchoredNotesWithTimeline, keyboardMode, keyboardSlot, layout, setSelection, showFeedback]);
+  }, [commit, content, keepAnchoredNotesWithTimeline, keyboardMode, keyboardSlot, setSelection, showFeedback]);
 
   useEffect(() => {
     if (keyboardMode.stage === 'off') return;

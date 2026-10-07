@@ -46,6 +46,8 @@ const MESSAGE_LINE_HEIGHT = 14;
 export type SequenceMessageLayout = {
   id: string;
   y: number;
+  /** Top of the message's row. Compact rows hold the arrow near the top, so it is not `y - height / 2`. */
+  top: number;
   height: number;
   depth: number;
   parentFragmentId?: string;
@@ -369,6 +371,7 @@ export const buildSequenceLayout = (
     messageLayouts.set(message.id, {
       id: message.id,
       y,
+      top: cursorY,
       height,
       depth,
       parentFragmentId,

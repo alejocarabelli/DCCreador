@@ -593,7 +593,7 @@ type SequenceLayoutBounds = { top: number; bottom: number };
 const layoutBounds = (layout: SequenceLayout, item: SequenceTimelineItem): SequenceLayoutBounds => {
   if (item.kind === 'message') {
     const message = layout.messageLayouts.get(item.id);
-    if (message !== undefined) return { top: message.y - message.height / 2, bottom: message.y + message.height / 2 };
+    if (message !== undefined) return { top: message.top, bottom: message.top + message.height };
   } else {
     const fragment = layout.fragmentLayouts.get(item.id);
     if (fragment !== undefined) return { top: fragment.y, bottom: fragment.y + fragment.height };
