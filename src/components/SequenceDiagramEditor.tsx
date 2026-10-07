@@ -170,6 +170,7 @@ import { ToolbarHistory } from './ToolbarHistory';
 import { SequenceDiagramCanvas } from './SequenceDiagramCanvas';
 import { SequenceExportDialog } from './SequenceExportDialog';
 import { SequenceKeyboardComposer } from './SequenceKeyboardComposer';
+import { collectUsedConditionValues, methodInsertText, type SignatureCompletionData } from '../utils/sequenceSignatureCompletion';
 import { SequenceMessageDialog } from './SequenceMessageDialog';
 import type { QuickMessageDraft } from '../utils/sequenceMessageDialogCompatibility';
 import { SequenceReviewPanel } from './SequenceReviewPanel';
@@ -246,6 +247,11 @@ const fragmentLabels: Record<SequenceFragmentOperator, string> = {
   critical: 'critical · sección crítica',
   ref: 'ref · otra interacción',
 };
+
+// El editor se desmonta al cambiar de pestaña: guardamos el modo rápido para no perder el mensaje a medio escribir.
+const keyboardModeMemory = new Map<string, ReturnType<typeof createInactiveSequenceKeyboardState>>();
+
+let inspectorCollapsedMemory = true;
 
 const sequenceOutlineVisibilityKey = 'modelador.sequence-outline-visible';
 
@@ -387,10 +393,9 @@ export function SequenceDiagramEditor({
   const [messageSignatureDraft, setMessageSignatureDraft] = useState<SequenceSignatureDraft | null>(null);
   const outlinePreferenceRef = useRef(readStoredSequenceOutlineVisibility() !== null);
   const [outlineVisible, setOutlineVisible] = useState(getInitialSequenceOutlineVisibility);
-  const [inspectorCollapsed, setInspectorCollapsed] = useState(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
-    return window.matchMedia('(max-width: 700px)').matches;
-  });
+  // The inspector opens or closes only when the user toggles it; selecting
+  // something never unfolds it.
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(inspectorCollapsedMemory);
   const [inspectorWidth, setInspectorWidth] = useState(320);
   const [searchQuery, setSearchQuery] = useState('');
   const [collapsedFragments, setCollapsedFragments] = useState<Set<string>>(() => new Set());
@@ -453,9 +458,13 @@ export function SequenceDiagramEditor({
   });
   const [keyboardMode, dispatchKeyboardMode] = useReducer(
     sequenceKeyboardModeReducer,
-    undefined,
-    createInactiveSequenceKeyboardState,
+    viewKey,
+    (key) => keyboardModeMemory.get(key) ?? createInactiveSequenceKeyboardState(),
   );
+  useEffect(() => {
+    if (keyboardMode.stage === 'off') keyboardModeMemory.delete(viewKey);
+    else keyboardModeMemory.set(viewKey, keyboardMode);
+  }, [keyboardMode, viewKey]);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const exportSvgRef = useRef<SVGSVGElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -677,6 +686,30 @@ export function SequenceDiagramEditor({
   const keyboardMethodOptions: SequenceMethodOption[] = keyboardMessageModel
     ? getSequenceMethodOptions({ model: keyboardMessageModel, participants: content.participants, classDiagram: associatedClassDiagram })
     : [];
+  // What the quick field can complete: classes with their own attributes and
+  // association roles, the participants of this diagram and the condition
+  // values used in the project's earlier searches.
+  const keyboardCompletionData: SignatureCompletionData = (() => {
+    if (keyboardMode.stage !== 'typing') return { classes: [], instanceNames: [] };
+    const nodes = Array.isArray(associatedClassDiagram?.content?.nodes) ? associatedClassDiagram.content.nodes : [];
+    const edges = Array.isArray(associatedClassDiagram?.content?.edges) ? associatedClassDiagram.content.edges : [];
+    const classes = nodes.map((node) => ({
+      name: node.data.name,
+      attributes: (node.data.attributes ?? []).filter((attribute) => attribute.name).map((attribute) => ({ name: attribute.name, type: attribute.type })),
+      roles: edges.flatMap((edge) => {
+        if (edge.source === node.id && edge.data?.targetRole) return [edge.data.targetRole];
+        if (edge.target === node.id && edge.data?.sourceRole) return [edge.data.sourceRole];
+        return [];
+      }),
+    }));
+    return {
+      classes,
+      instanceNames: content.participants.map((participant) => participant.name).filter((name) => name.length > 0),
+      usedValues: collectUsedConditionValues(project.artifacts.flatMap((candidate) =>
+        candidate.type === 'sequence-diagram' ? [candidate.content.items] : [])),
+      returnType: keyboardMethodOptions.find((method) => method.id === keyboardMode.operationMethodId)?.returnType || undefined,
+    };
+  })();
   const flowOptions = getSequenceFlowOptions(flows, content.flowArtifactId);
   const selectedMessageReferenceStatus = selectedItem?.kind === 'message'
     ? getSequenceMessageReferenceStatus(selectedItem, methodOptions, flowOptions, content.flowArtifactId)
@@ -1463,9 +1496,6 @@ export function SequenceDiagramEditor({
   const selectCanvasElement = useCallback((nextSelection: SequenceSelection): void => {
     setSelection(nextSelection);
     setHighlightedSelection((current) => current !== null && (nextSelection === null || current.id !== nextSelection.id) ? null : current);
-    if (nextSelection !== null) {
-      setInspectorCollapsed(false);
-    }
   }, [setSelection]);
 
   const handleTimelineItemSelect = useCallback((id: string, isMulti: boolean): void => {
@@ -4946,6 +4976,7 @@ export function SequenceDiagramEditor({
               position={keyboardPopoverPosition}
               placement={keyboardPopoverPlacement}
               methodOptions={keyboardMethodOptions}
+              completionData={keyboardCompletionData}
               selectedCount={selectedTimelineIds.length}
               onTextChange={(text) => dispatchKeyboardMode({ type: 'set-text', text })}
               onGuardChange={(text) => dispatchKeyboardMode({ type: 'set-guard', text })}
@@ -4959,7 +4990,7 @@ export function SequenceDiagramEditor({
               onMethodSelect={(method) => dispatchKeyboardMode({
                 type: 'set-method',
                 operationMethodId: method.id,
-                text: `${method.name}(${method.parameters})${method.returnType ? `: ${method.returnType}` : ''}`,
+                text: methodInsertText(method),
               })}
               onAddParticipant={() => dispatchKeyboardMode({ type: 'begin-participant' })}
             />
@@ -5299,7 +5330,10 @@ export function SequenceDiagramEditor({
           kind={inspectorHeader?.kind ?? ''}
           title={inspectorHeader?.title ?? ''}
           tone={inspectorHeader?.tone}
-          onToggleCollapsed={() => setInspectorCollapsed((current) => !current)}
+          onToggleCollapsed={() => setInspectorCollapsed((current) => {
+            inspectorCollapsedMemory = !current;
+            return !current;
+          })}
         >
           {selectedInspector}
         </InspectorPanel>

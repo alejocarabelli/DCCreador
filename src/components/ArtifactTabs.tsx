@@ -4,6 +4,7 @@ import type { DesignArtifact } from '../types/diagram';
 import { artifactTypeInfo } from '../constants/artifactTypes';
 import { reorderArtifactTabs } from '../utils/artifactTabs';
 import { ArtifactTypeIcon } from './ArtifactTypeIcon';
+import { isViewableArtifact } from '../storage/nativeWindows';
 
 type ArtifactTabProps = {
   artifact: DesignArtifact;
@@ -63,6 +64,7 @@ type ArtifactTabsProps = {
   onCloseOthers: (artifactId: string) => void;
   onCloseRight: (artifactId: string) => void;
   onReorder: (ids: string[]) => void;
+  onOpenInWindow?: (artifactId: string) => void;
 };
 
 type TabMenu = { kind: 'context'; artifactId: string; x: number; y: number } | { kind: 'all'; x: number; y: number };
@@ -79,7 +81,7 @@ type TabDrag = {
   started: boolean;
 };
 
-export function ArtifactTabs({ projectName, artifacts, openArtifactIds, activeArtifactId, onSelect, onClose, onCloseOthers, onCloseRight, onReorder }: ArtifactTabsProps) {
+export function ArtifactTabs({ projectName, artifacts, openArtifactIds, activeArtifactId, onSelect, onClose, onCloseOthers, onCloseRight, onReorder, onOpenInWindow }: ArtifactTabsProps) {
   const listRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const allButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -320,6 +322,9 @@ export function ArtifactTabs({ projectName, artifacts, openArtifactIds, activeAr
             </button>
           )) : (
             <>
+              {onOpenInWindow && isViewableArtifact(artifacts.find((artifact) => artifact.id === menu.artifactId)) ? (
+                <button type="button" role="menuitem" onClick={() => menuAction(() => onOpenInWindow(menu.artifactId))}>Abrir en ventana nueva</button>
+              ) : null}
               <button type="button" role="menuitem" onClick={() => menuAction(() => closeTab(menu.artifactId))}>Cerrar</button>
               <button type="button" role="menuitem" disabled={openArtifactIds.length <= 1} onClick={() => menuAction(() => onCloseOthers(menu.artifactId))}>Cerrar las demás</button>
               <button type="button" role="menuitem" disabled={openArtifactIds.indexOf(menu.artifactId) === openArtifactIds.length - 1} onClick={() => menuAction(() => onCloseRight(menu.artifactId))}>Cerrar las de la derecha</button>

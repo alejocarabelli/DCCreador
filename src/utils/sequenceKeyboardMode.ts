@@ -97,6 +97,8 @@ export type SequenceKeyboardModeAction =
   | { type: 'committed'; slotIndex: number; sourceId: string }
   | { type: 'back' };
 
+const signatureName = (text: string): string => text.split(/[(:]/)[0].trim();
+
 export const resolveKeyboardTargetMessageType = (
   sourceIndex: number,
   targetIndex: number,
@@ -202,7 +204,14 @@ export const sequenceKeyboardModeReducer = (
         editId: undefined,
       };
     case 'set-text':
-      return { ...state, text: action.text, operationMethodId: action.operationMethodId };
+      return {
+        ...state,
+        text: action.text,
+        // Completing arguments or the return type keeps the linked method;
+        // only renaming the operation drops it.
+        operationMethodId: action.operationMethodId
+          ?? (signatureName(action.text) === signatureName(state.text) ? state.operationMethodId : undefined),
+      };
     case 'set-method':
       return { ...state, text: action.text, operationMethodId: action.operationMethodId };
     case 'open-fragment':

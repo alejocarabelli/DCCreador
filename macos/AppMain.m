@@ -324,11 +324,39 @@ static NSUInteger const kBackupsToKeep = 10;
 
 @end
 
-@interface AppDelegate : NSObject <NSApplicationDelegate>
+/*
+ * Puente para abrir un diagrama en una ventana aparte (solo lectura), por ejemplo
+ * para llevarlo a un iPad usado como monitor complementario. Las ventanas
+ * comparten el almacenamiento: la secundaria nunca escribe, solo lee.
+ */
+@interface WindowBridge : NSObject <WKScriptMessageHandlerWithReply>
+@property(nonatomic, copy) void (^handler)(NSDictionary *message);
+@end
+
+@implementation WindowBridge
+- (void)userContentController:(WKUserContentController *)userContentController
+      didReceiveScriptMessage:(WKScriptMessage *)message
+                 replyHandler:(void (^)(id _Nullable reply, NSString *_Nullable errorMessage))replyHandler {
+    if (![message.body isKindOfClass:NSDictionary.class]) {
+        replyHandler(nil, @"Mensaje inválido.");
+        return;
+    }
+    if (self.handler) {
+        self.handler((NSDictionary *)message.body);
+    }
+    replyHandler(@{@"ok": @YES}, nil);
+}
+@end
+
+@interface AppDelegate : NSObject <NSApplicationDelegate, NSWindowDelegate>
 @property(nonatomic, strong) NSWindow *window;
+@property(nonatomic, strong) WKWebView *mainWebView;
 @property(nonatomic, strong) WebCoordinator *coordinator;
 @property(nonatomic, strong) AppSchemeHandler *schemeHandler;
 @property(nonatomic, strong) BackupBridge *backupBridge;
+@property(nonatomic, strong) WindowBridge *windowBridge;
+@property(nonatomic, strong) NSMutableDictionary<NSString *, NSWindow *> *viewerWindows;
+@property(nonatomic, strong) NSMutableDictionary<NSString *, WebCoordinator *> *viewerCoordinators;
 @end
 
 @implementation AppDelegate
@@ -377,7 +405,24 @@ static NSUInteger const kBackupsToKeep = 10;
         initWithSource:@"window.__modeladorNativeBackup = true;"
          injectionTime:WKUserScriptInjectionTimeAtDocumentStart
       forMainFrameOnly:YES]];
+    self.windowBridge = [[WindowBridge alloc] init];
+    __weak AppDelegate *weakSelf = self;
+    self.windowBridge.handler = ^(NSDictionary *message) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [weakSelf handleWindowMessage:message];
+        });
+    };
+    [contentController addScriptMessageHandlerWithReply:self.windowBridge
+                                           contentWorld:WKContentWorld.pageWorld
+                                                   name:@"modeladorWindows"];
+    [contentController addUserScript:[[WKUserScript alloc]
+        initWithSource:@"window.__modeladorNativeWindows = true;"
+         injectionTime:WKUserScriptInjectionTimeAtDocumentStart
+      forMainFrameOnly:YES]];
     configuration.userContentController = contentController;
+    self.viewerWindows = [NSMutableDictionary dictionary];
+    self.viewerCoordinators = [NSMutableDictionary dictionary];
+    self.window.delegate = self;
 
     WKWebView *webView = [[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration];
     webView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
@@ -386,10 +431,138 @@ static NSUInteger const kBackupsToKeep = 10;
     webView.navigationDelegate = self.coordinator;
     webView.UIDelegate = self.coordinator;
 
+    self.mainWebView = webView;
     self.window.contentView = webView;
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:[kAppScheme stringByAppendingString:@"://app/index.html"]]]];
     [self.window makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];
+}
+
+- (NSString *)stringByEncodingJSON:(id)value {
+    NSData *data = [NSJSONSerialization dataWithJSONObject:@[value ?: @""] options:0 error:nil];
+    NSString *array = data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : @"[\"\"]";
+    return [array substringWithRange:NSMakeRange(1, array.length - 2)];
+}
+
+- (void)handleWindowMessage:(NSDictionary *)message {
+    NSString *action = [message[@"action"] isKindOfClass:NSString.class] ? message[@"action"] : @"";
+    NSString *projectId = [message[@"projectId"] isKindOfClass:NSString.class] ? message[@"projectId"] : @"";
+    NSString *artifactId = [message[@"artifactId"] isKindOfClass:NSString.class] ? message[@"artifactId"] : @"";
+    NSString *title = [message[@"title"] isKindOfClass:NSString.class] ? message[@"title"] : kAppName;
+    if (projectId.length == 0 || artifactId.length == 0) {
+        return;
+    }
+    if ([action isEqualToString:@"open"]) {
+        [self openViewerForProject:projectId artifact:artifactId title:title];
+    } else if ([action isEqualToString:@"focus-main"]) {
+        [self focusMainWindowOnProject:projectId artifact:artifactId];
+    }
+}
+
+/// Otra pantalla (el iPad en Sidecar) si hay una; si no, al lado de la ventana principal.
+- (NSRect)frameForViewerWindow {
+    NSSize size = NSMakeSize(980, 720);
+    NSScreen *mainScreen = self.window.screen ?: NSScreen.mainScreen;
+    NSScreen *otherScreen = nil;
+    for (NSScreen *screen in NSScreen.screens) {
+        if (screen != mainScreen) {
+            otherScreen = screen;
+            break;
+        }
+    }
+    NSRect area = (otherScreen ?: mainScreen).visibleFrame;
+    if (otherScreen) {
+        size.width = MIN(size.width, area.size.width);
+        size.height = MIN(size.height, area.size.height);
+        return NSMakeRect(NSMidX(area) - size.width / 2, NSMidY(area) - size.height / 2, size.width, size.height);
+    }
+    NSRect main = self.window.frame;
+    CGFloat count = (CGFloat)self.viewerWindows.count;
+    return NSMakeRect(main.origin.x + 60 + 28 * count, MAX(area.origin.y, main.origin.y - 40 - 28 * count), size.width, size.height);
+}
+
+- (void)openViewerForProject:(NSString *)projectId artifact:(NSString *)artifactId title:(NSString *)title {
+    NSString *key = [NSString stringWithFormat:@"%@/%@", projectId, artifactId];
+    NSWindow *existing = self.viewerWindows[key];
+    if (existing) {
+        [existing makeKeyAndOrderFront:nil];
+        return;
+    }
+
+    NSWindow *viewerWindow = [[NSWindow alloc]
+        initWithContentRect:[self frameForViewerWindow]
+        styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
+                   NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable)
+        backing:NSBackingStoreBuffered
+        defer:NO];
+    viewerWindow.title = title;
+    viewerWindow.minSize = NSMakeSize(420, 320);
+    viewerWindow.collectionBehavior = NSWindowCollectionBehaviorFullScreenPrimary;
+    viewerWindow.releasedWhenClosed = NO;
+    viewerWindow.delegate = self;
+
+    // Misma tienda de datos y mismo esquema, pero sin el puente de respaldos:
+    // la ventana secundaria nunca guarda proyectos.
+    WKWebViewConfiguration *configuration = [[WKWebViewConfiguration alloc] init];
+    configuration.websiteDataStore = WKWebsiteDataStore.defaultDataStore;
+    configuration.preferences.javaScriptCanOpenWindowsAutomatically = NO;
+    [configuration setURLSchemeHandler:self.schemeHandler forURLScheme:kAppScheme];
+    WKUserContentController *contentController = [[WKUserContentController alloc] init];
+    [contentController addScriptMessageHandlerWithReply:self.windowBridge
+                                           contentWorld:WKContentWorld.pageWorld
+                                                   name:@"modeladorWindows"];
+    [contentController addUserScript:[[WKUserScript alloc]
+        initWithSource:@"window.__modeladorNativeWindows = true;"
+         injectionTime:WKUserScriptInjectionTimeAtDocumentStart
+      forMainFrameOnly:YES]];
+    configuration.userContentController = contentController;
+
+    WKWebView *webView = [[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration];
+    webView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    webView.allowsMagnification = NO;
+    WebCoordinator *coordinator = [[WebCoordinator alloc] initWithWindow:viewerWindow];
+    webView.navigationDelegate = coordinator;
+    webView.UIDelegate = coordinator;
+    viewerWindow.contentView = webView;
+
+    NSString *hash = [NSString stringWithFormat:@"#viewer=%@/%@",
+        [projectId stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet],
+        [artifactId stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet]];
+    NSString *address = [[kAppScheme stringByAppendingString:@"://app/index.html"] stringByAppendingString:hash];
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:address]]];
+
+    self.viewerWindows[key] = viewerWindow;
+    self.viewerCoordinators[key] = coordinator;
+    [viewerWindow makeKeyAndOrderFront:nil];
+}
+
+- (void)focusMainWindowOnProject:(NSString *)projectId artifact:(NSString *)artifactId {
+    if (self.window.isMiniaturized) {
+        [self.window deminiaturize:nil];
+    }
+    [self.window makeKeyAndOrderFront:nil];
+    [NSApp activateIgnoringOtherApps:YES];
+    NSString *script = [NSString stringWithFormat:
+        @"window.dispatchEvent(new CustomEvent('modelador:select-artifact', {detail: {projectId: %@, artifactId: %@}}));",
+        [self stringByEncodingJSON:projectId], [self stringByEncodingJSON:artifactId]];
+    [self.mainWebView evaluateJavaScript:script completionHandler:nil];
+}
+
+- (void)windowWillClose:(NSNotification *)notification {
+    NSWindow *closing = notification.object;
+    if (closing == self.window) {
+        // Sin la principal no hay con qué editar: las vistas se cierran con ella.
+        for (NSWindow *viewer in [self.viewerWindows.allValues copy]) {
+            [viewer close];
+        }
+        return;
+    }
+    for (NSString *key in [self.viewerWindows.allKeys copy]) {
+        if (self.viewerWindows[key] == closing) {
+            [self.viewerWindows removeObjectForKey:key];
+            [self.viewerCoordinators removeObjectForKey:key];
+        }
+    }
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
