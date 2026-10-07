@@ -6,10 +6,12 @@ import {
   buildSequenceKeyboardInsertionSlots,
   createInactiveSequenceKeyboardState,
   findCompatibleSequenceReturnCalls,
+  insertSequenceItemAtSlot,
   moveCircular,
   parseSequenceCreatedParticipant,
   parseSequenceKeyboardSignature,
-  resolveKeyboardTargetMessageType,
+  noPendingCallFeedback,
+  resolveKeyboardTargetMove,
   sequenceKeyboardMessageTypes,
   sequenceKeyboardModeReducer,
 } from './sequenceKeyboardMode';
@@ -95,19 +97,39 @@ describe('sequence keyboard mode state', () => {
     });
   });
 
-  it('defaults right-to-left navigation (target < source) to return, and left-to-right (target > source) to synchronous', () => {
-    // Participant indices: 0: A, 1: B, 2: C
-    // From B (index 1) to A (index 0) - moving to the left:
-    expect(resolveKeyboardTargetMessageType(1, 0, 'synchronous')).toBe('return');
-    // From B (index 1) to C (index 2) - moving to the right:
-    expect(resolveKeyboardTargetMessageType(1, 2, 'return')).toBe('synchronous');
-    // Self-call (same index): keeps current type
-    expect(resolveKeyboardTargetMessageType(1, 1, 'asynchronous')).toBe('asynchronous');
-    // Explicit lifecycle choices stay selected while the destination moves.
-    expect(resolveKeyboardTargetMessageType(1, 0, 'destroy')).toBe('destroy');
-    expect(resolveKeyboardTargetMessageType(1, 2, 'destroy')).toBe('destroy');
-    expect(resolveKeyboardTargetMessageType(1, 0, 'create')).toBe('create');
+  it('moves the target with the arrows without ever changing the message type', () => {
+    const order = ['a', 'b', 'c'];
+    const mirrored = ['c', 'b', 'a'];
+    for (const type of ['synchronous', 'asynchronous', 'destroy'] as const) {
+      // The same gesture, in both orders of the lifelines, lands on the same neighbour.
+      expect(resolveKeyboardTargetMove({ participantIds: order, targetId: 'b', messageType: type, direction: 1, returnCalls: [] })).toEqual({ targetId: 'c' });
+      expect(resolveKeyboardTargetMove({ participantIds: order, targetId: 'b', messageType: type, direction: -1, returnCalls: [] })).toEqual({ targetId: 'a' });
+      expect(resolveKeyboardTargetMove({ participantIds: mirrored, targetId: 'b', messageType: type, direction: 1, returnCalls: [] })).toEqual({ targetId: 'a' });
+      expect(resolveKeyboardTargetMove({ participantIds: mirrored, targetId: 'b', messageType: type, direction: -1, returnCalls: [] })).toEqual({ targetId: 'c' });
+    }
+    // Wrapping around the ends keeps the type too: only the target changes.
+    expect(resolveKeyboardTargetMove({ participantIds: order, targetId: 'c', messageType: 'synchronous', direction: 1, returnCalls: [] })).toEqual({ targetId: 'a' });
+  });
 
+  it('steps a return only through the participants with a call waiting, in either direction', () => {
+    const calls = [{ id: 'call-b', sourceId: 'b' }, { id: 'call-c', sourceId: 'c' }, { id: 'call-c2', sourceId: 'c' }];
+    // Source is `a`; callers are b (right) and c (further right): returns go to the right too.
+    expect(resolveKeyboardTargetMove({ participantIds: ['a', 'b', 'c'], targetId: 'b', messageType: 'return', direction: 1, returnCalls: calls }))
+      .toEqual({ targetId: 'c', returnCandidateIds: ['call-c', 'call-c2'], returnCandidateIndex: 0 });
+    expect(resolveKeyboardTargetMove({ participantIds: ['a', 'b', 'c'], targetId: 'c', messageType: 'return', direction: -1, returnCalls: calls }))
+      .toEqual({ targetId: 'b', returnCandidateIds: ['call-b'], returnCandidateIndex: 0 });
+    // Mirrored lifelines: the same callers, the same answers.
+    expect(resolveKeyboardTargetMove({ participantIds: ['c', 'b', 'a'], targetId: 'b', messageType: 'return', direction: -1, returnCalls: calls }))
+      .toEqual({ targetId: 'c', returnCandidateIds: ['call-c', 'call-c2'], returnCandidateIndex: 0 });
+    // A single caller keeps the arrows where they are, not on a nobody's lifeline.
+    expect(resolveKeyboardTargetMove({ participantIds: ['a', 'b', 'c'], targetId: 'b', messageType: 'return', direction: 1, returnCalls: [calls[0]] }))
+      .toEqual({ targetId: 'b', returnCandidateIds: ['call-b'], returnCandidateIndex: 0 });
+    // Nothing to answer: say so instead of building an invalid return.
+    expect(resolveKeyboardTargetMove({ participantIds: ['a', 'b', 'c'], targetId: 'a', messageType: 'return', direction: 1, returnCalls: [] }))
+      .toEqual({ feedback: noPendingCallFeedback });
+  });
+
+  it('keeps the selected type through reducer route changes', () => {
     // In reducer: set-route can update messageType and returnCandidateIds atomically
     let state = sequenceKeyboardModeReducer(createInactiveSequenceKeyboardState(), { type: 'activate', slotIndex: 0, sourceId: 'b' });
     state = sequenceKeyboardModeReducer(state, { type: 'begin', messageType: 'synchronous', targetId: 'b' });
@@ -255,5 +277,65 @@ describe('sequence keyboard message type navigation and confirmation', () => {
       type: 'start-typing', text: 'resultado legado', editId: 'return-1',
     });
     expect(editing).toMatchObject({ stage: 'aim', messageType: 'return', text: '', editId: 'return-1' });
+  });
+});
+
+describe('keyboard insertion lands where the cursor is', () => {
+  const call = (id: string, sourceId: string, targetId: string) => ({ ...createSequenceMessage('synchronous', sourceId, targetId), id });
+  const locate = (items: SequenceDiagramContent['items'], id: string, container = 'root'): string | undefined => {
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      if (item.id === id) return `${container}:${index}`;
+      if (item.kind === 'fragment') {
+        for (const operand of item.operands) {
+          const found = locate(operand.items, id, operand.id);
+          if (found) return found;
+        }
+      }
+    }
+    return undefined;
+  };
+
+  const withFragment = (spacing: 'compact' | 'normal', reverse: boolean): SequenceDiagramContent => {
+    const first = call('m1', 'a', 'b');
+    const inside1 = call('m2', 'b', 'c');
+    const inside2 = call('m3', 'c', 'b');
+    const fragment = createSequenceFragment('alt');
+    fragment.operands = [
+      { id: 'o1', guard: 'si', items: [inside1, inside2] },
+      { id: 'o2', guard: '', items: [] },
+    ];
+    const content = { ...contentWith([first, fragment, call('m4', 'b', 'c')]), spacing };
+    return reverse
+      ? { ...content, participants: [...content.participants].reverse() }
+      : content;
+  };
+
+  it.each([
+    ['compact', false], ['compact', true], ['normal', false], ['normal', true],
+  ] as const)('puts a message in the branch the cursor is in (%s, mirrored: %s)', (spacing, mirrored) => {
+    const content = withFragment(spacing, mirrored);
+    const layout = buildSequenceLayout(content);
+    const slots = buildSequenceKeyboardInsertionSlots(content, layout);
+    for (const slot of slots) {
+      // `a` is outside what the branch's own messages span: the cursor still decides.
+      const probe = call('probe', 'a', 'b');
+      const items = insertSequenceItemAtSlot(content.items, probe, slot);
+      expect(locate(items, 'probe')).toBe(`${slot.containerId}:${slot.index}`);
+    }
+  });
+
+  it('places compact cursor slots between the neighbouring messages, not on top of them', () => {
+    const content = withFragment('compact', false);
+    const layout = buildSequenceLayout(content);
+    const rootSlots = buildSequenceKeyboardInsertionSlots(content, layout).filter((slot) => slot.containerId === 'o1');
+    const [before, between] = rootSlots;
+    const m2 = layout.messageLayouts.get('m2')!;
+    const m3 = layout.messageLayouts.get('m3')!;
+    expect(before.y).toBeLessThan(m2.y);
+    expect(between.y).toBeGreaterThan(m2.y);
+    expect(between.y).toBeLessThan(m3.y);
+    // The slot is the boundary between the two real rows.
+    expect(between.y).toBe(Math.round(m2.top + m2.height));
   });
 });
