@@ -1,10 +1,8 @@
 import { useState, type RefObject } from 'react';
-import { getViewportForBounds, type Rect } from 'reactflow';
+import type { Rect } from 'reactflow';
 import { createPdfFromJpegDataUrl, downloadBlob, downloadDataUrl } from '../utils/pdfExport';
+import { planDiagramCapture } from '../utils/diagramImageExport';
 import { applyExportThemeVariables } from './useTheme';
-
-const PNG_WIDTH = 1600;
-const PNG_HEIGHT = 1000;
 
 type DiagramImageExportOptions = {
   canvasRef: RefObject<HTMLDivElement | null>;
@@ -41,7 +39,7 @@ export function useDiagramImageExport({
 }: DiagramImageExportOptions) {
   const [isExporting, setIsExporting] = useState(false);
 
-  const captureDiagramImage = async (format: 'jpeg' | 'png'): Promise<string | null> => {
+  const captureDiagramImage = async (format: 'jpeg' | 'png'): Promise<{ dataUrl: string; plan: ReturnType<typeof planDiagramCapture> } | null> => {
     if (canvasRef.current === null || !hasNodes) {
       showFeedback('No hay diagrama para exportar');
       return null;
@@ -56,8 +54,8 @@ export function useDiagramImageExport({
 
     // Exports are documents: capture them on the light palette even in dark mode.
     const restoreTheme = applyExportThemeVariables(canvasRef.current);
-    const diagramBounds = getDiagramBounds();
-    const transform = getViewportForBounds(diagramBounds, PNG_WIDTH, PNG_HEIGHT, 0, 2, 0.16);
+    // The diagram at its own size (zoom 1), rendered at up to 3× for print.
+    const plan = planDiagramCapture(getDiagramBounds());
     const backgroundColor = getEffectiveBackgroundColor(flowRoot);
     const edgePathStyleBackups = Array.from(viewport.querySelectorAll<SVGElement>('.react-flow__edges path, .react-flow__edges polygon')).map(
       (path) => ({
@@ -80,8 +78,7 @@ export function useDiagramImageExport({
       const imageOptions = {
         backgroundColor,
         cacheBust: true,
-        // Match the PDF image dimensions even on Retina displays.
-        pixelRatio: 1,
+        pixelRatio: plan.pixelRatio,
         filter: (node: HTMLElement) => {
           if (!(node instanceof Element)) {
             return true;
@@ -96,18 +93,19 @@ export function useDiagramImageExport({
             !node.classList.contains('react-flow__minimap')
           );
         },
-        height: PNG_HEIGHT,
+        height: plan.height,
         style: {
-          height: `${PNG_HEIGHT}px`,
-          transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.zoom})`,
-          width: `${PNG_WIDTH}px`,
+          height: `${plan.height}px`,
+          transform: `translate(${plan.x}px, ${plan.y}px) scale(1)`,
+          width: `${plan.width}px`,
         },
-        width: PNG_WIDTH,
+        width: plan.width,
       };
 
-      return format === 'png'
+      const dataUrl = format === 'png'
         ? await toPng(viewport, imageOptions)
         : await toJpeg(viewport, { ...imageOptions, quality: 0.95 });
+      return { dataUrl, plan };
     } finally {
       edgePathStyleBackups.forEach(({ path, style }) => {
         if (style === null) {
@@ -129,13 +127,13 @@ export function useDiagramImageExport({
     setIsExporting(true);
 
     try {
-      const dataUrl = await captureDiagramImage('png');
+      const capture = await captureDiagramImage('png');
 
-      if (dataUrl === null) {
+      if (capture === null) {
         return;
       }
 
-      const outcome = await downloadDataUrl(`${projectName.trim() || 'diagrama'} - ${artifactName.trim() || 'artefacto'}.png`, dataUrl);
+      const outcome = await downloadDataUrl(`${projectName.trim() || 'diagrama'} - ${artifactName.trim() || 'artefacto'}.png`, capture.dataUrl);
       if (outcome.status === 'failed') throw new Error(outcome.error);
       if (outcome.status === 'saved') showFeedback('PNG exportado');
     } catch {
@@ -153,13 +151,15 @@ export function useDiagramImageExport({
     setIsExporting(true);
 
     try {
-      const dataUrl = await captureDiagramImage('jpeg');
+      const capture = await captureDiagramImage('jpeg');
 
-      if (dataUrl === null) {
+      if (capture === null) {
         return;
       }
 
-      const pdf = createPdfFromJpegDataUrl(dataUrl, PNG_WIDTH, PNG_HEIGHT);
+      const { plan } = capture;
+      // Page in points at the diagram's own size; the image carries the extra pixels.
+      const pdf = createPdfFromJpegDataUrl(capture.dataUrl, plan.imageWidth, plan.imageHeight, plan.pageWidth, plan.pageHeight);
       const outcome = await downloadBlob(`${projectName.trim() || 'diagrama'} - ${artifactName.trim() || 'artefacto'}.pdf`, pdf);
       if (outcome.status === 'failed') throw new Error(outcome.error);
       if (outcome.status === 'saved') showFeedback('PDF exportado');

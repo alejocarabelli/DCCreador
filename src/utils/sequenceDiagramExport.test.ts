@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SequenceDiagramContent, SequenceFragment, SequenceMessage, SequenceParticipant } from '../types/diagram';
 import { createEmptySequenceDiagramContent, normalizeSequenceDiagramContent } from './sequenceDiagram';
-import { buildSequencePdfPlan, getSequenceExportBounds, getSequenceExportProtectedBands } from './sequenceDiagramExport';
+import { buildSequencePdfPlan, getSequenceExportBounds, getSequenceExportProtectedBands, getSequencePngScale } from './sequenceDiagramExport';
 import { buildSequenceLayout } from './sequenceDiagramLayout';
 
 const participant = (id: string, x: number, name = id): SequenceParticipant => ({ id, kind: 'object', name, classifierName: '', x });
@@ -190,5 +190,15 @@ describe('sequence diagram export plan', () => {
     expect(plan.crop).toEqual(crop);
     expect(crop.width).toBeLessThan(1200);
     expect(crop.height).toBeLessThan(600);
+  });
+});
+
+describe('getSequencePngScale', () => {
+  it('renders ordinary diagrams at 3× and keeps big ones under the canvas limits', () => {
+    expect(getSequencePngScale({ width: 1200, height: 800 })).toBe(3);
+    const big = getSequencePngScale({ width: 4000, height: 6000 });
+    expect(big).toBeGreaterThan(1);
+    expect(4000 * 6000 * big * big).toBeLessThanOrEqual(40_000_001);
+    expect(getSequencePngScale({ width: 20_000, height: 400 })).toBe(1);
   });
 });

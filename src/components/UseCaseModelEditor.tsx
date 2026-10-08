@@ -8,7 +8,6 @@ import ReactFlow, {
   applyEdgeChanges,
   applyNodeChanges,
   getNodesBounds,
-  getViewportForBounds,
   type Connection,
   type EdgeChange,
   type NodeChange,
@@ -37,8 +36,8 @@ import type {
 } from '../types/diagram';
 import type { DiagramTheme } from '../theme/themes';
 import { createId } from '../utils/id';
-import { createPdfFromJpegDataUrl, downloadBlob, downloadDataUrl } from '../utils/pdfExport';
-import { applyExportThemeVariables } from '../hooks/useTheme';
+import { useDiagramImageExport } from '../hooks/useDiagramImageExport';
+import { getDiagramImageExportBounds } from '../utils/diagramImageExport';
 import { useGentleWheelZoom } from '../hooks/useGentleWheelZoom';
 import { CANVAS_GRID_KEY, readCanvasGridEnabled, readUiPreference, writeUiPreference } from '../storage/uiPreferences';
 import { normalizeUseCaseModelContent } from '../utils/diagramNormalization';
@@ -75,8 +74,6 @@ const relationHelp = (relationType: UseCaseRelationType): string =>
       : relationType === 'extend'
         ? 'El caso de origen agrega comportamiento opcional al de destino.'
         : 'El origen es un caso particular del destino.';
-const PNG_WIDTH = 1600;
-const PNG_HEIGHT = 1000;
 
 const isEditableElement = (element: Element | null): boolean =>
   element !== null && element.closest('[contenteditable="true"], input, select, textarea, button') !== null;
@@ -107,11 +104,6 @@ const nodeTypes = {
 
 const edgeTypes = {
   useCaseRelation: UseCaseRelationEdge,
-};
-
-const getEffectiveBackgroundColor = (element: HTMLElement): string => {
-  const color = window.getComputedStyle(element).backgroundColor;
-  return color === 'rgba(0, 0, 0, 0)' ? '#ffffff' : color;
 };
 
 const canConnectNodes = (
@@ -500,96 +492,18 @@ export function UseCaseModelEditor({
     );
   };
 
-  const captureDiagramImage = async (format: 'jpeg' | 'png'): Promise<string | null> => {
-    if (canvasRef.current === null || renderedNodes.length === 0) {
-      showFeedback('No hay diagrama para exportar');
-      return null;
-    }
-    const viewport = canvasRef.current.querySelector<HTMLElement>('.react-flow__viewport');
-    const flowRoot = canvasRef.current.querySelector<HTMLElement>('.react-flow');
-    if (viewport === null || flowRoot === null) {
-      return null;
-    }
-    // Exports are documents: capture them on the light palette even in dark mode.
-    const restoreTheme = applyExportThemeVariables(canvasRef.current);
-    const transform = getViewportForBounds(getNodesBounds(renderedNodes), PNG_WIDTH, PNG_HEIGHT, 0.5, 2, 0.16);
-    const backgroundColor = getEffectiveBackgroundColor(flowRoot);
-    const edgePathStyleBackups = Array.from(viewport.querySelectorAll<SVGPathElement>('.react-flow__edge-path')).map(
-      (path) => ({
-        path,
-        style: path.getAttribute('style'),
-      }),
-    );
-    canvasRef.current.classList.add('exporting-png');
-    try {
-      const { toJpeg, toPng } = await import('html-to-image');
-      edgePathStyleBackups.forEach(({ path }) => {
-        const computedStyle = window.getComputedStyle(path);
-        path.style.stroke = computedStyle.stroke;
-        path.style.strokeWidth = computedStyle.strokeWidth;
-        path.style.strokeDasharray = computedStyle.strokeDasharray;
-      });
-      const imageOptions = {
-        backgroundColor,
-        cacheBust: true,
-        filter: (node: HTMLElement) => {
-          if (!(node instanceof Element)) {
-            return true;
-          }
-          return (
-            !node.classList.contains('react-flow__handle') &&
-            !node.classList.contains('react-flow__background') &&
-            !node.classList.contains('react-flow__controls') &&
-            !node.classList.contains('react-flow__minimap')
-          );
-        },
-        height: PNG_HEIGHT,
-        style: {
-          height: `${PNG_HEIGHT}px`,
-          transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.zoom})`,
-          width: `${PNG_WIDTH}px`,
-        },
-        width: PNG_WIDTH,
-      };
-
-      return format === 'png'
-        ? await toPng(viewport, imageOptions)
-        : await toJpeg(viewport, { ...imageOptions, quality: 0.95 });
-    } finally {
-      edgePathStyleBackups.forEach(({ path, style }) => {
-        if (style === null) {
-          path.removeAttribute('style');
-        } else {
-          path.setAttribute('style', style);
-        }
-      });
-      canvasRef.current.classList.remove('exporting-png');
-      restoreTheme();
-    }
-  };
-
-  const exportPng = async (): Promise<void> => {
-    const dataUrl = await captureDiagramImage('png');
-
-    if (dataUrl === null) {
-      return;
-    }
-
-    const outcome = await downloadDataUrl(`${project.name.trim() || 'diagrama'} - ${artifact.name.trim() || 'artefacto'}.png`, dataUrl);
-    if (outcome.status !== 'cancelled') showFeedback(outcome.status === 'saved' ? 'PNG exportado' : 'No se pudo exportar el PNG');
-  };
-
-  const exportPdf = async (): Promise<void> => {
-    const dataUrl = await captureDiagramImage('jpeg');
-
-    if (dataUrl === null) {
-      return;
-    }
-
-    const pdf = createPdfFromJpegDataUrl(dataUrl, PNG_WIDTH, PNG_HEIGHT);
-    const outcome = await downloadBlob(`${project.name.trim() || 'diagrama'} - ${artifact.name.trim() || 'artefacto'}.pdf`, pdf);
-    if (outcome.status !== 'cancelled') showFeedback(outcome.status === 'saved' ? 'PDF exportado' : 'No se pudo exportar el PDF');
-  };
+  const { exportPng, exportPdf } = useDiagramImageExport({
+    canvasRef,
+    hasNodes: renderedNodes.length > 0,
+    getDiagramBounds: () => {
+      const nodeBounds = getNodesBounds(renderedNodes);
+      const viewport = canvasRef.current?.querySelector<HTMLElement>('.react-flow__viewport');
+      return viewport ? getDiagramImageExportBounds(viewport, nodeBounds, reactFlowInstance?.getZoom() ?? 1) : nodeBounds;
+    },
+    projectName: project.name,
+    artifactName: artifact.name,
+    showFeedback,
+  });
 
   const closeToolbarMenus = (except?: HTMLDetailsElement): void => {
     toolbarRef.current?.querySelectorAll<HTMLDetailsElement>('details.toolbar-menu').forEach((details) => {

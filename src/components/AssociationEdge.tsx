@@ -44,21 +44,82 @@ const getOutwardUnit = (position: Position, fallback: { x: number; y: number }) 
   return fallback;
 };
 
+type Vector = { x: number; y: number };
+
+const getPathPoints = (path: string): Vector[] => {
+  const numbers = path.match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
+  const points: Vector[] = [];
+  for (let index = 0; index + 1 < numbers.length; index += 2) {
+    const point = { x: numbers[index], y: numbers[index + 1] };
+    const last = points.at(-1);
+    if (!last || Math.hypot(point.x - last.x, point.y - last.y) > 0.5) points.push(point);
+  }
+  return points;
+};
+
+/**
+ * The side of the line an end's labels go on: the one the drawn route does not
+ * turn to after leaving the class, so the line never runs through them. A
+ * route with no turn falls back to the side away from the other end.
+ */
+const getEndpointLabelSide = (outward: Vector, route: Vector[]): Vector => {
+  const side = { x: -outward.y, y: outward.x };
+  let turn: Vector | null = null;
+  for (let index = 1; index + 1 < route.length; index += 1) {
+    const segment = { x: route[index + 1].x - route[index].x, y: route[index + 1].y - route[index].y };
+    if (Math.abs(segment.x * outward.y - segment.y * outward.x) > 0.5) {
+      turn = segment;
+      break;
+    }
+  }
+  const last = route.at(-1);
+  const first = route[0];
+  const toward = turn ?? (last && first ? { x: last.x - first.x, y: last.y - first.y } : { x: 0, y: 0 });
+  return toward.x * side.x + toward.y * side.y > 1 ? { x: -side.x, y: -side.y } : side;
+};
+
 const getEndpointLabelPosition = (
-  endpoint: { x: number; y: number },
-  outward: { x: number; y: number },
+  endpoint: Vector,
+  outward: Vector,
+  side: Vector,
   rowOffset = 0,
 ) => {
   const alongOffset = 23;
   const sideOffset = 20;
-  const perpendicularX = -outward.y * sideOffset;
-  const perpendicularY = outward.x * sideOffset;
-  // Extend role rows away from the anchor on every side, including left/top.
-  const rowDirection = outward.x < 0 || outward.y < 0 ? -1 : 1;
+  const perpendicularX = side.x * sideOffset;
+  const perpendicularY = side.y * sideOffset;
+  // Extend role rows away from the anchor: further out on the label's side of
+  // a horizontal line, further along a vertical one.
+  const rowDirection = side.y !== 0 ? Math.sign(side.y) : outward.y < 0 ? -1 : 1;
 
   return {
     x: endpoint.x + outward.x * alongOffset + perpendicularX,
     y: endpoint.y + outward.y * alongOffset + perpendicularY + rowDirection * rowOffset,
+  };
+};
+
+/**
+ * A multiplicity sits beside the line, as in a printed UML figure, and close
+ * to its class: inside the first stretch of the line, before any bend, and
+ * never on top of it, so the line is never cut or covered.
+ */
+const getMultiplicityLabelStyle = (endpoint: Vector, outward: Vector, side: Vector) => {
+  const besideLine = 9;
+  if (Math.abs(side.x) >= Math.abs(side.y)) {
+    // Vertical line: the label to its left or right, centred 13px out of the class.
+    return {
+      ...edgeLabelStyle,
+      left: endpoint.x + side.x * besideLine,
+      top: endpoint.y + outward.y * 13,
+      transform: `translate(${side.x < 0 ? '-100%' : '0'}, -50%)`,
+    };
+  }
+  // Horizontal line: above or below it, starting just off the class border.
+  return {
+    ...edgeLabelStyle,
+    left: endpoint.x + outward.x * 6,
+    top: endpoint.y + side.y * 4,
+    transform: `translate(${outward.x < 0 ? '-100%' : '0'}, ${side.y < 0 ? '-100%' : '0'})`,
   };
 };
 
@@ -68,14 +129,13 @@ const getEndpointLabelPosition = (
  * would carry them past the middle, next to the other end's label.
  */
 const getMultiplicityChipsStyle = (
-  label: { x: number; y: number },
-  outward: { x: number; y: number },
+  label: Vector,
+  outward: Vector,
+  side: Vector,
   bounds: { left: number; right: number } | null,
 ) => {
   const width = 156;
   const gap = 14;
-  // Same perpendicular getEndpointLabelPosition pushes the label to.
-  const side = { x: -outward.y, y: outward.x };
   let left: number;
   let top: number;
   let translateX: string;
@@ -295,10 +355,13 @@ export function AssociationEdge({
     y: centerLabelPosition.y + (centerLabelOffset?.y ?? 0),
   };
 
-  const sourceLabelPosition = getEndpointLabelPosition(sourceEndpoint, sourceOutward);
-  const targetLabelPosition = getEndpointLabelPosition(targetEndpoint, targetOutward);
-  const sourceRolePosition = getEndpointLabelPosition(sourceEndpoint, sourceOutward, 26);
-  const targetRolePosition = getEndpointLabelPosition(targetEndpoint, targetOutward, 26);
+  const routePoints = getPathPoints(edgePath);
+  const sourceSide = getEndpointLabelSide(sourceOutward, routePoints);
+  const targetSide = getEndpointLabelSide(targetOutward, [...routePoints].reverse());
+  const sourceLabelPosition = getEndpointLabelPosition(sourceEndpoint, sourceOutward, sourceSide);
+  const targetLabelPosition = getEndpointLabelPosition(targetEndpoint, targetOutward, targetSide);
+  const sourceRolePosition = getEndpointLabelPosition(sourceEndpoint, sourceOutward, sourceSide, 26);
+  const targetRolePosition = getEndpointLabelPosition(targetEndpoint, targetOutward, targetSide, 26);
   const markerEndpoint = markerEndPosition === 'target' ? targetEndpoint : sourceEndpoint;
   const markerOutward = markerEndPosition === 'target' ? targetPathOutward : sourcePathOutward;
   const startMultiplicityEditing = (end: MultiplicityEnd, event: MouseEvent<HTMLElement>): void => {
@@ -331,7 +394,9 @@ export function AssociationEdge({
         <div
           className="association-label association-label-end nodrag nopan"
           data-empty={!value}
-          style={{ ...edgeLabelStyle, left: x, top: y }}
+          style={end === 'source'
+            ? getMultiplicityLabelStyle(sourceEndpoint, sourceOutward, sourceSide)
+            : getMultiplicityLabelStyle(targetEndpoint, targetOutward, targetSide)}
           onClick={(event) => event.stopPropagation()}
           onContextMenu={(event) => event.stopPropagation()}
           onDoubleClick={(event) => startMultiplicityEditing(end, event)}
@@ -370,7 +435,7 @@ export function AssociationEdge({
           <AssociationMultiplicityChips
             end={end}
             value={value}
-            style={getMultiplicityChipsStyle({ x, y }, end === 'source' ? sourceOutward : targetOutward, chipsBounds)}
+            style={getMultiplicityChipsStyle({ x, y }, end === 'source' ? sourceOutward : targetOutward, end === 'source' ? sourceSide : targetSide, chipsBounds)}
             onChange={(nextValue) => updateMultiplicity(end, nextValue)}
           />
         ) : null}

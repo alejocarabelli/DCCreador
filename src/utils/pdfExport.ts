@@ -32,8 +32,20 @@ export const downloadDataUrl = (filename: string, dataUrl: string): Promise<Save
 
 export const downloadBlob = (filename: string, blob: Blob): Promise<SaveOutcome> => saveBlob(blob, filename);
 
-export const createPdfFromJpegDataUrl = (jpegDataUrl: string, width: number, height: number): Blob => {
+/**
+ * A one-page PDF holding a JPEG. The page is `pageWidth` × `pageHeight` points
+ * and the image may carry more pixels than that, which is what keeps it sharp.
+ */
+export const createPdfFromJpegDataUrl = (
+  jpegDataUrl: string,
+  imageWidth: number,
+  imageHeight: number,
+  pageWidth = imageWidth,
+  pageHeight = imageHeight,
+): Blob => {
   const imageBytes = dataUrlToBytes(jpegDataUrl);
+  const width = pageWidth;
+  const height = pageHeight;
   const contentStream = `q\n${width} 0 0 ${height} 0 0 cm\n/Im0 Do\nQ\n`;
   const objects: Uint8Array[] = [
     encodeAscii('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n'),
@@ -43,7 +55,7 @@ export const createPdfFromJpegDataUrl = (jpegDataUrl: string, width: number, hei
     ),
     concatBytes([
       encodeAscii(
-        `4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${imageBytes.length} >>\nstream\n`,
+        `4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${imageWidth} /Height ${imageHeight} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${imageBytes.length} >>\nstream\n`,
       ),
       imageBytes,
       encodeAscii('\nendstream\nendobj\n'),

@@ -112,7 +112,8 @@ describe('association UML markers', () => {
     expect(html).toContain('d="M 486 97 L 500 104 L 486 111"');
     const positions = [...html.matchAll(/class="[^"]*association-label-end[^"]*"[^>]*style="([^"]*)"/g)]
       .map(match => Number(match[1].match(/(?:^|;)top:([^;]+)px/)?.[1]));
-    expect(positions).toEqual([124, 84]);
+    // Beside a horizontal line, 4px off it: each on the side its line does not turn to.
+    expect(positions).toEqual([108, 100]);
   });
   it.each(['source', 'target'] as const)('places the inheritance triangle at the configured %s endpoint', (triangleEnd) => {
     const html = renderToString(
