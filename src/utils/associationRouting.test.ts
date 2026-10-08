@@ -4,6 +4,7 @@ import type { ClassDiagramEdge } from '../types/diagram';
 import { normalizeAssociationData } from './association';
 import {
   buildAssociationPath,
+  buildSelfAssociationPath,
   getAssociationCenterLabelPosition,
   resolveAssociationHandles,
   resolveAutomaticNoteHandles,
@@ -131,5 +132,74 @@ describe('association geometry', () => {
       x: 104,
       y: 150,
     });
+  });
+});
+
+describe('self associations', () => {
+  const pointsOf = (path: string) => path.split(/[ML]/).map((part) => part.trim()).filter(Boolean)
+    .map((pair) => pair.split(',').map(Number));
+
+  it('loops around the corner shared by two neighbouring sides', () => {
+    // Class at (100, 100), 200 × 120: leaves the right side near the top, comes back in from the top near the right.
+    const loop = buildSelfAssociationPath({
+      source: { x: 300, y: 124 },
+      target: { x: 260, y: 100 },
+      sourcePosition: Position.Right,
+      targetPosition: Position.Top,
+      clearance: 40,
+    });
+
+    expect(pointsOf(loop.path)).toEqual([[300, 124], [340, 124], [340, 60], [260, 60], [260, 100]]);
+    expect(loop.style).toBe('orthogonal');
+    expect(loop.source).toEqual({ x: 300, y: 124 });
+  });
+
+  it('stops short of the border where a triangle or diamond sits', () => {
+    const loop = buildSelfAssociationPath({
+      source: { x: 300, y: 124 },
+      target: { x: 260, y: 100 },
+      sourcePosition: Position.Right,
+      targetPosition: Position.Top,
+      sourceInset: 22,
+      clearance: 40,
+    });
+
+    expect(pointsOf(loop.path)[0]).toEqual([322, 124]);
+    expect(pointsOf(loop.path).at(-1)).toEqual([260, 100]);
+  });
+
+  it('brackets both ends on the same side and goes over the class for opposite sides', () => {
+    const sameSide = buildSelfAssociationPath({
+      source: { x: 300, y: 124 },
+      target: { x: 300, y: 196 },
+      sourcePosition: Position.Right,
+      targetPosition: Position.Right,
+      clearance: 40,
+    });
+    expect(pointsOf(sameSide.path)).toEqual([[300, 124], [340, 124], [340, 196], [300, 196]]);
+
+    const opposite = buildSelfAssociationPath({
+      source: { x: 300, y: 160 },
+      target: { x: 100, y: 160 },
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+      bounds: { x: 100, y: 100, width: 200, height: 120 },
+      clearance: 40,
+    });
+    expect(pointsOf(opposite.path)).toEqual([[300, 160], [340, 160], [340, 60], [60, 60], [60, 160], [100, 160]]);
+  });
+
+  it('spreads two ends fixed to the same point so the loop does not collapse', () => {
+    const loop = buildSelfAssociationPath({
+      source: { x: 300, y: 160 },
+      target: { x: 300, y: 160 },
+      sourcePosition: Position.Right,
+      targetPosition: Position.Right,
+      clearance: 40,
+    });
+
+    expect(loop.source).toEqual({ x: 300, y: 140 });
+    expect(loop.target).toEqual({ x: 300, y: 180 });
+    expect(pointsOf(loop.path)).toEqual([[300, 140], [340, 140], [340, 180], [300, 180]]);
   });
 });

@@ -529,7 +529,7 @@ export function DiagramEditor({
   };
 
   const updateAttributeByNodeId = useCallback(
-    (nodeId: string, attributeId: string, field: keyof Omit<ClassAttribute, 'id'>, value: string): void => {
+    (nodeId: string, attributeId: string, field: 'name' | 'type', value: string): void => {
       updateNodes(
         nodes.map((node) =>
           node.id === nodeId
@@ -633,12 +633,34 @@ export function DiagramEditor({
 
   const updateAttribute = (
     attributeId: string,
-    field: keyof Omit<ClassAttribute, 'id'>,
+    field: 'name' | 'type',
     value: string,
   ): void => {
     if (selectedNode !== null) {
       updateAttributeByNodeId(selectedNode.id, attributeId, field, value);
     }
+  };
+
+  const setAttributeStatic = (attributeId: string, isStatic: boolean): void => {
+    if (selectedNode === null) {
+      return;
+    }
+
+    updateNodes(
+      nodes.map((node) =>
+        node.id === selectedNode.id
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                attributes: node.data.attributes.map((attribute) =>
+                  attribute.id === attributeId ? { ...attribute, isStatic } : attribute,
+                ),
+              },
+            }
+          : node,
+      ),
+    );
   };
 
   const deleteAttribute = (attributeId: string): void => {
@@ -1708,6 +1730,19 @@ export function DiagramEditor({
                   >
                     Agregar método
                   </button>
+                  {activeSelectedIds.length <= 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // A loop over the top-right corner, from the handles nearest to it.
+                        const nodeId = contextMenu.nodeId ?? '';
+                        handleConnect({ source: nodeId, sourceHandle: 'right-start', target: nodeId, targetHandle: 'top-end' });
+                        setContextMenu(null);
+                      }}
+                    >
+                      Agregar autorrelación
+                    </button>
+                  ) : null}
                   {selectedContextNode?.data.hasParametricValuesNote ? (
                     <button
                       type="button"
@@ -1770,6 +1805,7 @@ export function DiagramEditor({
                 }}
                 onUpdateDescription={updateClassDescription}
                 onUpdateAttribute={updateAttribute}
+                onSetAttributeStatic={setAttributeStatic}
                 onUpdateMethod={updateMethod}
                 onUpdateParametricValues={updateParametricValuesByNodeId}
                 onUpdateParametricValuesNoteConnection={updateParametricValuesNoteConnection}

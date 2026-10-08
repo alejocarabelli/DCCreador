@@ -8,7 +8,7 @@ import {
 } from 'reactflow';
 import { useRef, useState, type MouseEvent } from 'react';
 import type { AssociationConnectionSide, AssociationEdgeData } from '../types/diagram';
-import { buildAssociationPath, getAssociationCenterLabelPosition } from '../utils/associationRouting';
+import { buildAssociationPath, buildSelfAssociationPath, getAssociationCenterLabelPosition } from '../utils/associationRouting';
 import { MultiplicityInput } from './MultiplicityInput';
 import { DEFAULT_ASSOCIATION_DATA } from '../utils/association';
 import { AssociationLineStyleToolbar, AssociationMultiplicityChips } from './AssociationQuickControls';
@@ -62,34 +62,49 @@ const getEndpointLabelPosition = (
   };
 };
 
+/**
+ * The chips sit beside their own multiplicity, on the side of the line the
+ * label is on, and never further along the line: on a short relation that
+ * would carry them past the middle, next to the other end's label.
+ */
 const getMultiplicityChipsStyle = (
   label: { x: number; y: number },
   outward: { x: number; y: number },
   bounds: { left: number; right: number } | null,
 ) => {
   const width = 156;
-  let alignEnd = outward.x < 0 || outward.y > 0;
-  let left = label.x + outward.x * 14;
-  let transform = outward.x > 0 ? 'translateY(-50%)'
-    : outward.x < 0 ? 'translate(-100%, -50%)'
-      : outward.y > 0 ? 'translate(-100%, 0)'
-        : 'translateY(-100%)';
+  const gap = 14;
+  // Same perpendicular getEndpointLabelPosition pushes the label to.
+  const side = { x: -outward.y, y: outward.x };
+  let left: number;
+  let top: number;
+  let translateX: string;
+  let translateY: string;
 
-  if (bounds !== null) {
-    // On vertical lines, switch sides before clamping so chips stay clear of the line.
-    if (outward.y > 0 && left - width < bounds.left) {
-      left = label.x + 40;
-      alignEnd = false;
-      transform = 'none';
-    } else if (outward.y < 0 && left + width > bounds.right) {
-      left = label.x - 40;
-      alignEnd = true;
-      transform = 'translate(-100%, -100%)';
-    }
-    left = Math.max(bounds.left + (alignEnd ? width : 0), Math.min(left, bounds.right - (alignEnd ? 0 : width)));
+  if (Math.abs(side.x) >= Math.abs(side.y)) {
+    // Vertical line: chips to the left or right of the label, at its height.
+    left = label.x + Math.sign(side.x || 1) * gap;
+    translateX = side.x < 0 ? '-100%' : '0';
+    top = label.y;
+    translateY = '-50%';
+  } else {
+    // Horizontal line: chips above or below the label, past the role row
+    // (getEndpointLabelPosition stacks it on that side), starting at the class
+    // border and running away from it so they never cover the class.
+    const pastRole = 40;
+    left = label.x - outward.x * 19;
+    translateX = outward.x < 0 ? '-100%' : '0';
+    top = label.y + Math.sign(side.y) * pastRole;
+    translateY = side.y < 0 ? '-100%' : '0';
   }
 
-  return { ...edgeLabelStyle, left, top: label.y + outward.y * 54 + outward.x * 62, transform, width };
+  if (bounds !== null) {
+    const startsAt = translateX === '-100%' ? left - width : left;
+    const shift = Math.max(bounds.left - startsAt, Math.min(0, bounds.right - (startsAt + width)));
+    left += shift;
+  }
+
+  return { ...edgeLabelStyle, left, top, transform: `translate(${translateX}, ${translateY})`, width };
 };
 
 const getOpenChevronPath = (
@@ -139,6 +154,8 @@ export function AssociationEdge({
   data,
   id,
   selected,
+  source,
+  target,
   sourcePosition,
   sourceX,
   sourceY,
@@ -155,6 +172,19 @@ export function AssociationEdge({
     left: (8 - viewportTransform[0]) / viewportTransform[2],
     right: (canvasWidth - 8 - viewportTransform[0]) / viewportTransform[2],
   } : null;
+  const isSelfAssociation = source === target;
+  // A loop only needs the class box when its ends sit on opposite sides; a
+  // string keeps the selector stable while nothing moves.
+  const selfBoundsKey = useStore(state => {
+    if (!isSelfAssociation) return '';
+    const node = state.nodeInternals.get(source);
+    const position = node?.positionAbsolute ?? node?.position;
+    return node && position ? `${position.x},${position.y},${node.width ?? 0},${node.height ?? 0}` : '';
+  });
+  const selfBounds = selfBoundsKey === '' ? undefined : (() => {
+    const [x, y, width, height] = selfBoundsKey.split(',').map(Number);
+    return { x, y, width, height };
+  })();
   const edgeData = data ?? DEFAULT_ASSOCIATION_DATA;
   const relationType = edgeData.relationType ?? 'association';
   const supportsEndpoints = relationType === 'association'
@@ -177,7 +207,16 @@ export function AssociationEdge({
         : edgeData.diamondEnd === 'target'
         ? 'target'
         : 'source';
-  const preliminaryPath = buildAssociationPath({
+  const selfPath = (sourceInset: number, targetInset: number) => buildSelfAssociationPath({
+    source: { x: sourceX, y: sourceY },
+    target: { x: targetX, y: targetY },
+    sourcePosition: effectiveSourcePosition,
+    targetPosition: effectiveTargetPosition,
+    bounds: selfBounds,
+    sourceInset,
+    targetInset,
+  });
+  const preliminaryPath = isSelfAssociation ? selfPath(0, 0) : buildAssociationPath({
     sourcePosition: effectiveSourcePosition,
     sourceX,
     sourceY,
@@ -228,7 +267,10 @@ export function AssociationEdge({
     relationType !== 'association' && markerEndPosition === 'target'
       ? targetEndpoint.y + targetPathOutward.y * lineInset
       : targetEndpoint.y;
-  const { path: edgePath, labelX, labelY } = buildAssociationPath({
+  const { path: edgePath, labelX, labelY } = isSelfAssociation ? selfPath(
+    Math.hypot(adjustedSourceX - sourceEndpoint.x, adjustedSourceY - sourceEndpoint.y),
+    Math.hypot(adjustedTargetX - targetEndpoint.x, adjustedTargetY - targetEndpoint.y),
+  ) : buildAssociationPath({
     sourcePosition: effectiveSourcePosition,
     sourceX: adjustedSourceX,
     sourceY: adjustedSourceY,

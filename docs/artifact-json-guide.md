@@ -63,6 +63,8 @@ Un atributo tiene `id`, `name` y `type`, todos strings. Por ejemplo: `{ "id": "p
 
 Un método tiene `id`, `visibility`, `name`, `parameters` y `returnType`, todos strings. `visibility` admite `"+"` (público), `"-"` (privado), `"#"` (protegido) o `""` (sin signo). `name` es solo el nombre; `parameters` es el texto dentro de los paréntesis, por ejemplo `"producto: Producto, cantidad: Integer"`; `returnType` es el tipo devuelto, por ejemplo `"Pedido"` o `"void"`. No escribas la firma completa en `name` ni repitas los paréntesis en `parameters`.
 
+Atributos y métodos aceptan además `"isStatic": true` para los miembros de clase (estáticos), que la aplicación dibuja subrayados como pide UML. Omitilo en los de instancia. Por ejemplo, un Singleton: `{ "id": "config-instancia", "name": "instancia", "type": "Configuracion", "isStatic": true }` y `{ "id": "config-get", "visibility": "+", "name": "getInstancia", "parameters": "", "returnType": "Configuracion", "isStatic": true }`.
+
 Los identificadores de atributos y métodos deben ser únicos dentro de cada lista; preferí identificadores únicos en todo el diagrama para evitar ambigüedades futuras. No agregues espacios al inicio o al final de ningún ID. Las clases se referencian desde las relaciones por `id`, nunca por su nombre.
 
 #### Opciones de presentación y notas
@@ -78,6 +80,8 @@ No hay campos específicos de clase abstracta, interfaz, enumeración, paquete, 
 ### 2.2. Relaciones: `content.edges`
 
 Cada relación tiene `id` único, `type: "association"`, `source` y `target` con IDs de clases existentes, y un objeto `data`. El campo externo `type` es siempre `"association"`, también para herencia, composición o dependencia; el significado UML se define con `data.relationType`.
+
+Una autorrelación (por ejemplo, la de un Singleton consigo mismo, o un `Empleado` que es jefe de otros `Empleado`) usa el mismo ID en `source` y `target`. Se dibuja como un lazo sobre una esquina de la clase; con `sourceSide` y `targetSide` en lados vecinos (por ejemplo `"right"` y `"top"`) elegís la esquina.
 
 | Campo de `data` | Valores / significado |
 | --- | --- |
