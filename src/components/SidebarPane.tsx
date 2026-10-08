@@ -1,4 +1,4 @@
-import { ChevronRight, Search } from 'lucide-react';
+import { ChevronRight, Search, X } from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -95,22 +95,36 @@ type SidebarFilterProps = {
 export function SidebarFilter({ onChange, value }: SidebarFilterProps) {
   return (
     <div className="v2-pane-filter">
-      <Search aria-hidden="true" size={14} />
-      <input
-        aria-label="Filtrar proyectos"
-        autoComplete="off"
-        placeholder="Filtrar proyectos"
-        spellCheck={false}
-        type="text"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape' && value !== '') {
-            event.preventDefault();
-            onChange('');
-          }
-        }}
-      />
+      <label className="v2-pane-search">
+        <Search aria-hidden="true" size={14} />
+        <input
+          aria-label="Filtrar proyectos"
+          autoComplete="off"
+          placeholder="Filtrar proyectos"
+          spellCheck={false}
+          type="text"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape' && value !== '') {
+              event.preventDefault();
+              onChange('');
+            }
+          }}
+        />
+        {value !== '' ? (
+          <button
+            aria-label="Borrar el filtro"
+            className="v2-pane-search-clear"
+            title="Borrar el filtro (Esc)"
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => onChange('')}
+          >
+            <X aria-hidden="true" size={12} />
+          </button>
+        ) : null}
+      </label>
     </div>
   );
 }
