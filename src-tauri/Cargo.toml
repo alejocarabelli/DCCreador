@@ -1,0 +1,33 @@
+[package]
+name = "modelador-de-sistemas"
+version = "2.3.1"
+description = "Modelador de Sistemas para Windows"
+authors = ["Alejo Carabelli"]
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "modelador-de-sistemas"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "=2.7.1", features = [] }
+
+[dependencies]
+tauri = { version = "=2.12.1", features = [] }
+tauri-plugin-dialog = "=2.8.1"
+tauri-plugin-opener = "=2.7.0"
+serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
+
+# Para apagar los atajos del navegador de WebView2 (ver disable_browser_accelerators).
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.39"
+windows-core = "0.62"

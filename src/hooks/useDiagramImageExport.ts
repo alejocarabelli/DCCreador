@@ -135,8 +135,9 @@ export function useDiagramImageExport({
         return;
       }
 
-      downloadDataUrl(`${projectName.trim() || 'diagrama'} - ${artifactName.trim() || 'artefacto'}.png`, dataUrl);
-      showFeedback('PNG exportado');
+      const outcome = await downloadDataUrl(`${projectName.trim() || 'diagrama'} - ${artifactName.trim() || 'artefacto'}.png`, dataUrl);
+      if (outcome.status === 'failed') throw new Error(outcome.error);
+      if (outcome.status === 'saved') showFeedback('PNG exportado');
     } catch {
       showFeedback('No se pudo exportar el PNG');
     } finally {
@@ -159,8 +160,9 @@ export function useDiagramImageExport({
       }
 
       const pdf = createPdfFromJpegDataUrl(dataUrl, PNG_WIDTH, PNG_HEIGHT);
-      downloadBlob(`${projectName.trim() || 'diagrama'} - ${artifactName.trim() || 'artefacto'}.pdf`, pdf);
-      showFeedback('PDF exportado');
+      const outcome = await downloadBlob(`${projectName.trim() || 'diagrama'} - ${artifactName.trim() || 'artefacto'}.pdf`, pdf);
+      if (outcome.status === 'failed') throw new Error(outcome.error);
+      if (outcome.status === 'saved') showFeedback('PDF exportado');
     } catch {
       showFeedback('No se pudo exportar el PDF');
     } finally {

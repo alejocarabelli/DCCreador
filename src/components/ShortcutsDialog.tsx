@@ -1,6 +1,7 @@
 import { Keyboard, X } from 'lucide-react';
 import { useRef } from 'react';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { shortcutLabel } from '../utils/shortcutLabel';
 
 type Shortcut = [keys: string, description: string];
 
@@ -109,7 +110,7 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
               <dl>
                 {section.shortcuts.map(([keys, description]) => (
                   <div key={keys}>
-                    <dt>{keys.split(/\s{2,}/).map((key) => <kbd className="v2-kbd" key={key}>{/Mac|iPhone|iPad/.test(typeof navigator === 'undefined' ? 'Mac' : navigator.platform) ? key : key.replaceAll('⌘', 'Ctrl+').replaceAll('⌃', 'Ctrl+')}</kbd>)}</dt>
+                    <dt>{keys.split(/\s{2,}/).map((key) => <kbd className="v2-kbd" key={key}>{shortcutLabel(key)}</kbd>)}</dt>
                     <dd>{description}</dd>
                   </div>
                 ))}

@@ -52,6 +52,7 @@ import {
 import { reviewUseCaseFlow, type FlowIssue } from '../utils/useCaseFlowReview';
 import { createFlowDocx } from '../utils/flowExportDocx';
 import { downloadBlob } from '../utils/pdfExport';
+import type { SaveOutcome } from '../utils/saveFile';
 import { EditorToolbar, MenuItem, ReviewButton, ToolButton, ToolMenu } from './ui/Toolbar';
 import { useArtifactScrollMemory } from '../hooks/useArtifactViewMemory';
 import { artifactViewKey, readArtifactScrollView } from '../utils/artifactViewMemory';
@@ -84,6 +85,7 @@ import {
 } from '../utils/useCaseFlowText';
 import { setCaretAfterRender, setCaretPositionAfterRender, setStateBulletCaretAfterRender } from '../utils/textCaret';
 import { AutoGrowTextarea } from './AutoGrowTextarea';
+import { shortcutLabel } from '../utils/shortcutLabel';
 
 type UseCaseFlowEditorProps = {
   artifact: UseCaseFlowArtifact;
@@ -1102,12 +1104,15 @@ export function UseCaseFlowEditor({
     const document = buildFlowDocument(content, artifact.name, symbolIndex);
 
     try {
+      let outcome: SaveOutcome;
       if (format === 'docx') {
-        downloadBlob(`${fileBaseName}.docx`, createFlowDocx(document));
+        outcome = await downloadBlob(`${fileBaseName}.docx`, createFlowDocx(document));
       } else {
         const { createFlowPdf } = await import('../utils/flowExportPdf');
-        downloadBlob(`${fileBaseName}.pdf`, createFlowPdf(document));
+        outcome = await downloadBlob(`${fileBaseName}.pdf`, createFlowPdf(document));
       }
+      if (outcome.status === 'cancelled') return;
+      if (outcome.status === 'failed') throw new Error(outcome.error);
       showFeedback(format === 'pdf' ? 'PDF exportado' : 'Documento de Word exportado');
     } catch {
       showFeedback('No se pudo exportar el documento. Probá de nuevo.');
@@ -1301,7 +1306,7 @@ export function UseCaseFlowEditor({
           else foldSummaryRefs.current.set(key, element);
         }}
         type="button"
-        title="Desplegar (⌘.)"
+        title={shortcutLabel('Desplegar (⌘.)')}
         onClick={() => expandRow(tableId, step, field)}
         onKeyDown={(event) => {
           if ((event.metaKey || event.ctrlKey) && event.key === '.') {
@@ -1393,7 +1398,7 @@ export function UseCaseFlowEditor({
           >
             Fila debajo
           </button>
-          <span className="flow-inline-hint"><kbd>⌘↵</kbd> turno del otro lado</span>
+          <span className="flow-inline-hint"><kbd>{shortcutLabel('⌘↵')}</kbd> turno del otro lado</span>
         </div>
       ) : null}
       <table className="flow-table document-flow-table">
@@ -1455,7 +1460,7 @@ export function UseCaseFlowEditor({
                         aria-label={collapsed ? 'Desplegar paso' : 'Plegar paso'}
                         disabled={!collapsed && lineCount <= 1}
                         type="button"
-                        title={collapsed ? 'Desplegar (⌘.)' : 'Plegar (⌘.)'}
+                        title={shortcutLabel(collapsed ? 'Desplegar (⌘.)' : 'Plegar (⌘.)')}
                         onClick={() => setRowCollapsed(step.id, !collapsed)}
                       >
                         {collapsed ? <ChevronsUpDown size={13} /> : <ChevronsDownUp size={13} />}
@@ -1560,7 +1565,7 @@ export function UseCaseFlowEditor({
               label="Camino alternativo"
               showLabel
               variant="primary"
-              title="Agregar un camino alternativo (⇧⌘A desde un paso lo abre desde esa línea)"
+              title={shortcutLabel('Agregar un camino alternativo (⇧⌘A desde un paso lo abre desde esa línea)')}
               onClick={addAlternativeFlow}
             />
           </>
@@ -1714,7 +1719,7 @@ export function UseCaseFlowEditor({
             </div>
             {content.alternativeFlows.length === 0 ? (
               <div className="flow-empty">
-                <p>Todavía no hay caminos alternativos. Para abrir uno desde un paso, poné el cursor en esa línea y apretá <kbd>⇧⌘A</kbd>.</p>
+                <p>Todavía no hay caminos alternativos. Para abrir uno desde un paso, poné el cursor en esa línea y apretá <kbd>{shortcutLabel('⇧⌘A')}</kbd>.</p>
                 <button className="secondary-action" type="button" onClick={addAlternativeFlow}>
                   <Split size={15} aria-hidden="true" />
                   Agregar camino alternativo

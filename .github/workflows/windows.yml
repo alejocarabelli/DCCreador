@@ -1,0 +1,64 @@
+name: Windows
+
+# Compila "Modelador de Sistemas" para Windows (Tauri, src-tauri/) en una PC de GitHub.
+# - Cada push a main y cada PR contra main: compila y guarda el instalador .exe
+#   como artefacto (para probarlo en una PC con Windows antes de mergear).
+# - Una etiqueta v2.*: además lo sube a la misma release que el .dmg del Mac.
+on:
+  push:
+    branches: [main]
+    tags: ['v2.*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - run: npx tsc -b && npm run lint && npm test
+      - name: Compilar la app
+        run: npx tauri build
+      - name: Tests de la parte nativa
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+      - name: Nombrar el instalador
+        shell: pwsh
+        run: |
+          $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $installer = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          New-Item -ItemType Directory -Force build | Out-Null
+          Copy-Item $installer.FullName "build/Modelador-de-Sistemas-$version-Windows.exe"
+      - name: Guardar la compilación
+        uses: actions/upload-artifact@v4
+        with:
+          name: modelador-windows
+          path: build/Modelador-de-Sistemas-*-Windows.exe
+      - name: Publicar en la release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PRERELEASE=""
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then PRERELEASE="--prerelease"; fi
+          # La release la crea el primero que llegue (este workflow o el del Mac);
+          # el otro solo sube sus archivos.
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" \
+            --verify-tag \
+            $PRERELEASE \
+            --title "Modelador de Sistemas $GITHUB_REF_NAME" \
+            --notes-file REDISENO-V2.md || true
+          gh release upload "$GITHUB_REF_NAME" --clobber build/Modelador-de-Sistemas-*-Windows.exe

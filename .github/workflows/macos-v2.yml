@@ -39,10 +39,13 @@ jobs:
         run: |
           PRERELEASE=""
           if [[ "$GITHUB_REF_NAME" == *-* ]]; then PRERELEASE="--prerelease"; fi
-          gh release create "$GITHUB_REF_NAME" \
+          # La release la crea el primero que llegue (este workflow o el de
+          # Windows); el otro solo sube sus archivos.
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" \
             --verify-tag \
             $PRERELEASE \
             --title "Modelador de Sistemas $GITHUB_REF_NAME" \
-            --notes-file REDISENO-V2.md \
+            --notes-file REDISENO-V2.md || true
+          gh release upload "$GITHUB_REF_NAME" --clobber \
             build/Modelador-de-Sistemas-*-macOS.dmg \
             build/Modelador-de-Sistemas-*-macOS.zip

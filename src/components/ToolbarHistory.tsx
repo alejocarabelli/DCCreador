@@ -1,5 +1,6 @@
 import { AlertCircle, Check, Redo2, Undo2 } from 'lucide-react';
 import type { DiagramSaveStatus } from '../hooks/useProjects';
+import { shortcutLabel } from '../utils/shortcutLabel';
 
 type ToolbarHistoryProps = {
   canRedo: boolean;
@@ -38,7 +39,7 @@ export function ToolbarHistory({ canRedo, canUndo, saveStatus, onRedo, onUndo, o
         className="v2-tool"
         disabled={!canUndo}
         type="button"
-        title="Deshacer (⌘Z)"
+        title={shortcutLabel('Deshacer (⌘Z)')}
         onClick={() => { onBeforeAction?.(); onUndo(); }}
       >
         <Undo2 size={16} aria-hidden="true" />
@@ -48,7 +49,7 @@ export function ToolbarHistory({ canRedo, canUndo, saveStatus, onRedo, onUndo, o
         className="v2-tool"
         disabled={!canRedo}
         type="button"
-        title="Rehacer (⇧⌘Z)"
+        title={shortcutLabel('Rehacer (⇧⌘Z)')}
         onClick={() => { onBeforeAction?.(); onRedo(); }}
       >
         <Redo2 size={16} aria-hidden="true" />

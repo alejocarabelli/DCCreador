@@ -1,6 +1,7 @@
 import { Monitor, Moon, Sun } from 'lucide-react';
 import type { ThemePreference } from '../hooks/useTheme';
 import { MenuItem, MenuLabel, ToolMenu } from './ui/Toolbar';
+import { isMacPlatform } from '../utils/shortcutLabel';
 
 const OPTIONS: Array<{ value: ThemePreference; label: string; icon: typeof Sun }> = [
   { value: 'system', label: 'Automático', icon: Monitor },
@@ -35,7 +36,7 @@ export function ThemeToggle({ preference, onChange, showLabel = false }: ThemeTo
       {OPTIONS.map((option) => (
         <MenuItem key={option.value} checked={preference === option.value} onSelect={() => onChange(option.value)}>
           {option.label}
-          {option.value === 'system' ? <span className="v2-menu-item-hint">según macOS</span> : null}
+          {option.value === 'system' ? <span className="v2-menu-item-hint">{isMacPlatform() ? 'según macOS' : 'según el sistema'}</span> : null}
         </MenuItem>
       ))}
     </ToolMenu>
