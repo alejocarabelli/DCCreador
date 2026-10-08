@@ -43,7 +43,8 @@ import { useGentleWheelZoom } from '../hooks/useGentleWheelZoom';
 import { readUiPreference, writeUiPreference } from '../storage/uiPreferences';
 import { normalizeUseCaseModelContent } from '../utils/diagramNormalization';
 import { CanvasControls } from './CanvasControls';
-import { EditorToolbar, MenuItem, ToolButton, ToolMenu } from './ui/Toolbar';
+import { EditorToolbar, MenuItem, NotebookButton, ToolButton, ToolMenu } from './ui/Toolbar';
+import { isNotebookEvent } from '../utils/notebookKeyboard';
 import { InspectorDeleteButton, InspectorPanel } from './ui/Panel';
 import { CanvasStartCard } from './CanvasStartCard';
 import { SystemBoundaryNode, UseCaseActorNode, UseCaseOvalNode } from './useCaseNodes';
@@ -618,7 +619,7 @@ export function UseCaseModelEditor({
       }
     };
     const closeOnEscape = (event: globalThis.KeyboardEvent): void => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !isNotebookEvent(event)) {
         closeToolbarMenus();
         setContextMenu(null);
       }
@@ -633,7 +634,7 @@ export function UseCaseModelEditor({
 
   useEffect(() => {
     const handleDeleteKey = (event: globalThis.KeyboardEvent): void => {
-      if ((event.key !== 'Delete' && event.key !== 'Backspace') || isEditableElement(document.activeElement)) {
+      if ((event.key !== 'Delete' && event.key !== 'Backspace') || isNotebookEvent(event) || isEditableElement(document.activeElement)) {
         return;
       }
 
@@ -685,6 +686,7 @@ export function UseCaseModelEditor({
         )}
         end={(
           <>
+            <NotebookButton />
             <ToolMenu icon={Eye} label="Vista">
               <MenuItem checked={isGridEnabled} onSelect={() => setIsGridEnabled((enabled) => !enabled)}>Grilla</MenuItem>
               <MenuItem checked={isSnapEnabled} onSelect={() => setIsSnapEnabled((enabled) => !enabled)}>Ajustar a la grilla</MenuItem>
@@ -701,7 +703,9 @@ export function UseCaseModelEditor({
       <div className={`editor-body ${selectedNode === null && selectedEdge === null ? 'inspector-hidden' : isInspectorCollapsed ? 'inspector-collapsed' : ''}`}>
         <div
           className={`flow-canvas use-case-canvas ${connectingFromId !== null ? 'is-connecting' : ''}`}
+          data-editor-canvas=""
           ref={canvasRef}
+          tabIndex={-1}
           onDoubleClick={(event) => {
             // Double-click on empty canvas creates a use case under the pointer.
             if (reactFlowInstance === null || !(event.target as Element).closest('.react-flow__pane')) return;

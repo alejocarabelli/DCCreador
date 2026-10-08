@@ -1,7 +1,8 @@
 import { ClassGroupColorPicker } from './ClassGroupColorPicker';
 import type { ClassGroupColor } from '../constants/classGroupColors';
 import { CanvasControls } from './CanvasControls';
-import { EditorToolbar, MenuItem, MenuLabel, MenuSeparator, ReviewButton, ToolButton, ToolMenu } from './ui/Toolbar';
+import { EditorToolbar, MenuItem, MenuLabel, MenuSeparator, NotebookButton, ReviewButton, ToolButton, ToolMenu } from './ui/Toolbar';
+import { isNotebookEvent } from '../utils/notebookKeyboard';
 import { CanvasStartCard } from './CanvasStartCard';
 import { ClassAlignmentGuides } from './ClassAlignmentGuides';
 import { DiagramSelectionTools } from './DiagramSelectionTools';
@@ -1315,7 +1316,7 @@ export function DiagramEditor({
         return;
       }
 
-      if (isEditableElement(document.activeElement)) {
+      if (isNotebookEvent(event) || isEditableElement(document.activeElement)) {
         return;
       }
 
@@ -1433,7 +1434,7 @@ export function DiagramEditor({
     };
 
     const closeOnEscape = (event: globalThis.KeyboardEvent): void => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !isNotebookEvent(event)) {
         setContextMenu(null);
       }
     };
@@ -1457,7 +1458,7 @@ export function DiagramEditor({
     };
 
     const closeOnEscape = (event: globalThis.KeyboardEvent): void => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !isNotebookEvent(event)) {
         closeToolbarMenus();
       }
     };
@@ -1512,6 +1513,7 @@ export function DiagramEditor({
         )}
         end={(
           <>
+            <NotebookButton />
             <ReviewButton
               count={reviewIssues.length}
               open={reviewOpen}
@@ -1552,7 +1554,9 @@ export function DiagramEditor({
       >
         <div
           className={`canvas-shell class-diagram-canvas ${connectionSourceNodeId !== null ? 'is-connecting' : ''}`}
+          data-editor-canvas=""
           ref={canvasRef}
+          tabIndex={-1}
           onDoubleClick={(event) => {
             // Double-click on empty canvas creates a class right there, as the
             // empty state and the Clase tooltip promise.

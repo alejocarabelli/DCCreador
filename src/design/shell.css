@@ -701,6 +701,8 @@
 
 .app-shell .v2-shortcuts-section dt { display: flex; flex-wrap: wrap; gap: 4px; }
 .app-shell .v2-shortcuts-section dd { color: var(--panel-secondary-text); margin: 0; }
+.app-shell .v2-shortcuts-section .v2-kbd-group { align-items: center; display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.app-shell .v2-shortcuts-section .v2-kbd-context { color: var(--panel-muted-text); font-size: var(--text-xs); }
 
 .app-shell .v2-sidebar.collapsed .theme-toggle .v2-menu-chevron { display: none; }
 
@@ -721,4 +723,54 @@
   margin-left: 4px;
   padding: 1px 5px;
   white-space: nowrap;
+}
+
+/* ─── Apuntes workspace ───────────────────────────────────────────────────
+   The editor panel and the notebook sheet share a row under the tabs. The
+   sheet is a fixed-width column (its width is inline, from the preference) and
+   the canvas gives way to it, never the other way round. */
+.app-shell[data-ui-version='refined'] .artifact-workspace {
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+}
+
+.app-shell[data-ui-version='refined'] .artifact-workspace > .artifact-editor-panel {
+  flex: 1 1 0;
+}
+
+.app-shell[data-ui-version='refined'] .artifact-workspace .notebook-sheet {
+  border-left: 1px solid var(--panel-border);
+  flex: 0 0 auto;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Layout contract 2: App measures the row and sets this class when pushing the
+   editor would leave its canvas under 480px next to its own panels (see
+   notebookLayout.ts). The sheet then floats over the right edge, under the
+   toolbar so Apuntes (and Vista, Exportar…) stay reachable, and pushes nothing. */
+.app-shell[data-ui-version='refined'] .artifact-workspace.is-notebook-overlay .notebook-sheet {
+  bottom: 0;
+  box-shadow: var(--shadow-popover);
+  height: auto;
+  max-width: calc(100% - 40px);
+  position: absolute;
+  right: 0;
+  top: var(--toolbar-height);
+  z-index: 40;
+}
+
+/* Toolbar menus open over the floating sheet. */
+.app-shell[data-ui-version='refined'] .artifact-workspace.is-notebook-overlay .v2-toolbar {
+  z-index: 50;
+}
+
+/* Focus returns to the canvas by script (Esc, closing Apuntes): a ring around
+   the whole canvas would only be noise. Its children keep their own rings. */
+.app-shell [data-editor-canvas]:focus,
+.app-shell [data-editor-canvas]:focus-visible,
+.app-shell .artifact-editor-panel:focus {
+  outline: none;
 }
