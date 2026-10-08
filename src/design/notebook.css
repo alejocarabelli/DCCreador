@@ -322,6 +322,7 @@
   display: inline-flex;
   height: 24px;
   justify-content: center;
+  min-height: 0;
   opacity: 0;
   padding: 0;
   position: absolute;
@@ -344,8 +345,6 @@
   border-color: var(--status-danger-border);
   color: var(--status-danger-text);
 }
-
-.notebook-sheet .notebook-block-sketch > .notebook-block-delete { left: 6px; right: auto; top: 6px; }
 
 .notebook-sheet .notebook-confirm {
   align-items: center;
@@ -392,7 +391,7 @@
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-sm);
   container-type: inline-size;
-  margin: var(--space-1) 0;
+  margin: 0 0 var(--space-1);
   overflow: hidden;
   position: relative;
   transition: border-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
@@ -491,53 +490,55 @@
   z-index: 3;
 }
 
-/* Floating tools: only while the box is hovered or has focus, never in the way of a stroke. */
-.notebook-sheet .notebook-sketch-bar {
+/*
+ * Tool strip: a row above the paper, part of the block's layout so it never
+ * covers ink. Its height is always reserved (no layout shift); only opacity
+ * changes. Undo/redo (also on the keyboard) drop out below 304px instead of wrapping.
+ */
+.notebook-sheet .notebook-sketch-block { container-type: inline-size; }
+
+.notebook-sheet .notebook-sketch-strip {
   align-items: center;
-  background: var(--panel-background);
-  border: 1px solid var(--panel-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-popover);
   display: flex;
-  flex-wrap: wrap;
-  gap: 2px 0;
-  justify-content: flex-end;
-  max-width: calc(100% - 38px);
+  flex-wrap: nowrap;
+  margin-bottom: 2px;
+  min-height: 24px;
   opacity: 0;
-  padding: 2px;
-  pointer-events: none;
-  position: absolute;
-  right: 6px;
-  top: 6px;
   transition: opacity var(--duration-fast) var(--ease-out);
-  z-index: 3;
 }
 
-.notebook-sheet .notebook-sketch:hover .notebook-sketch-bar,
-.notebook-sheet .notebook-sketch:focus-within .notebook-sketch-bar {
-  opacity: 1;
-  pointer-events: auto;
+.notebook-sheet .notebook-sketch-block:hover .notebook-sketch-strip,
+.notebook-sheet .notebook-sketch-block:focus-within .notebook-sketch-strip,
+.notebook-sheet .notebook-sketch-block.is-pinned .notebook-sketch-strip { opacity: 1; }
+
+@container (max-width: 303px) {
+  .notebook-sheet .notebook-sketch-strip .is-history { display: none; }
 }
 
-.notebook-sheet .notebook-sketch.is-drawing .notebook-sketch-bar {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.notebook-sheet .notebook-sketch-group { align-items: center; display: inline-flex; gap: 1px; }
+.notebook-sheet .notebook-sketch-group { align-items: center; display: inline-flex; flex: 0 0 auto; }
 
 .notebook-sheet .notebook-sketch-divider {
   align-self: stretch;
   background: var(--panel-border);
-  margin: 4px 0;
+  flex: 0 0 auto;
+  margin: 4px 2px;
   width: 1px;
 }
 
+.notebook-sheet .notebook-sketch-actions { display: flex; flex: 0 0 auto; margin-left: auto; }
+
+.notebook-sheet .notebook-sketch-actions .notebook-block-delete {
+  opacity: 1;
+  position: static;
+}
+
 .notebook-sheet .v2-tool.notebook-tool {
-  height: var(--control-sm);
-  min-width: var(--control-sm);
+  height: 24px;
+  min-width: 24px;
   padding: 0;
 }
+
+.notebook-sheet .notebook-sketch-strip .v2-tool svg { height: 15px; width: 15px; }
 
 .notebook-sheet .notebook-swatch {
   align-items: center;
@@ -546,10 +547,12 @@
   border-radius: var(--radius-sm);
   cursor: pointer;
   display: inline-flex;
-  height: var(--control-sm);
+  flex: 0 0 auto;
+  height: 24px;
   justify-content: center;
+  min-height: 0;
   padding: 0;
-  width: 20px;
+  width: 24px;
 }
 
 .notebook-sheet .notebook-swatch:hover { background: var(--ui-hover-background); }

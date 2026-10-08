@@ -63,6 +63,7 @@ export function NotebookBlockView({
         <NotebookSketch
           block={block}
           notebookPoints={notebookPoints}
+          actions={deleteButton}
           surfaceRef={(element) => registerElement(block.id, element)}
           onChange={(shapes) => onSketchChange(block.id, shapes)}
           onHeightChange={(height, final) => onSketchHeight(block.id, height, final)}
@@ -89,7 +90,7 @@ export function NotebookBlockView({
           />
         </div>
       )}
-      {canDelete ? deleteButton : null}
+      {block.kind !== 'sketch' && canDelete ? deleteButton : null}
       {confirming ? (
         <div
           aria-labelledby={confirmId}

@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type ReactNode,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
@@ -61,6 +62,8 @@ export type NotebookSketchProps = {
   onHeightChange: (height: number, final: boolean) => void;
   /** Receives the focusable drawing surface, so the sheet can focus the block. */
   surfaceRef?: (element: SVGSVGElement | null) => void;
+  /** Rendered at the far right of the tool strip (the block's delete button). */
+  actions?: ReactNode;
 };
 
 type Gesture =
@@ -160,7 +163,7 @@ const SelectionBox = ({ bounds }: { bounds: Bounds }) => (
   />
 );
 
-export function NotebookSketch({ block, notebookPoints, onChange, onHeightChange, surfaceRef }: NotebookSketchProps) {
+export function NotebookSketch({ block, notebookPoints, onChange, onHeightChange, surfaceRef, actions }: NotebookSketchProps) {
   const { shapes, height } = block;
   const descriptionId = useId();
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -481,7 +484,7 @@ export function NotebookSketch({ block, notebookPoints, onChange, onHeightChange
       return;
     }
 
-    if (gestureRef.current !== null) return;
+    if (gestureRef.current !== null || target instanceof HTMLButtonElement) return;
 
     if (key === 'Escape') {
       if (selected.length > 0) {
@@ -571,114 +574,12 @@ export function NotebookSketch({ block, notebookPoints, onChange, onHeightChange
 
   return (
     <div
-      className={`notebook-sketch${gesture !== null ? ' is-drawing' : ''}`}
-      data-tool={tool}
+      className={`notebook-sketch-block${tool !== 'pen' || textEdit !== null ? ' is-pinned' : ''}`}
       onKeyDown={handleKeyDown}
     >
-      <div aria-hidden="true" className="notebook-sketch-paper" />
-      <svg
-        aria-describedby={descriptionId}
-        aria-label="Boceto"
-        aria-roledescription="boceto"
-        className="notebook-sketch-surface"
-        preserveAspectRatio="xMinYMin meet"
-        ref={(element) => {
-          svgRef.current = element;
-          surfaceRef?.(element);
-        }}
-        role="application"
-        style={{ aspectRatio: `${NOTEBOOK_LOGICAL_WIDTH} / ${height}` }}
-        tabIndex={0}
-        viewBox={`0 0 ${NOTEBOOK_LOGICAL_WIDTH} ${height}`}
-        onClick={handleClick}
-        onDoubleClick={handleDoubleClick}
-        onPointerCancel={() => setGesture(null)}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={finishGesture}
-      >
-        <ShapesLayer ghostIds={gesture?.kind === 'erase' ? gesture.ids : NO_IDS} shapes={staticShapes} />
-        {moving !== null ? (
-          <g transform={`translate(${offsetX} ${offsetY})`}>
-            {movingShapes.map((shape) => <ShapeView key={shape.id} shape={shape} />)}
-          </g>
-        ) : null}
-        {gesture?.kind === 'pen' ? (
-          <path {...stroke} d={smoothPath(gesture.points)} strokeWidth={2} style={{ stroke: COLOR_VAR[color] }} />
-        ) : null}
-        {gesture?.kind === 'arrow' ? (
-          <path
-            {...stroke}
-            d={arrowPath(gesture.from.x, gesture.from.y, gesture.to.x, gesture.to.y)}
-            strokeWidth={1.5}
-            style={{ stroke: COLOR_VAR[color] }}
-          />
-        ) : null}
-        {gesture?.kind === 'rect' ? (() => {
-          const rect = rectFromCorners(gesture.from, gesture.to, gesture.square);
-          return <rect {...stroke} height={rect.h} rx={5} strokeWidth={1.5} style={{ stroke: COLOR_VAR[color] }} width={rect.w} x={rect.x} y={rect.y} />;
-        })() : null}
-        {gesture?.kind === 'marquee' ? (
-          <rect
-            className="notebook-sketch-marquee"
-            height={Math.abs(gesture.to.y - gesture.from.y)}
-            width={Math.abs(gesture.to.x - gesture.from.x)}
-            x={Math.min(gesture.from.x, gesture.to.x)}
-            y={Math.min(gesture.from.y, gesture.to.y)}
-          />
-        ) : null}
-        {selectedBounds.length > 0 ? (
-          <g transform={`translate(${offsetX} ${offsetY})`}>
-            {selectedBounds.length <= 20
-              ? selectedBounds.map((bounds, index) => <SelectionBox bounds={bounds} key={index} />)
-              : <SelectionBox bounds={unionBounds(selectedBounds) as Bounds} />}
-          </g>
-        ) : null}
-      </svg>
-      <span className="notebook-visually-hidden" id={descriptionId}>
-        Dibujá con el mouse o el trackpad. Atajos: V, P, A, R, T y E cambian de herramienta; Esc vuelve al diagrama.
-      </span>
-
-      {textEdit !== null ? (
-        <input
-          aria-label="Texto del boceto"
-          autoFocus
-          className="notebook-sketch-input"
-          defaultValue={textEdit.value}
-          style={{
-            color: COLOR_VAR[textEdit.color],
-            left: `${textEdit.x / 10}%`,
-            maxWidth: `${(NOTEBOOK_LOGICAL_WIDTH - textEdit.x) / 10}cqw`,
-            top: `${(textEdit.y / height) * 100}%`,
-          }}
-          onBlur={(event) => commitText(event.currentTarget.value)}
-          onChange={(event) => {
-            event.currentTarget.style.width = `${Math.max(6, event.currentTarget.value.length + 1)}ch`;
-          }}
-          onKeyDown={(event) => {
-            if (event.nativeEvent.isComposing) return;
-            if (event.key === 'Enter') {
-              consume(event);
-              commitText(event.currentTarget.value);
-              closeTextEdit(true);
-            } else if (event.key === 'Escape') {
-              consume(event);
-              closeTextEdit(true);
-            } else {
-              event.stopPropagation();
-            }
-          }}
-          onFocus={(event) => {
-            event.currentTarget.style.width = `${Math.max(6, event.currentTarget.value.length + 1)}ch`;
-          }}
-        />
-      ) : null}
-
-      {limitHint ? <p className="notebook-sketch-hint" role="status">Este boceto llegó al límite de trazos.</p> : null}
-
       <div
         aria-label="Herramientas del boceto"
-        className="notebook-sketch-bar"
+        className="notebook-sketch-strip"
         role="group"
         onMouseDown={(event) => event.preventDefault()}
       >
@@ -713,28 +614,132 @@ export function NotebookSketch({ block, notebookPoints, onChange, onHeightChange
             </button>
           ))}
         </div>
-        <span aria-hidden="true" className="notebook-sketch-divider" />
-        <div aria-label="Historial" className="notebook-sketch-group" role="group">
+        <span aria-hidden="true" className="notebook-sketch-divider is-history" />
+        <div aria-label="Historial" className="notebook-sketch-group is-history" role="group">
           <ToolButton className="notebook-tool" disabled={history.past.length === 0} icon={Undo2} label="Deshacer" shortcut={undoShortcut} onClick={undo} />
           <ToolButton className="notebook-tool" disabled={history.future.length === 0} icon={Redo2} label="Rehacer" shortcut={redoShortcut} onClick={redo} />
         </div>
+        {actions !== undefined ? <div className="notebook-sketch-actions">{actions}</div> : null}
       </div>
 
-      <div
-        aria-label="Alto del boceto"
-        aria-orientation="horizontal"
-        aria-valuemax={MAX_SKETCH_HEIGHT}
-        aria-valuemin={minHeight}
-        aria-valuenow={height}
-        className="notebook-sketch-resize"
-        role="separator"
-        tabIndex={0}
-        onKeyDown={handleResizeKey}
-        onPointerCancel={handleResizeEnd}
-        onPointerMove={handleResizeMove}
-        onPointerDown={handleResizeDown}
-        onPointerUp={handleResizeEnd}
-      />
+      <div className="notebook-sketch" data-tool={tool}>
+        <div aria-hidden="true" className="notebook-sketch-paper" />
+        <svg
+          aria-describedby={descriptionId}
+          aria-label="Boceto"
+          aria-roledescription="boceto"
+          className="notebook-sketch-surface"
+          preserveAspectRatio="xMinYMin meet"
+          ref={(element) => {
+            svgRef.current = element;
+            surfaceRef?.(element);
+          }}
+          role="application"
+          style={{ aspectRatio: `${NOTEBOOK_LOGICAL_WIDTH} / ${height}` }}
+          tabIndex={0}
+          viewBox={`0 0 ${NOTEBOOK_LOGICAL_WIDTH} ${height}`}
+          onClick={handleClick}
+          onDoubleClick={handleDoubleClick}
+          onPointerCancel={() => setGesture(null)}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={finishGesture}
+        >
+          <ShapesLayer ghostIds={gesture?.kind === 'erase' ? gesture.ids : NO_IDS} shapes={staticShapes} />
+          {moving !== null ? (
+            <g transform={`translate(${offsetX} ${offsetY})`}>
+              {movingShapes.map((shape) => <ShapeView key={shape.id} shape={shape} />)}
+            </g>
+          ) : null}
+          {gesture?.kind === 'pen' ? (
+            <path {...stroke} d={smoothPath(gesture.points)} strokeWidth={2} style={{ stroke: COLOR_VAR[color] }} />
+          ) : null}
+          {gesture?.kind === 'arrow' ? (
+            <path
+              {...stroke}
+              d={arrowPath(gesture.from.x, gesture.from.y, gesture.to.x, gesture.to.y)}
+              strokeWidth={1.5}
+              style={{ stroke: COLOR_VAR[color] }}
+            />
+          ) : null}
+          {gesture?.kind === 'rect' ? (() => {
+            const rect = rectFromCorners(gesture.from, gesture.to, gesture.square);
+            return <rect {...stroke} height={rect.h} rx={5} strokeWidth={1.5} style={{ stroke: COLOR_VAR[color] }} width={rect.w} x={rect.x} y={rect.y} />;
+          })() : null}
+          {gesture?.kind === 'marquee' ? (
+            <rect
+              className="notebook-sketch-marquee"
+              height={Math.abs(gesture.to.y - gesture.from.y)}
+              width={Math.abs(gesture.to.x - gesture.from.x)}
+              x={Math.min(gesture.from.x, gesture.to.x)}
+              y={Math.min(gesture.from.y, gesture.to.y)}
+            />
+          ) : null}
+          {selectedBounds.length > 0 ? (
+            <g transform={`translate(${offsetX} ${offsetY})`}>
+              {selectedBounds.length <= 20
+                ? selectedBounds.map((bounds, index) => <SelectionBox bounds={bounds} key={index} />)
+                : <SelectionBox bounds={unionBounds(selectedBounds) as Bounds} />}
+            </g>
+          ) : null}
+        </svg>
+        <span className="notebook-visually-hidden" id={descriptionId}>
+          Dibujá con el mouse o el trackpad. Atajos: V, P, A, R, T y E cambian de herramienta; Esc vuelve al diagrama.
+        </span>
+
+        {textEdit !== null ? (
+          <input
+            aria-label="Texto del boceto"
+            autoFocus
+            className="notebook-sketch-input"
+            defaultValue={textEdit.value}
+            style={{
+              color: COLOR_VAR[textEdit.color],
+              left: `${textEdit.x / 10}%`,
+              maxWidth: `${(NOTEBOOK_LOGICAL_WIDTH - textEdit.x) / 10}cqw`,
+              top: `${(textEdit.y / height) * 100}%`,
+            }}
+            onBlur={(event) => commitText(event.currentTarget.value)}
+            onChange={(event) => {
+              event.currentTarget.style.width = `${Math.max(6, event.currentTarget.value.length + 1)}ch`;
+            }}
+            onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing) return;
+              if (event.key === 'Enter') {
+                consume(event);
+                commitText(event.currentTarget.value);
+                closeTextEdit(true);
+              } else if (event.key === 'Escape') {
+                consume(event);
+                closeTextEdit(true);
+              } else {
+                event.stopPropagation();
+              }
+            }}
+            onFocus={(event) => {
+              event.currentTarget.style.width = `${Math.max(6, event.currentTarget.value.length + 1)}ch`;
+            }}
+          />
+        ) : null}
+
+        {limitHint ? <p className="notebook-sketch-hint" role="status">Este boceto llegó al límite de trazos.</p> : null}
+
+        <div
+          aria-label="Alto del boceto"
+          aria-orientation="horizontal"
+          aria-valuemax={MAX_SKETCH_HEIGHT}
+          aria-valuemin={minHeight}
+          aria-valuenow={height}
+          className="notebook-sketch-resize"
+          role="separator"
+          tabIndex={0}
+          onKeyDown={handleResizeKey}
+          onPointerCancel={handleResizeEnd}
+          onPointerMove={handleResizeMove}
+          onPointerDown={handleResizeDown}
+          onPointerUp={handleResizeEnd}
+        />
+      </div>
     </div>
   );
 }

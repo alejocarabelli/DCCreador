@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useRef,
   useState,
@@ -182,9 +183,10 @@ export function NotebookSheet({
   );
 
   // Opened by shortcut or button: caret at the end of the notebook.
+  const focusOnRequest = useEffectEvent(() => focusEnd(true));
   useEffect(() => {
-    if (focusRequest > 0) focusEnd(true);
-  }, [focusRequest, focusEnd]);
+    if (focusRequest > 0) focusOnRequest();
+  }, [focusRequest]);
 
   const handleBlur = (event: ReactFocusEvent<HTMLElement>) => {
     if (!event.currentTarget.contains(event.relatedTarget)) flush();
