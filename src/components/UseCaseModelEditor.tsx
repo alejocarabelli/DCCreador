@@ -40,7 +40,7 @@ import { createId } from '../utils/id';
 import { createPdfFromJpegDataUrl, downloadBlob, downloadDataUrl } from '../utils/pdfExport';
 import { applyExportThemeVariables } from '../hooks/useTheme';
 import { useGentleWheelZoom } from '../hooks/useGentleWheelZoom';
-import { readUiPreference, writeUiPreference } from '../storage/uiPreferences';
+import { CANVAS_GRID_KEY, readCanvasGridEnabled, readUiPreference, writeUiPreference } from '../storage/uiPreferences';
 import { normalizeUseCaseModelContent } from '../utils/diagramNormalization';
 import { CanvasControls } from './CanvasControls';
 import { EditorToolbar, MenuItem, NotebookButton, ToolButton, ToolMenu } from './ui/Toolbar';
@@ -55,7 +55,6 @@ import type { DiagramSaveStatus } from '../hooks/useProjects';
 import { findFreeClassPosition } from '../utils/classPlacement';
 import { facingSide, isInside, type Box } from '../utils/useCaseGeometry';
 
-const GRID_ENABLED_KEY = 'class-diagram-grid-enabled';
 const SNAP_ENABLED_KEY = 'class-diagram-snap-enabled';
 /** Shared with the class editor: the minimap is a preference of the person, not of the diagram. */
 const MINIMAP_ENABLED_KEY = 'class-diagram-minimap-enabled';
@@ -171,7 +170,7 @@ export function UseCaseModelEditor({
 }: UseCaseModelEditorProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const [isGridEnabled, setIsGridEnabled] = useState(() => readUiPreference(GRID_ENABLED_KEY) !== 'false');
+  const [isGridEnabled, setIsGridEnabled] = useState(readCanvasGridEnabled);
   const [isSnapEnabled, setIsSnapEnabled] = useState(() => readUiPreference(SNAP_ENABLED_KEY) === 'true');
   const [isMiniMapEnabled, setIsMiniMapEnabled] = useState(() => readUiPreference(MINIMAP_ENABLED_KEY) !== 'false');
   const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(() => readUiPreference(INSPECTOR_COLLAPSED_KEY) === 'true');
@@ -601,7 +600,7 @@ export function UseCaseModelEditor({
   };
 
   useEffect(() => {
-    writeUiPreference(GRID_ENABLED_KEY, String(isGridEnabled));
+    writeUiPreference(CANVAS_GRID_KEY, String(isGridEnabled));
   }, [isGridEnabled]);
 
   useEffect(() => {

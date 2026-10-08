@@ -15,6 +15,11 @@ export const writeUiPreference = (key: string, value: string): boolean => {
   }
 };
 
+/** Grilla on/off, shared by the class and use-case canvases and the read-only window. */
+export const CANVAS_GRID_KEY = 'class-diagram-grid-enabled';
+
+export const readCanvasGridEnabled = (): boolean => readUiPreference(CANVAS_GRID_KEY) !== 'false';
+
 const NOTEBOOK_OPEN_KEY = 'modelador.notebook-open';
 const NOTEBOOK_WIDTH_KEY = 'modelador.notebook-width';
 

@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  CANVAS_GRID_KEY,
   NOTEBOOK_WIDTH_DEFAULT,
   NOTEBOOK_WIDTH_MAX,
   NOTEBOOK_WIDTH_MIN,
   clampNotebookWidth,
+  readCanvasGridEnabled,
   readNotebookOpen,
   readNotebookWidth,
   writeNotebookOpen,
@@ -52,5 +54,16 @@ describe('Apuntes preferences', () => {
     expect(readNotebookOpen()).toBe(false);
     expect(readNotebookWidth()).toBe(NOTEBOOK_WIDTH_DEFAULT);
     expect(writeNotebookOpen(true)).toBe(false);
+  });
+});
+
+describe('canvas grid preference', () => {
+  it('is on unless the editors turned it off, so the read-only window matches them', () => {
+    stubStorage();
+    expect(readCanvasGridEnabled()).toBe(true);
+    stubStorage({ [CANVAS_GRID_KEY]: 'false' });
+    expect(readCanvasGridEnabled()).toBe(false);
+    stubStorage({ [CANVAS_GRID_KEY]: 'true' });
+    expect(readCanvasGridEnabled()).toBe(true);
   });
 });

@@ -56,7 +56,7 @@ import { reorderItemsByIds } from '../utils/reorder';
 import { useDiagramImageExport } from '../hooks/useDiagramImageExport';
 import { useGentleWheelZoom } from '../hooks/useGentleWheelZoom';
 import { getDiagramImageExportBounds } from '../utils/diagramImageExport';
-import { readUiPreference, writeUiPreference } from '../storage/uiPreferences';
+import { CANVAS_GRID_KEY, readCanvasGridEnabled, readUiPreference, writeUiPreference } from '../storage/uiPreferences';
 import { readAssociationLineStyle, writeAssociationLineStyle } from '../storage/associationPreferences';
 import { getAssociationMarker, normalizeAssociationData, normalizeAssociationEdge } from '../utils/association';
 import {
@@ -114,7 +114,6 @@ const edgeTypes = {
 };
 
 const INSPECTOR_COLLAPSED_KEY = 'class-diagram-inspector-collapsed';
-const GRID_ENABLED_KEY = 'class-diagram-grid-enabled';
 const SNAP_ENABLED_KEY = 'class-diagram-snap-enabled';
 const MINIMAP_ENABLED_KEY = 'class-diagram-minimap-enabled';
 const NOTE_NODE_OFFSET = { x: 24, y: 116 };
@@ -173,7 +172,7 @@ export function DiagramEditor({
   const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(
     () => readUiPreference(INSPECTOR_COLLAPSED_KEY) === 'true',
   );
-  const [isGridEnabled, setIsGridEnabled] = useState(() => readUiPreference(GRID_ENABLED_KEY) !== 'false');
+  const [isGridEnabled, setIsGridEnabled] = useState(readCanvasGridEnabled);
   const [isSnapEnabled, setIsSnapEnabled] = useState(() => readUiPreference(SNAP_ENABLED_KEY) === 'true');
   const [isMiniMapEnabled, setIsMiniMapEnabled] = useState(
     () => readUiPreference(MINIMAP_ENABLED_KEY) !== 'false',
@@ -1290,7 +1289,7 @@ export function DiagramEditor({
   }, [isInspectorCollapsed]);
 
   useEffect(() => {
-    writeUiPreference(GRID_ENABLED_KEY, String(isGridEnabled));
+    writeUiPreference(CANVAS_GRID_KEY, String(isGridEnabled));
   }, [isGridEnabled]);
 
   useEffect(() => {

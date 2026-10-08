@@ -8,6 +8,7 @@ import { AssociationEdge } from './AssociationEdge';
 import { useGentleWheelZoom } from '../hooks/useGentleWheelZoom';
 import { useTheme } from '../hooks/useTheme';
 import { loadProjects } from '../storage/projectsStorage';
+import { readCanvasGridEnabled } from '../storage/uiPreferences';
 import { focusArtifactInMainWindow, isViewableArtifact, type ViewableArtifact } from '../storage/nativeWindows';
 import { normalizeAssociationEdge } from '../utils/association';
 import { normalizeDiagramContent } from '../utils/diagramNormalization';
@@ -45,8 +46,26 @@ const useLiveProjects = (): DiagramProject[] => {
   return state.projects;
 };
 
+/** Follows the editors' Vista › Grilla, also when it changes in the main window. */
+const useCanvasGrid = (): boolean => {
+  const [isEnabled, setIsEnabled] = useState(readCanvasGridEnabled);
+  useEffect(() => {
+    const refresh = (): void => setIsEnabled(readCanvasGridEnabled());
+    const timer = window.setInterval(refresh, POLL_INTERVAL_MS);
+    window.addEventListener('storage', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('storage', refresh);
+      window.removeEventListener('focus', refresh);
+    };
+  }, []);
+  return isEnabled;
+};
+
 function ViewerCanvas({ artifact }: { artifact: ViewableArtifact }) {
   const { theme } = useTheme();
+  const isGridEnabled = useCanvasGrid();
   const [nodeSizes, setNodeSizes] = useState<Record<string, { width: number; height: number }>>({});
   const content = useMemo(() => normalizeDiagramContent(artifact.content), [artifact.content]);
   const canvasRef = useRef<HTMLDivElement | null>(null);
@@ -129,8 +148,12 @@ function ViewerCanvas({ artifact }: { artifact: ViewableArtifact }) {
       fitViewOptions={{ maxZoom: 1, padding: 0.2 }}
       proOptions={{ hideAttribution: true }}
     >
-      <Background color={theme.canvas.paperLine} gap={20} id="viewer-paper-fine" lineWidth={1} variant={BackgroundVariant.Lines} />
-      <Background color={theme.canvas.paperLineStrong} gap={100} id="viewer-paper-strong" lineWidth={1} variant={BackgroundVariant.Lines} />
+      {isGridEnabled ? (
+        <>
+          <Background color={theme.canvas.paperLine} gap={20} id="viewer-paper-fine" lineWidth={1} variant={BackgroundVariant.Lines} />
+          <Background color={theme.canvas.paperLineStrong} gap={100} id="viewer-paper-strong" lineWidth={1} variant={BackgroundVariant.Lines} />
+        </>
+      ) : null}
       <CanvasControls label="Zoom del diagrama" />
     </ReactFlow>
     </div>
