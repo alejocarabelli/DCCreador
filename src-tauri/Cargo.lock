@@ -2044,7 +2044,7 @@ dependencies = [
 
 [[package]]
 name = "modelador-de-sistemas"
-version = "2.4.0"
+version = "2.4.1"
 dependencies = [
  "chrono",
  "serde_json",
