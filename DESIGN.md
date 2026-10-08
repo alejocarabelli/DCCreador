@@ -161,8 +161,8 @@ diagram.
 ### Sidebar — project sections
 
 Under Inicio the expanded sidebar is two VS Code–style panes (`SidebarPane`,
-labelled regions with an `h2` and a fold `<button aria-expanded aria-controls>`).
-**The open project** is the first: its name as the eyebrow title (mono, uppercase,
+labelled regions with an `h2`). **The open project** is the first and never folds,
+so its artifacts are always in view: its name as the eyebrow title (mono, uppercase,
 `--text-2xs`, in `--panel-text`, ellipsis, full name in the tooltip), then its
 artifacts behind a 1px `--panel-border` tree guide. Its `+` (Nuevo artefacto) and
 `···` (project options) show on header hover or focus, stay in the tab order and
@@ -170,8 +170,9 @@ stay visible while their menu is open. **Otros proyectos** is the second: every
 other project by `updatedAt` descending, folder icon, name, relative date (which
 gives way to the row's `···` on hover), a count pill, `+` Nuevo proyecto, and a
 «Filtrar proyectos» field (accent- and case-insensitive, Esc clears) once the list
-has more than 6. It starts folded, its header at the foot of the nav; fold states
-are UI preferences. With both open they share the nav's height: the project keeps
+has more than 6. It is the only pane that folds (`<button aria-expanded
+aria-controls>`); it starts folded, its header at the foot of the nav, and the
+fold state is a UI preference. With both open they share the nav's height: the project keeps
 its content height up to 60%, each pane scrolls on its own, and a `role="separator"`
 sash (1px line, 7px hit area, `--accent` 2px on hover, drag or focus; ↑/↓ resize,
 Home/End to the limits, double click back to automatic) moves the split, remembered

@@ -25,10 +25,8 @@ import { ThemeToggle } from './ThemeToggle';
 import { MenuItem, MenuSeparator } from './ui/Toolbar';
 import { shortcutLabel } from '../utils/shortcutLabel';
 import {
-  readSidebarCurrentOpen,
   readSidebarOthersOpen,
   readSidebarSplit,
-  writeSidebarCurrentOpen,
   writeSidebarOthersOpen,
   writeSidebarSplit,
 } from '../storage/uiPreferences';
@@ -124,7 +122,6 @@ export function ProjectSidebar({
   const [newArtifactMenu, setNewArtifactMenu] = useState<NewArtifactMenuState | null>(null);
   const panesRef = useRef<HTMLDivElement | null>(null);
   const currentPaneRef = useRef<HTMLElement | null>(null);
-  const [currentOpen, setCurrentOpen] = useState(readSidebarCurrentOpen);
   const [othersOpen, setOthersOpen] = useState(readSidebarOthersOpen);
   const [split, setSplit] = useState<number | null>(readSidebarSplit);
   const [filterQuery, setFilterQuery] = useState('');
@@ -136,12 +133,7 @@ export function ProjectSidebar({
   const visibleProjects = showFilter ? filterProjectsByName(otherProjects, filterQuery) : otherProjects;
   // On Inicio the list is the whole screen of the sidebar, so it is never folded.
   const projectsPaneOpen = openProject === null || othersOpen;
-  const bothOpen = openProject !== null && currentOpen && othersOpen;
-
-  const toggleCurrent = (): void => {
-    setCurrentOpen(!currentOpen);
-    writeSidebarCurrentOpen(!currentOpen);
-  };
+  const bothOpen = openProject !== null && othersOpen;
 
   const toggleOthers = (): void => {
     setOthersOpen(!othersOpen);
@@ -356,8 +348,9 @@ export function ProjectSidebar({
               )}
               className={bothOpen ? (split === null ? 'is-auto-split' : '') : ''}
               id="sidebar-current-pane"
-              onToggle={toggleCurrent}
-              open={currentOpen}
+              // The open project's artifacts are always shown: no fold button.
+              collapsible={false}
+              open
               paneRef={currentPaneRef}
               revealActions
               strong
@@ -423,7 +416,7 @@ export function ProjectSidebar({
                 <Plus size={15} aria-hidden="true" />
               </button>
             )}
-            className={openProject !== null && (!currentOpen || !othersOpen) ? 'has-rule' : ''}
+            className={openProject !== null && !othersOpen ? 'has-rule' : ''}
             collapsible={openProject !== null}
             count={otherProjects.length}
             id="sidebar-projects-pane"

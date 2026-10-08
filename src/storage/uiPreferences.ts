@@ -44,7 +44,6 @@ export const readNotebookWidth = (): number => {
 
 export const writeNotebookWidth = (width: number): boolean => writeUiPreference(NOTEBOOK_WIDTH_KEY, String(clampNotebookWidth(width)));
 
-const SIDEBAR_CURRENT_OPEN_KEY = 'modelador.sidebar-current-open';
 const SIDEBAR_OTHERS_OPEN_KEY = 'modelador.sidebar-others-open';
 const SIDEBAR_SPLIT_KEY = 'modelador.sidebar-split';
 
@@ -54,11 +53,6 @@ export const SIDEBAR_SPLIT_MAX = 0.85;
 
 export const clampSidebarSplit = (fraction: number): number =>
   Number.isFinite(fraction) ? Math.min(SIDEBAR_SPLIT_MAX, Math.max(SIDEBAR_SPLIT_MIN, fraction)) : 0.5;
-
-/** The current project's pane is open unless it was folded. */
-export const readSidebarCurrentOpen = (): boolean => readUiPreference(SIDEBAR_CURRENT_OPEN_KEY) !== 'false';
-
-export const writeSidebarCurrentOpen = (open: boolean): boolean => writeUiPreference(SIDEBAR_CURRENT_OPEN_KEY, String(open));
 
 /** «Otros proyectos» starts folded: the open project is what you came for. */
 export const readSidebarOthersOpen = (): boolean => readUiPreference(SIDEBAR_OTHERS_OPEN_KEY) === 'true';

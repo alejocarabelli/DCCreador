@@ -11,12 +11,10 @@ import {
   readCanvasGridEnabled,
   readNotebookOpen,
   readNotebookWidth,
-  readSidebarCurrentOpen,
   readSidebarOthersOpen,
   readSidebarSplit,
   writeNotebookOpen,
   writeNotebookWidth,
-  writeSidebarCurrentOpen,
   writeSidebarOthersOpen,
   writeSidebarSplit,
 } from './uiPreferences';
@@ -78,20 +76,16 @@ describe('canvas grid preference', () => {
 });
 
 describe('Sidebar section preferences', () => {
-  it('opens the current project and folds «Otros proyectos» by default', () => {
+  it('folds «Otros proyectos» by default', () => {
     stubStorage();
-    expect(readSidebarCurrentOpen()).toBe(true);
     expect(readSidebarOthersOpen()).toBe(false);
     expect(readSidebarSplit()).toBeNull();
   });
 
-  it('remembers each fold state', () => {
+  it('remembers the fold state', () => {
     const data = stubStorage();
-    writeSidebarCurrentOpen(false);
     writeSidebarOthersOpen(true);
-    expect(data.get('modelador.sidebar-current-open')).toBe('false');
     expect(data.get('modelador.sidebar-others-open')).toBe('true');
-    expect(readSidebarCurrentOpen()).toBe(false);
     expect(readSidebarOthersOpen()).toBe(true);
   });
 
