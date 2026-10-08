@@ -12,7 +12,7 @@ const bridge = (): WindowsBridge | null => {
   if (typeof window === 'undefined' || window.__modeladorNativeWindows !== true) return null;
   const handlers = (window as unknown as { webkit?: { messageHandlers?: { modeladorWindows?: WindowsBridge } } })
     .webkit?.messageHandlers;
-  return handlers?.modeladorWindows ?? null;
+  return window.__modeladorBridges?.windows ?? handlers?.modeladorWindows ?? null;
 };
 
 export const viewerHashPrefix = '#viewer=';

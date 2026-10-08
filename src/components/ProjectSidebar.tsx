@@ -24,6 +24,7 @@ import { ARTIFACT_TYPES } from '../constants/artifactTypes';
 import { ArtifactTypeIcon } from './ArtifactTypeIcon';
 import { ThemeToggle } from './ThemeToggle';
 import { MenuItem, MenuSeparator } from './ui/Toolbar';
+import { shortcutLabel } from '../utils/shortcutLabel';
 
 type ProjectSidebarProps = {
   themePreference: ThemePreference;
@@ -195,7 +196,7 @@ export function ProjectSidebar({
       className="v2-tool v2-sidebar-toggle"
       type="button"
       onClick={onToggleCollapsed}
-      title={`${isCollapsed ? 'Mostrar' : 'Ocultar'} barra lateral (⌘\\)`}
+      title={shortcutLabel(`${isCollapsed ? 'Mostrar' : 'Ocultar'} barra lateral (⌘\\)`)}
     >
       {isCollapsed ? <PanelLeftOpen size={16} aria-hidden="true" /> : <PanelLeftClose size={16} aria-hidden="true" />}
     </button>

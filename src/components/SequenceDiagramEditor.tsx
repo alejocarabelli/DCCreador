@@ -177,6 +177,7 @@ import { SequenceMessageDialog } from './SequenceMessageDialog';
 import type { QuickMessageDraft } from '../utils/sequenceMessageDialogCompatibility';
 import { SequenceReviewPanel } from './SequenceReviewPanel';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { shortcutLabel } from '../utils/shortcutLabel';
 
 type SequenceSelection = SequenceSelectionTarget | null;
 
@@ -2144,7 +2145,7 @@ export function SequenceDiagramEditor({
         const shouldDelete = await confirm({
           title: isFragment ? '¿Eliminar el fragmento y su contenido?' : '¿Eliminar este elemento?',
           description: isFragment
-            ? `Contiene ${messageCount} mensaje${messageCount === 1 ? '' : 's'} que se eliminan junto con el contenedor. Para conservarlos en su lugar, usá «Desempaquetar» (Cmd+Shift+U).`
+            ? `Contiene ${messageCount} mensaje${messageCount === 1 ? '' : 's'} que se eliminan junto con el contenedor. Para conservarlos en su lugar, usá «Desempaquetar» (${shortcutLabel('⇧⌘U')}).`
             : `Contiene ${messageCount} mensaje${messageCount === 1 ? '' : 's'} que también se eliminarán.`,
         });
         if (!shouldDelete) return;
@@ -3291,7 +3292,8 @@ export function SequenceDiagramEditor({
   const exportPng = async (): Promise<void> => {
     if (!exportSvgRef.current) return;
     try {
-      await exportSequencePng(exportSvgRef.current, artifact.name, layout);
+      const { saved } = await exportSequencePng(exportSvgRef.current, artifact.name, layout);
+      if (!saved) return;
       showFeedback('PNG exportado');
       setExportDialogOpen(false);
     } catch (error) {
@@ -3306,6 +3308,7 @@ export function SequenceDiagramEditor({
     if (!exportSvgRef.current) return;
     try {
       const plan = await exportSequencePdf(exportSvgRef.current, artifact.name, displayContent, layout, exportOptions);
+      if (plan?.saved === false) return;
       showFeedback(`PDF exportado (${plan?.pages.length ?? 1} página${plan?.pages.length === 1 ? '' : 's'})`);
       setExportDialogOpen(false);
     } catch (error) {
@@ -3640,7 +3643,7 @@ export function SequenceDiagramEditor({
           <button className="secondary-action" type="button" onClick={() => moveSelectedItem(-1)} title="Mover arriba (Alt+↑)"><ArrowUp size={13} /> Subir</button>
           <button className="secondary-action" type="button" onClick={() => moveSelectedItem(1)} title="Mover abajo (Alt+↓)"><ArrowDown size={13} /> Bajar</button>
           <button className="secondary-action" type="button" onClick={() => invertMessage(selectedItem.id)} title="Invertir dirección (origen ↔ destino)"><ArrowLeftRight size={13} /> Invertir</button>
-          <button className="secondary-action" type="button" onClick={duplicateSelectedItem} title="Duplicar (⌘D)"><Copy size={13} /> Duplicar</button>
+          <button className="secondary-action" type="button" onClick={duplicateSelectedItem} title={shortcutLabel('Duplicar (⌘D)')}><Copy size={13} /> Duplicar</button>
         </div>
 
         {/* 1. Direct Signature Textarea right at the top */}
@@ -5272,7 +5275,7 @@ export function SequenceDiagramEditor({
                         onBlur={() => commitInlineNoteEdit()}
                       />
                       <div className="sequence-inline-note-hint">
-                        ⌘Enter o clic afuera guarda · Esc cancela
+                        {shortcutLabel('⌘Enter o clic afuera guarda · Esc cancela')}
                       </div>
                     </div>
                   );

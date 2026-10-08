@@ -2,6 +2,7 @@ import type { SequenceDiagramContent } from '../types/diagram';
 import type { SequenceDiagramBounds } from './sequenceDiagramGeometry';
 import type { SequenceLayout } from './sequenceDiagramLayout';
 import { resolveParticipantVisualIdentity } from './sequenceParticipantColors';
+import { saveBlob } from './saveFile';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const EXPORT_PADDING = 36;
@@ -43,13 +44,11 @@ const paperSizes: Record<SequencePdfPaperSize, readonly [number, number]> = {
   a4: [595.28, 841.89], a3: [841.89, 1190.55], letter: [612, 792],
 };
 
-const downloadBlob = (blob: Blob, filename: string): void => {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+/** Hands the file over; false if the user cancelled the Save dialog, throws if writing failed. */
+const downloadBlob = async (blob: Blob, filename: string): Promise<boolean> => {
+  const outcome = await saveBlob(blob, filename);
+  if (outcome.status === 'failed') throw new Error(`No se pudo guardar el archivo: ${outcome.error}`);
+  return outcome.status === 'saved';
 };
 
 export const safeSequenceFilename = (name: string): string =>
@@ -209,7 +208,7 @@ export const exportSequencePng = async (
   filename: string,
   layout?: Pick<SequenceLayout, 'bounds'>,
   options?: { download?: boolean },
-): Promise<{ blob: Blob; width: number; height: number }> => {
+): Promise<{ blob: Blob; width: number; height: number; saved: boolean }> => {
   const crop = layout ? getSequenceExportBounds(layout) : (() => {
     const { width, height } = svgDimensions(source); return { left: 0, top: 0, right: width, bottom: height, width, height };
   })();
@@ -223,10 +222,8 @@ export const exportSequencePng = async (
     const context = canvas.getContext('2d'); if (!context) throw new Error('El navegador no pudo crear la imagen.');
     context.fillStyle = '#ffffff'; context.fillRect(0, 0, canvas.width, canvas.height); context.drawImage(image, 0, 0, crop.width, crop.height);
     const png = await new Promise<Blob>((resolve, reject) => canvas.toBlob((result) => result ? resolve(result) : reject(new Error('No se pudo generar el PNG.')), 'image/png'));
-    if (options?.download !== false) {
-      downloadBlob(png, `${safeSequenceFilename(filename)}.png`);
-    }
-    return { blob: png, width: canvas.width, height: canvas.height };
+    const saved = options?.download !== false && await downloadBlob(png, `${safeSequenceFilename(filename)}.png`);
+    return { blob: png, width: canvas.width, height: canvas.height, saved };
   } finally { URL.revokeObjectURL(url); }
 };
 
@@ -325,7 +322,7 @@ export const exportSequencePdf = async (
   content?: Pick<SequenceDiagramContent, 'participants'>,
   layout?: SequenceLayout,
   options?: Partial<SequenceExportOptions> & { download?: boolean },
-): Promise<(SequencePdfPlan & { pdfBlob?: Blob; pdfBytes?: Uint8Array }) | undefined> => {
+): Promise<(SequencePdfPlan & { pdfBlob?: Blob; pdfBytes?: Uint8Array; saved: boolean }) | undefined> => {
   const [{ jsPDF }, { svg2pdf }] = await Promise.all([
     import('jspdf'),
     import('svg2pdf.js'),
@@ -334,7 +331,7 @@ export const exportSequencePdf = async (
     const fallback = cleanExportSvg(source); const { width, height } = svgDimensions(fallback);
     const document = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a3', compress: true });
     await svg2pdf(fallback, document, { x: 24, y: 24, width: width * 0.72, height: height * 0.72 });
-    if (options?.download !== false) document.save(`${safeSequenceFilename(filename)}.pdf`);
+    if (options?.download !== false) await downloadBlob(document.output('blob'), `${safeSequenceFilename(filename)}.pdf`);
     return undefined;
   }
   const config = { ...defaultSequenceExportOptions, ...options };
@@ -355,10 +352,8 @@ export const exportSequencePdf = async (
     }
     document.setFontSize(8); document.setTextColor('#64748b'); document.text(`Página ${page.index + 1} de ${plan.pages.length}`, paper.width - margin, paper.height - 8, { align: 'right' });
   }
-  if (options?.download !== false) {
-    document.save(`${safeSequenceFilename(filename)}.pdf`);
-  }
   const pdfBytes = new Uint8Array(document.output('arraybuffer'));
   const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
-  return { ...plan, pdfBlob, pdfBytes };
+  const saved = options?.download !== false && await downloadBlob(pdfBlob, `${safeSequenceFilename(filename)}.pdf`);
+  return { ...plan, pdfBlob, pdfBytes, saved };
 };

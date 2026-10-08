@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "La ventana principal y las vistas de solo lectura. Los comandos propios validan además quién los llama.",
+  "windows": ["main", "viewer-*"],
+  "permissions": ["core:default"]
+}

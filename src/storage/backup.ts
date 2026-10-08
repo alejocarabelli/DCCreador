@@ -10,6 +10,8 @@ declare global {
   interface Window {
     __modeladorNativeBackup?: boolean;
     webkit?: { messageHandlers?: { modeladorBackup?: BackupBridge } };
+    /** The Windows shell (src-tauri) puts its bridges here instead of faking `webkit`. */
+    __modeladorBridges?: { backup?: BackupBridge; windows?: { postMessage: (message: unknown) => Promise<unknown> } };
   }
 }
 
@@ -29,7 +31,7 @@ export const BACKUP_INTERVAL_MS = 10 * 60 * 1000;
 
 const bridge = (): BackupBridge | null => {
   if (typeof window === 'undefined' || window.__modeladorNativeBackup !== true) return null;
-  return window.webkit?.messageHandlers?.modeladorBackup ?? null;
+  return window.__modeladorBridges?.backup ?? window.webkit?.messageHandlers?.modeladorBackup ?? null;
 };
 
 /**

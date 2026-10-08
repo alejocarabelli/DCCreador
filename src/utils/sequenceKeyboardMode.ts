@@ -11,6 +11,7 @@ import { analyzeSequenceDiagramSemantics, insertSequenceItem, insertSequenceItem
 import type { SequenceLayout } from './sequenceDiagramLayout';
 import { parseMessageSignature } from './sequenceMessageEditing';
 import { parseSequenceParticipantLabel } from './sequenceParticipantEditing';
+import { shortcutLabel } from './shortcutLabel';
 
 export type SequenceKeyboardStage = 'off' | 'navigate' | 'aim' | 'typing' | 'fragment' | 'guard' | 'participant';
 
@@ -550,7 +551,7 @@ export const getSequenceKeyboardInstruction = (state: SequenceKeyboardModeState)
       ? 'Escribí nombre : Clase · Enter crear · Esc volver'
       : state.messageType === 'return'
         ? 'Enter guardar retorno · Esc volver'
-        : 'Enter guardar (vacío: toma la sugerencia) · ⇧ Enter guardar + retorno · Esc volver';
+        : shortcutLabel('Enter guardar (vacío: toma la sugerencia) · ⇧ Enter guardar + retorno · Esc volver');
   }
   if (state.stage === 'participant') {
     return 'Escribí instancia:Clase o :Clase · Enter crear · Esc cancelar';

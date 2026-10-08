@@ -624,16 +624,16 @@ function App() {
 
   const handleExportProject = (projectId: string): void => {
     const project = projects.find((candidate) => candidate.id === projectId);
-    if (project !== undefined) downloadProjectFile(project);
+    if (project !== undefined) void downloadProjectFile(project);
   };
 
   const handleExportArtifact = (projectId: string, artifactId: string): void => {
     const artifact = projects.find((project) => project.id === projectId)?.artifacts.find((candidate) => candidate.id === artifactId);
-    if (artifact) downloadArtifactFile(artifact);
+    if (artifact) void downloadArtifactFile(artifact);
   };
 
   const handleDownloadArtifactGuide = (): void => {
-    downloadTextFile(artifactGuide, 'guia-artefactos-ia.md', 'text/markdown;charset=utf-8');
+    void downloadTextFile(artifactGuide, 'guia-artefactos-ia.md', 'text/markdown;charset=utf-8');
   };
 
   const transferProject = projects.find((project) => project.id === artifactTransferDialog?.projectId);

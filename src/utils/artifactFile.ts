@@ -1,5 +1,6 @@
 import type { DesignArtifact } from '../types/diagram';
 import { normalizeArtifact } from './diagramNormalization';
+import { reportSaveFailure, saveBlob, type SaveOutcome } from './saveFile';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -70,16 +71,10 @@ export const extractImportableArtifacts = (value: unknown): DesignArtifact[] | n
 export const serializeArtifact = (artifact: DesignArtifact): string =>
   JSON.stringify(normalizeArtifact(artifact, artifact), null, 2);
 
-export const downloadTextFile = (text: string, filename: string, mimeType: string): void => {
-  const url = URL.createObjectURL(new Blob([text], { type: mimeType }));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-};
+export const downloadTextFile = async (text: string, filename: string, mimeType: string): Promise<SaveOutcome> =>
+  reportSaveFailure(await saveBlob(new Blob([text], { type: mimeType }), filename));
 
-export const downloadArtifactFile = (artifact: DesignArtifact): void =>
+export const downloadArtifactFile = (artifact: DesignArtifact): Promise<SaveOutcome> =>
   downloadTextFile(serializeArtifact(artifact), `${artifact.name.trim() || 'artefacto'}.json`, 'application/json');
 
 export const ARTIFACT_IMPORT_INVALID_MESSAGE =

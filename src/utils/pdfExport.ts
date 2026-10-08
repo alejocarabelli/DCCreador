@@ -1,3 +1,4 @@
+import { saveBlob, saveDataUrl, type SaveOutcome } from './saveFile';
 const textEncoder = new TextEncoder();
 
 const encodeAscii = (value: string): Uint8Array => textEncoder.encode(value);
@@ -27,21 +28,9 @@ const concatBytes = (parts: Uint8Array[]): Uint8Array => {
   return result;
 };
 
-export const downloadDataUrl = (filename: string, dataUrl: string): void => {
-  const link = document.createElement('a');
-  link.download = filename;
-  link.href = dataUrl;
-  link.click();
-};
+export const downloadDataUrl = (filename: string, dataUrl: string): Promise<SaveOutcome> => saveDataUrl(dataUrl, filename);
 
-export const downloadBlob = (filename: string, blob: Blob): void => {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.download = filename;
-  link.href = url;
-  link.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-};
+export const downloadBlob = (filename: string, blob: Blob): Promise<SaveOutcome> => saveBlob(blob, filename);
 
 export const createPdfFromJpegDataUrl = (jpegDataUrl: string, width: number, height: number): Blob => {
   const imageBytes = dataUrlToBytes(jpegDataUrl);

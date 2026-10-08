@@ -7,6 +7,7 @@ import {
   type FlowTableLine,
 } from './flowDocument';
 import type { ProjectSymbolIndex } from './projectSymbolIndex';
+import { shortcutLabel } from './shortcutLabel';
 
 export type FlowIssueLocation =
   | { kind: 'cell'; field: FlowTextField; lineIndex: number; stepId: string; table: 'basic' | string }
@@ -211,7 +212,7 @@ export const reviewUseCaseFlow = (content: UseCaseFlowContent, symbolIndex: Proj
   content.alternativeFlows.forEach((flow) => {
     const code = normalizeFlowCode(flow.code);
     if (!referencedPaths.has(code)) {
-      issues.push({ id: `orphan:${flow.id}`, kind: 'review', location: { kind: 'alternative', table: flow.id }, message: `Ningún paso deriva a ${flow.code}. Marcá desde dónde se toma con ⌘⇧A o en la columna Ref.` });
+      issues.push({ id: `orphan:${flow.id}`, kind: 'review', location: { kind: 'alternative', table: flow.id }, message: `Ningún paso deriva a ${flow.code}. Marcá desde dónde se toma con ${shortcutLabel('⇧⌘A')} o en la columna Ref.` });
     }
     if (flow.name.trim().length === 0) {
       issues.push({ id: `unnamed:${flow.id}`, kind: 'review', location: { kind: 'alternative', table: flow.id }, message: `${flow.code} no tiene nombre (por ejemplo, «Datos inconsistentes»).` });

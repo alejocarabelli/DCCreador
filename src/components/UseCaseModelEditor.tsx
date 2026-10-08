@@ -575,8 +575,8 @@ export function UseCaseModelEditor({
       return;
     }
 
-    downloadDataUrl(`${project.name.trim() || 'diagrama'} - ${artifact.name.trim() || 'artefacto'}.png`, dataUrl);
-    showFeedback('PNG exportado');
+    const outcome = await downloadDataUrl(`${project.name.trim() || 'diagrama'} - ${artifact.name.trim() || 'artefacto'}.png`, dataUrl);
+    if (outcome.status !== 'cancelled') showFeedback(outcome.status === 'saved' ? 'PNG exportado' : 'No se pudo exportar el PNG');
   };
 
   const exportPdf = async (): Promise<void> => {
@@ -587,8 +587,8 @@ export function UseCaseModelEditor({
     }
 
     const pdf = createPdfFromJpegDataUrl(dataUrl, PNG_WIDTH, PNG_HEIGHT);
-    downloadBlob(`${project.name.trim() || 'diagrama'} - ${artifact.name.trim() || 'artefacto'}.pdf`, pdf);
-    showFeedback('PDF exportado');
+    const outcome = await downloadBlob(`${project.name.trim() || 'diagrama'} - ${artifact.name.trim() || 'artefacto'}.pdf`, pdf);
+    if (outcome.status !== 'cancelled') showFeedback(outcome.status === 'saved' ? 'PDF exportado' : 'No se pudo exportar el PDF');
   };
 
   const closeToolbarMenus = (except?: HTMLDetailsElement): void => {
