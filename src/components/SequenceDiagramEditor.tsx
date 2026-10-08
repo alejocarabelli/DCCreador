@@ -671,6 +671,11 @@ export function SequenceDiagramEditor({
   const selectedParticipant = selection?.kind === 'participant'
     ? content.participants.find((participant) => participant.id === selection.id)
     : undefined;
+  if (participantColorReference && participantColorReference.id !== selectedParticipant?.id) {
+    // Cambió o desapareció el participante seleccionado: se suelta la referencia
+    // de color aunque el input no haya llegado a disparar blur.
+    setParticipantColorReference(null);
+  }
   const participantEditText = selectedParticipant
     ? participantEditDraft?.id === selectedParticipant.id
       ? participantEditDraft.text
@@ -5082,7 +5087,7 @@ export function SequenceDiagramEditor({
                   classNodesById={classNodesById}
                   missingInModel={missingInModel}
                   participantColorsEnabled={content.participantColors !== 'disabled'}
-                  colorReferenceParticipant={participantColorReference?.id === selectedParticipant?.id ? participantColorReference : null}
+                  colorReferenceParticipant={participantColorReference}
                   ariaDescriptionId="sequence-structured-description"
                   onSelect={selectCanvasElement}
                   onTimelineItemSelect={handleTimelineItemSelect}
