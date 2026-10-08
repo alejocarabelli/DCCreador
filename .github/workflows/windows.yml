@@ -29,6 +29,8 @@ jobs:
       - run: npx tsc -b && npm run lint && npm test
       - name: Compilar la app
         run: npx tauri build
+      - name: Tests de la parte nativa
+        run: cargo test --manifest-path src-tauri/Cargo.toml
       - name: Nombrar el instalador
         shell: pwsh
         run: |

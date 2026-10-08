@@ -38,17 +38,19 @@ static MAIN_CLOSE_REQUESTED: AtomicBool = AtomicBool::new(false);
 /// escribe una copia rotativa en Documentos\Modelador de Sistemas\Respaldos (si
 /// Documentos está en OneDrive, viaja con él).
 fn backup_directory(app: &AppHandle) -> Result<PathBuf, String> {
-    // Para probar la app sin tocar los respaldos reales de la versión instalada.
+    // Para probar la app sin tocar los respaldos reales de la versión instalada
+    // (en el Mac es la misma carpeta, y la rotación borraría los de la app real).
     #[cfg(debug_assertions)]
     if let Some(dir) = std::env::var_os("MODELADOR_BACKUP_DIR") {
         let dir = PathBuf::from(dir);
         std::fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
         return Ok(dir);
     }
+    let folder = if cfg!(debug_assertions) { "Respaldos-dev" } else { "Respaldos" };
 
     // La carpeta Documentos real, aunque esté redirigida a OneDrive.
     let documents = app.path().document_dir().map_err(|_| "No se encontró la carpeta Documentos.")?;
-    let dir = documents.join(APP_NAME).join("Respaldos");
+    let dir = documents.join(APP_NAME).join(folder);
     std::fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
     Ok(dir)
 }
@@ -119,8 +121,8 @@ async fn save_file(window: WebviewWindow, request: tauri::ipc::Request<'_>) -> R
         .headers()
         .get("x-file-name")
         .and_then(|value| value.to_str().ok())
-        .map(percent_decode)
-        .filter(|name| !name.trim().is_empty())
+        .map(|value| windows_file_name(&percent_decode(value)))
+        .filter(|name| !name.is_empty())
         .unwrap_or_else(|| "archivo".into());
 
     let mut dialog = window.dialog().file().set_parent(&window).set_file_name(&name);
@@ -133,6 +135,17 @@ async fn save_file(window: WebviewWindow, request: tauri::ipc::Request<'_>) -> R
     let path = chosen.into_path().map_err(|error| error.to_string())?;
     std::fs::write(&path, bytes).map_err(|error| error.to_string())?;
     Ok(Some(path.to_string_lossy().to_string()))
+}
+
+/// Los nombres salen de lo que escribió el usuario («TP 2: Reservas»), y Windows
+/// rechaza `\ / : * ? " < > |`, los caracteres de control y el punto o espacio final.
+fn windows_file_name(name: &str) -> String {
+    let cleaned: String = name
+        .chars()
+        .map(|character| if character.is_control() || r#"\/:*?"<>|"#.contains(character) { ' ' } else { character })
+        .collect();
+    let collapsed = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
+    collapsed.trim_end_matches(['.', ' ']).to_string()
 }
 
 fn percent_decode(value: &str) -> String {
@@ -180,7 +193,8 @@ async fn windows_message(
 
 /// Etiqueta estable por diagrama: abrir dos veces el mismo trae la ventana existente.
 fn viewer_label(project_id: &str, artifact_id: &str) -> String {
-    let hash = format!("{project_id}/{artifact_id}")
+    // Con el largo adelante, ("p/a", "b") y ("p", "a/b") no chocan.
+    let hash = format!("{}:{project_id}{artifact_id}", project_id.len())
         .bytes()
         .fold(0xcbf29ce484222325u64, |hash, byte| (hash ^ byte as u64).wrapping_mul(0x100000001b3));
     format!("{VIEWER_PREFIX}{hash:016x}")
@@ -393,4 +407,29 @@ fn main() {
         })
         .run(tauri::generate_context!())
         .expect("No se pudo iniciar Modelador de Sistemas");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn file_names_are_valid_on_windows() {
+        assert_eq!(windows_file_name("TP 2: Reservas - Clases.json"), "TP 2 Reservas - Clases.json");
+        assert_eq!(windows_file_name("a/b\\c*?\"<>|.pdf"), "a b c .pdf");
+        assert_eq!(windows_file_name("notas..."), "notas");
+        assert_eq!(windows_file_name(" : "), "");
+    }
+
+    #[test]
+    fn percent_decoding_matches_encode_uri_component() {
+        assert_eq!(percent_decode("Diagrama%20de%20clases%20%C3%B1.png"), "Diagrama de clases ñ.png");
+        assert_eq!(percent_decode("100%"), "100%");
+    }
+
+    #[test]
+    fn viewer_labels_are_stable_and_distinct() {
+        assert_eq!(viewer_label("p", "a"), viewer_label("p", "a"));
+        assert_ne!(viewer_label("p/a", "b"), viewer_label("p", "a/b"));
+    }
 }

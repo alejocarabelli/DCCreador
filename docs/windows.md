@@ -26,7 +26,9 @@ Para probar la parte nativa en el Mac (usa WebKit, no WebView2, pero los puentes
 MODELADOR_BACKUP_DIR=/tmp/respaldos-prueba npx tauri dev
 ```
 
-`MODELADOR_BACKUP_DIR` (solo en compilaciones de desarrollo) evita tocar los respaldos reales, que comparte con la app del Mac.
+En desarrollo los respaldos van a `Respaldos-dev` (o a `MODELADOR_BACKUP_DIR` si está definida), nunca a la carpeta de la app real: la rotación borraría sus copias.
+
+Los tests de la parte nativa: `cargo test --manifest-path src-tauri/Cargo.toml` (necesita `npm run build` antes).
 
 Al subir de versión, cambiarla también en `src-tauri/tauri.conf.json` y `src-tauri/Cargo.toml`.
 
@@ -38,11 +40,14 @@ Es un instalador NSIS por usuario (no pide permisos de administrador), en españ
 
 - [ ] Instalar (aviso de SmartScreen incluido) y abrir.
 - [ ] Crear un proyecto, cerrar la app, volver a abrir: el proyecto sigue.
+- [ ] Editar un proyecto y cerrar la app enseguida (menos de un segundo); al volver a abrir, el cambio sigue.
 - [ ] Exportar proyecto JSON, artefacto JSON, PNG y PDF de cada tipo de diagrama, Word y PDF del flujo de casos de uso: cada uno abre el diálogo de Guardar; cancelar no muestra «exportado».
+- [ ] Exportar un proyecto cuyo nombre tenga `:` o `/` (por ejemplo «TP 2: Reservas»): el diálogo propone un nombre válido.
 - [ ] Importar un JSON.
 - [ ] Aparece `Documentos\Modelador de Sistemas\Respaldos\respaldo-*.json` y «revelar» abre el Explorador ahí.
 - [ ] Abrir un diagrama en ventana aparte; «Editar en la ventana principal» vuelve a la principal con ese diagrama.
 - [ ] Arrastrar para reordenar atributos y pasos.
-- [ ] Atajos: Ctrl+Z, Ctrl+Mayús+Z, Ctrl+D, Ctrl+C/V, Ctrl+1…9, Ctrl+W, Ctrl+Tab. F5 y Ctrl+R no recargan.
+- [ ] Atajos: Ctrl+Z, Ctrl+Mayús+Z, Ctrl+D, Ctrl+C/V, Ctrl+1…9, Ctrl+W, Ctrl+Tab. F5 y Ctrl+R no recargan. Dentro de un campo de texto siguen andando Ctrl+C/V/X/Z/A.
 - [ ] Un enlace externo se abre en el navegador.
 - [ ] Reinstalar encima (una versión nueva): los proyectos siguen.
+- [ ] Desinstalar: si ofrece borrar los datos de la app, anotarlo aquí (marcarlo borra los proyectos; los respaldos en Documentos quedan).
