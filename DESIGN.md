@@ -207,11 +207,11 @@ scrim; primary action on the right. Toasts are ink pills at the bottom.
    icons at narrow widths. Every collapsible label has an `aria-label` and a
    tooltip on its control, so collapsing costs no accessible name.
 2. **The canvas is never a residual column.** Side panels collapse before the
-   canvas drops under 480px. The Apuntes sheet follows the same rule: it pushes
-   the editor only while the editor keeps 480px of canvas next to its own
-   panels (class and use-case model 480 + 304 inspector; flow 480 + 340 review;
-   sequence 224 outline + 480 + 320 inspector). Below that it floats over the
-   right edge, under the toolbar, with `--shadow-popover`, and pushes nothing.
+   canvas drops under 480px. The Apuntes sheet pushes the editor only while
+   the editor stays at least as wide as in the narrowest supported window
+   (900px − the 240px sidebar = 660px), where every editor and its panels
+   already work. Below that it floats over the right edge, under the toolbar,
+   with `--shadow-popover`, and pushes nothing.
 
 ## Accessibility contract
 

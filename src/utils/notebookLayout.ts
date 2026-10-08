@@ -1,27 +1,12 @@
 /**
  * Layout contract 2 (DESIGN.md): the canvas is never a residual column. The
- * Apuntes sheet pushes the editor only while the editor keeps its canvas plus
- * its own side panels; otherwise it overlays.
+ * Apuntes sheet pushes the editor only while the editor stays at least as wide
+ * as it already is in the narrowest supported window (900px minus the 240px
+ * sidebar): every editor and its inspector or review panel already work there.
+ * Narrower than that, the sheet floats over the editor instead.
  */
-const MIN_CANVAS_WIDTH = 480;
+export const MIN_PUSHED_EDITOR_WIDTH = 900 - 240;
 
-type ArtifactKind = 'class-diagram' | 'class-sequence-diagram' | 'use-case-model' | 'use-case-flow' | 'sequence-diagram';
-
-/**
- * Narrowest editor width that still gives the canvas MIN_CANVAS_WIDTH next to
- * the panels the editor can show at the same time:
- * - class / use-case model: 480 + 304 inspector.
- * - use-case flow: 480 document + 340 review column.
- * - sequence: 224 outline + 480 canvas + 320 inspector (its default width).
- */
-export const EDITOR_MIN_WIDTH: Record<ArtifactKind, number> = {
-  'class-diagram': MIN_CANVAS_WIDTH + 304,
-  'class-sequence-diagram': MIN_CANVAS_WIDTH + 304,
-  'use-case-model': MIN_CANVAS_WIDTH + 304,
-  'use-case-flow': MIN_CANVAS_WIDTH + 340,
-  'sequence-diagram': 224 + MIN_CANVAS_WIDTH + 320,
-};
-
-/** True when pushing the editor by `sheetWidth` would leave it under its minimum. */
-export const shouldOverlayNotebook = (workspaceWidth: number, sheetWidth: number, editorMinWidth: number): boolean =>
-  workspaceWidth - sheetWidth < editorMinWidth;
+/** True when pushing the editor by `sheetWidth` would leave it narrower than it ever gets today. */
+export const shouldOverlayNotebook = (workspaceWidth: number, sheetWidth: number): boolean =>
+  workspaceWidth - sheetWidth < MIN_PUSHED_EDITOR_WIDTH;

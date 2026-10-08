@@ -31,7 +31,7 @@ import { NotebookContext, type NotebookContextValue } from './components/noteboo
 import { NotebookSheet } from './components/notebook/NotebookSheet';
 import { countPendingQuestions } from './utils/artifactNotebook';
 import { isNotebookEvent, isNotebookShortcut } from './utils/notebookKeyboard';
-import { EDITOR_MIN_WIDTH, shouldOverlayNotebook } from './utils/notebookLayout';
+import { shouldOverlayNotebook } from './utils/notebookLayout';
 import { isMacPlatform } from './utils/shortcutLabel';
 import type { ArtifactContent, ClassMethod, ClassModelArtifact, ClassSequenceDiagramContent, DesignArtifact, SequenceDiagramContent } from './types/diagram';
 import {
@@ -628,8 +628,7 @@ function App() {
   if (notebookFocus.key !== activeHistoryKey) setNotebookFocus({ key: activeHistoryKey, count: 0 });
   const [workspaceWidth, setWorkspaceWidth] = useState<number | null>(null);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
-  const isNotebookOverlay = workspaceWidth !== null && activeArtifact !== null
-    && shouldOverlayNotebook(workspaceWidth, notebookWidth, EDITOR_MIN_WIDTH[activeArtifact.type]);
+  const isNotebookOverlay = workspaceWidth !== null && shouldOverlayNotebook(workspaceWidth, notebookWidth);
   const pendingQuestionCount = useMemo(() => countPendingQuestions(activeArtifact?.notebook), [activeArtifact?.notebook]);
 
   useEffect(() => { writeNotebookOpen(isNotebookOpen); }, [isNotebookOpen]);
