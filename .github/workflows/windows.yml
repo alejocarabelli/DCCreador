@@ -1,12 +1,15 @@
 name: Windows
 
 # Compila "Modelador de Sistemas" para Windows (Tauri, src-tauri/) en una PC de GitHub.
-# - Cada push a main: compila y guarda el instalador .exe como artefacto.
+# - Cada push a main y cada PR contra main: compila y guarda el instalador .exe
+#   como artefacto (para probarlo en una PC con Windows antes de mergear).
 # - Una etiqueta v2.*: además lo sube a la misma release que el .dmg del Mac.
 on:
   push:
     branches: [main]
     tags: ['v2.*']
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
