@@ -1,6 +1,7 @@
 import { isClassGroupColor } from '../constants/classGroupColors';
 import { reconcileSequenceModelLinks } from './sequenceModelLink';
 import type {
+  ArtifactNotebook,
   ClassDiagramArtifact,
   ClassDiagramContent,
   ClassDiagramEdge,
@@ -29,6 +30,7 @@ import type {
 } from '../types/diagram';
 import { normalizeAssociationEdge } from './association';
 import { createId } from './id';
+import { normalizeArtifactNotebook } from './artifactNotebook';
 import { normalizeSequenceDiagramContent } from './sequenceDiagram';
 
 const DEFAULT_CLASS_ARTIFACT_ID = 'default-class-diagram';
@@ -266,6 +268,12 @@ export const normalizeUseCaseFlowContent = (
   };
 };
 
+// The key is only present when there are notes, so old projects serialize as before.
+const withNotebook = (notebook: unknown): { notebook?: ArtifactNotebook } => {
+  const normalized = normalizeArtifactNotebook(notebook);
+  return normalized === undefined ? {} : { notebook: normalized };
+};
+
 const normalizeClassDiagramArtifact = (
   artifact: Partial<ClassDiagramArtifact> | undefined,
   fallbackDates: Pick<DiagramProject, 'createdAt' | 'updatedAt'>,
@@ -275,6 +283,7 @@ const normalizeClassDiagramArtifact = (
   name: typeof artifact?.name === 'string' && artifact.name.length > 0 ? artifact.name : 'Diagrama de clases',
   createdAt: typeof artifact?.createdAt === 'string' ? artifact.createdAt : fallbackDates.createdAt,
   updatedAt: typeof artifact?.updatedAt === 'string' ? artifact.updatedAt : fallbackDates.updatedAt,
+  ...withNotebook(artifact?.notebook),
   content: normalizeDiagramContent(artifact?.content),
 });
 
@@ -300,6 +309,7 @@ const normalizeClassSequenceDiagramArtifact = (
   name: typeof artifact?.name === 'string' && artifact.name.length > 0 ? artifact.name : 'Diagrama de clases (Secuencia)',
   createdAt: typeof artifact?.createdAt === 'string' ? artifact.createdAt : fallbackDates.createdAt,
   updatedAt: typeof artifact?.updatedAt === 'string' ? artifact.updatedAt : fallbackDates.updatedAt,
+  ...withNotebook(artifact?.notebook),
   content: normalizeClassSequenceDiagramContent(artifact?.content),
 });
 
@@ -312,6 +322,7 @@ const normalizeUseCaseModelArtifact = (
   name: typeof artifact?.name === 'string' && artifact.name.length > 0 ? artifact.name : 'Modelo de casos de uso',
   createdAt: typeof artifact?.createdAt === 'string' ? artifact.createdAt : fallbackDates.createdAt,
   updatedAt: typeof artifact?.updatedAt === 'string' ? artifact.updatedAt : fallbackDates.updatedAt,
+  ...withNotebook(artifact?.notebook),
   content: normalizeUseCaseModelContent(artifact?.content),
 });
 
@@ -324,6 +335,7 @@ const normalizeUseCaseFlowArtifact = (
   name: typeof artifact?.name === 'string' && artifact.name.length > 0 ? artifact.name : 'Flujo de sucesos',
   createdAt: typeof artifact?.createdAt === 'string' ? artifact.createdAt : fallbackDates.createdAt,
   updatedAt: typeof artifact?.updatedAt === 'string' ? artifact.updatedAt : fallbackDates.updatedAt,
+  ...withNotebook(artifact?.notebook),
   content: normalizeUseCaseFlowContent(artifact?.content),
 });
 
@@ -336,6 +348,7 @@ const normalizeSequenceDiagramArtifact = (
   name: typeof artifact?.name === 'string' && artifact.name.length > 0 ? artifact.name : 'Diagrama de secuencia',
   createdAt: typeof artifact?.createdAt === 'string' ? artifact.createdAt : fallbackDates.createdAt,
   updatedAt: typeof artifact?.updatedAt === 'string' ? artifact.updatedAt : fallbackDates.updatedAt,
+  ...withNotebook(artifact?.notebook),
   content: normalizeSequenceDiagramContent(artifact?.content),
 });
 

@@ -17,8 +17,19 @@ const SECTIONS: Array<{ title: string; shortcuts: Shortcut[] }> = [
       ['⌘Z', 'Deshacer'],
       ['⇧⌘Z', 'Rehacer'],
       ['?', 'Mostrar estos atajos'],
+      ['⇧⌘E', 'Abrir o cerrar los apuntes'],
       ['⌘\\', 'Mostrar u ocultar la barra lateral'],
       ['Esc', 'Cerrar un menú o cancelar la edición'],
+    ],
+  },
+  {
+    title: 'Apuntes',
+    shortcuts: [
+      ['↵ en una duda', 'Otra duda debajo'],
+      ['↵ en una duda vacía', 'Convertirla en texto'],
+      ['Esc', 'Volver al diagrama'],
+      ['⌘Z  ⇧⌘Z', 'Deshacer o rehacer en el boceto'],
+      ['⌫', 'Borrar la selección del boceto'],
     ],
   },
   {
@@ -110,7 +121,16 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
               <dl>
                 {section.shortcuts.map(([keys, description]) => (
                   <div key={keys}>
-                    <dt>{keys.split(/\s{2,}/).map((key) => <kbd className="v2-kbd" key={key}>{shortcutLabel(key)}</kbd>)}</dt>
+                    <dt>{keys.split(/\s{2,}/).map((key) => {
+                      // "↵ en una duda": the key is the cap, where it applies reads as plain text.
+                      const [cap, context] = key.split(/ (?=en )/);
+                      return (
+                        <span className="v2-kbd-group" key={key}>
+                          <kbd className="v2-kbd">{shortcutLabel(cap)}</kbd>
+                          {context ? <span className="v2-kbd-context">{context}</span> : null}
+                        </span>
+                      );
+                    })}</dt>
                     <dd>{description}</dd>
                   </div>
                 ))}

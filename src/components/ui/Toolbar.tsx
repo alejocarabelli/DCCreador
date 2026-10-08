@@ -1,4 +1,4 @@
-import { Check, ChevronDown, ListChecks } from 'lucide-react';
+import { Check, ChevronDown, ListChecks, NotebookPen } from 'lucide-react';
 import {
   useEffect,
   useRef,
@@ -7,6 +7,8 @@ import {
   type ReactNode,
   type Ref,
 } from 'react';
+import { useNotebook } from '../notebook/NotebookContext';
+import { shortcutLabel } from '../../utils/shortcutLabel';
 
 type IconComponent = ComponentType<{ size?: number | string; 'aria-hidden'?: boolean | 'true' | 'false' }>;
 
@@ -271,6 +273,30 @@ export function ReviewButton({
       <ListChecks size={16} aria-hidden="true" />
       <span className="v2-tool-label">{label}</span>
       {count > 0 ? <span className="v2-count">{count}</span> : null}
+    </button>
+  );
+}
+
+/**
+ * Apuntes: the private notebook sheet of the active artifact. Reads the app
+ * context itself, so editors just drop it first in their end zone. Its counter
+ * is the open questions, neutral on purpose: a doubt is not an error.
+ */
+export function NotebookButton() {
+  const { available, isOpen, pendingCount, toggle } = useNotebook();
+  if (!available) return null;
+  return (
+    <button
+      aria-label={pendingCount > 0 ? `Apuntes: ${pendingCount} ${pendingCount === 1 ? 'duda pendiente' : 'dudas pendientes'}` : 'Apuntes'}
+      aria-pressed={isOpen}
+      className={`v2-tool has-label v2-notebook ${isOpen ? 'is-pressed' : ''}`}
+      title={shortcutLabel('Apuntes (⇧⌘E)')}
+      type="button"
+      onClick={toggle}
+    >
+      <NotebookPen size={16} aria-hidden="true" />
+      <span className="v2-tool-label">Apuntes</span>
+      {pendingCount > 0 ? <span className="v2-count">{pendingCount}</span> : null}
     </button>
   );
 }

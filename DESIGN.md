@@ -114,9 +114,9 @@ One bar, three zones, identical order in all five editors:
 2. **Create** — the editor's own tools. The most common creation is the one
    filled primary button (`ToolButton variant="primary"`): *Clase*, *Mensaje*,
    *Caso de uso*. Secondary creations are icon buttons or one menu.
-3. **End** — `ReviewButton` (where the editor can check its work) · `Vista ▾`
-   (everything that changes how the document is shown) · `Exportar ▾` (only
-   the formats of this artifact).
+3. **End** — `NotebookButton` (Apuntes) · `ReviewButton` (where the editor
+   can check its work) · `Vista ▾` (everything that changes how the document is
+   shown) · `Exportar ▾` (only the formats of this artifact).
 
 Project-level actions (export/import the whole project as JSON) are not in the
 editor toolbar: they live in the project menu and on the home screen.
@@ -135,6 +135,48 @@ Open order is a UI preference per project, outside the exported model. Opening
 inserts beside the current tab; closing selects the next neighbor. Tabs support
 pointer reordering, middle-click closing and keyboard navigation. Viewports,
 zoom and scroll positions stay in memory for the session.
+
+### Apuntes — `NotebookButton` / `NotebookSheet`
+
+Every artifact has a private notebook (notes, questions, a sketch) that lives
+beside the artifact, outside its content: it never enters the undo history or
+the review, and the read-only window does not show it. `NotebookButton` is the first
+control of the toolbar's end zone, in all editors: a labelled tool with the
+`NotebookPen` icon, `aria-pressed`, and the tooltip «Apuntes (⇧⌘E)» (Ctrl+Mayús+E
+off Mac). Its counter is the artifact's open questions, in the neutral
+`.v2-count` style on purpose — a doubt is not an error, so it never takes the
+warning tone of Revisar — and it disappears at zero.
+
+`NotebookSheet` is rendered once, by `App`, in `.artifact-workspace` next to the
+editor panel: a 280–520px column (340 by default, resizable, remembered)
+separated by a 1px `--panel-border` line. The open/closed state and the width
+are global, so the sheet stays open while switching tabs and shows each
+artifact's own notes. The shortcut toggles it from anywhere and moves focus into
+the sheet; closing returns focus to the canvas (`data-editor-canvas`). Esc
+inside the sheet returns focus to the canvas and leaves it open. Key events
+inside `[data-notebook]` never reach the editors' global handlers
+(`isNotebookEvent`), so ⌘Z, Backspace or letters act on the notes, not on the
+diagram.
+
+### Sidebar — project sections
+
+Under Inicio the expanded sidebar is two VS Code–style panes (`SidebarPane`,
+labelled regions with an `h2` and a fold `<button aria-expanded aria-controls>`).
+**The open project** is the first: its name as the eyebrow title (mono, uppercase,
+`--text-2xs`, in `--panel-text`, ellipsis, full name in the tooltip), then its
+artifacts behind a 1px `--panel-border` tree guide. Its `+` (Nuevo artefacto) and
+`···` (project options) show on header hover or focus, stay in the tab order and
+stay visible while their menu is open. **Otros proyectos** is the second: every
+other project by `updatedAt` descending, folder icon, name, relative date (which
+gives way to the row's `···` on hover), a count pill, `+` Nuevo proyecto, and a
+«Filtrar proyectos» field (accent- and case-insensitive, Esc clears) once the list
+has more than 6. It starts folded, its header at the foot of the nav; fold states
+are UI preferences. With both open they share the nav's height: the project keeps
+its content height up to 60%, each pane scrolls on its own, and a `role="separator"`
+sash (1px line, 7px hit area, `--accent` 2px on hover, drag or focus; ↑/↓ resize,
+Home/End to the limits, double click back to automatic) moves the split, remembered
+as a share of the height and never leaving a pane under header + 3 rows. With no
+project open (Inicio) there is a single, always open «Proyectos» pane.
 
 ### Tool buttons — `ToolButton`
 
@@ -185,7 +227,11 @@ scrim; primary action on the right. Toasts are ink pills at the bottom.
    icons at narrow widths. Every collapsible label has an `aria-label` and a
    tooltip on its control, so collapsing costs no accessible name.
 2. **The canvas is never a residual column.** Side panels collapse before the
-   canvas drops under 480px.
+   canvas drops under 480px. The Apuntes sheet pushes the editor only while
+   the editor stays at least as wide as in the narrowest supported window
+   (900px − the 240px sidebar = 660px), where every editor and its panels
+   already work. Below that it floats over the right edge, under the toolbar,
+   with `--shadow-popover`, and pushes nothing.
 
 ## Accessibility contract
 

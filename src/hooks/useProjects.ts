@@ -2,6 +2,7 @@ import { findUnlinkedSequences, linkNewSequenceToOnlyModel, linkSequencesToModel
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ArtifactContent,
+  ArtifactNotebook,
   ClassDiagramArtifact,
   ClassDiagramContent,
   ClassSequenceDiagramArtifact,
@@ -40,6 +41,7 @@ import {
   isSequenceUsingClassModel,
 } from '../utils/classRenamePropagation';
 import { createId } from '../utils/id';
+import { isNotebookEmpty } from '../utils/artifactNotebook';
 import { createEmptySequenceDiagramContent, normalizeSequenceDiagramContent } from '../utils/sequenceDiagram';
 import { importArtifactIntoProjects, moveArtifactsBetweenProjects, type ArtifactMoveResult } from '../utils/artifactTransfer';
 
@@ -104,6 +106,29 @@ const buildProject = (name: string): DiagramProject => {
     updatedAt: now,
     activeArtifactId: artifact.id,
     artifacts: [artifact],
+  };
+};
+
+/** Returns the same project object when nothing about the notes changes. */
+export const setNotebookInProject = (
+  project: DiagramProject,
+  artifactId: string,
+  notebook: ArtifactNotebook | undefined,
+  now: string,
+): DiagramProject => {
+  const target = project.artifacts.find((artifact) => artifact.id === artifactId);
+  if (target === undefined) return project;
+
+  const next = isNotebookEmpty(notebook) ? undefined : notebook;
+  if (JSON.stringify(target.notebook) === JSON.stringify(next)) return project;
+
+  const updated: DesignArtifact = { ...target, updatedAt: now };
+  if (next === undefined) delete updated.notebook;
+  else updated.notebook = next;
+  return {
+    ...project,
+    updatedAt: now,
+    artifacts: project.artifacts.map((artifact) => (artifact.id === artifactId ? updated : artifact)),
   };
 };
 
@@ -440,6 +465,7 @@ export const useProjects = () => {
         name: source.name,
         createdAt: source.createdAt,
         updatedAt: now,
+        ...(source.notebook !== undefined ? { notebook: source.notebook } : {}),
         content: createClassSequenceContent(source, []),
       };
       // The copy is the diagram itself now, not a link to a source.
@@ -461,6 +487,18 @@ export const useProjects = () => {
       };
     }));
   };
+
+  // Notes are not model content: no undo entry, no link reconciliation, no
+  // rename propagation, and the active artifact stays as it is.
+  const updateArtifactNotebook = useCallback((
+    projectId: string,
+    artifactId: string,
+    notebook: ArtifactNotebook | undefined,
+  ): void => {
+    const now = new Date().toISOString();
+    setProjects((currentProjects) => currentProjects.map((project) =>
+      project.id === projectId ? setNotebookInProject(project, artifactId, notebook, now) : project));
+  }, []);
 
   const renameArtifact = (projectId: string, artifactId: string, name: string): void => {
     const cleanName = name.trim();
@@ -671,6 +709,7 @@ export const useProjects = () => {
     setActiveArtifactId,
     setActiveProjectId,
     storageWarning,
+    updateArtifactNotebook,
     updateProjectArtifactContent,
     updateProjectContent,
   };

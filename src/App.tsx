@@ -18,7 +18,21 @@ import artifactGuide from '../docs/artifact-json-guide.md?raw';
 import { useProjects } from './hooks/useProjects';
 import { openArtifactWindow } from './storage/nativeWindows';
 import { useTheme } from './hooks/useTheme';
-import { readUiPreference, writeUiPreference } from './storage/uiPreferences';
+import {
+  clampNotebookWidth,
+  readNotebookOpen,
+  readNotebookWidth,
+  readUiPreference,
+  writeNotebookOpen,
+  writeNotebookWidth,
+  writeUiPreference,
+} from './storage/uiPreferences';
+import { NotebookContext, type NotebookContextValue } from './components/notebook/NotebookContext';
+import { NotebookSheet } from './components/notebook/NotebookSheet';
+import { countPendingQuestions } from './utils/artifactNotebook';
+import { isNotebookEvent, isNotebookShortcut } from './utils/notebookKeyboard';
+import { shouldOverlayNotebook } from './utils/notebookLayout';
+import { isMacPlatform } from './utils/shortcutLabel';
 import type { ArtifactContent, ClassMethod, ClassModelArtifact, ClassSequenceDiagramContent, DesignArtifact, SequenceDiagramContent } from './types/diagram';
 import {
   getActiveArtifact,
@@ -165,6 +179,7 @@ function App() {
     setActiveArtifactId,
     setActiveProjectId,
     storageWarning,
+    updateArtifactNotebook,
     updateProjectArtifactContent,
   } = useProjects();
   const { tabsByProject, setOpenArtifactIds } = useArtifactTabs(projects, activeProjectId);
@@ -553,7 +568,8 @@ function App() {
       const target = event.target instanceof Element ? event.target : null;
       const isEditing = target?.closest('input, textarea, select, [contenteditable="true"]') !== null;
 
-      if (isEditing) {
+      // The notebook sketch is an SVG, not an input: ⌘Z there belongs to the sketch.
+      if (isEditing || isNotebookEvent(event)) {
         return;
       }
 
@@ -604,6 +620,74 @@ function App() {
 
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
+  // Apuntes: one global open/closed state and width; the sheet itself is keyed by artifact.
+  const [isNotebookOpen, setIsNotebookOpen] = useState(readNotebookOpen);
+  const [notebookWidth, setNotebookWidth] = useState(readNotebookWidth);
+  // Focus requests belong to one artifact: remounting for another tab (or coming back) must not steal focus.
+  const [notebookFocus, setNotebookFocus] = useState<{ key: string | null; count: number }>({ key: activeHistoryKey, count: 0 });
+  if (notebookFocus.key !== activeHistoryKey) setNotebookFocus({ key: activeHistoryKey, count: 0 });
+  const [workspaceWidth, setWorkspaceWidth] = useState<number | null>(null);
+  const workspaceRef = useRef<HTMLDivElement | null>(null);
+  const isNotebookOverlay = workspaceWidth !== null && shouldOverlayNotebook(workspaceWidth, notebookWidth);
+  const pendingQuestionCount = useMemo(() => countPendingQuestions(activeArtifact?.notebook), [activeArtifact?.notebook]);
+
+  useEffect(() => { writeNotebookOpen(isNotebookOpen); }, [isNotebookOpen]);
+  useEffect(() => { writeNotebookWidth(notebookWidth); }, [notebookWidth]);
+
+  useEffect(() => {
+    const workspace = workspaceRef.current;
+    if (!workspace) return undefined;
+    const observer = new ResizeObserver(() => setWorkspaceWidth(workspace.clientWidth));
+    observer.observe(workspace);
+    return () => observer.disconnect();
+  }, [isProjectHome]);
+
+  const returnFocusToCanvas = useCallback((): void => {
+    const panel = document.getElementById('artifact-editor-panel');
+    const target = panel?.querySelector<HTMLElement>('[data-editor-canvas]') ?? panel;
+    target?.focus({ preventScroll: true });
+  }, []);
+
+  const closeNotebook = useCallback((): void => {
+    setIsNotebookOpen(false);
+    returnFocusToCanvas();
+  }, [returnFocusToCanvas]);
+
+  const toggleNotebook = useCallback((): void => {
+    if (activeHistoryKey === null) return;
+    if (isNotebookOpen) {
+      closeNotebook();
+      return;
+    }
+    const key = activeHistoryKey;
+    setNotebookFocus({ key, count: 0 });
+    setIsNotebookOpen(true);
+    // Asked after the sheet mounted, so it takes focus at its end whichever way it watches the prop.
+    window.requestAnimationFrame(() => {
+      setNotebookFocus((current) => (current.key === key ? { key, count: current.count + 1 } : current));
+    });
+  }, [activeHistoryKey, closeNotebook, isNotebookOpen]);
+
+  // ⇧⌘E opens or closes Apuntes from anywhere, even inside the sheet or a text field
+  // (capture phase), so it never reaches the editors' own shortcuts.
+  useEffect(() => {
+    if (activeHistoryKey === null) return undefined;
+    const handleNotebookShortcut = (event: KeyboardEvent): void => {
+      if (event.repeat || !isNotebookShortcut(event, isMacPlatform())) return;
+      if (document.querySelector('.modal-backdrop, [aria-modal="true"], dialog[open]') !== null) return;
+      event.preventDefault();
+      event.stopPropagation();
+      toggleNotebook();
+    };
+    document.addEventListener('keydown', handleNotebookShortcut, true);
+    return () => document.removeEventListener('keydown', handleNotebookShortcut, true);
+  }, [activeHistoryKey, toggleNotebook]);
+
+  const notebookContext = useMemo<NotebookContextValue>(
+    () => ({ available: true, isOpen: isNotebookOpen, toggle: toggleNotebook, pendingCount: pendingQuestionCount }),
+    [isNotebookOpen, pendingQuestionCount, toggleNotebook],
+  );
+
   // `?` opens the shortcuts panel and ⌘\ toggles the sidebar, unless the user is typing.
   useEffect(() => {
     const handleHelpShortcut = (event: KeyboardEvent): void => {
@@ -614,7 +698,7 @@ function App() {
       }
       if (event.key !== '?' || event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target as HTMLElement | null;
-      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+      if (target?.closest('input, textarea, select, [contenteditable="true"]') || isNotebookEvent(event)) return;
       event.preventDefault();
       setIsShortcutsOpen((open) => !open);
     };
@@ -741,89 +825,111 @@ function App() {
               `${activeProject.artifacts.find((candidate) => candidate.id === artifactId)?.name ?? 'Diagrama'} · vista`,
             )}
           />
-          <div id="artifact-editor-panel" className="artifact-editor-panel" role="tabpanel" aria-labelledby={`artifact-tab-${activeArtifact.id}`}>
-            <Suspense fallback={<EditorLoadingState />}>
-              {activeArtifact.type === 'class-diagram' ? (
-                <DiagramEditor
+          <NotebookContext.Provider value={notebookContext}>
+            <div
+              className={`artifact-workspace ${isNotebookOpen && isNotebookOverlay ? 'is-notebook-overlay' : ''}`}
+              ref={workspaceRef}
+            >
+              <div id="artifact-editor-panel" className="artifact-editor-panel" role="tabpanel" aria-labelledby={`artifact-tab-${activeArtifact.id}`} tabIndex={-1}>
+                <Suspense fallback={<EditorLoadingState />}>
+                  {activeArtifact.type === 'class-diagram' ? (
+                    <DiagramEditor
+                      key={`${activeProject.id}:${activeArtifact.id}`}
+                      artifact={activeArtifact}
+                      canRedo={canRedo}
+                      canUndo={canUndo}
+                      saveStatus={saveStatus}
+                      project={activeProject}
+                      theme={theme}
+                      onChangeContent={handleChangeProjectContent}
+                      onRedo={handleRedo}
+                      onUndo={handleUndo}
+                    />
+                  ) : activeArtifact.type === 'class-sequence-diagram' ? (
+                    <ClassSequenceDiagramEditor
+                      key={`${activeProject.id}:${activeArtifact.id}`}
+                      artifact={activeArtifact}
+                      canRedo={canRedo}
+                      canUndo={canUndo}
+                      saveStatus={saveStatus}
+                      project={activeProject}
+                      theme={theme}
+                      onNavigateToArtifact={(targetArtifactId) => handleSelectArtifact(activeProject.id, targetArtifactId)}
+                      onLinkAllSequenceDiagrams={(classModelArtifactId) =>
+                        linkSequenceDiagramsToClassModel(activeProject.id, classModelArtifactId)
+                      }
+                      onChangeContent={handleChangeProjectContent}
+                      onRedo={handleRedo}
+                      onUndo={handleUndo}
+                    />
+                  ) : activeArtifact.type === 'use-case-model' ? (
+                    <UseCaseModelEditor
+                      key={`${activeProject.id}:${activeArtifact.id}`}
+                      artifact={activeArtifact}
+                      canRedo={canRedo}
+                      canUndo={canUndo}
+                      saveStatus={saveStatus}
+                      project={activeProject}
+                      theme={theme}
+                      onChangeContent={handleChangeProjectContent}
+                      onRedo={handleRedo}
+                      onUndo={handleUndo}
+                    />
+                  ) : activeArtifact.type === 'use-case-flow' ? (
+                    <UseCaseFlowEditor
+                      key={`${activeProject.id}:${activeArtifact.id}`}
+                      artifact={activeArtifact}
+                      canRedo={canRedo}
+                      canUndo={canUndo}
+                      saveStatus={saveStatus}
+                      project={activeProject}
+                      theme={theme}
+                      onChangeContent={handleChangeProjectContent}
+                      onRedo={handleRedo}
+                      onUndo={handleUndo}
+                    />
+                  ) : (
+                    <SequenceDiagramEditor
+                      key={`${activeProject.id}:${activeArtifact.id}`}
+                      artifact={activeArtifact}
+                      canRedo={canRedo}
+                      canUndo={canUndo}
+                      saveStatus={saveStatus}
+                      project={activeProject}
+                      theme={theme}
+                      onNavigateToArtifact={(targetArtifactId) =>
+                        handleSelectArtifact(activeProject.id, targetArtifactId)
+                      }
+                      onCreateClassMethod={handleCreateClassMethodFromSequence}
+                      onImportSequenceIntoClassModel={handleImportSequenceIntoClassModel}
+                      onCreateSequenceDiagramArtifact={(name, initialContent) =>
+                        createSequenceDiagramArtifact(activeProject.id, name, initialContent)
+                      }
+                      onCreateSequenceModel={() => createClassSequenceDiagramArtifact(activeProject.id, 'Clases de secuencias')}
+                      onChangeContent={handleChangeProjectContent}
+                      onRedo={handleRedo}
+                      onUndo={handleUndo}
+                    />
+                  )}
+                </Suspense>
+              </div>
+              {isNotebookOpen ? (
+                <NotebookSheet
                   key={`${activeProject.id}:${activeArtifact.id}`}
-                  artifact={activeArtifact}
-                  canRedo={canRedo}
-                  canUndo={canUndo}
-                  saveStatus={saveStatus}
-                  project={activeProject}
-                  theme={theme}
-                  onChangeContent={handleChangeProjectContent}
-                  onRedo={handleRedo}
-                  onUndo={handleUndo}
+                  artifactName={activeArtifact.name}
+                  notebook={activeArtifact.notebook}
+                  // Built from the key's ids: a flush on unmount after a tab switch still writes to its own artifact.
+                  onCommit={(notebook) => updateArtifactNotebook(activeProject.id, activeArtifact.id, notebook)}
+                  saveFailed={saveStatus === 'error'}
+                  width={notebookWidth}
+                  onWidthChange={(width) => setNotebookWidth(clampNotebookWidth(width))}
+                  focusRequest={notebookFocus.count}
+                  onClose={closeNotebook}
+                  onReturnFocus={returnFocusToCanvas}
                 />
-              ) : activeArtifact.type === 'class-sequence-diagram' ? (
-                <ClassSequenceDiagramEditor
-                  key={`${activeProject.id}:${activeArtifact.id}`}
-                  artifact={activeArtifact}
-                  canRedo={canRedo}
-                  canUndo={canUndo}
-                  saveStatus={saveStatus}
-                  project={activeProject}
-                  theme={theme}
-                  onNavigateToArtifact={(targetArtifactId) => handleSelectArtifact(activeProject.id, targetArtifactId)}
-                  onLinkAllSequenceDiagrams={(classModelArtifactId) =>
-                    linkSequenceDiagramsToClassModel(activeProject.id, classModelArtifactId)
-                  }
-                  onChangeContent={handleChangeProjectContent}
-                  onRedo={handleRedo}
-                  onUndo={handleUndo}
-                />
-              ) : activeArtifact.type === 'use-case-model' ? (
-                <UseCaseModelEditor
-                  key={`${activeProject.id}:${activeArtifact.id}`}
-                  artifact={activeArtifact}
-                  canRedo={canRedo}
-                  canUndo={canUndo}
-                  saveStatus={saveStatus}
-                  project={activeProject}
-                  theme={theme}
-                  onChangeContent={handleChangeProjectContent}
-                  onRedo={handleRedo}
-                  onUndo={handleUndo}
-                />
-              ) : activeArtifact.type === 'use-case-flow' ? (
-                <UseCaseFlowEditor
-                  key={`${activeProject.id}:${activeArtifact.id}`}
-                  artifact={activeArtifact}
-                  canRedo={canRedo}
-                  canUndo={canUndo}
-                  saveStatus={saveStatus}
-                  project={activeProject}
-                  theme={theme}
-                  onChangeContent={handleChangeProjectContent}
-                  onRedo={handleRedo}
-                  onUndo={handleUndo}
-                />
-              ) : (
-                <SequenceDiagramEditor
-                  key={`${activeProject.id}:${activeArtifact.id}`}
-                  artifact={activeArtifact}
-                  canRedo={canRedo}
-                  canUndo={canUndo}
-                  saveStatus={saveStatus}
-                  project={activeProject}
-                  theme={theme}
-                  onNavigateToArtifact={(targetArtifactId) =>
-                    handleSelectArtifact(activeProject.id, targetArtifactId)
-                  }
-                  onCreateClassMethod={handleCreateClassMethodFromSequence}
-                  onImportSequenceIntoClassModel={handleImportSequenceIntoClassModel}
-                  onCreateSequenceDiagramArtifact={(name, initialContent) =>
-                    createSequenceDiagramArtifact(activeProject.id, name, initialContent)
-                  }
-                  onCreateSequenceModel={() => createClassSequenceDiagramArtifact(activeProject.id, 'Clases de secuencias')}
-                  onChangeContent={handleChangeProjectContent}
-                  onRedo={handleRedo}
-                  onUndo={handleUndo}
-                />
-              )}
-            </Suspense>
-          </div>
+              ) : null}
+            </div>
+          </NotebookContext.Provider>
         </div>
       )}
       {projectDialog !== null ? (

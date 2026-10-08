@@ -53,7 +53,8 @@ import { reviewUseCaseFlow, type FlowIssue } from '../utils/useCaseFlowReview';
 import { createFlowDocx } from '../utils/flowExportDocx';
 import { downloadBlob } from '../utils/pdfExport';
 import type { SaveOutcome } from '../utils/saveFile';
-import { EditorToolbar, MenuItem, ReviewButton, ToolButton, ToolMenu } from './ui/Toolbar';
+import { EditorToolbar, MenuItem, NotebookButton, ReviewButton, ToolButton, ToolMenu } from './ui/Toolbar';
+import { isNotebookEvent } from '../utils/notebookKeyboard';
 import { useArtifactScrollMemory } from '../hooks/useArtifactViewMemory';
 import { artifactViewKey, readArtifactScrollView } from '../utils/artifactViewMemory';
 import { ToolbarHistory } from './ToolbarHistory';
@@ -1137,7 +1138,7 @@ export function UseCaseFlowEditor({
     };
 
     const closeOnEscape = (event: globalThis.KeyboardEvent): void => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !isNotebookEvent(event)) {
         closeToolbarMenus();
       }
     };
@@ -1572,6 +1573,7 @@ export function UseCaseFlowEditor({
         )}
         end={(
           <>
+            <NotebookButton />
             <ReviewButton
               count={reviewIssues.length}
               hasErrors={errorCount > 0}
@@ -1592,7 +1594,7 @@ export function UseCaseFlowEditor({
       {feedbackMessage !== null ? <div className="editor-feedback" role="status">{feedbackMessage}</div> : null}
 
       <div className={`flow-editor-body${reviewOpen ? ' review-open' : ''}`}>
-        <section className="flow-document" ref={scrollRef}>
+        <section className="flow-document" data-editor-canvas="" ref={scrollRef} tabIndex={-1}>
           <nav className="flow-section-nav" aria-label="Secciones de la especificación">
             <a href="#descripcion-general">Especificación</a>
             <a href="#camino-basico">Camino básico <span>{basicStepCount}</span></a>
