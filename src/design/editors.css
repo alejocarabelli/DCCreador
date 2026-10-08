@@ -551,13 +551,16 @@
   font-size: 12px;
 }
 
-/* Relation labels on the same sheet: multiplicities knocked out of the paper
-   without a frame, the relation name in italics as in a printed figure. */
+/* Relation labels on the same sheet, as in a printed figure: multiplicities
+   sit beside the line on bare paper (they never cover it, so nothing is cut),
+   roles are knocked out of the paper, the relation name is in italics. */
 .app-shell :is(.association-label-end, .association-role-label) {
   background: var(--canvas-background);
   border-color: transparent;
   padding: 1px 4px;
 }
+
+.app-shell .association-label-end { background: transparent; padding: 0 2px; }
 
 .app-shell .association-label-end { font-weight: 600; }
 

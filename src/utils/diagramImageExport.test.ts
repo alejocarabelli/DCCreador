@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Rect } from 'reactflow';
-import { getDiagramImageExportBounds } from './diagramImageExport';
+import { getDiagramImageExportBounds, planDiagramCapture } from './diagramImageExport';
 
 const nodes = { x: 100, y: 200, width: 640, height: 100 };
 const viewport = (rects: Rect[], zoom = 1): Parameters<typeof getDiagramImageExportBounds>[0] => ({
@@ -38,5 +38,26 @@ describe('class diagram image export bounds', () => {
 
     expect(getDiagramImageExportBounds(viewport([hidden, invalid]), nodes, 1)).toEqual(nodes);
     expect(getDiagramImageExportBounds(viewport([]), nodes, 0)).toEqual(nodes);
+  });
+});
+
+describe('planDiagramCapture', () => {
+  it('captures the diagram at its own size with a margin, at 3× for print', () => {
+    const plan = planDiagramCapture({ x: 100, y: 200, width: 640, height: 100 });
+    expect(plan).toMatchObject({ width: 720, height: 180, x: -60, y: -160, pixelRatio: 3, imageWidth: 2160, imageHeight: 540 });
+  });
+
+  it('gives a huge diagram fewer pixels per point instead of an image WebKit refuses', () => {
+    const plan = planDiagramCapture({ x: 0, y: 0, width: 8000, height: 6000 });
+    expect(plan.imageWidth * plan.imageHeight).toBeLessThanOrEqual(36_000_000);
+    expect(Math.max(plan.imageWidth, plan.imageHeight)).toBeLessThanOrEqual(16_384);
+    expect(plan.width).toBe(8080);
+    expect(plan.pageWidth).toBe(8080);
+  });
+
+  it('keeps the PDF page within what Acrobat opens', () => {
+    const plan = planDiagramCapture({ x: 0, y: 0, width: 20_000, height: 3_000 });
+    expect(plan.pageWidth).toBe(14_400);
+    expect(plan.pageHeight).toBe(Math.round(3_080 * 14_400 / 20_080));
   });
 });

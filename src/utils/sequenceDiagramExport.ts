@@ -3,6 +3,7 @@ import type { SequenceDiagramBounds } from './sequenceDiagramGeometry';
 import type { SequenceLayout } from './sequenceDiagramLayout';
 import { resolveParticipantVisualIdentity } from './sequenceParticipantColors';
 import { saveBlob } from './saveFile';
+import { PDF_FONT_FAMILY, toEmbeddedFontWeight } from './pdfFontFamily';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const EXPORT_PADDING = 36;
@@ -55,10 +56,43 @@ export const safeSequenceFilename = (name: string): string =>
   (name.trim() || 'diagrama-de-secuencia').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z0-9-_]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase();
 
+/**
+ * svg2pdf ignores `paint-order`, so a label's halo stroke would be painted over
+ * its letters and hide them. Draw the halo as its own copy underneath instead.
+ */
+const splitHaloStrokes = (svg: SVGSVGElement): void => {
+  svg.querySelectorAll<SVGTextElement>('text[paint-order]').forEach((text) => {
+    const halo = text.getAttribute('stroke');
+    if (!text.getAttribute('paint-order')?.includes('stroke') || halo === null || halo === 'none') return;
+    const underlay = text.cloneNode(true) as SVGTextElement;
+    underlay.querySelectorAll('title').forEach((title) => title.remove());
+    underlay.setAttribute('fill', halo);
+    underlay.removeAttribute('paint-order');
+    underlay.setAttribute('aria-hidden', 'true');
+    text.parentNode?.insertBefore(underlay, text);
+    ['paint-order', 'stroke', 'stroke-width', 'stroke-linejoin'].forEach((name) => text.removeAttribute(name));
+  });
+};
+
+/**
+ * On screen the diagram takes Plex from the stylesheet; a detached copy only
+ * has its own attributes, so name the family and round each weight to a face
+ * the export embeds.
+ */
+const applyExportFonts = (svg: SVGSVGElement): void => {
+  svg.setAttribute('font-family', `${PDF_FONT_FAMILY}, sans-serif`);
+  svg.querySelectorAll<SVGElement>('[font-weight]').forEach((element) => {
+    const italic = element.closest('[font-style]')?.getAttribute('font-style') === 'italic';
+    element.setAttribute('font-weight', toEmbeddedFontWeight(element.getAttribute('font-weight') ?? '', italic));
+  });
+};
+
 const cleanExportSvg = (source: SVGSVGElement): SVGSVGElement => {
   const clone = source.cloneNode(true) as SVGSVGElement;
   clone.querySelectorAll('[data-export-control="true"]').forEach((element) => element.remove());
   clone.setAttribute('xmlns', SVG_NS);
+  splitHaloStrokes(clone);
+  applyExportFonts(clone);
   return clone;
 };
 
@@ -203,6 +237,16 @@ export const canExportSequencePng = (svg: SVGSVGElement, bounds?: SequenceDiagra
   return dimensions.width <= MAX_PNG_DIMENSION && dimensions.height <= MAX_PNG_DIMENSION && dimensions.width * dimensions.height <= MAX_PNG_PIXELS;
 };
 
+/** PNGs render at up to 3× so text stays sharp when printed or zoomed, within the safe canvas size. */
+const PNG_TARGET_SCALE = 3;
+const MAX_SCALED_PNG_PIXELS = 40_000_000;
+
+export const getSequencePngScale = (crop: Pick<SequenceDiagramBounds, 'width' | 'height'>): number => {
+  const byArea = Math.sqrt(MAX_SCALED_PNG_PIXELS / Math.max(1, crop.width * crop.height));
+  const byEdge = MAX_PNG_DIMENSION / Math.max(1, crop.width, crop.height);
+  return Math.max(1, Math.min(PNG_TARGET_SCALE, byArea, byEdge));
+};
+
 export const exportSequencePng = async (
   source: SVGSVGElement,
   filename: string,
@@ -214,13 +258,19 @@ export const exportSequencePng = async (
   })();
   if (!canExportSequencePng(source, crop)) throw new Error(`El PNG requeriría ${Math.ceil(crop.width)} × ${Math.ceil(crop.height)} píxeles, por encima del límite seguro. Elegí PDF o reducí el diagrama.`);
   const svg = cropSvg(source, crop);
+  // An SVG drawn as an image cannot reach the page's fonts: carry Plex inside it.
+  const { pdfFontFaceCss } = await import('./pdfFonts');
+  const fontStyle = document.createElementNS(SVG_NS, 'style');
+  fontStyle.textContent = pdfFontFaceCss();
+  svg.insertBefore(fontStyle, svg.firstChild);
+  const scale = getSequencePngScale(crop);
   const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml;charset=utf-8' }));
   try {
     const image = new Image();
     await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error('No se pudo preparar la imagen del diagrama.')); image.src = url; });
-    const canvas = document.createElement('canvas'); canvas.width = Math.ceil(crop.width); canvas.height = Math.ceil(crop.height);
+    const canvas = document.createElement('canvas'); canvas.width = Math.ceil(crop.width * scale); canvas.height = Math.ceil(crop.height * scale);
     const context = canvas.getContext('2d'); if (!context) throw new Error('El navegador no pudo crear la imagen.');
-    context.fillStyle = '#ffffff'; context.fillRect(0, 0, canvas.width, canvas.height); context.drawImage(image, 0, 0, crop.width, crop.height);
+    context.fillStyle = '#ffffff'; context.fillRect(0, 0, canvas.width, canvas.height); context.drawImage(image, 0, 0, canvas.width, canvas.height);
     const png = await new Promise<Blob>((resolve, reject) => canvas.toBlob((result) => result ? resolve(result) : reject(new Error('No se pudo generar el PNG.')), 'image/png'));
     const saved = options?.download !== false && await downloadBlob(png, `${safeSequenceFilename(filename)}.png`);
     return { blob: png, width: canvas.width, height: canvas.height, saved };
@@ -270,6 +320,8 @@ export const buildRepeatedHeaderSvg = (
     headerSvg.appendChild(group);
   });
 
+  splitHaloStrokes(headerSvg);
+  applyExportFonts(headerSvg);
   return headerSvg;
 };
 
@@ -311,7 +363,7 @@ const drawRepeatedHeaders = async (
     document.setFillColor(visualIdentity?.headerFill ?? '#ffffff');
     document.setDrawColor(visualIdentity?.headerBorder ?? '#64748b');
     document.roundedRect(pageX - 47, margin + 4, 94, 28, 2, 2, 'FD');
-    document.setTextColor('#1f2937'); document.setFontSize(7.5);
+    document.setFont(PDF_FONT_FAMILY, 'bold'); document.setTextColor('#1f2937'); document.setFontSize(7.5);
     document.text(document.splitTextToSize(participantLabel(content, id), 88), pageX, margin + 15, { align: 'center', maxWidth: 88 });
   });
 };
@@ -323,13 +375,15 @@ export const exportSequencePdf = async (
   layout?: SequenceLayout,
   options?: Partial<SequenceExportOptions> & { download?: boolean },
 ): Promise<(SequencePdfPlan & { pdfBlob?: Blob; pdfBytes?: Uint8Array; saved: boolean }) | undefined> => {
-  const [{ jsPDF }, { svg2pdf }] = await Promise.all([
+  const [{ jsPDF }, { svg2pdf }, { registerPdfFonts }] = await Promise.all([
     import('jspdf'),
     import('svg2pdf.js'),
+    import('./pdfFonts'),
   ]);
   if (!content || !layout) {
     const fallback = cleanExportSvg(source); const { width, height } = svgDimensions(fallback);
     const document = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a3', compress: true });
+    registerPdfFonts(document);
     await svg2pdf(fallback, document, { x: 24, y: 24, width: width * 0.72, height: height * 0.72 });
     if (options?.download !== false) await downloadBlob(document.output('blob'), `${safeSequenceFilename(filename)}.pdf`);
     return undefined;
@@ -338,6 +392,7 @@ export const exportSequencePdf = async (
   const plan = buildSequencePdfPlan(content, layout, config); const paper = pageSize(config);
   const margin = Math.max(0, Math.min(40, config.marginMm)) * 72 / 25.4;
   const document = new jsPDF({ orientation: config.orientation, unit: 'pt', format: config.paperSize, compress: true });
+  registerPdfFonts(document);
   for (const page of plan.pages) {
     if (page.index > 0) document.addPage(config.paperSize, config.orientation);
     const contentY = margin + (page.index > 0 ? plan.headerHeight * plan.effectiveScale : 0);
@@ -350,7 +405,7 @@ export const exportSequencePdf = async (
     if (page.index > 0) {
       await drawRepeatedHeaders(document, source, content, page, layout, margin, plan.effectiveScale, plan.headerHeight, paper.width - margin * 2, svg2pdf);
     }
-    document.setFontSize(8); document.setTextColor('#64748b'); document.text(`Página ${page.index + 1} de ${plan.pages.length}`, paper.width - margin, paper.height - 8, { align: 'right' });
+    document.setFont(PDF_FONT_FAMILY, 'normal'); document.setFontSize(8); document.setTextColor('#64748b'); document.text(`Página ${page.index + 1} de ${plan.pages.length}`, paper.width - margin, paper.height - 8, { align: 'right' });
   }
   const pdfBytes = new Uint8Array(document.output('arraybuffer'));
   const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
