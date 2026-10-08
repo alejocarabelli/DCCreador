@@ -5,7 +5,7 @@ name: Windows
 # - Una etiqueta v2.*: además lo sube a la misma release que el .dmg del Mac.
 on:
   push:
-    branches: [main, app-windows]
+    branches: [main]
     tags: ['v2.*']
   workflow_dispatch:
 
