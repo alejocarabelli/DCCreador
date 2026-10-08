@@ -79,3 +79,35 @@ describe('SequenceDiagramCanvas notes', () => {
     expect((html.match(/class="sequence-fragment-resize-controls"/g) ?? [])).toHaveLength(1);
   });
 });
+
+describe('SequenceDiagramCanvas participant colors', () => {
+  const colorOf = (participantContent: typeof content, reference?: typeof content.participants[number]): string => {
+    const html = renderToString(
+      <SequenceDiagramCanvas
+        {...props}
+        content={participantContent}
+        layout={buildSequenceLayout(participantContent)}
+        colorReferenceParticipant={reference}
+      />,
+    );
+    return html.match(/<g[^>]*data-participant-id="p1"[\s\S]*?<rect[^>]*fill="(#[0-9A-Fa-f]{6})"/)?.[1] ?? '';
+  };
+  const withClassifier = (classifierName: string) => ({
+    ...content,
+    participants: [{ ...content.participants[0], classifierName }, content.participants[1]],
+  });
+
+  it('el color sigue el nombre de la clase (dos clases distintas pueden tener tonos distintos)', () => {
+    const fills = new Set(['T', 'TramiteDTO', 'Pedido', 'Cliente', 'Factura', 'Envio'].map((name) => colorOf(withClassifier(name))));
+    expect(fills.size).toBeGreaterThan(1);
+  });
+
+  it('mientras se edita el nombre, el color queda fijo en el del nombre original', () => {
+    const original = withClassifier('Tramite');
+    const reference = original.participants[0];
+    const expected = colorOf(original);
+    for (const typed of ['Tramite', 'TramiteD', 'TramiteDT', 'TramiteDTO', 'Pedido', 'Cliente', 'Factura']) {
+      expect(colorOf(withClassifier(typed), reference)).toBe(expected);
+    }
+  });
+});

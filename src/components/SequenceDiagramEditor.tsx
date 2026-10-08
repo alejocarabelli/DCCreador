@@ -394,6 +394,9 @@ export function SequenceDiagramEditor({
   const [quickMessageRouteEditable, setQuickMessageRouteEditable] = useState(false);
   const [participantDraft, setParticipantDraft] = useState<{ text: string; kind: 'object' | 'actor' } | null>(null);
   const [participantEditDraft, setParticipantEditDraft] = useState<{ id: string; text: string } | null>(null);
+  // Participante con el nombre que tenía al empezar a editarlo: fija su color
+  // mientras se tipea; se suelta al confirmar (perder foco) o si cambia la selección.
+  const [participantColorReference, setParticipantColorReference] = useState<SequenceParticipant | null>(null);
   const [messageSignatureDraft, setMessageSignatureDraft] = useState<SequenceSignatureDraft | null>(null);
   const outlinePreferenceRef = useRef(readStoredSequenceOutlineVisibility() !== null);
   const [outlineVisible, setOutlineVisible] = useState(getInitialSequenceOutlineVisibility);
@@ -668,6 +671,11 @@ export function SequenceDiagramEditor({
   const selectedParticipant = selection?.kind === 'participant'
     ? content.participants.find((participant) => participant.id === selection.id)
     : undefined;
+  if (participantColorReference && participantColorReference.id !== selectedParticipant?.id) {
+    // Cambió o desapareció el participante seleccionado: se suelta la referencia
+    // de color aunque el input no haya llegado a disparar blur.
+    setParticipantColorReference(null);
+  }
   const participantEditText = selectedParticipant
     ? participantEditDraft?.id === selectedParticipant.id
       ? participantEditDraft.text
@@ -1827,6 +1835,9 @@ export function SequenceDiagramEditor({
 
   const updateParticipantLabel = useCallback((id: string, text: string): void => {
     setParticipantEditDraft({ id, text });
+    setParticipantColorReference((current) => current?.id === id
+      ? current
+      : content.participants.find((participant) => participant.id === id) ?? null);
     const parsed = parseSequenceParticipantLabel(text);
     if (!participantLabelIsValid(parsed)) return;
     void commit({
@@ -3432,6 +3443,8 @@ export function SequenceDiagramEditor({
             className="sequence-compact-input"
             value={participantEditText}
             onChange={(event) => updateParticipantLabel(selectedParticipant.id, event.target.value)}
+            onBlur={() => setParticipantColorReference(null)}
+            onKeyDown={(event) => { if (event.key === 'Enter') setParticipantColorReference(null); }}
             placeholder="TramiteActual:Tramite o :Clase"
           />
           <small className="sequence-inspector-hint" style={{ marginTop: 4, display: 'block' }}>
@@ -5074,6 +5087,7 @@ export function SequenceDiagramEditor({
                   classNodesById={classNodesById}
                   missingInModel={missingInModel}
                   participantColorsEnabled={content.participantColors !== 'disabled'}
+                  colorReferenceParticipant={participantColorReference}
                   ariaDescriptionId="sequence-structured-description"
                   onSelect={selectCanvasElement}
                   onTimelineItemSelect={handleTimelineItemSelect}
