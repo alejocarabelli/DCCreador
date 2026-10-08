@@ -4,12 +4,21 @@ import {
   NOTEBOOK_WIDTH_DEFAULT,
   NOTEBOOK_WIDTH_MAX,
   NOTEBOOK_WIDTH_MIN,
+  SIDEBAR_SPLIT_MAX,
+  SIDEBAR_SPLIT_MIN,
   clampNotebookWidth,
+  clampSidebarSplit,
   readCanvasGridEnabled,
   readNotebookOpen,
   readNotebookWidth,
+  readSidebarCurrentOpen,
+  readSidebarOthersOpen,
+  readSidebarSplit,
   writeNotebookOpen,
   writeNotebookWidth,
+  writeSidebarCurrentOpen,
+  writeSidebarOthersOpen,
+  writeSidebarSplit,
 } from './uiPreferences';
 
 const stubStorage = (initial: Record<string, string> = {}): Map<string, string> => {
@@ -65,5 +74,44 @@ describe('canvas grid preference', () => {
     expect(readCanvasGridEnabled()).toBe(false);
     stubStorage({ [CANVAS_GRID_KEY]: 'true' });
     expect(readCanvasGridEnabled()).toBe(true);
+  });
+});
+
+describe('Sidebar section preferences', () => {
+  it('opens the current project and folds «Otros proyectos» by default', () => {
+    stubStorage();
+    expect(readSidebarCurrentOpen()).toBe(true);
+    expect(readSidebarOthersOpen()).toBe(false);
+    expect(readSidebarSplit()).toBeNull();
+  });
+
+  it('remembers each fold state', () => {
+    const data = stubStorage();
+    writeSidebarCurrentOpen(false);
+    writeSidebarOthersOpen(true);
+    expect(data.get('modelador.sidebar-current-open')).toBe('false');
+    expect(data.get('modelador.sidebar-others-open')).toBe('true');
+    expect(readSidebarCurrentOpen()).toBe(false);
+    expect(readSidebarOthersOpen()).toBe(true);
+  });
+
+  it('clamps the split away from the extremes', () => {
+    expect(clampSidebarSplit(0)).toBe(SIDEBAR_SPLIT_MIN);
+    expect(clampSidebarSplit(1)).toBe(SIDEBAR_SPLIT_MAX);
+    expect(clampSidebarSplit(Number.NaN)).toBe(0.5);
+  });
+
+  it('stores the split, clamps what comes back and resets to automatic with null', () => {
+    stubStorage();
+    writeSidebarSplit(0.42);
+    expect(readSidebarSplit()).toBe(0.42);
+    stubStorage({ 'modelador.sidebar-split': '7' });
+    expect(readSidebarSplit()).toBe(SIDEBAR_SPLIT_MAX);
+    stubStorage({ 'modelador.sidebar-split': 'abc' });
+    expect(readSidebarSplit()).toBeNull();
+    stubStorage();
+    writeSidebarSplit(0.6);
+    writeSidebarSplit(null);
+    expect(readSidebarSplit()).toBeNull();
   });
 });
