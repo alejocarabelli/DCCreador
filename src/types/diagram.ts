@@ -6,6 +6,8 @@ export type ClassAttribute = {
   id: string;
   name: string;
   type: string;
+  /** Class-scoped member: UML draws it underlined. Absent means instance-scoped. */
+  isStatic?: boolean;
 };
 
 export type ClassMethod = {
@@ -14,6 +16,8 @@ export type ClassMethod = {
   name: string;
   parameters: string;
   returnType: string;
+  /** Class-scoped member: UML draws it underlined. Absent means instance-scoped. */
+  isStatic?: boolean;
 };
 
 export type ParametricValue = {
@@ -57,7 +61,7 @@ export type ClassNodeData = {
   onRenameClass?: (nodeId: string, name: string) => void;
   onRenameClassAndCreateAttribute?: (nodeId: string, name: string, attribute: ClassAttribute) => void;
   onSetParametricValuesNote?: (nodeId: string, enabled: boolean) => void;
-  onUpdateAttribute?: (nodeId: string, attributeId: string, field: keyof Omit<ClassAttribute, 'id'>, value: string) => void;
+  onUpdateAttribute?: (nodeId: string, attributeId: string, field: 'name' | 'type', value: string) => void;
   onUpdateAttributeFields?: (
     nodeId: string,
     attributeId: string,

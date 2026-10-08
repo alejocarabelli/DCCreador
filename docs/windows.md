@@ -18,7 +18,7 @@ Además: los enlaces externos se abren en el navegador, los atajos del navegador
 
 ## Compilar
 
-Lo compila GitHub Actions (`.github/workflows/windows.yml`) en cada push a `main` y en cada PR: el instalador queda como artefacto `modelador-windows`. Con una etiqueta `v2.*` se sube a la release junto al `.dmg`.
+Lo compila GitHub Actions (`.github/workflows/windows.yml`), **solo a pedido**: la prioridad es el Mac. `gh workflow run windows.yml --ref main` deja el instalador como artefacto `modelador-windows`; con `--ref v2.x.y` (una etiqueta ya publicada) además lo sube a esa release, junto al `.dmg`.
 
 Para probar la parte nativa en el Mac (usa WebKit, no WebView2, pero los puentes son los mismos):
 

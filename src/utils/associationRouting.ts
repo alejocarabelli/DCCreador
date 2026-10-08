@@ -234,6 +234,105 @@ export const buildAssociationPath = ({
   return { path, style, labelX, labelY, source, target };
 };
 
+export type SelfAssociationPathInput = {
+  /** Where the relation leaves and re-enters the class, on its border. */
+  source: XYPosition;
+  target: XYPosition;
+  sourcePosition: Position;
+  targetPosition: Position;
+  /** The class box, needed only when the two ends sit on opposite sides. */
+  bounds?: { x: number; y: number; width: number; height: number };
+  /** How far the line stops short of each border, to leave room for a triangle or diamond. */
+  sourceInset?: number;
+  targetInset?: number;
+  clearance?: number;
+};
+
+const OUTWARD: Record<Position, XYPosition> = {
+  [Position.Top]: { x: 0, y: -1 },
+  [Position.Right]: { x: 1, y: 0 },
+  [Position.Bottom]: { x: 0, y: 1 },
+  [Position.Left]: { x: -1, y: 0 },
+};
+
+/**
+ * A relation from a class to itself (a Singleton, an Empleado that manages
+ * Empleados): a loop that leaves one side, goes around the corner it shares
+ * with the other side, and comes back in. Ends on the same side make a
+ * bracket on that side; opposite sides go around over the class.
+ */
+export const buildSelfAssociationPath = ({
+  source: sourcePoint,
+  target: targetPoint,
+  sourcePosition,
+  targetPosition,
+  bounds,
+  sourceInset = 0,
+  targetInset = 0,
+  clearance = 64,
+}: SelfAssociationPathInput): AssociationPathResolution => {
+  let source = sourcePoint;
+  let target = targetPoint;
+  const sourceOut = OUTWARD[sourcePosition];
+  const targetOut = OUTWARD[targetPosition];
+  if (Math.hypot(source.x - target.x, source.y - target.y) < 1) {
+    // Both ends on the same point (both sides fixed to the same one): spread
+    // them along the side so the loop stays a loop and the labels part.
+    const along = { x: -sourceOut.y, y: sourceOut.x };
+    const spread = 20;
+    source = { x: source.x - along.x * spread, y: source.y - along.y * spread };
+    target = { x: target.x + along.x * spread, y: target.y + along.y * spread };
+  }
+  const start = { x: source.x + sourceOut.x * sourceInset, y: source.y + sourceOut.y * sourceInset };
+  const end = { x: target.x + targetOut.x * targetInset, y: target.y + targetOut.y * targetInset };
+  const sourceAway = { x: source.x + sourceOut.x * clearance, y: source.y + sourceOut.y * clearance };
+  const targetAway = { x: target.x + targetOut.x * clearance, y: target.y + targetOut.y * clearance };
+  const perpendicular = sourceOut.x * targetOut.x + sourceOut.y * targetOut.y === 0;
+  const sameSide = sourceOut.x === targetOut.x && sourceOut.y === targetOut.y;
+  let middle: XYPosition[];
+
+  if (perpendicular) {
+    middle = [sourceAway, sourceOut.x !== 0 ? { x: sourceAway.x, y: targetAway.y } : { x: targetAway.x, y: sourceAway.y }, targetAway];
+  } else if (sameSide) {
+    if (sourceOut.x !== 0) {
+      const x = sourceOut.x > 0 ? Math.max(sourceAway.x, targetAway.x) : Math.min(sourceAway.x, targetAway.x);
+      middle = [{ x, y: source.y }, { x, y: target.y }];
+    } else {
+      const y = sourceOut.y > 0 ? Math.max(sourceAway.y, targetAway.y) : Math.min(sourceAway.y, targetAway.y);
+      middle = [{ x: source.x, y }, { x: target.x, y }];
+    }
+  } else if (sourceOut.x !== 0) {
+    // Left and right: over the top of the class.
+    const top = bounds !== undefined ? bounds.y : Math.min(source.y, target.y) - clearance;
+    const y = top - clearance;
+    middle = [sourceAway, { x: sourceAway.x, y }, { x: targetAway.x, y }, targetAway];
+  } else {
+    // Top and bottom: around the right side of the class.
+    const right = bounds !== undefined ? bounds.x + bounds.width : Math.max(source.x, target.x) + clearance;
+    const x = right + clearance;
+    middle = [sourceAway, { x, y: sourceAway.y }, { x, y: targetAway.y }, targetAway];
+  }
+
+  const points = [start, ...middle, end];
+  let longest = -1;
+  let label = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+  for (let index = 1; index < points.length; index += 1) {
+    const a = points[index - 1];
+    const b = points[index];
+    const length = Math.abs(b.x - a.x) + Math.abs(b.y - a.y);
+    if (length > longest) { longest = length; label = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
+  }
+
+  return {
+    path: points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x},${point.y}`).join(' '),
+    style: 'orthogonal',
+    labelX: label.x,
+    labelY: label.y,
+    source,
+    target,
+  };
+};
+
 export const getAssociationCenterLabelPosition = (
   labelX: number,
   labelY: number,

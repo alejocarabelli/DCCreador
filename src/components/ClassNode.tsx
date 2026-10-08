@@ -412,7 +412,7 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
     stopAttributeEditing();
   };
 
-  const updateAttributeDraft = (field: keyof Omit<ClassAttribute, 'id'>, value: string): void => {
+  const updateAttributeDraft = (field: 'name' | 'type', value: string): void => {
     const currentDraft = attributeDraftRef.current;
 
     if (currentDraft === null) {
@@ -813,7 +813,7 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
                 </div>
               </div>
             ) : (
-              <div className="attribute-row" key={attribute.id} onDoubleClick={(event) => startAttributeEditing(attribute, event)}>
+              <div className={`attribute-row${attribute.isStatic ? ' is-static' : ''}`} key={attribute.id} onDoubleClick={(event) => startAttributeEditing(attribute, event)}>
                 <span className="member-visibility">+</span>
                 <span className="member-name">{attribute.name || 'atributo'}</span>
                 <span className="attribute-separator">:</span>
@@ -886,7 +886,7 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
                 />
               </div>
             ) : (
-              <div className="method-row" key={method.id} onDoubleClick={(event) => startMethodEditing(method, event)}>
+              <div className={`method-row${method.isStatic ? ' is-static' : ''}`} key={method.id} onDoubleClick={(event) => startMethodEditing(method, event)}>
                 <span className="member-visibility">{method.visibility}</span>
                 <span className="member-name">
                   {method.name || 'método'}

@@ -192,3 +192,28 @@ describe('diagram normalization', () => {
     expect(normalized.linkedSequenceDiagramIds).toEqual(['sequence-a']);
   });
 });
+
+describe('static members', () => {
+  it('keeps the static mark on attributes and methods and drops anything that is not true', () => {
+    const node = normalizeClassNode({
+      id: 'config',
+      type: 'classNode',
+      position: { x: 0, y: 0 },
+      data: {
+        name: 'Configuracion',
+        attributes: [
+          { id: 'a1', name: 'instancia', type: 'Configuracion', isStatic: true },
+          { id: 'a2', name: 'nombre', type: 'String', isStatic: 'yes' as unknown as boolean },
+        ],
+        methods: [
+          { id: 'm1', visibility: '+', name: 'getInstancia', parameters: '', returnType: 'Configuracion', isStatic: true },
+          { id: 'm2', visibility: '+', name: 'getNombre', parameters: '', returnType: 'String', isStatic: false },
+        ],
+      },
+    } as ClassDiagramNode);
+
+    expect(node.data.attributes.map((attribute) => attribute.isStatic)).toEqual([true, undefined]);
+    expect(node.data.methods.map((method) => method.isStatic)).toEqual([true, undefined]);
+    expect('isStatic' in node.data.methods[1]).toBe(false);
+  });
+});

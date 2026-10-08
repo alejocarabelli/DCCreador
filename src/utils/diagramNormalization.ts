@@ -85,6 +85,7 @@ export const normalizeClassNode = (node: ClassDiagramNode): ClassDiagramNode => 
         id: normalizeString(attribute.id),
         name: normalizeString(attribute.name),
         type: normalizeString(attribute.type),
+        ...(attribute.isStatic === true ? { isStatic: true } : {}),
       })),
   );
   const methods: ClassMethod[] = ensureUniqueIds(
@@ -99,6 +100,7 @@ export const normalizeClassNode = (node: ClassDiagramNode): ClassDiagramNode => 
         name: normalizeString(method.name),
         parameters: normalizeString(method.parameters),
         returnType: normalizeString(method.returnType),
+        ...(method.isStatic === true ? { isStatic: true } : {}),
       })),
   );
   const parametricValues: ParametricValue[] = ensureUniqueIds(

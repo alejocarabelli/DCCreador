@@ -21,7 +21,8 @@ type ClassInspectorProps = {
   onRenameClass: (name: string) => void;
   onSetParametricValuesNote: (nodeId: string, enabled: boolean) => void;
   onUpdateDescription: (description: string) => void;
-  onUpdateAttribute: (attributeId: string, field: keyof Omit<ClassAttribute, 'id'>, value: string) => void;
+  onUpdateAttribute: (attributeId: string, field: 'name' | 'type', value: string) => void;
+  onSetAttributeStatic: (attributeId: string, isStatic: boolean) => void;
   onUpdateMethod: (methodId: string, values: Omit<ClassMethod, 'id'>) => void;
   onUpdateParametricValues: (nodeId: string, values: ParametricValue[]) => void;
   onUpdateParametricValuesNoteConnection: (
@@ -41,6 +42,22 @@ const noteConnectionSides: Array<{ label: string; value: ParametricValuesNoteHan
   { label: 'Izquierda', value: 'left' },
 ];
 
+/** UML underlines class-scoped members; this marks one, e.g. a Singleton's instancia and getInstancia(). */
+function StaticToggle({ isStatic, memberLabel, onChange }: { isStatic: boolean; memberLabel: string; onChange: (isStatic: boolean) => void }) {
+  return (
+    <button
+      aria-label={`${memberLabel} estático`}
+      aria-pressed={isStatic}
+      className={`member-static-toggle${isStatic ? ' is-active' : ''}`}
+      type="button"
+      onClick={() => onChange(!isStatic)}
+      title={isStatic ? 'Estático: se dibuja subrayado. Clic para quitarlo' : 'Marcar como estático (se dibuja subrayado)'}
+    >
+      <span aria-hidden="true">S</span>
+    </button>
+  );
+}
+
 export function ClassInspector({
   node,
   onAddAttribute,
@@ -52,6 +69,7 @@ export function ClassInspector({
   onSetParametricValuesNote,
   onUpdateDescription,
   onUpdateAttribute,
+  onSetAttributeStatic,
   onUpdateMethod,
   onUpdateParametricValues,
   onUpdateParametricValuesNoteConnection,
@@ -244,6 +262,11 @@ export function ClassInspector({
               value={attribute.type}
               onChange={(value) => onUpdateAttribute(attribute.id, 'type', value)}
             />
+            <StaticToggle
+              isStatic={attribute.isStatic === true}
+              memberLabel={`Atributo ${attribute.name || index + 1}`}
+              onChange={(isStatic) => onSetAttributeStatic(attribute.id, isStatic)}
+            />
             <button
               aria-label={`Borrar atributo ${attribute.name || index + 1}`}
               className="attribute-delete-button"
@@ -306,6 +329,11 @@ export function ClassInspector({
               value={method.returnType}
               onChange={(event) => onUpdateMethod(method.id, { ...method, returnType: event.target.value })}
               placeholder="retorno"
+            />
+            <StaticToggle
+              isStatic={method.isStatic === true}
+              memberLabel={`Método ${method.name || 'sin nombre'}`}
+              onChange={(isStatic) => onUpdateMethod(method.id, { ...method, isStatic })}
             />
             <button aria-label={`Borrar método ${method.name}`} className="method-delete" type="button" onClick={() => onDeleteMethod(method.id)} title="Borrar método">
               <Trash2 size={16} />

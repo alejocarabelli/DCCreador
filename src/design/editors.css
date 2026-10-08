@@ -342,7 +342,7 @@
   align-items: center;
   display: grid;
   gap: 4px;
-  grid-template-columns: 14px minmax(0, 1.5fr) 6px minmax(60px, 1fr) var(--control-sm);
+  grid-template-columns: 14px minmax(0, 1.5fr) 6px minmax(60px, 1fr) var(--control-sm) var(--control-sm);
 }
 
 .app-shell[data-ui-version='refined'] .attribute-editor-colon,
@@ -387,6 +387,37 @@
 
 .app-shell[data-ui-version='refined'] .attribute-drag-handle { cursor: grab; }
 
+/* "S" for static: UML draws class-scoped members underlined, so the glyph is too. */
+.app-shell[data-ui-version='refined'] .member-static-toggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-xs);
+  color: var(--panel-placeholder-text);
+  display: inline-flex;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  height: var(--control-sm);
+  justify-content: center;
+  min-height: 0;
+  min-width: 0;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  width: 100%;
+}
+
+.app-shell[data-ui-version='refined'] .member-static-toggle:hover {
+  background: var(--ui-hover-background);
+  color: var(--panel-text);
+}
+
+.app-shell[data-ui-version='refined'] .member-static-toggle[aria-pressed='true'] {
+  background: var(--button-active-background);
+  color: var(--button-active-text);
+}
+
 .app-shell[data-ui-version='refined'] :is(.attribute-delete-button, .method-delete):hover {
   background: var(--status-danger-soft);
   color: var(--status-danger-text);
@@ -405,7 +436,7 @@
   gap: 4px;
   grid-template-areas:
     'vis name name name delete'
-    'open params close ret .';
+    'open params close ret static';
   grid-template-columns: 44px minmax(0, 1.5fr) 20px minmax(60px, 1fr) var(--control-sm);
   padding-bottom: var(--space-2);
 }
@@ -417,6 +448,7 @@
 .app-shell[data-ui-version='refined'] .method-editor .method-parameters { grid-area: params; }
 .app-shell[data-ui-version='refined'] .method-editor .method-signature-close { grid-area: close; white-space: nowrap; }
 .app-shell[data-ui-version='refined'] .method-editor .method-return { grid-area: ret; }
+.app-shell[data-ui-version='refined'] .method-editor .member-static-toggle { grid-area: static; }
 
 .app-shell[data-ui-version='refined'] .method-editor:last-child { border-bottom: 0; }
 
@@ -493,6 +525,13 @@
 }
 
 .app-shell .class-node .member-name { color: var(--class-text); }
+
+/* Static members, underlined as UML asks (instancia, getInstancia() in a Singleton). */
+.app-shell .class-node .is-static :is(.member-visibility, .member-name, .member-type) {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
 
 .app-shell .class-node :is(.member-params, .member-type) { color: var(--class-muted-text); }
 
