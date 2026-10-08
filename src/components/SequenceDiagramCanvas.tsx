@@ -34,6 +34,12 @@ type SequenceDiagramCanvasProps = {
   missingInModel?: { messageIds: Set<string>; participantIds: Set<string> };
   classNodesById?: Map<string, { name: string }> | Record<string, { name: string }>;
   participantColorsEnabled?: boolean;
+  /**
+   * Participante tal como estaba antes de empezar a editar su nombre: mientras
+   * se tipea, el color se sigue calculando a partir de este para que la caja
+   * no cambie de tono con cada letra.
+   */
+  colorReferenceParticipant?: SequenceParticipant | null;
   onSelect: (selection: Selection) => void;
   onParticipantPointerDown: (participant: SequenceParticipant, event: ReactPointerEvent<SVGGElement>) => void;
   onNotePointerDown: (note: SequenceNote, event: ReactPointerEvent<SVGGElement>) => void;
@@ -158,6 +164,7 @@ function SequenceDiagramCanvasImpl({
   classNodesById,
   missingInModel,
   participantColorsEnabled,
+  colorReferenceParticipant,
 }: SequenceDiagramCanvasProps) {
   const ink = theme.sequence;
   const stroke = ink.stroke;
@@ -183,15 +190,16 @@ function SequenceDiagramCanvasImpl({
     content.participants.forEach((participant) => {
       map.set(
         participant.id,
-        resolveParticipantVisualIdentity(participant, {
-          enabled,
-          classNodesById,
-          theme,
-        }),
+        resolveParticipantVisualIdentity(
+          colorReferenceParticipant && colorReferenceParticipant.id === participant.id
+            ? colorReferenceParticipant
+            : participant,
+          { enabled, classNodesById, theme },
+        ),
       );
     });
     return map;
-  }, [classNodesById, content.participantColors, content.participants, participantColorsEnabled, theme]);
+  }, [classNodesById, colorReferenceParticipant, content.participantColors, content.participants, participantColorsEnabled, theme]);
 
   const svgElementRef = useRef<SVGSVGElement | null>(null);
   type ConnectionState = {
