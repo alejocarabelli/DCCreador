@@ -17,6 +17,7 @@ import './design/system.css';
 import './design/shell.css';
 import './design/editors.css';
 import './design/viewer.css';
+import './design/notebook.css';
 
 // Los nombres de métodos, atributos y mensajes se escriben tal cual: sin mayúscula
 // automática ni autocorrección del sistema en ningún campo de texto.

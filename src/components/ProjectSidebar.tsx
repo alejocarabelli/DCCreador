@@ -4,7 +4,6 @@ import {
   Download,
   GitBranch,
   FolderClosed,
-  FolderOpen,
   Home,
   Keyboard,
   MoreHorizontal,
@@ -25,6 +24,16 @@ import { ArtifactTypeIcon } from './ArtifactTypeIcon';
 import { ThemeToggle } from './ThemeToggle';
 import { MenuItem, MenuSeparator } from './ui/Toolbar';
 import { shortcutLabel } from '../utils/shortcutLabel';
+import {
+  readSidebarCurrentOpen,
+  readSidebarOthersOpen,
+  readSidebarSplit,
+  writeSidebarCurrentOpen,
+  writeSidebarOthersOpen,
+  writeSidebarSplit,
+} from '../storage/uiPreferences';
+import { filterProjectsByName, formatShortProjectDate, shouldShowProjectFilter, sortProjectsByRecency } from '../utils/projectSidebar';
+import { SidebarFilter, SidebarPane, SidebarSash } from './SidebarPane';
 
 type ProjectSidebarProps = {
   themePreference: ThemePreference;
@@ -113,6 +122,36 @@ export function ProjectSidebar({
   const newArtifactMenuRef = useRef<HTMLDivElement | null>(null);
   const [optionsMenu, setOptionsMenu] = useState<SidebarOptionsMenuState | null>(null);
   const [newArtifactMenu, setNewArtifactMenu] = useState<NewArtifactMenuState | null>(null);
+  const panesRef = useRef<HTMLDivElement | null>(null);
+  const currentPaneRef = useRef<HTMLElement | null>(null);
+  const [currentOpen, setCurrentOpen] = useState(readSidebarCurrentOpen);
+  const [othersOpen, setOthersOpen] = useState(readSidebarOthersOpen);
+  const [split, setSplit] = useState<number | null>(readSidebarSplit);
+  const [filterQuery, setFilterQuery] = useState('');
+
+  // The open project, only while one is open: Inicio shows a single «Proyectos» list instead.
+  const openProject = isHome ? null : projects.find((project) => project.id === activeProjectId) ?? null;
+  const otherProjects = sortProjectsByRecency(projects, openProject?.id ?? null);
+  const showFilter = (openProject === null || othersOpen) && shouldShowProjectFilter(otherProjects.length);
+  const visibleProjects = showFilter ? filterProjectsByName(otherProjects, filterQuery) : otherProjects;
+  // On Inicio the list is the whole screen of the sidebar, so it is never folded.
+  const projectsPaneOpen = openProject === null || othersOpen;
+  const bothOpen = openProject !== null && currentOpen && othersOpen;
+
+  const toggleCurrent = (): void => {
+    setCurrentOpen(!currentOpen);
+    writeSidebarCurrentOpen(!currentOpen);
+  };
+
+  const toggleOthers = (): void => {
+    setOthersOpen(!othersOpen);
+    writeSidebarOthersOpen(!othersOpen);
+  };
+
+  const changeSplit = (fraction: number | null, persist: boolean): void => {
+    setSplit(fraction);
+    if (persist) writeSidebarSplit(fraction);
+  };
 
   const openNewArtifactMenu = (projectId: string, event: MouseEvent<HTMLButtonElement>): void => {
     event.stopPropagation();
@@ -285,32 +324,132 @@ export function ProjectSidebar({
           <span className="v2-sidebar-row-label">Inicio</span>
         </button>
 
-        <div className="v2-sidebar-section">
-          <h2>Proyectos</h2>
-          <button aria-label="Nuevo proyecto" className="v2-tool sidebar-section-action" type="button" onClick={onCreateProject} title="Nuevo proyecto">
-            <Plus size={15} aria-hidden="true" />
-          </button>
-        </div>
+        <div className="v2-sidebar-panes" ref={panesRef}>
+          {openProject !== null ? (
+            <SidebarPane
+              actions={(
+                <>
+                  <button
+                    aria-expanded={newArtifactMenu?.projectId === openProject.id}
+                    aria-haspopup="menu"
+                    aria-label="Nuevo artefacto"
+                    className="v2-tool sidebar-section-action"
+                    type="button"
+                    onClick={(event) => openNewArtifactMenu(openProject.id, event)}
+                    title="Nuevo artefacto"
+                  >
+                    <Plus size={15} aria-hidden="true" />
+                  </button>
+                  <button
+                    aria-controls="sidebar-options-menu"
+                    aria-expanded={optionsMenu?.kind === 'project' && optionsMenu.projectId === openProject.id}
+                    aria-haspopup="menu"
+                    aria-label={`Opciones del proyecto ${openProject.name}`}
+                    className="v2-tool sidebar-section-action"
+                    type="button"
+                    onClick={(event) => openOptionsMenu({ kind: 'project', projectId: openProject.id }, event)}
+                    title="Opciones del proyecto"
+                  >
+                    <MoreHorizontal size={15} aria-hidden="true" />
+                  </button>
+                </>
+              )}
+              className={bothOpen ? (split === null ? 'is-auto-split' : '') : ''}
+              id="sidebar-current-pane"
+              onToggle={toggleCurrent}
+              open={currentOpen}
+              paneRef={currentPaneRef}
+              revealActions
+              strong
+              style={bothOpen && split !== null ? { flex: `${split} 1 0` } : undefined}
+              title={openProject.name}
+            >
+              <ul className="v2-sidebar-artifacts" aria-label={`Artefactos de ${openProject.name}`}>
+                {openProject.artifacts.map((artifact) => {
+                  const isCurrent = artifact.id === activeArtifactId;
+                  return (
+                    <li key={artifact.id} className={`v2-sidebar-row-wrap ${isCurrent ? 'is-current' : ''}`}>
+                      <button
+                        aria-current={isCurrent ? 'page' : undefined}
+                        className="v2-sidebar-row v2-sidebar-artifact-row"
+                        type="button"
+                        onClick={() => onSelectArtifact(openProject.id, artifact.id)}
+                      >
+                        <ArtifactTypeIcon type={artifact.type} />
+                        <span className="v2-sidebar-row-label">{artifact.name}</span>
+                      </button>
+                      <button
+                        aria-controls="sidebar-options-menu"
+                        aria-expanded={optionsMenu?.kind === 'artifact' && optionsMenu.artifactId === artifact.id}
+                        aria-haspopup="menu"
+                        aria-label={`Opciones de ${artifact.name}`}
+                        className="v2-tool sidebar-row-menu"
+                        type="button"
+                        onClick={(event) => openOptionsMenu({
+                          artifactId: artifact.id,
+                          canDelete: openProject.artifacts.length > 1,
+                          kind: 'artifact',
+                          projectId: openProject.id,
+                        }, event)}
+                      >
+                        <MoreHorizontal size={15} aria-hidden="true" />
+                      </button>
+                    </li>
+                  );
+                })}
+                <li>
+                  <button
+                    aria-expanded={newArtifactMenu?.projectId === openProject.id}
+                    aria-haspopup="menu"
+                    className="v2-sidebar-row v2-sidebar-add sidebar-section-action"
+                    type="button"
+                    onClick={(event) => openNewArtifactMenu(openProject.id, event)}
+                  >
+                    <Plus size={15} aria-hidden="true" />
+                    <span className="v2-sidebar-row-label">Nuevo artefacto</span>
+                  </button>
+                </li>
+              </ul>
+            </SidebarPane>
+          ) : null}
 
-        {projects.length === 0 ? (
-          <p className="v2-sidebar-empty">Todavía no hay proyectos.</p>
-        ) : (
-          <ul className="v2-sidebar-projects">
-            {projects.map((project) => {
-              const isActive = project.id === activeProjectId;
-              return (
-                <li key={project.id} className={`v2-sidebar-project ${isActive ? 'is-open' : ''}`}>
-                  <div className="v2-sidebar-row-wrap">
+          {bothOpen ? (
+            <SidebarSash containerRef={panesRef} onSplit={changeSplit} topId="sidebar-current-pane" topRef={currentPaneRef} />
+          ) : null}
+
+          <SidebarPane
+            actions={(
+              <button aria-label="Nuevo proyecto" className="v2-tool sidebar-section-action" type="button" onClick={onCreateProject} title="Nuevo proyecto">
+                <Plus size={15} aria-hidden="true" />
+              </button>
+            )}
+            className={openProject !== null && (!currentOpen || !othersOpen) ? 'has-rule' : ''}
+            collapsible={openProject !== null}
+            count={otherProjects.length}
+            id="sidebar-projects-pane"
+            onToggle={toggleOthers}
+            open={projectsPaneOpen}
+            style={bothOpen && split !== null ? { flex: `${1 - split} 1 0` } : undefined}
+            title={openProject !== null ? 'Otros proyectos' : 'Proyectos'}
+          >
+            {showFilter ? <SidebarFilter value={filterQuery} onChange={setFilterQuery} /> : null}
+            {otherProjects.length === 0 ? (
+              <p className="v2-sidebar-empty">{openProject !== null ? 'No hay otros proyectos.' : 'Todavía no hay proyectos.'}</p>
+            ) : visibleProjects.length === 0 ? (
+              <p aria-live="polite" className="v2-sidebar-empty" role="status">Ningún proyecto coincide.</p>
+            ) : (
+              <ul className="v2-sidebar-projects">
+                {visibleProjects.map((project) => (
+                  <li key={project.id} className="v2-sidebar-row-wrap v2-sidebar-other">
                     <button
-                      aria-current={isActive ? 'true' : undefined}
-                      aria-expanded={isActive}
                       className="v2-sidebar-row v2-sidebar-project-row"
                       type="button"
-                      title={`Actualizado ${formatRelativeDate(project.updatedAt)}`}
+                      title={`${project.name} · actualizado ${formatRelativeDate(project.updatedAt)}`}
                       onClick={() => onSelectProject(project.id)}
                     >
-                      {isActive ? <FolderOpen size={15} aria-hidden="true" /> : <FolderClosed size={15} aria-hidden="true" />}
+                      <FolderClosed size={15} aria-hidden="true" />
                       <span className="v2-sidebar-row-label">{project.name}</span>
+                      <span className="v2-sidebar-row-date" aria-hidden="true">{formatShortProjectDate(project.updatedAt)}</span>
                     </button>
                     <button
                       aria-controls="sidebar-options-menu"
@@ -323,61 +462,12 @@ export function ProjectSidebar({
                     >
                       <MoreHorizontal size={15} aria-hidden="true" />
                     </button>
-                  </div>
-
-                  {isActive ? (
-                    <ul className="v2-sidebar-artifacts" aria-label={`Artefactos de ${project.name}`}>
-                      {project.artifacts.map((artifact) => {
-                        const isCurrent = artifact.id === activeArtifactId;
-                        return (
-                          <li key={artifact.id} className={`v2-sidebar-row-wrap ${isCurrent ? 'is-current' : ''}`}>
-                            <button
-                              aria-current={isCurrent ? 'page' : undefined}
-                              className="v2-sidebar-row v2-sidebar-artifact-row"
-                              type="button"
-                              onClick={() => onSelectArtifact(project.id, artifact.id)}
-                            >
-                              <ArtifactTypeIcon type={artifact.type} />
-                              <span className="v2-sidebar-row-label">{artifact.name}</span>
-                            </button>
-                            <button
-                              aria-controls="sidebar-options-menu"
-                              aria-expanded={optionsMenu?.kind === 'artifact' && optionsMenu.artifactId === artifact.id}
-                              aria-haspopup="menu"
-                              aria-label={`Opciones de ${artifact.name}`}
-                              className="v2-tool sidebar-row-menu"
-                              type="button"
-                              onClick={(event) => openOptionsMenu({
-                                artifactId: artifact.id,
-                                canDelete: project.artifacts.length > 1,
-                                kind: 'artifact',
-                                projectId: project.id,
-                              }, event)}
-                            >
-                              <MoreHorizontal size={15} aria-hidden="true" />
-                            </button>
-                          </li>
-                        );
-                      })}
-                      <li>
-                        <button
-                          aria-expanded={newArtifactMenu?.projectId === project.id}
-                          aria-haspopup="menu"
-                          className="v2-sidebar-row v2-sidebar-add sidebar-section-action"
-                          type="button"
-                          onClick={(event) => openNewArtifactMenu(project.id, event)}
-                        >
-                          <Plus size={15} aria-hidden="true" />
-                          <span className="v2-sidebar-row-label">Nuevo artefacto</span>
-                        </button>
-                      </li>
-                    </ul>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SidebarPane>
+        </div>
       </nav>
 
       <div className="v2-sidebar-footer">

@@ -55,6 +55,8 @@ export const buildThemeVariables = (theme: DiagramTheme): ThemeCssProperties => 
   '--canvas-background': theme.canvas.background,
   '--canvas-grid-color': theme.canvas.gridColor,
   '--canvas-grid-color-strong': theme.canvas.gridColorStrong,
+  '--canvas-paper-line': theme.canvas.paperLine,
+  '--canvas-paper-line-strong': theme.canvas.paperLineStrong,
   '--class-background': theme.classNode.background,
   '--class-border': theme.classNode.border,
   '--class-border-selected': theme.classNode.borderSelected,

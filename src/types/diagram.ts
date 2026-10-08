@@ -398,12 +398,36 @@ export type SequenceDiagramContent = {
 export type DiagramContent = ClassDiagramContent | UseCaseModelContent;
 export type ArtifactContent = DiagramContent | ClassSequenceDiagramContent | UseCaseFlowContent | SequenceDiagramContent;
 
+/**
+ * "Apuntes": a private sheet per artifact for doubts and ideas while modelling.
+ * It lives on the artifact, never inside `content`, so it stays out of the
+ * diagram's undo history and out of every export except the JSON files.
+ * (Not called `notes`: sequence diagrams already have UML notes.)
+ */
+export type SketchColor = 'ink' | 'accent' | 'red';
+
+/** Coordinates are logical units: a sketch is always 1000 wide, scaled to the sheet. */
+export type SketchShape =
+  | { id: string; kind: 'pen'; color: SketchColor; points: number[] }
+  | { id: string; kind: 'arrow'; color: SketchColor; x1: number; y1: number; x2: number; y2: number }
+  | { id: string; kind: 'rect'; color: SketchColor; x: number; y: number; w: number; h: number }
+  | { id: string; kind: 'text'; color: SketchColor; x: number; y: number; text: string };
+
+export type NotebookBlock =
+  | { id: string; kind: 'text'; text: string }
+  | { id: string; kind: 'question'; text: string; resolved: boolean }
+  /** `height` is in the same logical units as the shapes (width 1000). */
+  | { id: string; kind: 'sketch'; height: number; shapes: SketchShape[] };
+
+export type ArtifactNotebook = { version: 1; blocks: NotebookBlock[] };
+
 export type ClassDiagramArtifact = {
   id: string;
   type: 'class-diagram';
   name: string;
   createdAt: string;
   updatedAt: string;
+  notebook?: ArtifactNotebook;
   content: ClassDiagramContent;
 };
 
@@ -413,6 +437,7 @@ export type ClassSequenceDiagramArtifact = {
   name: string;
   createdAt: string;
   updatedAt: string;
+  notebook?: ArtifactNotebook;
   content: ClassSequenceDiagramContent;
 };
 
@@ -422,6 +447,7 @@ export type UseCaseModelArtifact = {
   name: string;
   createdAt: string;
   updatedAt: string;
+  notebook?: ArtifactNotebook;
   content: UseCaseModelContent;
 };
 
@@ -431,6 +457,7 @@ export type UseCaseFlowArtifact = {
   name: string;
   createdAt: string;
   updatedAt: string;
+  notebook?: ArtifactNotebook;
   content: UseCaseFlowContent;
 };
 
@@ -440,6 +467,7 @@ export type SequenceDiagramArtifact = {
   name: string;
   createdAt: string;
   updatedAt: string;
+  notebook?: ArtifactNotebook;
   content: SequenceDiagramContent;
 };
 

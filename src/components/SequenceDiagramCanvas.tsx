@@ -13,6 +13,7 @@ import type { DiagramTheme } from '../theme/themes';
 import { findSequenceItem, formatSequenceParticipantName } from '../utils/sequenceDiagram';
 import { findMarqueeHits } from '../utils/sequenceDiagramSelection';
 import type { SequenceLayout } from '../utils/sequenceDiagramLayout';
+import { isNotebookEvent } from '../utils/notebookKeyboard';
 import { getSequenceMessageEndpoints, SEQUENCE_HEADER_HEIGHT, SEQUENCE_HEADER_Y } from '../utils/sequenceDiagramLayout';
 import {
   SEQUENCE_NOTE_FONT_FAMILY,
@@ -278,7 +279,7 @@ function SequenceDiagramCanvasImpl({
   useEffect(() => {
     if (connection === null) return undefined;
     const handleKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape') return;
+      if (event.key !== 'Escape' || isNotebookEvent(event)) return;
       event.preventDefault();
       const current = connectionRef.current;
       const svg = svgElementRef.current;

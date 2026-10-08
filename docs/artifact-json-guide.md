@@ -27,6 +27,7 @@ Cuando se pidan varios artefactos vinculados, entregá un proyecto completo con 
 | `content` | object | La estructura del tipo elegido. Incluí sus arreglos, aunque estén vacíos. |
 | `id` | string opcional | ID del artefacto. Requerido para referenciarlo desde otros artefactos de un proyecto. |
 | `createdAt`, `updatedAt` | string opcional | Fechas ISO 8601; se completan al normalizar si faltan. |
+| `notebook` | object opcional | Apuntes privados del usuario (dudas, textos y bocetos). No forma parte del modelo y la IA no tiene que generarlo; si viene, se conserva tal cual. |
 
 Guardá el JSON en un archivo `.json`. En el destino, usá **Nuevo artefacto → Importar artefacto…** o **Opciones del proyecto → Importar artefacto…**. El archivo puede ser un artefacto individual o un proyecto exportado del que elegir un artefacto. Se agrega una copia con un ID nuevo; los existentes permanecen en el proyecto.
 

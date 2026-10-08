@@ -32,7 +32,8 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useEffectEvent, useMemo, useReducer, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction, type SyntheticEvent } from 'react';
 import { CanvasZoom } from './ui/CanvasZoom';
-import { EditorToolbar, MenuField, MenuItem, MenuLabel, MenuSeparator, ReviewButton, ToolbarDivider, ToolButton, ToolMenu } from './ui/Toolbar';
+import { EditorToolbar, MenuField, MenuItem, MenuLabel, MenuSeparator, NotebookButton, ReviewButton, ToolbarDivider, ToolButton, ToolMenu } from './ui/Toolbar';
+import { isNotebookEvent } from '../utils/notebookKeyboard';
 import { InspectorDeleteButton, InspectorPanel, type InspectorTone } from './ui/Panel';
 import { EXPORT_THEME, type DiagramTheme } from '../theme/themes';
 import { CanvasStartCard } from './CanvasStartCard';
@@ -1150,6 +1151,7 @@ export function SequenceDiagramEditor({
   }, [keyboardMode.slotIndex, keyboardMode.stage, keyboardSlots.length]);
 
   const handleKeyboardMode = useEffectEvent((event: KeyboardEvent): void => {
+      if (isNotebookEvent(event)) return;
       const editableTarget = isKeyboardTextTarget(event.target);
       const key = event.key.toLocaleLowerCase();
 
@@ -1368,7 +1370,7 @@ export function SequenceDiagramEditor({
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape') return;
+      if (event.key !== 'Escape' || isNotebookEvent(event)) return;
       setQuickMessage(null);
       setParticipantDraft(null);
       setParticipantPreview({});
@@ -1387,7 +1389,7 @@ export function SequenceDiagramEditor({
       });
     };
     const closeMenusOnEscape = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !isNotebookEvent(event)) {
         toolbarRef.current?.querySelectorAll('details[open]').forEach((details) => details.removeAttribute('open'));
       }
     };
@@ -2178,7 +2180,7 @@ export function SequenceDiagramEditor({
   useEffect(() => {
     const handleDeleteSelection = (event: KeyboardEvent): void => {
       if (event.key !== 'Delete' && event.key !== 'Backspace') return;
-      if (quickMessage !== null) return;
+      if (quickMessage !== null || isNotebookEvent(event)) return;
       const target = event.target instanceof Element ? event.target : null;
       if (target?.closest('input, textarea, select, [contenteditable="true"], dialog') !== null) return;
       event.preventDefault();
@@ -2486,6 +2488,7 @@ export function SequenceDiagramEditor({
 
   useEffect(() => {
     const handleTimelineShortcuts = (event: KeyboardEvent): void => {
+      if (isNotebookEvent(event)) return;
       const target = event.target instanceof Element ? event.target : null;
       if (target?.closest('input, textarea, select, [contenteditable="true"], dialog') !== null) return;
       if (quickMessage !== null) return;
@@ -4739,6 +4742,7 @@ export function SequenceDiagramEditor({
         )}
         end={(
           <>
+            <NotebookButton />
             <ReviewButton
               count={reviewProblems.length}
               hasErrors={reviewProblems.some((problem) => problem.severity === 'error')}
@@ -5034,7 +5038,7 @@ export function SequenceDiagramEditor({
               })}
             </div>
           ) : null}
-          <div className="sequence-canvas-scroll" ref={scrollRef} onScroll={(event) => handleCanvasScroll(event.currentTarget)}>
+          <div className="sequence-canvas-scroll" data-editor-canvas="" ref={scrollRef} tabIndex={-1} onScroll={(event) => handleCanvasScroll(event.currentTarget)}>
             <div className="sequence-canvas-scale" style={{ width: layout.width * zoom, height: layout.height * zoom }}>
               <div
                 style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: layout.width, height: layout.height, position: 'relative' }}
