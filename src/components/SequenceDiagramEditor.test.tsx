@@ -91,3 +91,46 @@ describe('SequenceDiagramEditor referenced class diagram compatibility', () => {
     expect(html).not.toContain('sequence-export-source');
   });
 });
+
+describe('SequenceDiagramEditor wording', () => {
+  it('has no template button and explains the class model link in plain words', () => {
+    const now = '2026-01-01T00:00:00.000Z';
+    const sequenceArtifact: SequenceDiagramArtifact = {
+      id: 'sequence-1',
+      type: 'sequence-diagram',
+      name: 'Secuencia',
+      createdAt: now,
+      updatedAt: now,
+      content: normalizeSequenceDiagramContent(createEmptySequenceDiagramContent()),
+    };
+    const project: DesignProject = {
+      id: 'project-1',
+      name: 'Proyecto',
+      createdAt: now,
+      updatedAt: now,
+      activeArtifactId: sequenceArtifact.id,
+      artifacts: [sequenceArtifact],
+    };
+
+    const html = renderToString(
+      <DialogProvider>
+      <SequenceDiagramEditor
+        artifact={sequenceArtifact}
+        canRedo={false}
+        canUndo={false}
+        project={project}
+        theme={themes[0]}
+        onChangeContent={vi.fn()}
+        onRedo={vi.fn()}
+        onUndo={vi.fn()}
+      />
+      </DialogProvider>,
+    );
+
+    expect(html).not.toContain('Plantilla');
+    expect(html).toContain('nombre:Clase');
+    expect(html).not.toMatch(/TramiteActual|Consultor/);
+    expect(html).toContain('Sin modelo de clases');
+    expect(html).toContain('title="Vincular un modelo de clases permite elegir clases y operaciones existentes y mantener los nombres al día."');
+  });
+});

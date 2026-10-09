@@ -290,7 +290,7 @@ export function SequenceMessageDialog({
               aria-label="Objeto nuevo"
               className="sequence-dialog-route-select"
               value={draft.newParticipantName ?? ''}
-              placeholder="nuevo:Clase"
+              placeholder="nombre:Clase"
               onChange={(event) => onChange(updateSequenceMessageEditModel(draft, { newParticipantName: event.target.value }))}
             />
           ) : routeEditable ? (
@@ -321,8 +321,8 @@ export function SequenceMessageDialog({
             value={signatureText}
             placeholder={
               draft.type === 'create'
-                  ? 'create(parámetros) o nombre del objeto...'
-                  : 'Escribí el mensaje o método con sus parámetros...'
+                  ? 'create(parámetros) o nombre del objeto…'
+                  : 'Escribí el mensaje o método con sus parámetros…'
             }
             onChange={(e) => handleTextChange(e.target.value)}
             onKeyDown={handleTextareaKeyDown}

@@ -17,7 +17,6 @@ import {
   Keyboard,
   Link2,
   Unlink,
-  LayoutTemplate,
   MessageSquarePlus,
   PanelLeftClose,
   Plus,
@@ -141,7 +140,6 @@ import {
   insertTimelineItemsAt,
   validateBlockCandidate,
 } from '../utils/sequenceDiagramReordering';
-import { SEQUENCE_TEMPLATES } from '../data/sequenceTemplates';
 import type { DiagramSaveStatus } from '../hooks/useProjects';
 import { centerSequenceViewportOnTarget, expandSequenceViewportAtEdge, type SequenceViewportTarget } from '../utils/sequenceViewport';
 import {
@@ -179,7 +177,6 @@ import { collectUsedConditionValues, methodInsertText, type SignatureCompletionD
 import { SequenceMessageDialog } from './SequenceMessageDialog';
 import type { QuickMessageDraft } from '../utils/sequenceMessageDialogCompatibility';
 import { SequenceReviewPanel } from './SequenceReviewPanel';
-import { useFocusTrap } from '../hooks/useFocusTrap';
 import { shortcutLabel } from '../utils/shortcutLabel';
 
 type SequenceSelection = SequenceSelectionTarget | null;
@@ -342,7 +339,6 @@ export function SequenceDiagramEditor({
   onNavigateToArtifact,
   onCreateClassMethod,
   onImportSequenceIntoClassModel,
-  onCreateSequenceDiagramArtifact,
   onCreateSequenceModel,
   onChangeContent,
   onRedo,
@@ -390,8 +386,6 @@ export function SequenceDiagramEditor({
     containerBounds?: { x: number; width: number; top: number; bottom: number };
   } | null>(null);
   const [isReviewPanelOpen, setIsReviewPanelOpen] = useState(false);
-  const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
-  const templateDialogRef = useRef<HTMLDivElement | null>(null);
   const [quickMessage, setQuickMessage] = useState<QuickMessageDraft | null>(null);
   const [quickMessageRouteEditable, setQuickMessageRouteEditable] = useState(false);
   const [participantDraft, setParticipantDraft] = useState<{ text: string; kind: 'object' | 'actor' } | null>(null);
@@ -485,8 +479,6 @@ export function SequenceDiagramEditor({
   const highlightTimeoutRef = useRef<number | null>(null);
   const blockClipboard = useRef<{ items: SequenceTimelineItem[]; notes: SequenceNote[] } | null>(null);
   const marqueeTipShownRef = useRef(false);
-
-  useFocusTrap(templateDialogRef, isTemplatesOpen, () => setIsTemplatesOpen(false));
 
   useEffect(() => {
     const compactWindow = window.matchMedia('(max-width: 700px)');
@@ -1733,34 +1725,6 @@ export function SequenceDiagramEditor({
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', finish, { once: true });
   }, [content, layout, existingArtifactIds, zoom, showFeedback, commit, keepAnchoredNotesWithTimeline, selectedTimelineIds, setSelection]);
-
-  const handleLoadTemplate = useCallback(async (templateId: string, asNew: boolean): Promise<void> => {
-    const tmpl = SEQUENCE_TEMPLATES.find((t) => t.id === templateId);
-    if (!tmpl) return;
-    const newContent = tmpl.createContent();
-    if (asNew && onCreateSequenceDiagramArtifact) {
-      onCreateSequenceDiagramArtifact(tmpl.name, newContent);
-      setIsTemplatesOpen(false);
-      showFeedback(`Diagrama "${tmpl.name}" creado con plantilla.`);
-    } else {
-      const hasContent = content.participants.length > 0 || content.items.length > 0 || content.notes.length > 0 || content.activations.length > 0;
-      if (hasContent) {
-        const shouldReplace = await confirm({
-          title: '¿Reemplazar este diagrama?',
-          description: `La plantilla «${tmpl.name}» reemplazará todos los participantes, mensajes, fragmentos y notas de este diagrama.`,
-          confirmLabel: 'Reemplazar diagrama',
-        });
-        if (!shouldReplace) return;
-      }
-      const ok = commit(keepAnchoredNotesWithTimeline(newContent), true);
-      if (ok) {
-        setIsTemplatesOpen(false);
-        setSelection(null);
-        setSelectedTimelineIds([]);
-        showFeedback(`Plantilla "${tmpl.name}" cargada.`);
-      }
-    }
-  }, [commit, confirm, content, keepAnchoredNotesWithTimeline, onCreateSequenceDiagramArtifact, setSelectedTimelineIds, setSelection, showFeedback]);
 
   const selectOutlineItem = useCallback((nextSelection: Exclude<SequenceSelection, null>): void => {
     setSelection(nextSelection);
@@ -3445,7 +3409,7 @@ export function SequenceDiagramEditor({
             className="sequence-compact-input"
             value={selectedParticipant.name}
             onChange={(event) => updateParticipant(selectedParticipant.id, { name: event.target.value }, true)}
-            placeholder="Consultor"
+            placeholder="Actor principal"
           />
         </label>
       ) : (
@@ -3457,7 +3421,7 @@ export function SequenceDiagramEditor({
             onChange={(event) => updateParticipantLabel(selectedParticipant.id, event.target.value)}
             onBlur={() => setParticipantColorReference(null)}
             onKeyDown={(event) => { if (!shouldIgnoreEditorShortcut(event, document) && event.key === 'Enter') setParticipantColorReference(null); }}
-            placeholder="TramiteActual:Tramite o :Clase"
+            placeholder="nombre:Clase"
           />
           <small className="sequence-inspector-hint" style={{ marginTop: 4, display: 'block' }}>
             La instancia puede quedar vacía antes de “:”.
@@ -3687,7 +3651,7 @@ export function SequenceDiagramEditor({
               rows={3}
               className="sequence-inspector-signature-textarea"
               value={signatureValue}
-              placeholder="Ej: buscar(id): Caso"
+              placeholder="operación(parámetros): retorno"
               onChange={(e) => {
                 setMessageSignatureDraft(createSequenceSignatureDraft(selectedItem, e.target.value));
                 const parsed = parseMessageSignature(e.target.value);
@@ -4211,7 +4175,7 @@ export function SequenceDiagramEditor({
                     onChange={(event) => updateItem(selectedItem.id, {
                       operands: selectedItem.operands.map((c) => (c.id === activeOp.id ? { ...c, guard: event.target.value } : c)),
                     }, true)}
-                    placeholder={selectedItem.operands.indexOf(activeOp) === 0 ? 'ej. valido == true' : 'else'}
+                    placeholder={selectedItem.operands.indexOf(activeOp) === 0 ? 'condición' : 'else'}
                   />
                   <span className="sequence-fragment-guard-bracket">]</span>
                 </div>
@@ -4358,7 +4322,7 @@ export function SequenceDiagramEditor({
                       <input
                         autoFocus
                         className="sequence-operand-picker-search"
-                        placeholder="Buscar por nombre o participante..."
+                        placeholder="Buscar por nombre o participante…"
                         value={includeSearchFilter}
                         onChange={(e) => setIncludeSearchFilter(e.target.value)}
                       />
@@ -4496,7 +4460,7 @@ export function SequenceDiagramEditor({
           onChange={(event) => {
             updateNote(selectedNote.id, { text: event.target.value }, true);
           }}
-          placeholder="Escribí aquí una nota de apoyo o aclaración..."
+          placeholder="Escribí aquí una nota de apoyo o aclaración…"
         />
         <small className="sequence-inspector-hint" style={{ marginTop: 4, display: 'block' }}>
           Doble clic o Enter en el lienzo para escribir · Tiradores para redimensionar en ancho y alto.
@@ -4722,7 +4686,7 @@ export function SequenceDiagramEditor({
               <MenuItem icon={Link2} disabled={!onNavigateToArtifact} onSelect={() => onNavigateToArtifact?.(associatedClassDiagram.id)}>Abrir «{associatedClassDiagram.name}»</MenuItem>
               <MenuItem icon={Unlink} onSelect={() => commit({ ...content, classDiagramArtifactId: undefined })}>Desvincular</MenuItem>
             </ToolMenu> : (
-              <ToolMenu icon={GitBranch} label="Sin modelo" title="Vinculá la secuencia con un artefacto de clases de secuencias" align="start" className="sequence-model-status">
+              <ToolMenu icon={GitBranch} label="Sin modelo de clases" title="Vincular un modelo de clases permite elegir clases y operaciones existentes y mantener los nombres al día." align="start" className="sequence-model-status">
                 {classDiagrams.length > 0 ? <MenuLabel>Vincular con</MenuLabel> : null}
                 {classDiagrams.map((model) => (
                   <MenuItem key={model.id} icon={Link2} onSelect={() => commit({ ...content, classDiagramArtifactId: model.id })}>{model.name}</MenuItem>
@@ -4754,7 +4718,6 @@ export function SequenceDiagramEditor({
               })}
             </ToolMenu>
             <ToolButton icon={StickyNote} label="Nota" title="Agregar nota" onClick={addNote} />
-            <ToolButton icon={LayoutTemplate} label="Plantillas" title="Plantillas educativas" onClick={() => setIsTemplatesOpen(true)} />
             <ToolbarDivider />
             <ToolButton
               icon={Keyboard}
@@ -4801,9 +4764,13 @@ export function SequenceDiagramEditor({
               </MenuField>
               <MenuSeparator />
               <MenuLabel>Referencias</MenuLabel>
-              <MenuField label="Clases de secuencias">
-                <select value={associatedClassDiagram?.id ?? ''} onChange={(event) => commit({ ...content, classDiagramArtifactId: event.target.value || undefined })}>
-                  <option value="">Sin modelo</option>
+              <MenuField label="Clases de secuencias" hint="Vincular un modelo de clases permite elegir clases y operaciones existentes y mantener los nombres al día.">
+                <select
+                  title="Vincular un modelo de clases permite elegir clases y operaciones existentes y mantener los nombres al día."
+                  value={associatedClassDiagram?.id ?? ''}
+                  onChange={(event) => commit({ ...content, classDiagramArtifactId: event.target.value || undefined })}
+                >
+                  <option value="">Sin modelo de clases</option>
                   {classDiagrams.map((diagram) => <option key={diagram.id} value={diagram.id}>{diagram.name}</option>)}
                 </select>
               </MenuField>
@@ -4909,7 +4876,7 @@ export function SequenceDiagramEditor({
             key={participantDraft.kind}
             aria-label={participantDraft.kind === 'actor' ? 'Nombre del actor' : 'Identificación del participante'}
             value={participantDraft.text}
-            placeholder={participantDraft.kind === 'actor' ? 'Consultor' : 'TramiteActual:Tramite'}
+            placeholder={participantDraft.kind === 'actor' ? 'Actor principal' : 'nombre:Clase'}
             onChange={(event) => setParticipantDraft((current) => current ? { ...current, text: event.target.value } : current)}
             onKeyDown={(event) => {
               if (shouldIgnoreEditorShortcut(event, document)) return;
@@ -5018,7 +4985,7 @@ export function SequenceDiagramEditor({
                 </>
               )}
             >
-              El actor del caso de uso inicia la secuencia; después, los objetos con <code>instancia:Clase</code>, por ejemplo <code>TramiteActual:Tramite</code>.
+              El actor del caso de uso inicia la secuencia; después, agregá objetos con la forma <code>nombre:Clase</code>.
             </CanvasStartCard>
           ) : null}
           {quickMessage ? <SequenceMessageDialog routeEditable={quickMessageRouteEditable} draft={quickMessage} participants={content.participants} methodOptions={quickMessageMethodOptions} flowOptions={flowOptions} referenceStatus={quickMessageReferenceStatus} onChange={setQuickMessage} onSwap={swapQuickMessage} onSubmit={saveQuickMessage} onCancel={() => setQuickMessage(null)} /> : null}
@@ -5369,71 +5336,6 @@ export function SequenceDiagramEditor({
         onExportPng={() => { void exportPng(); }}
         onExportPdf={() => { void exportPdf(); }}
       />
-      {isTemplatesOpen ? (
-        <div
-          className="sequence-modal-backdrop"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setIsTemplatesOpen(false);
-          }}
-        >
-          <div
-            ref={templateDialogRef}
-            aria-labelledby="sequence-templates-dialog-title"
-            aria-modal="true"
-            className="sequence-modal-card sequence-templates-card"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            tabIndex={-1}
-          >
-            <div className="sequence-modal-header">
-              <div className="sequence-modal-title">
-                <LayoutTemplate size={22} />
-                <div>
-                  <h3 id="sequence-templates-dialog-title">Plantillas educativas de secuencia</h3>
-                  <p>{onCreateSequenceDiagramArtifact
-                    ? 'Creá un diagrama nuevo sin alterar los existentes, o reemplazá el actual con una plantilla.'
-                    : 'Elegí una plantilla para reemplazar este diagrama.'}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label="Cerrar"
-                onClick={() => setIsTemplatesOpen(false)}
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="sequence-templates-grid">
-              {SEQUENCE_TEMPLATES.map((tmpl) => (
-                <div key={tmpl.id} className="sequence-template-item">
-                  <span className="sequence-template-badge">{tmpl.category}</span>
-                  <h4>{tmpl.name}</h4>
-                  <p>{tmpl.description}</p>
-                  <div className="sequence-template-actions">
-                    <button
-                      type="button"
-                      className="primary-action"
-                      onClick={() => handleLoadTemplate(tmpl.id, false)}
-                    >
-                      Reemplazar este diagrama…
-                    </button>
-                    {onCreateSequenceDiagramArtifact ? (
-                      <button
-                        type="button"
-                        className="secondary-action"
-                        onClick={() => handleLoadTemplate(tmpl.id, true)}
-                      >
-                        Crear como nuevo diagrama
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : null}
       {exportDialogOpen ? (
         <div className="sequence-export-source" aria-hidden="true">
           <SequenceDiagramCanvas
