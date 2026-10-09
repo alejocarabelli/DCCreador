@@ -29,7 +29,7 @@ import {
   PersonStanding,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useEffectEvent, useMemo, useReducer, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction, type SyntheticEvent } from 'react';
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction, type SyntheticEvent } from 'react';
 import { CanvasZoom } from './ui/CanvasZoom';
 import { EditorToolbar, MenuField, MenuItem, MenuLabel, MenuSeparator, NotebookButton, ReviewButton, ToolbarDivider, ToolButton, ToolMenu } from './ui/Toolbar';
 import { isNotebookEvent } from '../utils/notebookKeyboard';
@@ -142,7 +142,7 @@ import {
   validateBlockCandidate,
 } from '../utils/sequenceDiagramReordering';
 import type { DiagramSaveStatus } from '../hooks/useProjects';
-import { centerSequenceViewportOnTarget, expandSequenceViewportAtEdge, type SequenceViewportTarget } from '../utils/sequenceViewport';
+import { centerSequenceViewportOnTarget, expandSequenceViewportAtEdge, fitSequenceZoomToView, type SequenceViewportTarget } from '../utils/sequenceViewport';
 import {
   buildSequenceKeyboardInsertionSlots,
   createInactiveSequenceKeyboardState,
@@ -176,7 +176,7 @@ import { SequenceExportDialog } from './SequenceExportDialog';
 import { SequenceKeyboardComposer } from './SequenceKeyboardComposer';
 import { collectUsedConditionValues, methodInsertText, type SignatureCompletionData } from '../utils/sequenceSignatureCompletion';
 import { SequenceMessageDialog } from './SequenceMessageDialog';
-import type { QuickMessageDraft } from '../utils/sequenceMessageDialogCompatibility';
+import { firstMessageRoute, type QuickMessageDraft } from '../utils/sequenceMessageDialogCompatibility';
 import { DiagramReviewPanel } from './DiagramReviewPanel';
 import { shortcutLabel } from '../utils/shortcutLabel';
 
@@ -760,6 +760,11 @@ export function SequenceDiagramEditor({
   }, [content]);
 
   const activateKeyboardMode = useCallback((): void => {
+    if (content.participants.length === 0) {
+      showFeedback('Primero agregá participantes.');
+      setParticipantDraft({ text: '', kind: 'actor' });
+      return;
+    }
     const selectedTimelineItem = selection?.kind === 'message' || selection?.kind === 'fragment'
       ? findSequenceItem(content.items, selection.id)
       : undefined;
@@ -776,7 +781,7 @@ export function SequenceDiagramEditor({
     setParticipantDraft(null);
     dispatchKeyboardMode({ type: 'activate', slotIndex, sourceId });
     window.requestAnimationFrame(() => svgRef.current?.focus());
-  }, [content.items, content.participants, keyboardSlots, selection]);
+  }, [content.items, content.participants, keyboardSlots, selection, showFeedback]);
 
   const commitKeyboardParticipant = useCallback((): void => {
     const participant = createSequenceParticipantFromLabel({
@@ -1443,6 +1448,42 @@ export function SequenceDiagramEditor({
     });
   }, [layout.bounds]);
 
+  const keyboardModeOff = keyboardMode.stage === 'off';
+  const keyboardGuideRef = useRef<HTMLDivElement | null>(null);
+  // The help bar can wrap onto two lines; the canvas below follows its height.
+  useLayoutEffect(() => {
+    const guide = keyboardGuideRef.current;
+    const panel = guide?.parentElement;
+    if (!guide || !panel || keyboardModeOff) return;
+    const sync = (): void => { panel.style.setProperty('--sequence-guide-height', `${guide.offsetHeight}px`); };
+    sync();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(sync);
+    observer?.observe(guide);
+    return () => {
+      observer?.disconnect();
+      panel.style.removeProperty('--sequence-guide-height');
+    };
+  }, [keyboardModeOff]);
+
+  // A sequence opened for the first time in the session starts fitted to the
+  // view when it does not fit at 100%. A remembered view is always respected.
+  const initialFitDone = useRef(false);
+  useLayoutEffect(() => {
+    if (initialFitDone.current) return;
+    initialFitDone.current = true;
+    const scrollEl = scrollRef.current;
+    if (!scrollEl || initialView !== undefined || content.participants.length === 0) return;
+    const fit = fitSequenceZoomToView({
+      viewportWidth: scrollEl.clientWidth,
+      viewportHeight: scrollEl.clientHeight,
+      bounds: layout.bounds,
+    });
+    if (fit >= 1) return;
+    setZoom(fit);
+    scrollEl.scrollLeft = Math.max(0, (layout.bounds.left - 40) * fit);
+    scrollEl.scrollTop = Math.max(0, (layout.bounds.top - 40) * fit);
+  }, [content.participants.length, initialView, layout.bounds]);
+
   const getSelectionTarget = useCallback((targetSelection: SequenceSelection): SequenceViewportTarget | undefined => {
     if (targetSelection === null) return undefined;
     if (targetSelection.kind === 'participant') {
@@ -1851,9 +1892,12 @@ export function SequenceDiagramEditor({
     const chainFrom = selectedItem?.kind === 'message'
       ? selectedItem
       : selectedItem === null && lastMessage?.kind === 'message' ? lastMessage : undefined;
-    const sourceId = selectedParticipant?.id ?? chainFrom?.targetId ?? sorted[0].id;
+    // The first message of a diagram starts at the actor, whatever is selected.
+    const hasMessages = lastMessage !== undefined;
+    const firstRoute = hasMessages ? undefined : firstMessageRoute(content.participants);
+    const sourceId = firstRoute?.sourceId ?? selectedParticipant?.id ?? chainFrom?.targetId ?? sorted[0].id;
     const sourceIndex = sorted.findIndex((participant) => participant.id === sourceId);
-    const targetId = sorted[sourceIndex + 1]?.id ?? sorted[sourceIndex - 1]?.id ?? sourceId;
+    const targetId = firstRoute?.targetId ?? sorted[sourceIndex + 1]?.id ?? sorted[sourceIndex - 1]?.id ?? sourceId;
     setQuickMessage(createSequenceMessageEditModel({
       type,
       sourceId,
@@ -4715,11 +4759,19 @@ export function SequenceDiagramEditor({
               icon={MessageSquarePlus}
               label="Mensaje"
               showLabel
-              variant="primary"
-              title="Insertar mensaje (o doble clic en el lienzo)"
+              variant={content.participants.length === 0 ? 'default' : 'primary'}
+              disabled={content.participants.length === 0}
+              title={content.participants.length === 0 ? 'Primero agregá participantes' : 'Insertar mensaje (o doble clic en el lienzo)'}
               onClick={() => beginMessage()}
             />
-            <ToolButton icon={UserRoundPlus} label="Participante" showLabel title="Agregar participante (objeto o actor)" onClick={() => beginParticipantCreation()} />
+            <ToolButton
+              icon={UserRoundPlus}
+              label="Participante"
+              showLabel
+              variant={content.participants.length === 0 ? 'primary' : 'default'}
+              title="Agregar participante (objeto o actor)"
+              onClick={() => beginParticipantCreation()}
+            />
             <ToolMenu icon={BoxSelect} label="Fragmento" align="start" title="Agregar fragmento combinado (alt, loop, opt…)">
               {Object.entries(fragmentLabels).map(([value, label]) => {
                 const [operator, description] = label.split(' · ');
@@ -4936,7 +4988,7 @@ export function SequenceDiagramEditor({
         </aside>
         <section className={`sequence-canvas-panel ${isKeyboardActive ? 'keyboard-mode-active' : ''}`}>
           {isKeyboardActive ? (
-            <div className="sequence-canvas-guide is-keyboard-active" data-export-control="true">
+            <div className="sequence-canvas-guide is-keyboard-active" data-export-control="true" ref={keyboardGuideRef}>
               <div className="sequence-keyboard-guide-body">
                 <span className="sequence-keyboard-status-badge">MODO TECLADO</span>
                 {keyboardContext ? (

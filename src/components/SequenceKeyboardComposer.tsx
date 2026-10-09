@@ -77,9 +77,13 @@ export function SequenceKeyboardComposer({
     let viewport: HTMLElement | null = popover.parentElement;
     while (viewport && !/(auto|scroll|hidden)/.test(getComputedStyle(viewport).overflowX)) viewport = viewport.parentElement;
     const fit = (): void => {
+      // Measure the resting position: without this the 0.15s transform
+      // transition returns a half-animated box and the nudge stays wrong.
+      popover.style.transition = 'none';
       popover.style.setProperty('--keyboard-nudge', '0px');
-      if (!viewport) return;
       const box = popover.getBoundingClientRect();
+      popover.style.transition = '';
+      if (!viewport) return;
       const bounds = viewport.getBoundingClientRect();
       const nudge = box.left < bounds.left + 8
         ? bounds.left + 8 - box.left
