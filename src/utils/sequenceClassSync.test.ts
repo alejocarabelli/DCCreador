@@ -25,8 +25,8 @@ describe('sequence class synchronization plan', () => {
     const plan = planSequenceClassImport(empty, [sequence, sequence]);
     expect(plan).toEqual([
       { key: 'class:tramite', type: 'class', className: 'Tramite', elementName: 'Tramite' },
-      { key: 'method:tramite:setnombre', type: 'method', className: 'Tramite', elementName: 'setNombre', returnType: '' },
-      { key: 'method:tramite:getnombre', type: 'method', className: 'Tramite', elementName: 'getNombre', returnType: 'String' },
+      { key: 'method:tramite:setnombre', type: 'method', className: 'Tramite', elementName: 'setNombre', parameters: 'valor', returnType: '' },
+      { key: 'method:tramite:getnombre', type: 'method', className: 'Tramite', elementName: 'getNombre', parameters: '', returnType: 'String' },
       { key: 'attribute:tramite:nombre', type: 'attribute', className: 'Tramite', elementName: 'nombre', attributeType: 'String' },
     ]);
     expect(planSequenceClassImport(empty, [sequence])).toEqual(plan);

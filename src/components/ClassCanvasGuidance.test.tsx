@@ -109,7 +109,7 @@ describe('class sequence: empty state of its own', () => {
     expect(html).toContain(description);
     expect(html).toContain('Primero armá un diagrama de secuencia; sus clases y mensajes van a aparecer acá para traerlas.');
     expect(html).not.toContain('Empezá por una clase');
-    expect(html).not.toMatch(/Ver \d+ novedad/);
+    expect(html).not.toContain('Ver lo que se puede traer');
   });
 
   it('offers the novelties panel and says what the model is linked to', () => {
@@ -117,7 +117,7 @@ describe('class sequence: empty state of its own', () => {
     const html = renderModel(model, [model, sequence]);
     expect(html).toContain(description);
     expect(html).toContain('Vinculado a: Buscar trámite.');
-    expect(html).toContain('Ver 2 novedades');
+    expect(html).toContain('Ver lo que se puede traer (2)');
     expect(html).not.toContain('Primero armá un diagrama de secuencia');
   });
 
@@ -126,7 +126,7 @@ describe('class sequence: empty state of its own', () => {
     const html = renderModel(model, [model, emptySequence]);
     expect(html).toContain('Vinculado a: Sin mensajes.');
     expect(html).toContain('Todavía no hay clases para traer');
-    expect(html).not.toMatch(/Ver \d+ novedad/);
+    expect(html).not.toContain('Ver lo que se puede traer');
   });
 
   it('offers to link when sequences exist but none is linked yet', () => {

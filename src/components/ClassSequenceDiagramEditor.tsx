@@ -188,23 +188,31 @@ export function ClassSequenceDiagramEditor({
       );
     }
 
-    const pendingLabel = `${pending.length} ${pending.length === 1 ? 'novedad' : 'novedades'}`;
     return card(
       <>
         Vinculado a: {linkedNames}.
         {pending.length === 0 ? <><br />Todavía no hay clases para traer: asigná una clase a los participantes de la secuencia.</> : null}
       </>,
-      pending.length > 0 ? <button className="secondary-action" type="button" onClick={openSyncMenu}>Ver {pendingLabel}</button> : undefined,
+      pending.length > 0 ? <button className="secondary-action" type="button" onClick={openSyncMenu}>{`Ver lo que se puede traer (${pending.length})`}</button> : undefined,
     );
   };
 
+  const linkedCount = linkedSequenceDiagrams.length;
+  const toolbarStatus = pending.length > 0
+    ? { label: `${pending.length} para traer`, title: 'Clases y operaciones de las secuencias vinculadas que todavía no están en este diagrama' }
+    : linkedCount > 0
+      ? { label: `✓ Todo traído de ${linkedCount} ${linkedCount === 1 ? 'secuencia' : 'secuencias'}`, title: 'Todo lo que aparece en las secuencias vinculadas ya está en este diagrama' }
+      : { label: 'Sin secuencias vinculadas', title: undefined };
+
   const toolbarContext = (
     <ToolMenu
-      label={pending.length > 0 ? `${pending.length} ${pending.length === 1 ? 'novedad' : 'novedades'}` : linkedSequenceDiagrams.length > 0 ? `✓ Al día con ${linkedSequenceDiagrams.length} ${linkedSequenceDiagrams.length === 1 ? 'secuencia' : 'secuencias'}` : 'Sin secuencias vinculadas'}
+      label={toolbarStatus.label}
+      title={toolbarStatus.title}
       align="start"
       className={`sequence-model-status ${pending.length > 0 ? 'has-novelties' : ''}`}
       panelClassName="sequence-model-sync-panel"
     >
+      {pending.length > 0 ? <MenuLabel>Elegí qué traer de las secuencias</MenuLabel> : null}
       {[...pendingGroups].map(([className, novelties]) => (
         <div key={className} role="presentation">
           <div className="sequence-model-class-label" role="presentation">{className}</div>
@@ -215,7 +223,7 @@ export function ClassSequenceDiagramEditor({
               if (next.has(novelty.key)) next.delete(novelty.key); else next.add(novelty.key);
               return next;
             })}>
-              {novelty.type === 'class' ? 'Clase nueva' : novelty.type === 'method' ? `${novelty.elementName}()${novelty.returnType ? `: ${novelty.returnType}` : ''}` : `${novelty.elementName}${novelty.attributeType ? `: ${novelty.attributeType}` : ''}`}
+              {novelty.type === 'class' ? 'Clase nueva' : novelty.type === 'method' ? `${novelty.elementName}(${novelty.parameters ?? ''})${novelty.returnType ? `: ${novelty.returnType}` : ''}` : `${novelty.elementName}${novelty.attributeType ? `: ${novelty.attributeType}` : ''}`}
             </MenuItem>;
           })}
         </div>
