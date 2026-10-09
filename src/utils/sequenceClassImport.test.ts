@@ -52,10 +52,10 @@ describe('importClassesFromSequences', () => {
 
     expect(result.nodes.map((node) => node.data.name)).toEqual(['Portal', 'Repositorio']);
     expect(result.nodes[0].data.methods).toMatchObject([
-      { name: 'iniciarSesion', parameters: '', returnType: 'void', visibility: '+' },
+      { name: 'iniciarSesion', parameters: 'usuario, clave', returnType: 'void', visibility: '+' },
     ]);
     expect(result.nodes[1].data.methods).toMatchObject([
-      { name: 'buscarPermiso', parameters: '', returnType: 'Permiso' },
+      { name: 'buscarPermiso', parameters: 'rolId', returnType: 'Permiso' },
     ]);
     expect(summary).toEqual({ createdClasses: 2, addedAttributes: 0, addedMethods: 2, updatedClasses: 0 });
   });
@@ -72,7 +72,7 @@ describe('importClassesFromSequences', () => {
     const first = importClassesFromSequences({ nodes: [existing], edges: [] }, [content]);
     expect(first.content.nodes).toHaveLength(1);
     expect(first.content.nodes[0].data.methods.map((method) => [method.name, method.parameters]))
-      .toEqual([['validar', ''], ['guardar', '']]);
+      .toEqual([['validar', ''], ['guardar', 'dato']]);
     expect(first.summary).toEqual({ createdClasses: 0, addedAttributes: 0, addedMethods: 1, updatedClasses: 1 });
 
     const second = importClassesFromSequences(first.content, [content]);
@@ -80,7 +80,31 @@ describe('importClassesFromSequences', () => {
     expect(second.content.nodes[0]).toBe(first.content.nodes[0]);
   });
 
-  it('brings each method once, without the arguments passed in the messages', () => {
+  it('brings the parameters a call declares, in the model format, and leaves out concrete test values', () => {
+    const content = sequence({
+      participants: [participant('p', 'control', '', 'Gestor', 0), participant('t', 'entity', '', 'Tramite', 200)],
+      items: [
+        call('p', 't', 'ingresarDni', { arguments: 'dni' }),
+        call('p', 't', 'buscar', { arguments: 'producto: Producto,cantidad:Integer' }),
+        call('p', 't', 'guardar', { arguments: "mapa: Map<String, Integer>, 42, 'activo'" }),
+        call('p', 't', 'setNombre(valor)'),
+        call('p', 't', 'ingresarClave', { arguments: '' }),
+        call('p', 't', 'ingresarClave', { arguments: 'clave' }),
+      ],
+    });
+
+    const { content: result } = importClassesFromSequences({ nodes: [], edges: [] }, [content]);
+    const tramite = result.nodes.find((node) => node.data.name === 'Tramite');
+    expect(tramite?.data.methods.map((method) => [method.name, method.parameters])).toEqual([
+      ['ingresarDni', 'dni'],
+      ['buscar', 'producto: Producto, cantidad: Integer'],
+      ['guardar', 'mapa: Map<String, Integer>'],
+      ['setNombre', 'valor'],
+      ['ingresarClave', 'clave'],
+    ]);
+  });
+
+  it('brings each method once, with the parameters that a call names', () => {
     const content = sequence({
       participants: [participant('p', 'control', '', 'Gestor', 0), participant('t', 'entity', '', 'Tramite', 200)],
       items: [
@@ -95,7 +119,7 @@ describe('importClassesFromSequences', () => {
 
     const { content: result, summary } = importClassesFromSequences({ nodes: [existing], edges: [] }, [content]);
     expect(result.nodes[0].data.methods.map((method) => [method.name, method.parameters]))
-      .toEqual([['getEstado', 'fecha: Date'], ['buscar', '']]);
+      .toEqual([['getEstado', 'fecha: Date'], ['buscar', 'nroTramite']]);
     expect(summary.addedMethods).toBe(1);
   });
 

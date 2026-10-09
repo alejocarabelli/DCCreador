@@ -25,7 +25,9 @@ describe('sequence model synchronization UI', () => {
   it('shows only linked sequence novelties, selected by default, with navigation and linking below', () => {
     const unlinked = { ...sequence, id: 'unlinked', content: { ...sequence.content, classDiagramArtifactId: undefined, participants: [{ ...sequence.content.participants[0], classifierName: 'Otra' }] } };
     const html = renderModel(model, { ...project, artifacts: [...project.artifacts, unlinked] });
-    expect(html).toContain('2 novedades');
+    expect(html).toContain('2 para traer');
+    expect(html).toContain('title="Clases y operaciones de las secuencias vinculadas que todavía no están en este diagrama"');
+    expect(html).toContain('Elegí qué traer de las secuencias');
     const syncMenu = html.slice(html.indexOf('sequence-model-status')).split('</details>')[0];
     expect((syncMenu.match(/aria-checked="true"/g) ?? [])).toHaveLength(2);
     expect(html).toContain('Traer seleccionadas');
@@ -39,11 +41,17 @@ describe('sequence model synchronization UI', () => {
     const html = renderModel(model, { ...project, artifacts: [...project.artifacts, otherModel, otherSequence] });
     expect(html).not.toContain('secuencia sin vincular');
     expect(html).not.toContain('secuencias sin vincular');
-    expect(html).toContain('2 novedades');
+    expect(html).toContain('2 para traer');
+  });
+  it('lists the operations with their parameters in the menu', () => {
+    const withParameters = { ...sequence, content: { ...sequence.content, items: [{ ...createSequenceMessage('synchronous', 't', 't'), id: 'dni', name: 'ingresarDni', arguments: 'dni' }] } };
+    const html = renderModel(model, { ...project, artifacts: [model, withParameters] });
+    expect(html).toContain('ingresarDni(dni)');
   });
   it('shows the neutral up-to-date and no-linked-sequences states', () => {
     const synced = { ...model, content: { ...model.content, ...importClassesFromSequences(model.content, [sequence.content]).content } };
-    expect(renderModel(synced)).toContain('✓ Al día con 1 secuencia');
+    expect(renderModel(synced)).toContain('✓ Todo traído de 1 secuencia');
+    expect(renderModel(synced)).toContain('title="Todo lo que aparece en las secuencias vinculadas ya está en este diagrama"');
     expect(renderModel({ ...model, content: { ...model.content, linkedSequenceDiagramIds: [] } })).toContain('Sin secuencias vinculadas');
   });
   it('shows missing model elements and the import action only when necessary', () => {
