@@ -156,6 +156,36 @@ describe('B3: deshacer y rehacer en una secuencia vinculada', () => {
     expect(sequenceOf(hook).items[0]).toMatchObject({ name: 'consultar', operationMethodId: 'm1' });
   });
 
+  it('deshacer y rehacer un movimiento conserva argumentos embebidos y etiquetas personalizadas', () => {
+    const hook = mount();
+    const content = clone(sequenceOf(hook));
+    content.participants[0].classifierName = 'Cliente VIP';
+    content.items[0] = { ...content.items[0], name: 'buscar(id)', arguments: '' } as typeof content.items[0];
+    hook.current().updateProjectArtifactContent('p', 'seq', content, { alreadyNormalized: true });
+    const history = clone(sequenceOf(hook));
+    moveP2(hook, 420);
+    const redo = clone(sequenceOf(hook));
+    hook.current().updateProjectArtifactContent('p', 'seq', history, { alreadyNormalized: true, fromHistory: true });
+    expect(sequenceOf(hook)).toEqual(history);
+    hook.current().updateProjectArtifactContent('p', 'seq', redo, { alreadyNormalized: true, fromHistory: true });
+    expect(sequenceOf(hook)).toEqual(redo);
+  });
+
+  it('un renombre real al restaurar conserva argumentos y texto personalizado', () => {
+    const hook = mount();
+    const content = clone(sequenceOf(hook));
+    content.participants[0].classifierName = 'Cliente VIP';
+    content.items[0] = { ...content.items[0], name: 'buscar(id)', arguments: '' } as typeof content.items[0];
+    hook.current().updateProjectArtifactContent('p', 'seq', content, { alreadyNormalized: true });
+    const history = clone(sequenceOf(hook));
+    moveP2(hook, 420);
+    renameInModel(hook);
+    expect(sequenceOf(hook).items[0]).toMatchObject({ name: 'consultar(id)', arguments: '' });
+    hook.current().updateProjectArtifactContent('p', 'seq', history, { alreadyNormalized: true, fromHistory: true });
+    expect(sequenceOf(hook).participants[0].classifierName).toBe('Cliente VIP');
+    expect(sequenceOf(hook).items[0]).toMatchObject({ name: 'consultar(id)', arguments: '' });
+  });
+
   it('una edición normal conserva el texto de un participante vinculado', () => {
     const hook = mount();
     const content = sequenceOf(hook);

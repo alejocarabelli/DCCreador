@@ -175,9 +175,16 @@ export const setNotebookInProject = (
 
 export type DiagramSaveStatus = 'saved' | 'saving' | 'error';
 
+const MAX_SEQUENCE_SNAPSHOT_MODELS = 400;
+
 export const useProjects = () => {
   const [storageLoad, setStorageLoad] = useState(loadProjects);
   const [projects, setProjects] = useState<DiagramProject[]>(storageLoad.projects);
+  // App's undo entries are JSON clones. Keep their model baseline here, outside
+  // persisted/exported data, keyed by the exact sequence state they clone.
+  const sequenceSnapshotModels = useRef(new Map<string, Pick<ClassDiagramContent, 'nodes'>>());
+  const sequenceSnapshotKey = (projectId: string, artifactId: string, content: ArtifactContent): string =>
+    JSON.stringify([projectId, artifactId, content]);
   // Start at the project archive so opening the app does not silently jump into
   // an arbitrary artifact. Creating or selecting a project still opens it as before.
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
@@ -609,6 +616,25 @@ export const useProjects = () => {
         return project;
       }
 
+      // Capture before both sequence edits and model renames, including states
+      // put into the redo stack. Model contents are immutable in this hook.
+      for (const artifact of project.artifacts) {
+        if (artifact.type !== 'sequence-diagram') continue;
+        const model = findSequenceModel(project.artifacts, artifact);
+        if (model !== undefined) {
+          const key = sequenceSnapshotKey(projectId, artifact.id, artifact.content);
+          // An identical later state must not relabel an older snapshot's
+          // custom text as a model name merely because the model caught up.
+          if (!sequenceSnapshotModels.current.has(key)) {
+            sequenceSnapshotModels.current.set(key, model.content);
+            // Bounded like the undo history: the oldest baselines go first.
+            if (sequenceSnapshotModels.current.size > MAX_SEQUENCE_SNAPSHOT_MODELS) {
+              sequenceSnapshotModels.current.delete(sequenceSnapshotModels.current.keys().next().value!);
+            }
+          }
+        }
+      }
+
       const normalizedTargetContent = targetArtifact.type === 'use-case-model'
         ? (options?.alreadyNormalized ? content as UseCaseModelContent : normalizeUseCaseModelContent(content as Partial<UseCaseModelContent>))
         : targetArtifact.type === 'use-case-flow'
@@ -636,9 +662,11 @@ export const useProjects = () => {
       const sequenceModel = targetArtifact.type === 'sequence-diagram' && options?.fromHistory
         ? findSequenceModel(project.artifacts, { content: normalizedTargetContent as SequenceDiagramContent })
         : undefined;
-      const restoredContent = sequenceModel === undefined
+      const snapshotModel = sequenceModel === undefined ? undefined
+        : sequenceSnapshotModels.current.get(sequenceSnapshotKey(projectId, artifactId, normalizedTargetContent));
+      const restoredContent = sequenceModel === undefined || snapshotModel === undefined
         ? normalizedTargetContent
-        : applyModelNamesToSequence(normalizedTargetContent as SequenceDiagramContent, sequenceModel.content) ?? normalizedTargetContent;
+        : applyModelNamesToSequence(normalizedTargetContent as SequenceDiagramContent, sequenceModel.content, snapshotModel) ?? normalizedTargetContent;
 
       const updatedArtifacts = project.artifacts.map((artifact) => {
         if (artifact.id === artifactId) {
