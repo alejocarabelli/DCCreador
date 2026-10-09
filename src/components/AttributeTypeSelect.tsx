@@ -1,5 +1,5 @@
 import { useId, type MouseEvent } from 'react';
-import { INLINE_ATTRIBUTE_TYPE_SUGGESTIONS } from '../constants/attributeTypes';
+import { INLINE_ATTRIBUTE_TYPE_SUGGESTIONS, typeInputWithTypedCase } from '../constants/attributeTypes';
 
 type AttributeTypeSelectProps = {
   value: string;
@@ -26,7 +26,7 @@ export function AttributeTypeSelect({ value, onChange, compact = false }: Attrib
         value={value}
         placeholder="tipo"
         spellCheck={false}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => onChange(typeInputWithTypedCase(value, event.target.value))}
         onClick={stopFlowEvent}
         onContextMenu={stopFlowEvent}
         onDoubleClick={stopFlowEvent}

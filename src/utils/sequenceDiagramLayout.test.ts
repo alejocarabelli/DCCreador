@@ -7,7 +7,7 @@ import {
   normalizeSequenceDiagramContent,
 } from './sequenceDiagram';
 import { getSequenceParticipantHeaderWidth, moveSequenceFragmentGeometry, reorderSequenceParticipants } from './sequenceDiagramGeometry';
-import { buildSequenceLayout, calculateSequenceDiagramBounds, getSequenceMessageEndpoints } from './sequenceDiagramLayout';
+import { buildSequenceLayout, calculateSequenceDiagramBounds, getFragmentTabLabel, getSequenceMessageEndpoints } from './sequenceDiagramLayout';
 
 const participant = (id: string, x: number, name = id): SequenceParticipant => ({
   id,
@@ -271,7 +271,10 @@ describe('sequence diagram geometry contract', () => {
       kind: 'fragment',
       operator: 'alt',
       name: veryLongText,
-      operands: [{ id: 'long-guard', guard: veryLongText, items: [message('long-message', 'a', 'b', veryLongText)] }],
+      operands: [
+        { id: 'long-guard', guard: veryLongText, items: [message('long-message', 'a', 'b', veryLongText)] },
+        { id: 'long-else', guard: 'else', items: [] },
+      ],
     };
     const longContent = normalizeSequenceDiagramContent({
       ...createEmptySequenceDiagramContent(),
@@ -686,5 +689,35 @@ describe('sequence diagram geometry contract', () => {
     expect(layout.terminatedParticipantIds.has('p-caller')).toBe(true);
     expect(layout.terminatedParticipantIds.has('p-service')).toBe(false);
     expect(layout.participantEndY.get('p-caller')).toBeLessThan(layout.participantEndY.get('p-service')!);
+  });
+});
+
+describe('single-branch fragment tab', () => {
+  const loop = (name: string, guard: string): SequenceFragment => ({
+    id: 'loop', kind: 'fragment', operator: 'loop', name,
+    operands: [{ id: 'op', guard, items: [message('m', 'a', 'b')] }],
+  });
+  const fragmentBox = (fragment: SequenceFragment) => buildSequenceLayout(content([fragment])).fragmentLayouts.get(fragment.id)!;
+
+  it('shows the name only in the tab, with no bracketed guard line', () => {
+    const box = fragmentBox(loop('por cada trámite', ''));
+    expect(box.tabLines.join(' ')).toBe('loop por cada trámite');
+    expect(box.operands[0].guardLines).toEqual([]);
+  });
+
+  it('takes the text from the guard when only the guard has it, and never repeats it', () => {
+    expect(getFragmentTabLabel(loop('', '[por cada trámite]'))).toEqual({ text: 'por cada trámite', field: 'guard' });
+    expect(getFragmentTabLabel(loop('por cada trámite', 'por cada trámite'))).toEqual({ text: 'por cada trámite', field: 'name' });
+    const box = fragmentBox(loop('', 'por cada trámite'));
+    expect(box.tabLines.join(' ')).toBe('loop por cada trámite');
+    expect(box.operands[0].guardLines).toEqual([]);
+  });
+
+  it('keeps bracketed guards for fragments with several branches', () => {
+    const alt: SequenceFragment = {
+      id: 'alt', kind: 'fragment', operator: 'alt', name: '',
+      operands: [{ id: 'a1', guard: 'ok', items: [message('m', 'a', 'b')] }, { id: 'a2', guard: 'else', items: [] }],
+    };
+    expect(fragmentBox(alt).operands[0].guardLines.join('')).toBe('ok');
   });
 });

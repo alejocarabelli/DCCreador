@@ -43,6 +43,37 @@ export const buildProjectSymbolIndex = (artifact: ClassDiagramArtifact | undefin
     relatedByClassName.get(targetName)?.add(sourceName);
   });
 
+  // A subclass has its parents' attributes and methods too: a flow that names them is right.
+  const parentIds = new Map<string, string[]>();
+  artifact.content.edges.forEach((edge) => {
+    if (edge.data?.relationType !== 'generalization') return;
+    const parent = edge.data.triangleEnd === 'source' ? edge.source : edge.target;
+    const child = parent === edge.source ? edge.target : edge.source;
+    parentIds.set(child, [...(parentIds.get(child) ?? []), parent]);
+  });
+  const lineage = (nodeId: string): ClassDiagramNode[] => {
+    const seen = new Set<string>();
+    const result: ClassDiagramNode[] = [];
+    const visit = (id: string): void => {
+      if (seen.has(id)) return; // an inheritance cycle stops here
+      seen.add(id);
+      const node = nodeById.get(id);
+      if (node === undefined) return;
+      result.push(node);
+      (parentIds.get(id) ?? []).forEach(visit);
+    };
+    visit(nodeId);
+    return result;
+  };
+  const uniqueByName = <Item extends { name: string }>(items: Item[]): Item[] => {
+    const names = new Set<string>();
+    return items.filter((item) => {
+      if (item.name.length === 0 || names.has(item.name)) return false;
+      names.add(item.name);
+      return true;
+    });
+  };
+
   const classes: ProjectSymbolClass[] = [];
 
   artifact.content.nodes.forEach((node) => {
@@ -52,14 +83,13 @@ export const buildProjectSymbolIndex = (artifact: ClassDiagramArtifact | undefin
       return;
     }
 
+    const family = lineage(node.id);
     classes.push({
       name,
-      attributes: node.data.attributes
-        .map((attribute) => ({ name: clean(attribute.name), type: clean(attribute.type) }))
-        .filter((attribute) => attribute.name.length > 0),
-      methods: node.data.methods
-        .map((method) => ({ name: clean(method.name), returnType: clean(method.returnType) || undefined }))
-        .filter((method) => method.name.length > 0),
+      attributes: uniqueByName(family.flatMap((member) => member.data.attributes
+        .map((attribute) => ({ name: clean(attribute.name), type: clean(attribute.type) })))),
+      methods: uniqueByName(family.flatMap((member) => member.data.methods
+        .map((method) => ({ name: clean(method.name), returnType: clean(method.returnType) || undefined })))),
       parametricValues: (node.data.parametricValues ?? [])
         .map((value) => clean(value.value))
         .filter((value) => value.length > 0),

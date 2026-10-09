@@ -8,7 +8,53 @@ import {
   normalizeSignatureQuotes,
   type SignatureCompletionData,
 } from '../utils/sequenceSignatureCompletion';
-import { getSequenceKeyboardInstruction, sequenceKeyboardMessageTypes } from '../utils/sequenceKeyboardMode';
+import { getSequenceKeyboardInstruction, noPendingCallFeedback, sequenceKeyboardMessageTypes } from '../utils/sequenceKeyboardMode';
+
+const typeWords: Record<SequenceMessageType, string> = {
+  synchronous: 'mensaje',
+  asynchronous: 'mensaje',
+  return: 'retorno',
+  create: 'crear',
+  destroy: 'destruir',
+};
+
+const typeLetters: Record<SequenceMessageType, string> = {
+  synchronous: 'S',
+  asynchronous: 'S',
+  return: 'R',
+  create: 'C',
+  destroy: 'D',
+};
+
+/** The UML arrow of each type, drawn in the same 44 x 14 box so they line up. */
+function TypeArrow({ type }: { type: SequenceMessageType }) {
+  return (
+    <svg aria-hidden="true" className="sequence-keyboard-arrow" fill="none" height="14" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" viewBox="0 0 44 14" width="44">
+      {type === 'return' ? (
+        <>
+          <path d="M41 7H8" strokeDasharray="3 2.5" />
+          <path d="M11 2.5L3.5 7l7.5 4.5" />
+        </>
+      ) : type === 'create' ? (
+        <>
+          <path d="M3 7H22" strokeDasharray="3 2.5" />
+          <path d="M18 2.5L25 7l-7 4.5" />
+          <rect height="10" rx="1.5" strokeWidth="1.3" width="12" x="29" y="2" />
+        </>
+      ) : type === 'destroy' ? (
+        <>
+          <path d="M3 7H31" />
+          <path d="M33.5 2.5l8 9M41.5 2.5l-8 9" />
+        </>
+      ) : (
+        <>
+          <path d="M3 7H32" />
+          <path d="M41 7l-9-4.5v9z" fill="currentColor" />
+        </>
+      )}
+    </svg>
+  );
+}
 
 const typeLabels: Record<SequenceMessageType, string> = {
   synchronous: 'Mensaje',
@@ -47,6 +93,10 @@ export function SequenceKeyboardComposer({
   onBack,
   onMethodSelect,
   onAddParticipant,
+  onOpenFragment,
+  onSelectType,
+  onMoveTarget,
+  returnAvailable = true,
 }: {
   state: SequenceKeyboardModeState;
   context: string;
@@ -63,6 +113,12 @@ export function SequenceKeyboardComposer({
   onBack: () => void;
   onMethodSelect: (method: SequenceMethodOption) => void;
   onAddParticipant: () => void;
+  onOpenFragment?: () => void;
+  onSelectType?: (type: SequenceMessageType) => void;
+  /** The ‹ › keys of the destination: the same as ← and → on the keyboard. */
+  onMoveTarget?: (direction: -1 | 1) => void;
+  /** False when no call is waiting for a return from here. */
+  returnAvailable?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -77,9 +133,13 @@ export function SequenceKeyboardComposer({
     let viewport: HTMLElement | null = popover.parentElement;
     while (viewport && !/(auto|scroll|hidden)/.test(getComputedStyle(viewport).overflowX)) viewport = viewport.parentElement;
     const fit = (): void => {
+      // Measure the resting position: without this the 0.15s transform
+      // transition returns a half-animated box and the nudge stays wrong.
+      popover.style.transition = 'none';
       popover.style.setProperty('--keyboard-nudge', '0px');
-      if (!viewport) return;
       const box = popover.getBoundingClientRect();
+      popover.style.transition = '';
+      if (!viewport) return;
       const bounds = viewport.getBoundingClientRect();
       const nudge = box.left < bounds.left + 8
         ? bounds.left + 8 - box.left
@@ -200,6 +260,7 @@ export function SequenceKeyboardComposer({
     ? 'synchronous'
     : state.messageType;
   const visibleMessageTypeLabel = typeLabels[visibleMessageType];
+  const destinationLabel = state.messageType === 'create' ? 'Ubicación' : state.messageType === 'return' ? 'Responde a' : 'Destino';
 
   return (
     <>
@@ -214,9 +275,11 @@ export function SequenceKeyboardComposer({
         {state.stage === 'navigate' ? (
           <div className="sequence-keyboard-navigate-pill">
             <span className="sequence-keyboard-pill-source" title={sourceName}>{sourceName}</span>
-            <span className="sequence-keyboard-pill-sep">·</span>
-            <span className="sequence-keyboard-pill-action"><kbd>Enter</kbd> conectar</span>
-            <button type="button" className="sequence-keyboard-add-participant" onClick={onAddParticipant}><kbd>P</kbd> Participante</button>
+            <div aria-label="Atajos" className="sequence-keyboard-shortcuts">
+              <span className="sequence-keyboard-shortcut"><kbd>Enter</kbd> conectar</span>
+              <button type="button" className="sequence-keyboard-shortcut" onClick={onAddParticipant}><kbd>P</kbd> participante</button>
+              <button type="button" className="sequence-keyboard-shortcut" onClick={onOpenFragment}><kbd>F</kbd> fragmento</button>
+            </div>
           </div>
         ) : (
           <>
@@ -226,30 +289,46 @@ export function SequenceKeyboardComposer({
                 <span>{context}</span>
               </div>
             ) : (
-              <div
-                aria-label={`Tipo de mensaje: ${visibleMessageTypeLabel}`}
-                className="sequence-keyboard-route"
-                data-message-type={visibleMessageType}
-              >
-                <span title={sourceName}>{sourceName}</span>
-                <b>{visibleMessageTypeLabel}</b>
-                <span title={targetName}>{targetName}</span>
+              <div className="sequence-keyboard-dest" data-message-type={visibleMessageType}>
+                <span className="sequence-keyboard-dest-top">
+                  <span className="sequence-keyboard-dest-label">{destinationLabel}</span>
+                  {state.stage === 'aim' ? (
+                    <span className="sequence-keyboard-dest-keys">
+                      <button aria-label="Destino anterior" className="sequence-keyboard-key" type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => onMoveTarget?.(-1)}>←</button>
+                      <button aria-label="Destino siguiente" className="sequence-keyboard-key" type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => onMoveTarget?.(1)}>→</button>
+                    </span>
+                  ) : (
+                    <span className="sequence-keyboard-dest-type">{visibleMessageTypeLabel}</span>
+                  )}
+                </span>
+                <strong className="sequence-keyboard-dest-name" title={targetName}>{targetName}</strong>
               </div>
             )}
 
             {state.stage === 'aim' ? (
-              <div aria-label="Tipos de mensaje" className="sequence-keyboard-type-row" role="listbox">
-                {sequenceKeyboardMessageTypes.map((type) => (
-                  <span
-                    aria-selected={visibleMessageType === type}
-                    className={visibleMessageType === type ? 'active' : ''}
-                    data-message-type={type}
-                    key={type}
-                    role="option"
-                  >
-                    {typeLabels[type]}
-                  </span>
-                ))}
+              <div aria-label="Tipos de mensaje" className="sequence-keyboard-types" role="listbox">
+                {sequenceKeyboardMessageTypes.map((type) => {
+                  const unavailable = type === 'return' && !returnAvailable;
+                  return (
+                    <button
+                      aria-disabled={unavailable}
+                      aria-selected={visibleMessageType === type}
+                      className={visibleMessageType === type ? 'active' : ''}
+                      data-message-type={type}
+                      disabled={unavailable}
+                      key={type}
+                      role="option"
+                      tabIndex={-1}
+                      title={unavailable ? noPendingCallFeedback : undefined}
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => onSelectType?.(type)}
+                    >
+                      <TypeArrow type={type} />
+                      <span className="sequence-keyboard-type-word"><kbd className="sequence-keyboard-key">{typeLetters[type]}</kbd>{typeWords[type]}</span>
+                    </button>
+                  );
+                })}
               </div>
             ) : null}
 
@@ -331,7 +410,7 @@ export function SequenceKeyboardComposer({
               </label>
             ) : null}
 
-            <small className="sequence-keyboard-hint">{instruction}</small>
+            {state.stage === 'aim' ? null : <small className="sequence-keyboard-hint">{instruction}</small>}
           </>
         )}
       </div>

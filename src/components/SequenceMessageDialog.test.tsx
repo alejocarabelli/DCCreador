@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { SequenceMessageDialog } from './SequenceMessageDialog';
-import { quickMessageValues } from '../utils/sequenceMessageDialogCompatibility';
+import { firstMessageRoute, quickMessageValues } from '../utils/sequenceMessageDialogCompatibility';
 import type { SequenceParticipant } from '../types/diagram';
 import { createSequenceMessageEditModel } from '../utils/sequenceMessageEditing';
 
@@ -170,5 +170,24 @@ describe('SequenceMessageDialog', () => {
       arguments: 'token',
       returnType: 'boolean',
     });
+  });
+});
+
+describe('firstMessageRoute', () => {
+  const at = (id: string, kind: SequenceParticipant['kind'], x: number): SequenceParticipant => ({ id, kind, name: id, classifierName: '', x });
+
+  it('starts at the actor even when it is not the leftmost participant', () => {
+    expect(firstMessageRoute([at('obj', 'object', 100), at('actor', 'actor', 300), at('ctrl', 'object', 500)]))
+      .toEqual({ sourceId: 'actor', targetId: 'ctrl' });
+  });
+
+  it('starts at the first participant when there is no actor, and goes to the previous one from the last', () => {
+    expect(firstMessageRoute([at('b', 'object', 300), at('a', 'object', 100)])).toEqual({ sourceId: 'a', targetId: 'b' });
+    expect(firstMessageRoute([at('a', 'object', 100), at('actor', 'actor', 300)])).toEqual({ sourceId: 'actor', targetId: 'a' });
+  });
+
+  it('is its own target with a single participant and undefined with none', () => {
+    expect(firstMessageRoute([at('a', 'actor', 100)])).toEqual({ sourceId: 'a', targetId: 'a' });
+    expect(firstMessageRoute([])).toBeUndefined();
   });
 });

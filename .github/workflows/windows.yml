@@ -55,5 +55,5 @@ jobs:
             --verify-tag \
             $PRERELEASE \
             --title "Modelador de Sistemas $GITHUB_REF_NAME" \
-            --notes-file REDISENO-V2.md || true
+            --notes-file docs/release-notes.md || true
           gh release upload "$GITHUB_REF_NAME" --clobber build/Modelador-de-Sistemas-*-Windows.exe

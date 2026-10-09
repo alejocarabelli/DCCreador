@@ -1788,19 +1788,20 @@
   background: color-mix(in srgb, var(--panel-background) 93%, var(--button-active-background));
   border-bottom: 1px solid color-mix(in srgb, var(--button-active-background) 25%, var(--panel-border));
   justify-content: space-between;
+  height: auto;
+  min-height: 38px;
 }
 .sequence-keyboard-guide-body {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  overflow: hidden;
+  gap: 2px 10px;
+  min-width: 0;
   flex: 1;
 }
 .sequence-keyboard-guide-context {
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--panel-text);
   font-weight: 700;
   font-size: 11px;
@@ -1808,9 +1809,8 @@
 .sequence-keyboard-guide-instruction {
   color: var(--panel-muted-text);
   font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .sequence-keyboard-exit-pill {
   flex: 0 0 auto;
@@ -1846,28 +1846,40 @@
 .sequence-keyboard-popover.placement-above::after, .sequence-keyboard-popover:not(.placement-below)::after { position: absolute; bottom: -7px; left: 50%; width: 12px; height: 12px; transform: translateX(-50%) rotate(45deg); border-right: 1px solid color-mix(in srgb, var(--button-active-background) 28%, var(--panel-border)); border-bottom: 1px solid color-mix(in srgb, var(--button-active-background) 28%, var(--panel-border)); background: inherit; content: ''; }
 .sequence-keyboard-popover.placement-below { transform: translate(-50%, 16px); }
 .sequence-keyboard-popover.placement-below::after { position: absolute; top: -7px; bottom: auto; left: 50%; width: 12px; height: 12px; transform: translateX(-50%) rotate(45deg); border-left: 1px solid color-mix(in srgb, var(--button-active-background) 28%, var(--panel-border)); border-top: 1px solid color-mix(in srgb, var(--button-active-background) 28%, var(--panel-border)); border-right: none; border-bottom: none; background: inherit; content: ''; }
-.sequence-keyboard-popover.stage-navigate { width: auto; max-width: max-content; padding: 6px 14px; border-radius: 999px; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 16px rgba(23, 44, 73, 0.16); font-size: 11.5px; white-space: nowrap; }
-.sequence-keyboard-navigate-pill { display: inline-flex; align-items: center; gap: 7px; }
-.sequence-keyboard-add-participant { flex: 0 0 auto; padding: 3px 7px; border: 1px solid color-mix(in srgb, var(--button-active-background) 30%, var(--panel-border)); border-radius: 999px; background: color-mix(in srgb, var(--button-active-background) 8%, transparent); color: var(--button-active-background); cursor: pointer; font: inherit; font-size: 11.5px; font-weight: 700; }
-.sequence-keyboard-add-participant:hover { background: color-mix(in srgb, var(--button-active-background) 16%, transparent); }
-.sequence-keyboard-add-participant kbd { display: inline-block; padding: 1px 4px; border-radius: 4px; background: color-mix(in srgb, var(--button-active-background) 14%, var(--panel-background)); border: 1px solid color-mix(in srgb, var(--button-active-background) 25%, var(--panel-border)); font: inherit; font-size: 11px; }
-.sequence-keyboard-pill-source { font-weight: 700; color: var(--panel-text); }
-.sequence-keyboard-pill-sep { color: var(--panel-muted-text); }
-.sequence-keyboard-pill-action { color: var(--panel-muted-text); font-size: 11px; }
-.sequence-keyboard-pill-action kbd { display: inline-block; padding: 1px 5px; border-radius: 4px; background: color-mix(in srgb, var(--button-active-background) 14%, var(--panel-background)); border: 1px solid color-mix(in srgb, var(--button-active-background) 25%, var(--panel-border)); color: var(--button-active-background); font-size: 11.5px; font-weight: 700; font-family: inherit; }
+.sequence-keyboard-popover.stage-navigate { width: auto; max-width: max-content; padding: 0; gap: 0; border-radius: var(--radius-lg, 10px); display: block; border-color: var(--panel-border); box-shadow: var(--shadow-popover); font-size: var(--text-xs, 11.5px); white-space: nowrap; }
+.sequence-keyboard-navigate-pill { display: grid; max-width: 340px; }
+.sequence-keyboard-pill-source { display: block; overflow: hidden; padding: 4px 12px; border-bottom: 1px solid var(--panel-border); border-radius: var(--radius-lg, 10px) var(--radius-lg, 10px) 0 0; background: var(--panel-muted-background); color: var(--panel-muted-text); font-size: var(--text-2xs, 10.5px); font-weight: 600; text-overflow: ellipsis; }
+.sequence-keyboard-shortcuts { display: flex; align-items: center; gap: 12px; padding: 6px 12px 7px; }
+.sequence-keyboard-shortcut { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; background: none; color: var(--panel-text); font: inherit; font-size: var(--text-xs, 11.5px); cursor: default; }
+button.sequence-keyboard-shortcut { cursor: pointer; }
+button.sequence-keyboard-shortcut:hover { color: var(--accent-strong); }
+.sequence-keyboard-shortcut kbd { border: 1px solid var(--accent-outline); border-bottom-width: 2px; border-radius: var(--radius-xs, 3px); background: var(--accent-soft); color: var(--accent-strong); font-family: var(--font-mono, monospace); font-size: var(--text-2xs, 10.5px); font-weight: 500; line-height: 1; padding: 2px 5px; }
 .sequence-keyboard-popover p { margin: 0; color: var(--panel-muted-text); font-size: 11px; line-height: 1.45; text-align: center; }
-.sequence-keyboard-route { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; padding: 8px 9px; border-radius: 8px; background: color-mix(in srgb, var(--button-active-background) 8%, transparent); font-size: 11px; }
-.sequence-keyboard-route span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sequence-keyboard-route span:last-child { text-align: right; }
-.sequence-keyboard-route b { padding: 3px 6px; border-radius: 5px; background: color-mix(in srgb, var(--button-active-background) 13%, transparent); color: var(--button-active-background); font-size: 11px; text-transform: uppercase; }
 .sequence-keyboard-panel-title { min-width: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 2px 1px 7px; border-bottom: 1px solid var(--panel-border); }
 .sequence-keyboard-panel-title strong { font-size: 12px; }
 .sequence-keyboard-panel-title span { overflow: hidden; color: var(--panel-muted-text); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .sequence-keyboard-popover label { display: grid; gap: 5px; color: var(--panel-muted-text); font-size: 11.5px; font-weight: 650; }
 .sequence-keyboard-popover input { width: 100%; min-height: 38px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--button-active-background) 42%, var(--panel-border)); border-radius: 8px; outline: none; background: var(--panel-background); color: var(--panel-text); font-size: 13px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--button-active-background) 9%, transparent); }
-.sequence-keyboard-type-row { display: flex; gap: 5px; overflow-x: auto; padding-bottom: 2px; }
-.sequence-keyboard-type-row span { flex: 0 0 auto; padding: 5px 7px; border: 1px solid var(--panel-border); border-radius: 999px; color: var(--panel-muted-text); font-size: 11px; }
-.sequence-keyboard-type-row span.active { border-color: var(--button-active-background); background: var(--button-active-background); color: var(--button-active-text); }
+.sequence-keyboard-popover.stage-aim { width: auto; min-width: 320px; max-width: min(480px, calc(100% - 28px)); padding: 0; gap: 0; border-color: var(--panel-border); border-radius: var(--radius-lg, 10px); box-shadow: var(--shadow-popover); font-size: var(--text-xs, 11.5px); }
+.sequence-keyboard-dest { min-width: 0; display: grid; gap: 3px; padding: 10px 14px 9px; }
+.sequence-keyboard-dest-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--panel-muted-text); font-size: var(--text-xs, 11.5px); }
+.sequence-keyboard-dest-label { font-variant-caps: all-small-caps; letter-spacing: .06em; }
+.sequence-keyboard-dest-type { color: var(--accent-strong); font-weight: 600; }
+.sequence-keyboard-dest-keys { display: inline-flex; gap: 3px; }
+.sequence-keyboard-dest-name { min-width: 0; overflow: hidden; color: var(--panel-text); font-size: var(--text-md, 13px); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.sequence-keyboard-key { display: inline-block; padding: 1px 3px; border: 1px solid var(--accent-outline); border-bottom-width: 2px; border-radius: var(--radius-xs, 3px); background: var(--accent-soft); color: var(--accent-strong); font-family: var(--font-mono, monospace); font-size: 9.5px; font-weight: 500; line-height: 1; }
+button.sequence-keyboard-key { min-width: 0; min-height: 0; height: auto; margin: 0; cursor: pointer; font-size: 9.5px; }
+button.sequence-keyboard-key:hover { border-color: var(--accent); }
+.sequence-keyboard-popover.stage-typing .sequence-keyboard-dest { margin: -13px -13px 0; padding: 10px 14px 9px; border-bottom: 1px solid var(--panel-border); }
+.sequence-keyboard-types { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 8px 8px 9px; border-top: 1px solid var(--panel-border); }
+.sequence-keyboard-types > button { display: grid; justify-items: center; gap: 6px; padding: 7px 2px 6px; border: 1px solid transparent; border-radius: var(--radius-md, 7px); background: transparent; color: var(--panel-muted-text); font: inherit; font-size: var(--text-xs, 11.5px); white-space: nowrap; cursor: pointer; }
+.sequence-keyboard-types > button:hover:not(:disabled):not(.active) { background: var(--panel-muted-background); color: var(--panel-text); }
+.sequence-keyboard-types > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.sequence-keyboard-types > button.active { border-color: var(--accent-outline); background: var(--accent-soft); color: var(--accent-strong); font-weight: 600; }
+.sequence-keyboard-types > button:disabled { opacity: .38; cursor: not-allowed; }
+.sequence-keyboard-arrow { display: block; }
+.sequence-keyboard-type-word { display: inline-flex; align-items: center; gap: 4px; }
+.sequence-keyboard-types > button.active .sequence-keyboard-key { background: var(--panel-background); }
 .sequence-keyboard-suggestions { max-height: 154px; display: grid; gap: 3px; overflow-y: auto; }
 .sequence-keyboard-suggestions button { min-width: 0; display: grid; gap: 2px; padding: 7px 9px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--panel-text); cursor: pointer; text-align: left; }
 .sequence-keyboard-suggestions button strong, .sequence-keyboard-suggestions button small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2158,138 +2170,6 @@
   background: var(--status-warning-soft);
 }
 
-/* Sequence Review Panel */
-.sequence-review-panel {
-  width: 320px;
-  background: var(--panel-background);
-  border-left: 1px solid var(--panel-border);
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow-y: auto;
-  z-index: 5;
-}
-.sequence-review-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--panel-border);
-}
-.sequence-review-title h3 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-}
-.sequence-review-badges {
-  display: flex;
-  gap: 6px;
-  margin-top: 4px;
-}
-.sequence-review-badges .badge-pill {
-  font-size: 12px;
-  padding: 1px 7px;
-  border-radius: 10px;
-  background: var(--panel-strong-background);
-  color: var(--panel-faint-text);
-  font-weight: 500;
-}
-.sequence-review-badges .badge-error.active {
-  background: var(--status-danger-soft-strong);
-  color: var(--status-danger-text);
-}
-.sequence-review-badges .badge-warning.active {
-  background: var(--status-warning-soft-strong);
-  color: var(--status-warning-text);
-}
-.sequence-review-content {
-  padding: 14px 16px;
-  flex: 1;
-}
-.sequence-review-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 40px 10px;
-  gap: 8px;
-}
-.sequence-review-empty-title {
-  font-weight: 600;
-  font-size: 14px;
-  margin: 0;
-}
-.sequence-review-empty-subtitle {
-  font-size: 12px;
-  color: var(--panel-muted-text);
-  margin: 0;
-}
-.sequence-review-section {
-  margin-bottom: 18px;
-}
-.sequence-review-section-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  margin: 0 0 8px;
-}
-.sequence-review-section-title.error-title {
-  color: var(--status-danger-text);
-}
-.sequence-review-section-title.warning-title {
-  color: var(--status-warning-text);
-}
-.sequence-review-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.sequence-review-item {
-  padding: 10px;
-  border-radius: 8px;
-  font-size: 12px;
-  border: 1px solid transparent;
-  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, box-shadow 120ms ease, opacity 120ms ease, transform 120ms ease;
-}
-.sequence-review-item.clickable {
-  cursor: pointer;
-}
-.sequence-review-item.item-error {
-  background: var(--status-danger-soft);
-  border-color: var(--status-danger-border);
-}
-.sequence-review-item.item-error:hover {
-  background: var(--status-danger-soft-strong);
-  border-color: var(--status-danger-border-strong);
-}
-.sequence-review-item.item-warning {
-  background: var(--status-warning-soft);
-  border-color: var(--status-warning-border);
-}
-.sequence-review-item.item-warning:hover {
-  background: var(--status-warning-soft-strong);
-  border-color: var(--status-warning-border-strong);
-}
-.sequence-review-code {
-  font-family: monospace;
-  font-size: 12px;
-  color: var(--panel-muted-text);
-}
-.sequence-review-message {
-  margin: 4px 0 0;
-  font-size: 12px;
-  line-height: 1.4;
-}
-.sequence-review-focus-hint {
-  display: inline-block;
-  margin-top: 6px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--status-info-text);
-}
 
 /* Sequence Inspector Polish & Resizer */
 .sequence-inspector-panel {
@@ -3523,7 +3403,7 @@
 }
 
 .app-shell[data-ui-version='refined'] .sequence-canvas-panel.keyboard-mode-active .sequence-canvas-scroll {
-  height: calc(100% - 38px);
+  height: calc(100% - var(--sequence-guide-height, 38px));
 }
 
 .app-shell[data-ui-version='refined'] .sequence-canvas-panel .sequence-sticky-participants {
@@ -3533,7 +3413,7 @@
 }
 
 .app-shell[data-ui-version='refined'] .sequence-canvas-panel.keyboard-mode-active .sequence-sticky-participants {
-  top: 38px;
+  top: var(--sequence-guide-height, 38px);
 }
 
 .app-shell[data-ui-version='refined'] .sequence-canvas-controls {
@@ -3548,8 +3428,9 @@
   top: auto;
   left: auto;
   width: 100%;
-  height: 38px;
-  padding: 0 12px;
+  height: auto;
+  min-height: 38px;
+  padding: 4px 12px;
   transform: none;
   border: 0;
   border-bottom: 1px solid var(--accent-outline);

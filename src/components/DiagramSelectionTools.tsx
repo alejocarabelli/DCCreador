@@ -37,7 +37,7 @@ export function DiagramSelectionTools({ count, onArrange, onDuplicate, onSelectA
   return (
     <ToolMenu
       icon={LayoutGrid}
-      label={count > 1 ? `Organizar (${count})` : 'Organizar'}
+      label={count > 1 ? `Organizar ${count} clases` : 'Organizar'}
       align="start"
       title="Seleccionar, duplicar, alinear y distribuir"
     >

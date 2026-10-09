@@ -697,8 +697,7 @@
 
 /* ─── Review panels: the same floating card in every editor ────────────── */
 
-.app-shell[data-ui-version='refined'] .diagram-review-panel,
-.app-shell[data-ui-version='refined'] .sequence-review-panel {
+.app-shell[data-ui-version='refined'] .diagram-review-panel {
   animation: v2-pop-in var(--duration) var(--ease-out);
   background: var(--panel-background);
   border: 1px solid var(--panel-border);
@@ -725,19 +724,10 @@
   position: relative;
 }
 
-.app-shell[data-ui-version='refined'] .sequence-review-panel {
-  height: auto;
-  max-height: calc(100% - var(--space-6));
-  position: absolute;
+.app-shell[data-ui-version='refined'] .sequence-workspace > .diagram-review-panel {
   right: calc(var(--sequence-inspector-width, 0px) + var(--space-3));
   top: var(--space-3);
-  width: min(340px, calc(100% - 32px));
   z-index: 30;
-}
-
-.app-shell[data-ui-version='refined'] .sequence-review-header {
-  border-bottom: 1px solid var(--panel-border);
-  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
 }
 
 /* ─── Narrow windows ───────────────────────────────────────────────────────

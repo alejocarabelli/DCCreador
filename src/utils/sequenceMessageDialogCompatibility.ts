@@ -1,4 +1,4 @@
-import type { SequenceMessage } from '../types/diagram';
+import type { SequenceMessage, SequenceParticipant } from '../types/diagram';
 import {
   sequenceMessageEditModelToPatch,
   type SequenceMessageEditModel,
@@ -17,3 +17,16 @@ export const messageDraftFields = (message?: SequenceMessage) => ({
 });
 
 export const quickMessageValues = (draft: QuickMessageDraft) => sequenceMessageEditModelToPatch(draft);
+
+/**
+ * Route proposed for the very first message of a diagram: it starts at the
+ * actor (else the first participant, left to right) and goes to the next
+ * different participant. A lone participant is its own target.
+ */
+export const firstMessageRoute = (participants: SequenceParticipant[]): { sourceId: string; targetId: string } | undefined => {
+  const sorted = [...participants].sort((left, right) => left.x - right.x);
+  const source = sorted.find((participant) => participant.kind === 'actor') ?? sorted[0];
+  if (!source) return undefined;
+  const index = sorted.indexOf(source);
+  return { sourceId: source.id, targetId: (sorted[index + 1] ?? sorted[index - 1] ?? source).id };
+};

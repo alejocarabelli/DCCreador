@@ -508,6 +508,63 @@
   font-weight: 400;
 }
 
+.app-shell .v2-sidebar-footer-end {
+  align-items: center;
+  display: flex;
+  gap: 2px;
+}
+
+.app-shell .v2-sidebar-version {
+  color: var(--panel-muted-text);
+  font-size: var(--text-2xs);
+  margin-right: var(--space-1);
+}
+
+/* Aviso de una versión nueva: una fila chica sobre los controles del pie. */
+.app-shell .v2-sidebar-update {
+  align-items: center;
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
+  color: var(--panel-text);
+  display: flex;
+  flex: 0 0 auto;
+  font-size: var(--text-xs);
+  gap: var(--space-2);
+  margin: var(--space-2) var(--space-2) 0;
+  padding: 2px 2px 2px var(--space-2);
+}
+
+.app-shell .v2-sidebar-update > span {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.app-shell .v2-sidebar-update a {
+  color: var(--accent);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.app-shell .v2-sidebar-update .v2-tool {
+  flex: 0 0 auto;
+}
+
+/* Riel colapsado: un punto de acento sobre Atajos cuando hay una versión nueva. */
+.app-shell .v2-sidebar-rail-footer .v2-tool {
+  position: relative;
+}
+
+.app-shell .v2-update-dot {
+  background: var(--accent);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--panel-background);
+  height: 7px;
+  position: absolute;
+  right: 3px;
+  top: 3px;
+  width: 7px;
+}
+
 /* Collapsed rail: toggle (same place as open), Inicio, the open project's
    artifacts, then shortcuts and theme at the bottom. */
 .app-shell[data-ui-version='refined'] .v2-sidebar.collapsed {
@@ -960,6 +1017,37 @@
 .app-shell .v2-shortcuts-section dd { color: var(--panel-secondary-text); margin: 0; }
 .app-shell .v2-shortcuts-section .v2-kbd-group { align-items: center; display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .app-shell .v2-shortcuts-section .v2-kbd-context { color: var(--panel-muted-text); font-size: var(--text-xs); }
+
+/* Versión instalada y búsqueda de actualizaciones, al pie del diálogo. */
+.app-shell .v2-shortcuts-update {
+  color: var(--panel-muted-text);
+  font-size: var(--text-xs);
+  margin: 0;
+}
+
+.app-shell .v2-shortcuts-update p {
+  margin: 0;
+}
+
+.app-shell .v2-shortcuts-update p + p {
+  margin-top: var(--space-1);
+}
+
+.app-shell .v2-shortcuts-update button,
+.app-shell .v2-shortcuts-update a {
+  background: none;
+  border: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.app-shell .v2-shortcuts-update button[aria-disabled='true'] {
+  color: var(--panel-muted-text);
+  cursor: default;
+}
 
 .app-shell .v2-sidebar.collapsed .theme-toggle .v2-menu-chevron { display: none; }
 

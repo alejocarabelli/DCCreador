@@ -209,6 +209,56 @@ export const createStepLine = (level: number, text = ''): string => {
   return `${stepIndent.repeat(safeLevel - 1)}${Array.from({ length: safeLevel }, () => '1').join('.')}. ${text}`;
 };
 
+/**
+ * A step whose number was deleted while its cell had focus keeps its text and
+ * gets its number back when the cell loses focus. `before` is the remembered
+ * text (see `rememberStepLines`); the first line is compared on its own, the
+ * other lines (sub-steps included) only while the cell kept its line count, so
+ * inserted or removed lines never shift a number onto the wrong text. Only the
+ * lost prefix comes back, with its own indentation and digits: the table
+ * renumbers afterwards. Bullets (`- `) are not steps and stay untouched.
+ */
+export const restoreLostStepMarker = (before: string, after: string): string => {
+  const previousLines = before.split('\n');
+  const lines = after.split('\n');
+  const sameShape = previousLines.length === lines.length;
+
+  return lines
+    .map((line, index) => {
+      if (index > 0 && !sameShape) return line;
+
+      const previous = parseFlowLine(previousLines[index] ?? '');
+      const current = parseFlowLine(line);
+
+      if (previous.kind !== 'step' || previous.number === undefined) return line;
+      if (current.kind !== 'text' || current.body.trim().length === 0) return line;
+
+      return `${stepIndent.repeat(Math.max(0, previous.level - 1))}${previous.number}. ${line.trimStart()}`;
+    })
+    .join('\n');
+};
+
+/**
+ * Text to remember for `restoreLostStepMarker`: `previous` (the cell before a
+ * change) with every numbered line kept. A line that already lost its number
+ * keeps the one remembered at the same position, so deleting a prefix and then
+ * typing on does not forget it. Returns `undefined` when nothing is a step.
+ */
+export const rememberStepLines = (remembered: string | undefined, previous: string): string | undefined => {
+  const previousLines = previous.split('\n');
+  const rememberedLines = remembered?.split('\n');
+  const sameShape = rememberedLines?.length === previousLines.length;
+
+  const merged = previousLines.map((line, index) => {
+    if (parseFlowLine(line).kind === 'step') return line;
+    const old = rememberedLines?.[index];
+    const keepsOld = old !== undefined && parseFlowLine(old).kind === 'step' && (index === 0 || sameShape);
+    return keepsOld ? old : line;
+  });
+
+  return merged.some((line) => parseFlowLine(line).kind === 'step') ? merged.join('\n') : undefined;
+};
+
 // ---------------------------------------------------------------------------
 // Alternative paths.
 

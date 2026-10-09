@@ -8,6 +8,8 @@ import {
   getTurnSwitchLevel,
   parseFlowLine,
   parseFlowText,
+  rememberStepLines,
+  restoreLostStepMarker,
   tokenizeFlowInline,
 } from './flowDocument';
 import { normalizeUseCaseFlowContentNumbering } from './useCaseFlowNumbering';
@@ -51,6 +53,72 @@ describe('parseFlowLine', () => {
   it('counts bullet depth from the step they detail', () => {
     const lines = parseFlowText('    3.1. Buscar Tramite con:\n        - a\n        - Relacionada a X con:\n            - b');
     expect(getBulletDepths(lines)).toEqual([0, 0, 0, 1]);
+  });
+});
+
+describe('restoreLostStepMarker', () => {
+  it('gives a step back its number when the marker was deleted', () => {
+    expect(restoreLostStepMarker('1. Iniciar', 'Iniciar')).toBe('1. Iniciar');
+    expect(restoreLostStepMarker('1. Iniciar', ' Iniciar')).toBe('1. Iniciar');
+  });
+
+  it('keeps the depth of a sub-step', () => {
+    expect(restoreLostStepMarker('    3.1. Buscar', 'Buscar')).toBe('    3.1. Buscar');
+  });
+
+  it('keeps the typed text, even when it starts with digits', () => {
+    expect(restoreLostStepMarker('1. Iniciar', '1 Iniciar')).toBe('1. 1 Iniciar');
+  });
+
+  it('restores any line of the cell, not only the first', () => {
+    expect(restoreLostStepMarker('1. A\n2. B', 'A\nB')).toBe('1. A\n2. B');
+    expect(restoreLostStepMarker('1. A\n2. B', '1. A\nB')).toBe('1. A\n2. B');
+    expect(restoreLostStepMarker('1. A\n2. B\n3. C', '1. A\n2. B\nC')).toBe('1. A\n2. B\n3. C');
+  });
+
+  it('restores a sub-step with its own number and depth', () => {
+    expect(restoreLostStepMarker('2. A\n    2.1. B', '2. A\nB')).toBe('2. A\n    2.1. B');
+    expect(restoreLostStepMarker('2. A\n    2.1. B\n    2.2. C', '2. A\n    2.1. B\nC')).toBe(
+      '2. A\n    2.1. B\n    2.2. C',
+    );
+  });
+
+  it('does not shift numbers when lines were added or removed', () => {
+    expect(restoreLostStepMarker('1. A\n2. B', '1. A\nB\nC')).toBe('1. A\nB\nC');
+    expect(restoreLostStepMarker('1. A\n2. B\n3. C', '1. A\nC')).toBe('1. A\nC');
+  });
+
+  it('keeps bullets next to the number in numbered tables', () => {
+    expect(restoreLostStepMarker('1. A\n- detalle', '1. A\n- detalle')).toBe('1. A\n- detalle');
+    expect(restoreLostStepMarker('1. A\n2. B\n- detalle', '1. A\nB\n- detalle')).toBe('1. A\n2. B\n- detalle');
+  });
+
+  it('leaves lines that were never numbered, bullets and empty cells alone', () => {
+    expect(restoreLostStepMarker('', 'Iniciar')).toBe('Iniciar');
+    expect(restoreLostStepMarker('Iniciar', 'Iniciar')).toBe('Iniciar');
+    expect(restoreLostStepMarker('1. Iniciar', '- Iniciar')).toBe('- Iniciar');
+    expect(restoreLostStepMarker('1. Iniciar', '')).toBe('');
+    expect(restoreLostStepMarker('1. Iniciar', '[CA 2]')).toBe('[CA 2]');
+  });
+
+  it('does nothing when the number is still there', () => {
+    expect(restoreLostStepMarker('1. Iniciar', '1. Iniciar sesión')).toBe('1. Iniciar sesión');
+  });
+});
+
+describe('rememberStepLines', () => {
+  it('remembers the numbered lines of a cell', () => {
+    expect(rememberStepLines(undefined, '1. A\n2. B')).toBe('1. A\n2. B');
+    expect(rememberStepLines(undefined, 'A\nB')).toBeUndefined();
+  });
+
+  it('keeps a number remembered after its line lost it', () => {
+    expect(rememberStepLines('1. A\n2. B', '1. A\n2B')).toBe('1. A\n2. B');
+    expect(rememberStepLines('1. A\n2. B', '1. A\nB')).toBe('1. A\n2. B');
+  });
+
+  it('forgets numbers when the line count changed', () => {
+    expect(rememberStepLines('1. A\n2. B', '1. A\nB\nC')).toBe('1. A\nB\nC');
   });
 });
 
