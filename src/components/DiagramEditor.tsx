@@ -88,6 +88,8 @@ type DiagramEditorProps = {
   externalFeedback?: string | null;
   /** Each new value frames these classes (e.g. the ones an import just added), selected. */
   revealRequest?: { key: number; nodeIds: string[] } | null;
+  /** Replaces the default card shown on an empty canvas, for editors that explain their own empty state. */
+  emptyState?: ReactNode;
   theme: DiagramTheme;
   onChangeContent: (content: DiagramContent, options?: ContentChangeOptions) => void;
   onRedo: () => void;
@@ -154,6 +156,7 @@ export function DiagramEditor({
   toolbarContext,
   externalFeedback = null,
   revealRequest = null,
+  emptyState,
   theme,
   onChangeContent,
   onRedo,
@@ -1681,7 +1684,7 @@ export function DiagramEditor({
                 />
               </>
             ) : null}
-            {renderedNodes.length === 0 ? (
+            {renderedNodes.length === 0 ? (emptyState ?? (
               <CanvasStartCard
                 title="Empezá por una clase"
                 action={(
@@ -1690,14 +1693,21 @@ export function DiagramEditor({
                   </button>
                 )}
               >
-                Agregá las clases del dominio y uní sus asociaciones. También podés hacer
-                doble clic en el lienzo para crear una donde quieras.
+                Agregá las clases del dominio. También podés hacer doble clic en el lienzo
+                para crear una donde quieras.
               </CanvasStartCard>
-            ) : null}
+            )) : null}
             <ClassAlignmentGuides movingIds={movingNodeIds} />
             <CanvasControls label="Controles del diagrama de clases" />
             {isMiniMapEnabled && nodes.length > 0 ? <MiniMap aria-label="Minimapa del diagrama" pannable zoomable /> : null}
           </ReactFlow>
+          {nodes.length >= 2 && normalizedEdges.length === 0 ? (
+            // Only until the first association exists: after that the hint has nothing left to teach.
+            <div className="canvas-hint" role="note">
+              Para relacionar dos clases, arrastrá uno de los puntos del borde de una clase hasta la otra.
+              Después tocá la línea para elegir multiplicidades.
+            </div>
+          ) : null}
           {reviewOpen ? <DiagramReviewPanel issues={reviewIssues} onFocus={focusIssue} onClose={() => setReviewOpen(false)} /> : null}
           {contextMenu !== null ? (
             <div

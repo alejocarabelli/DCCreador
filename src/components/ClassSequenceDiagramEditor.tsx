@@ -1,5 +1,5 @@
 import { Import, Link2, Workflow } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { DiagramTheme } from '../theme/themes';
 import type {
   ArtifactContent,
@@ -12,6 +12,7 @@ import type {
 } from '../types/diagram';
 import { importClassesFromSequences, planSequenceClassImport } from '../utils/sequenceClassImport';
 import { findUnlinkedSequences } from '../utils/sequenceModelLink';
+import { CanvasStartCard } from './CanvasStartCard';
 import { DiagramEditor } from './DiagramEditor';
 import { MenuItem, MenuLabel, MenuSeparator, ToolMenu } from './ui/Toolbar';
 import type { DiagramSaveStatus } from '../hooks/useProjects';
@@ -64,6 +65,36 @@ export function ClassSequenceDiagramEditor({
   const pendingGroups = new Map<string, typeof pending>();
   for (const novelty of pending) pendingGroups.set(novelty.className, [...(pendingGroups.get(novelty.className) ?? []), novelty]);
   const unlinkedCount = findUnlinkedSequences(project.artifacts).length;
+
+  // The empty canvas's button opens the same novelties menu as the toolbar, so it stays the one place to import from.
+  const syncMenuSlot = useRef<HTMLDivElement | null>(null);
+  const openSyncMenu = useCallback((): void => {
+    const details = syncMenuSlot.current?.querySelector('details');
+    if (details) details.open = true;
+  }, []);
+
+  // The menu opens under its trigger, which sits right of the toolbar's start: when the panel would run past the
+  // window's right edge, it opens to the left instead (and stays put if it would not fit there either).
+  const attachSyncMenuSlot = useCallback((slot: HTMLDivElement | null): (() => void) | undefined => {
+    syncMenuSlot.current = slot;
+    if (slot === null) return undefined;
+    const placePanel = (event: Event): void => {
+      const details = event.target;
+      if (!(details instanceof HTMLDetailsElement) || !details.open) return;
+      const panel = details.querySelector<HTMLElement>('.v2-menu-panel');
+      if (!panel) return;
+      const margin = 8;
+      details.classList.remove('opens-left');
+      if (panel.getBoundingClientRect().right <= window.innerWidth - margin) return;
+      details.classList.add('opens-left');
+      if (panel.getBoundingClientRect().left < margin) details.classList.remove('opens-left');
+    };
+    slot.addEventListener('toggle', placePanel, true);
+    return () => {
+      slot.removeEventListener('toggle', placePanel, true);
+      syncMenuSlot.current = null;
+    };
+  }, []);
 
   const handleChangeContent = useCallback(
     (content: DiagramContent, options?: { separateHistoryEntry?: boolean }): void => {
@@ -135,6 +166,38 @@ export function ClassSequenceDiagramEditor({
     },
   }), [artifact.createdAt, artifact.content.edges, artifact.content.nodes, artifact.id, artifact.name, artifact.updatedAt]);
 
+  const linkedNames = linkedSequenceDiagrams.map((sequence) => sequence.name).join(', ');
+  const renderEmptyState = (): ReactNode => {
+    const card = (note: ReactNode, action?: ReactNode): ReactNode => (
+      <CanvasStartCard title="Clases de secuencias" note={note} action={action}>
+        Reúne las clases y operaciones que aparecen en tus diagramas de secuencia.
+      </CanvasStartCard>
+    );
+
+    if (sequenceDiagrams.length === 0) {
+      return card('Primero armá un diagrama de secuencia; sus clases y mensajes van a aparecer acá para traerlas.');
+    }
+
+    if (linkedSequenceDiagrams.length === 0) {
+      if (unlinkedCount === 0) {
+        return card('Las secuencias del proyecto ya están vinculadas a otro modelo de clases.');
+      }
+      return card(
+        'Vinculá una secuencia para traer sus clases y mensajes.',
+        onLinkAllSequenceDiagrams ? <button className="secondary-action" type="button" onClick={refreshLinks}>Vincular secuencias</button> : undefined,
+      );
+    }
+
+    const pendingLabel = `${pending.length} ${pending.length === 1 ? 'novedad' : 'novedades'}`;
+    return card(
+      <>
+        Vinculado a: {linkedNames}.
+        {pending.length === 0 ? <><br />Todavía no hay clases para traer: asigná una clase a los participantes de la secuencia.</> : null}
+      </>,
+      pending.length > 0 ? <button className="secondary-action" type="button" onClick={openSyncMenu}>Ver {pendingLabel}</button> : undefined,
+    );
+  };
+
   const toolbarContext = (
     <ToolMenu
       label={pending.length > 0 ? `${pending.length} ${pending.length === 1 ? 'novedad' : 'novedades'}` : linkedSequenceDiagrams.length > 0 ? `✓ Al día con ${linkedSequenceDiagrams.length} ${linkedSequenceDiagrams.length === 1 ? 'secuencia' : 'secuencias'}` : 'Sin secuencias vinculadas'}
@@ -178,9 +241,10 @@ export function ClassSequenceDiagramEditor({
       saveStatus={saveStatus}
       project={project}
       theme={theme}
-      toolbarContext={toolbarContext}
+      toolbarContext={<div className="sequence-model-slot" ref={attachSyncMenuSlot}>{toolbarContext}</div>}
       externalFeedback={importFeedback}
       revealRequest={revealRequest}
+      emptyState={renderEmptyState()}
       onChangeContent={handleChangeContent}
       onRedo={onRedo}
       onUndo={onUndo}
