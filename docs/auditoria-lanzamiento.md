@@ -345,3 +345,25 @@ Agravantes que aparecieron al verificar:
 - **Sugerir actores ya creados** en flujo y secuencia: queda para después.
 - **Inicio asistido** (recorrido animado de primer uso): se evalúa al terminar la tanda 2.
 - **Sin plantillas:** `scripts/advancedSequenceRunner.tsx` (CHECK 5 y 6, script de verificación manual, no corre en CI) todavía busca el botón Plantillas; `REDISENO-V2.md`, que hoy se usa como notas de cada release, las menciona. Las notas de la 2.5.0 se escriben aparte en la tanda 4.
+
+## F. Segundo recorrido de primer uso (rama tanda-2)
+
+Puntaje del agente: **6/10** para arrancar sin ayuda. Lo que más ayudó: el ejemplo, la bienvenida, las pantallas vacías con acción directa y la pista de relaciones. Arreglados antes del PR de la tanda 2: texto al revés en Estado inicial/final, vista previa de exportación en blanco, «Maximum update depth» en el flujo, avisos de Revisar en el propio ejemplo.
+
+Para la tanda 3:
+1. La tarjeta vacía y el botón destacado piden cosas distintas (casos de uso: «Empezá por un actor» vs. botón «Caso de uso»; secuencia: «Empezá por el actor» vs. «Mensaje» activo sin participantes). El primer mensaje propone el último participante como origen.
+2. Selección múltiple: Shift+clic no suma (solo ⌘+clic, sin pista); con varios seleccionados el inspector muestra solo el primero.
+3. En el ejemplo no se entiende la relación entre los artefactos (modelo de dominio y «Clases de secuencias CU 3» se ven iguales; se abre primero el modelo de dominio y no los casos de uso).
+4. Clases de secuencias: «N novedades» es poco claro; no se pueden traer clases del dominio; los métodos llegan sin parámetros (E15).
+5. Secuencia: el botón de vincular mezcla «Vincular un modelo de clases», «Sin modelo de clases» y «Crear clases de secuencias».
+6. Flujo: placeholders que parecen valores («3» en número, «CA 1» en Ref.), el actor no se sugiere, «sin paso de origen» parece enlace y no hace nada, numeración «1. » como texto común (se pierde al borrarla), placeholders numerados repetidos.
+7. «Revisar» con tres formatos distintos (panel lateral en flujo, ventana flotante en clases y secuencia).
+8. Panel Revisar del flujo: cabecera corrida y tabla del camino básico cortada.
+9. Tipos: `Date` → `date` (E16); botón «S» sin explicación (E14).
+10. Mensaje: estructura muestra `f(a, b)` y el diagrama `f(a,b)`.
+11. Los diagramas del ejemplo se abren cortados (secuencia al 100 %) o con etiquetas superpuestas (clases).
+12. «Guía de artefactos para IA (.md)» en «Nuevo artefacto» no se entiende para un estudiante; nombre del ejemplo truncado en la barra lateral; «1 clases de secuencias» (E17).
+13. Casos de uso: elementos nuevos pegados al borde superior. Clases: «Descripción: Notas privadas…» y «Valores paramétricos» poco claros; la pista ocupa lugar; clases nuevas dispersas; «…» en extremos sin multiplicidad; una asociación nueva nace con flecha.
+14. Modo teclado: la barra de ayuda se corta.
+15. «Organizar (2)» y «Al día con 1 secuencia» sin explicación.
+16. Consola: `nodeTypes`/`edgeTypes` recreados en cada render (26 avisos de React Flow); falta favicon.
