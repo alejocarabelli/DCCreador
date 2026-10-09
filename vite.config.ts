@@ -6,7 +6,7 @@ export default defineConfig({
   base: './',
   plugins: [react()],
   test: {
-    // scratch/ holds local, git-ignored experiments; the suite is src/.
-    include: ['src/**/*.test.{ts,tsx}'],
+    // Keep local experiments out; include the native bridge regression on macOS.
+    include: ['src/**/*.test.{ts,tsx}', 'macos/*.test.js'],
   },
 });

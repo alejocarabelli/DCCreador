@@ -119,7 +119,7 @@ describe('backup scheduling and deletion snapshots', () => {
     expect(JSON.parse(postMessage.mock.calls[1][0].payload).projects[0].name).toBe('Antes de borrar');
   });
 
-  it('forces the prior artifact state and does not repeat an identical copy', async () => {
+  it('forces the prior artifact state and delegates identical copies to disk', async () => {
     saveProjects([normalizeDiagramProject({ ...seed, artifacts: [model, { ...model, id: 'other', name: 'Otro' }] })]);
     renderHook();
     await vi.advanceTimersByTimeAsync(MINUTE);
@@ -135,7 +135,7 @@ describe('backup scheduling and deletion snapshots', () => {
     expect(postMessage).toHaveBeenCalledTimes(3);
     expect(JSON.parse(postMessage.mock.calls[2][0].payload).projects[0].artifacts).toHaveLength(1);
     await renderHook().runBackupNow();
-    expect(postMessage).toHaveBeenCalledTimes(3);
+    expect(postMessage).toHaveBeenCalledTimes(4);
   });
 
   it('queues the pre-deletion snapshot behind an in-flight backup', async () => {

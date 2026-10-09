@@ -17,18 +17,22 @@ describe('disk backups', () => {
     postMessage.mockReset().mockResolvedValue({ path: '/backup/file.json', directory: '/backup' });
   });
 
-  it('does not write or rotate identical snapshots, including after the interval', async () => {
-    vi.spyOn(Date, 'now').mockReturnValueOnce(1000).mockReturnValueOnce(900000);
-    await writeBackup(projects);
-    expect(readLastBackupAt()).toBe(1000);
-    const hash = localStorage.getItem('design-projects:last-backup-hash');
-    expect(hash).not.toBeNull();
+  it('always lets the bridge check the files on disk, ignoring old persisted hashes', async () => {
+    localStorage.setItem('design-projects:last-backup-hash', 'old-hash');
+    const first = await writeBackup(projects);
     const duplicate = await writeBackup(structuredClone(projects));
-    expect(postMessage).toHaveBeenCalledTimes(1);
-    expect(readLastBackupAt()).toBe(1000);
-    expect(duplicate.at).toBe(1000);
-    expect(localStorage.getItem('design-projects:last-backup-hash')).toBe(hash);
-    vi.restoreAllMocks();
+    expect(postMessage).toHaveBeenCalledTimes(2);
+    expect(duplicate.path).toBe(first.path);
+    expect(readLastBackupAt()).toBe(duplicate.at);
+    expect(localStorage.getItem('design-projects:last-backup-hash')).toBe('old-hash');
+  });
+
+  it('does not persist a content hash for future sessions', async () => {
+    await writeBackup(projects);
+    expect(localStorage.getItem('design-projects:last-backup-hash')).toBeNull();
+    postMessage.mockResolvedValueOnce({ path: '/backup/recreated.json', directory: '/backup' });
+    expect((await writeBackup(projects)).path).toBe('/backup/recreated.json');
+    expect(postMessage).toHaveBeenCalledTimes(2);
   });
 
   it('writes changed snapshots and retries a failed write', async () => {
@@ -45,6 +49,8 @@ describe('disk backups', () => {
     expect(await preserveRecoveryCopy(raw)).toBe(true);
     expect(postMessage).toHaveBeenCalledWith({ action: 'preserve', payload: raw });
     expect(localStorage.length).toBe(0);
+    expect(await preserveRecoveryCopy(raw)).toBe(true);
+    expect(postMessage).toHaveBeenCalledTimes(2);
     postMessage.mockRejectedValueOnce(new Error('disk full'));
     expect(await preserveRecoveryCopy(raw)).toBe(false);
   });

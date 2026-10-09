@@ -106,3 +106,34 @@ describe('content loss detection', () => {
     expect(loadProjects().warning).toBeNull();
   });
 });
+
+
+describe('notebook loss detection', () => {
+  beforeEach(() => vi.stubGlobal('localStorage', createMemoryStorage()));
+
+  it.each([
+    { version: 1, blocks: 'apuntes rotos' },
+    { version: 1, blocks: { lost: { kind: 'text', text: 'Nota' } } },
+    { version: 1, blocks: [null, { id: 't', kind: 'text', text: 'Legible' }] },
+    { version: 1, blocks: [{ id: 's', kind: 'sketch', shapes: [null] }] },
+    { version: 1, blocks: [{ id: 's', kind: 'sketch', shapes: 'figuras rotas' }] },
+    { version: 1, blocks: [{ id: 't', kind: 'text', text: 42 }] },
+  ])('protects the original when notebook content is discarded: %j', (notebook) => {
+    const raw = storedWith([{ ...validArtifact, notebook }]);
+    localStorage.setItem(STORAGE_KEY, raw);
+    const loaded = loadProjects();
+    expect(loaded.projects).toHaveLength(1);
+    expect(loaded.skipInitialSave).toBe(true);
+    expect(loaded.recoveryRaw).toBe(raw);
+  });
+
+  it('keeps 601 valid figures without warning or loss', () => {
+    const shapes = Array.from({ length: 601 }, (_, i) => ({ id: `s${i}`, kind: 'rect', color: 'ink', x: i, y: 0, w: 10, h: 10 }));
+    const notebook = { version: 1, blocks: [{ id: 's', kind: 'sketch', height: 660, shapes }] };
+    localStorage.setItem(STORAGE_KEY, storedWith([{ ...validArtifact, notebook }]));
+    const loaded = loadProjects();
+    expect(loaded.skipInitialSave).toBe(false);
+    expect(loaded.recoveryRaw).toBeNull();
+    expect(loaded.projects[0].artifacts[0].notebook).toEqual(notebook);
+  });
+});

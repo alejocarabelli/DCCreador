@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_BLOCKS, MAX_TEXT_LENGTH, createNotebookBlock, normalizeArtifactNotebook } from './artifactNotebook';
+import { MAX_BLOCKS, MAX_SHAPES_PER_SKETCH, MAX_TEXT_LENGTH, createNotebookBlock, normalizeArtifactNotebook } from './artifactNotebook';
 import { changeText, toNotebook } from '../components/notebook/notebookBlocks';
 import { normalizeDiagramProject } from './diagramNormalization';
 
@@ -33,6 +33,14 @@ describe('A1: apuntes con más de los límites', () => {
 
     const reloaded = normalizeArtifactNotebook(JSON.parse(JSON.stringify(stored)));
     expect(reloaded?.blocks).toHaveLength(MAX_BLOCKS + 1);
+  });
+
+  it('601 figuras sobreviven a guardar y recargar sin recortes', () => {
+    const shapes = Array.from({ length: MAX_SHAPES_PER_SKETCH + 1 }, (_, i) => ({
+      id: `s${i}`, kind: 'rect', color: 'ink', x: i, y: 0, w: 10, h: 10,
+    }));
+    const stored = { version: 1, blocks: [{ id: 's', kind: 'sketch', height: 660, shapes }] };
+    expect(reload(stored).artifacts[0].notebook).toEqual(stored);
   });
 
   it('control: un apunte dentro de los límites se conserva tal cual', () => {

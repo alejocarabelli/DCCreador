@@ -182,6 +182,8 @@ function App() {
     setActiveProjectId,
     storageWarning,
     recoveryPending,
+    storageUnavailable,
+    retryStorage,
     downloadRecoveryCopy,
     confirmRecoveryDownload,
     continueWithoutRecovery,
@@ -773,6 +775,9 @@ function App() {
       {storageWarning !== null ? (
         <div className="app-storage-warning" role="status">
           <span>{storageWarning}</span>
+          {storageUnavailable ? (
+            <button className="home-button" type="button" onClick={retryStorage}>Reintentar</button>
+          ) : null}
           {recoveryPending ? (
             <div className="storage-warning-actions">
               <button className="home-button" type="button" onClick={async () => {

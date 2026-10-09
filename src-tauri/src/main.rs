@@ -93,6 +93,24 @@ fn backup(window: WebviewWindow, action: String, payload: Option<String>) -> Res
         }
         "write" | "preserve" => {
             let payload = payload.filter(|text| !text.is_empty()).ok_or("El respaldo llegó vacío.")?;
+            if action == "write" {
+                let latest = std::fs::read_dir(&dir).ok().into_iter().flatten().flatten()
+                    .filter_map(|entry| {
+                        let path = entry.path();
+                        let name = path.file_name()?.to_str()?;
+                        let metadata = entry.metadata().ok()?;
+                        if !metadata.is_file() || !name.starts_with("respaldo-") || !name.ends_with(".json") {
+                            return None;
+                        }
+                        Some((metadata.modified().ok()?, path))
+                    })
+                    .max_by_key(|(modified, _)| *modified);
+                if let Some((_, path)) = latest {
+                    if std::fs::read_to_string(&path).ok().as_deref() == Some(payload.as_str()) {
+                        return Ok(serde_json::json!({ "path": path.to_string_lossy(), "directory": directory }));
+                    }
+                }
+            }
             let prefix = if action == "preserve" { "recuperacion" } else { "respaldo" };
             let stamp = chrono::Local::now().format("%Y-%m-%d-%H%M%S-%f");
             let destination = dir.join(format!("{prefix}-{stamp}.json"));
