@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SequenceDiagramContent, SequenceFragment, SequenceMessage, SequenceParticipant } from '../types/diagram';
 import { createEmptySequenceDiagramContent, normalizeSequenceDiagramContent } from './sequenceDiagram';
-import { buildSequencePdfPlan, getSequenceExportBounds, getSequenceExportProtectedBands, getSequencePngScale } from './sequenceDiagramExport';
+import { buildSequencePdfPlan, getSequencePageGeometry, getSequenceExportBounds, getSequenceExportProtectedBands, getSequencePngScale } from './sequenceDiagramExport';
 import { buildSequenceLayout } from './sequenceDiagramLayout';
 
 const participant = (id: string, x: number, name = id): SequenceParticipant => ({ id, kind: 'object', name, classifierName: '', x });
@@ -200,5 +200,15 @@ describe('getSequencePngScale', () => {
     expect(big).toBeGreaterThan(1);
     expect(4000 * 6000 * big * big).toBeLessThanOrEqual(40_000_001);
     expect(getSequencePngScale({ width: 20_000, height: 400 })).toBe(1);
+  });
+});
+
+describe('getSequencePageGeometry', () => {
+  it('follows the chosen orientation so the preview matches the PDF page', () => {
+    const landscape = getSequencePageGeometry({ paperSize: 'a4', orientation: 'landscape', marginMm: 10 });
+    const portrait = getSequencePageGeometry({ paperSize: 'a4', orientation: 'portrait', marginMm: 10 });
+    expect(landscape.width).toBeGreaterThan(landscape.height);
+    expect(portrait.height).toBeGreaterThan(portrait.width);
+    expect(landscape.margin).toBeCloseTo(28.35, 1);
   });
 });

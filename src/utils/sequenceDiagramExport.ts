@@ -232,6 +232,16 @@ const cropSvg = (source: SVGSVGElement, bounds: SequenceDiagramBounds): SVGSVGEl
   return svg;
 };
 
+/** Page size and margin in points, as the PDF uses them. */
+export const getSequencePageGeometry = (suppliedOptions: Partial<SequenceExportOptions> = {}): { width: number; height: number; margin: number } => {
+  const options = { ...defaultSequenceExportOptions, ...suppliedOptions };
+  return { ...pageSize(options), margin: Math.max(0, Math.min(40, options.marginMm)) * 72 / 25.4 };
+};
+
+/** Data URI of the diagram slice a PDF page will show, for the export preview. */
+export const getSequencePagePreviewUri = (source: SVGSVGElement, page: SequenceExportPage): string =>
+  `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(cropSvg(source, page.source)))}`;
+
 export const canExportSequencePng = (svg: SVGSVGElement, bounds?: SequenceDiagramBounds): boolean => {
   const dimensions = bounds ?? svgDimensions(svg);
   return dimensions.width <= MAX_PNG_DIMENSION && dimensions.height <= MAX_PNG_DIMENSION && dimensions.width * dimensions.height <= MAX_PNG_PIXELS;
