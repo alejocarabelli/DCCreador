@@ -88,3 +88,21 @@ describe('placeNewElement', () => {
     expectInsideMargin(secondScreen);
   });
 });
+
+describe('placeNewElement when every retry is taken', () => {
+  it('never puts a new element exactly on top of another, and picks the least overlap', () => {
+    const small = { width: 600, height: 400 };
+    const first = placeNewElement({ canvas: small, viewport: origin, size: useCase, occupied: [] });
+    const second = placeNewElement({ canvas: small, viewport: origin, size: useCase, occupied: [{ ...first, ...useCase }] });
+    expect(second).not.toEqual(first);
+    const a = onScreen(first, useCase, origin);
+    const b = onScreen(second, useCase, origin);
+    const overlapArea = Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x))
+      * Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
+    expect(overlapArea).toBeLessThan(useCase.width * useCase.height);
+    expect(second.x).toBeGreaterThanOrEqual(NEW_ELEMENT_EDGE_MARGIN);
+    expect(second.y).toBeGreaterThanOrEqual(NEW_ELEMENT_EDGE_MARGIN);
+    expect(second.x + useCase.width).toBeLessThanOrEqual(small.width - NEW_ELEMENT_EDGE_MARGIN);
+    expect(second.y + useCase.height).toBeLessThanOrEqual(small.height - NEW_ELEMENT_EDGE_MARGIN);
+  });
+});

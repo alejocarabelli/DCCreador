@@ -8,6 +8,7 @@ import type {
   SequenceDiagramArtifact,
   SequenceDiagramContent,
 } from '../types/diagram';
+import { changeHistory, undoHistory, redoHistory, type ArtifactHistory } from '../utils/artifactHistory';
 import appSource from '../App.tsx?raw';
 import { createMemoryStorage, runtime, stubBrowser } from './testHookHarness';
 
@@ -133,6 +134,97 @@ describe('B3: deshacer y rehacer en una secuencia vinculada', () => {
     expect(sequenceOf(hook).items[0]).toMatchObject({ name: 'consultar', operationMethodId: 'm1' });
   });
 
+  it('conserva la línea base de un único paso tras 410 escrituras agrupadas', () => {
+    const hook = mount();
+    const baseline = clone(sequenceOf(hook));
+    let history: ArtifactHistory<SequenceDiagramContent> = { past: [], future: [] };
+    for (let i = 1; i <= 410; i++) {
+      history = changeHistory(history, clone(sequenceOf(hook)), i === 1);
+      const options = { alreadyNormalized: true, historySnapshots: [...history.past, ...history.future] };
+      hook.current().updateProjectArtifactContent('p', 'seq', {
+        ...clone(sequenceOf(hook)),
+        notes: [{ id: 'note', text: 'x'.repeat(i), anchorKind: 'free', x: 0, y: 0, width: 160, height: 100 }],
+      }, options);
+    }
+    expect(history.past).toEqual([baseline]);
+    renameInModel(hook);
+    hook.current().updateProjectArtifactContent('p', 'seq', baseline, { alreadyNormalized: true, fromHistory: true });
+    expect(sequenceOf(hook).notes).toEqual(baseline.notes);
+    expect(sequenceOf(hook).participants[0]).toMatchObject({ classifierName: 'Socio', classifierNodeId: 'c1' });
+    expect(sequenceOf(hook).items[0]).toMatchObject({ name: 'consultar', operationMethodId: 'm1' });
+  });
+
+  it('protege 60 pasos por secuencia frente a otras secuencias y permite ciclos completos de undo/redo', () => {
+    const project = seed();
+    const sequences = Array.from({ length: 7 }, (_, i) => ({ ...clone(sequence), id: `seq${i}` }));
+    project.artifacts = [clone(model), ...sequences];
+    saveProjects([normalizeDiagramProject(project)]);
+    renderHook();
+    const hook = { current: renderHook };
+    const histories = new Map<string, ArtifactHistory<SequenceDiagramContent>>();
+    const read = (id: string) => (artifactOf(hook, id) as SequenceDiagramArtifact).content;
+    for (const seq of sequences) {
+      let history: ArtifactHistory<SequenceDiagramContent> = { past: [], future: [] };
+      for (let i = 1; i <= 60; i++) {
+        const current = clone(read(seq.id));
+        history = changeHistory(history, current, true);
+        hook.current().updateProjectArtifactContent('p', seq.id, {
+          ...current, participants: current.participants.map((p) => ({ ...p, x: i })),
+        }, { alreadyNormalized: true, historySnapshots: [...history.past, ...history.future] });
+      }
+      histories.set(seq.id, history);
+    }
+    renameInModel(hook);
+    // Each retained baseline survives the 420 total entries and repeated traversal.
+    for (let cycle = 0; cycle < 2; cycle++) {
+      for (const seq of sequences) {
+        let history = histories.get(seq.id)!;
+        for (const replay of [undoHistory<SequenceDiagramContent>, redoHistory<SequenceDiagramContent>]) {
+          for (let step = 0; step < 60; step++) {
+            const result = replay(history, clone(read(seq.id)));
+            history = result.history;
+            hook.current().updateProjectArtifactContent('p', seq.id, result.content!, {
+              alreadyNormalized: true, fromHistory: true, historySnapshots: [...history.past, ...history.future],
+            });
+            expect(read(seq.id).participants[0]).toMatchObject({ classifierName: 'Socio', classifierNodeId: 'c1' });
+            expect(read(seq.id).items[0]).toMatchObject({ name: 'consultar', operationMethodId: 'm1' });
+          }
+        }
+        histories.set(seq.id, history);
+      }
+    }
+  });
+
+  it('expulsa las líneas base fuera del historial y no fuerza nombres si faltan', () => {
+    const hook = mount();
+    const discarded = clone(sequenceOf(hook));
+    moveP2(hook, 420);
+    // Starting a new history branch explicitly drops the former baseline.
+    hook.current().updateProjectArtifactContent('p', 'seq', clone(sequenceOf(hook)), {
+      alreadyNormalized: true, historySnapshots: [],
+    });
+    renameInModel(hook);
+    hook.current().updateProjectArtifactContent('p', 'seq', discarded, {
+      alreadyNormalized: true, fromHistory: true, historySnapshots: [],
+    });
+    expect(sequenceOf(hook)).toEqual(discarded);
+  });
+
+  it('propaga buscar → vacío → consultar preservando argumentos y texto personalizado', () => {
+    const hook = mount();
+    const content = clone(sequenceOf(hook));
+    content.items[0] = { ...content.items[0], name: 'buscar(id)', arguments: 'otro' } as typeof content.items[0];
+    content.participants[0].classifierName = 'Cliente VIP';
+    hook.current().updateProjectArtifactContent('p', 'seq', content, { alreadyNormalized: true });
+    for (const name of ['', 'c', 'co', 'consultar']) {
+      const model = clone(modelOf(hook));
+      model.nodes[0].data.methods[0].name = name;
+      hook.current().updateProjectArtifactContent('p', 'model', model, { alreadyNormalized: true });
+    }
+    expect(sequenceOf(hook).items[0]).toMatchObject({ name: 'consultar(id)', operationMethodId: 'm1', arguments: 'otro' });
+    expect(sequenceOf(hook).participants[0].classifierName).toBe('Cliente VIP');
+  });
+
   it('rehacer después de un renombre no vuelve a poner los nombres anteriores', () => {
     const hook = mount();
     const historyEntry = clone(sequenceOf(hook));
@@ -154,6 +246,84 @@ describe('B3: deshacer y rehacer en una secuencia vinculada', () => {
     expect(sequenceOf(hook).participants[1].x).toBe(420);
     expect(sequenceOf(hook).participants[0]).toMatchObject({ classifierName: 'Socio', classifierNodeId: 'c1' });
     expect(sequenceOf(hook).items[0]).toMatchObject({ name: 'consultar', operationMethodId: 'm1' });
+  });
+
+  it('deshacer y rehacer un movimiento conserva argumentos embebidos y etiquetas personalizadas', () => {
+    const hook = mount();
+    const content = clone(sequenceOf(hook));
+    content.participants[0].classifierName = 'Cliente VIP';
+    content.items[0] = { ...content.items[0], name: 'buscar(id)', arguments: '' } as typeof content.items[0];
+    hook.current().updateProjectArtifactContent('p', 'seq', content, { alreadyNormalized: true });
+    const history = clone(sequenceOf(hook));
+    moveP2(hook, 420);
+    const redo = clone(sequenceOf(hook));
+    hook.current().updateProjectArtifactContent('p', 'seq', history, { alreadyNormalized: true, fromHistory: true });
+    expect(sequenceOf(hook)).toEqual(history);
+    hook.current().updateProjectArtifactContent('p', 'seq', redo, { alreadyNormalized: true, fromHistory: true });
+    expect(sequenceOf(hook)).toEqual(redo);
+  });
+
+  it('un renombre real al restaurar conserva argumentos y texto personalizado', () => {
+    const hook = mount();
+    const content = clone(sequenceOf(hook));
+    content.participants[0].classifierName = 'Cliente VIP';
+    content.items[0] = { ...content.items[0], name: 'buscar(id)', arguments: '' } as typeof content.items[0];
+    hook.current().updateProjectArtifactContent('p', 'seq', content, { alreadyNormalized: true });
+    const history = clone(sequenceOf(hook));
+    moveP2(hook, 420);
+    renameInModel(hook);
+    expect(sequenceOf(hook).items[0]).toMatchObject({ name: 'consultar(id)', arguments: '' });
+    hook.current().updateProjectArtifactContent('p', 'seq', history, { alreadyNormalized: true, fromHistory: true });
+    expect(sequenceOf(hook).participants[0].classifierName).toBe('Cliente VIP');
+    expect(sequenceOf(hook).items[0]).toMatchObject({ name: 'consultar(id)', arguments: '' });
+  });
+
+  it('una línea base capturada durante el nombre vacío conserva el último nombre real', () => {
+    const hook = mount();
+    const blank = clone(modelOf(hook));
+    blank.nodes[0].data.name = '';
+    blank.nodes[0].data.methods[0].name = '';
+    hook.current().updateProjectArtifactContent('p', 'model', blank, { alreadyNormalized: true });
+    const snapshot = clone(sequenceOf(hook));
+    moveP2(hook, 420);
+    renameInModel(hook);
+    hook.current().updateProjectArtifactContent('p', 'seq', snapshot, { alreadyNormalized: true, fromHistory: true });
+    expect(sequenceOf(hook).participants[0]).toMatchObject({ classifierName: 'Socio', classifierNodeId: 'c1' });
+    expect(sequenceOf(hook).items[0]).toMatchObject({ name: 'consultar', operationMethodId: 'm1' });
+    expect(sequenceOf(hook).participants[1].x).toBe(300);
+  });
+
+  it('mantiene renombres y restauraciones cuando StrictMode repite el actualizador', () => {
+    const originalUseState = runtime.api.useState;
+    const repeatedUseState: typeof originalUseState = (initial) => {
+      const [value, setValue] = originalUseState(initial);
+      return [value, (update) => setValue((current) => {
+        if (typeof update !== 'function') return update;
+        const updater = update as (value: typeof current) => typeof current;
+        updater(current);
+        return updater(current);
+      })];
+    };
+    const spy = vi.spyOn(runtime.api, 'useState').mockImplementation(repeatedUseState);
+    try {
+      const hook = mount();
+      const blank = clone(modelOf(hook));
+      blank.nodes[0].data.methods[0].name = '';
+      hook.current().updateProjectArtifactContent('p', 'model', blank, { alreadyNormalized: true });
+      const snapshot = clone(sequenceOf(hook));
+      hook.current().updateProjectArtifactContent('p', 'seq', {
+        ...snapshot, participants: snapshot.participants.map((p) => ({ ...p, x: 420 })),
+      }, { alreadyNormalized: true, historySnapshots: [snapshot] });
+      renameInModel(hook);
+      expect(sequenceOf(hook).items[0]).toMatchObject({ name: 'consultar' });
+      hook.current().updateProjectArtifactContent('p', 'seq', snapshot, {
+        alreadyNormalized: true, fromHistory: true, historySnapshots: [],
+      });
+      expect(sequenceOf(hook).participants[0]).toMatchObject({ classifierName: 'Socio' });
+      expect(sequenceOf(hook).items[0]).toMatchObject({ name: 'consultar' });
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('una edición normal conserva el texto de un participante vinculado', () => {
@@ -188,7 +358,7 @@ describe('B3: deshacer y rehacer en una secuencia vinculada', () => {
   });
 
   it('App pide la restauración con fromHistory en deshacer y en rehacer', () => {
-    expect(appSource).toMatch(/cloneContentForType\(activeArtifact\.type, previousContent\), \{ alreadyNormalized: true, fromHistory: true \}\)/);
-    expect(appSource).toMatch(/cloneContentForType\(activeArtifact\.type, nextContent\), \{ alreadyNormalized: true, fromHistory: true \}\)/);
+    expect(appSource).toMatch(/cloneContentForType\(activeArtifact\.type, previousContent\), \{ alreadyNormalized: true, fromHistory: true, historySnapshots: \[\.\.\.result\.history\.past, \.\.\.result\.history\.future\] \}\)/);
+    expect(appSource).toMatch(/cloneContentForType\(activeArtifact\.type, nextContent\), \{ alreadyNormalized: true, fromHistory: true, historySnapshots: \[\.\.\.result\.history\.past, \.\.\.result\.history\.future\] \}\)/);
   });
 });

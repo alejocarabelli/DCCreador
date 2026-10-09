@@ -4,7 +4,6 @@ import type { DesignArtifact } from '../types/diagram';
 import { artifactTypeInfo } from '../constants/artifactTypes';
 import { reorderArtifactTabs } from '../utils/artifactTabs';
 import { ArtifactTypeIcon } from './ArtifactTypeIcon';
-import { isViewableArtifact } from '../storage/nativeWindows';
 
 type ArtifactTabProps = {
   artifact: DesignArtifact;
@@ -322,7 +321,7 @@ export function ArtifactTabs({ projectName, artifacts, openArtifactIds, activeAr
             </button>
           )) : (
             <>
-              {onOpenInWindow && isViewableArtifact(artifacts.find((artifact) => artifact.id === menu.artifactId)) ? (
+              {onOpenInWindow ? (
                 <button type="button" role="menuitem" onClick={() => menuAction(() => onOpenInWindow(menu.artifactId))}>Abrir en ventana nueva</button>
               ) : null}
               <button type="button" role="menuitem" onClick={() => menuAction(() => closeTab(menu.artifactId))}>Cerrar</button>

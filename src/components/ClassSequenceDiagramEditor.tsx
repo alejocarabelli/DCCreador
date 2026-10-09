@@ -130,7 +130,7 @@ export function ClassSequenceDiagramEditor({
       keys,
     );
 
-    if (summary.createdClasses === 0 && summary.addedMethods === 0 && summary.addedAttributes === 0) {
+    if (summary.createdClasses === 0 && summary.addedMethods === 0 && summary.updatedMethods === 0 && summary.addedAttributes === 0) {
       setImportFeedback('No hay clases, atributos ni métodos nuevos: el modelo ya incluye todo lo de esa secuencia.');
       return;
     }
@@ -149,6 +149,7 @@ export function ClassSequenceDiagramEditor({
       summary.createdClasses > 0 ? `${summary.createdClasses} ${summary.createdClasses === 1 ? 'clase nueva' : 'clases nuevas'}` : null,
       summary.addedAttributes > 0 ? `${summary.addedAttributes} ${summary.addedAttributes === 1 ? 'atributo' : 'atributos'}` : null,
       summary.addedMethods > 0 ? `${summary.addedMethods} ${summary.addedMethods === 1 ? 'método' : 'métodos'}` : null,
+      summary.updatedMethods > 0 ? `${summary.updatedMethods} ${summary.updatedMethods === 1 ? 'método completado' : 'métodos completados'}` : null,
     ].filter((part): part is string => part !== null);
     const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} y ${parts[parts.length - 1]}` : parts[0];
     setImportFeedback(`Importado: ${list}.`);

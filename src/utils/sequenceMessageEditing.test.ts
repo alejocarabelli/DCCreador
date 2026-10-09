@@ -8,6 +8,7 @@ import {
   getSequenceMessageReferenceStatus,
   getSequenceMethodOptions,
   getSequenceSignatureInputValue,
+  formatArgumentList,
   formatMessageSignature,
   parseMessageSignature,
   reconcileMessageLifecycleMarkers,
@@ -346,5 +347,29 @@ describe('message arguments shown with ", "', () => {
     expect(formatSequenceMessageLabel(withReadableArguments(message))).toBe('f(a, b)');
     expect(formatSequenceMessageLabel(message)).toBe('f(a, b)');
     expect(message.arguments).toBe('a,b');
+  });
+});
+
+
+describe('escaped quotes in displayed arguments', () => {
+  it.each([
+    [String.raw`"a\",b,c",d`, String.raw`f("a\",b,c", d)`],
+    [String.raw`'a\',b,c',d`, String.raw`f('a\',b,c', d)`],
+    [String.raw`"a\\",d`, String.raw`f("a\\", d)`],
+    [String.raw`g("a\",b,c",d),e`, String.raw`f(g("a\",b,c", d), e)`],
+  ])('preserves quoted contents of %s', (args, expected) => {
+    expect(formatMessageSignature({ name: 'f', arguments: args })).toBe(expected);
+  });
+});
+
+describe('deeply nested arguments do not overflow the stack', () => {
+  it('formatArgumentList returns text containing the innermost argument instead of throwing', () => {
+    const args = 'f('.repeat(3200) + 'id' + ')'.repeat(3200);
+
+    let result = '';
+    expect(() => {
+      result = formatArgumentList(args);
+    }).not.toThrow();
+    expect(result).toContain('id');
   });
 });

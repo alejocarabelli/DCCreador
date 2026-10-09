@@ -77,7 +77,7 @@ const SECTIONS: Array<{ title: string; shortcuts: Shortcut[] }> = [
       ['Esc', 'Volver un paso'],
       ['←  →', 'Elegir participante'],
       ['↵', 'Mensaje síncrono'],
-      ['S  R  C  D', 'Síncrono, retorno, creación, destrucción'],
+      ['S  R  C  D', 'Tipo de mensaje: síncrono, retorno, creación, destrucción (también con clic)'],
       ['P', 'Nuevo participante'],
       ['F', 'Fragmento combinado'],
       ['G', 'Editar la condición del operando'],

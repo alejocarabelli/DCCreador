@@ -211,20 +211,52 @@ export const createStepLine = (level: number, text = ''): string => {
 
 /**
  * A step whose number was deleted while its cell had focus keeps its text and
- * gets its number back: `before` is the last text of the cell whose first line
- * was still a step, `after` the text when it lost focus. Only the first line
- * counts; the table renumbers the digits afterwards.
+ * gets its number back when the cell loses focus. `before` is the remembered
+ * text (see `rememberStepLines`); the first line is compared on its own, the
+ * other lines (sub-steps included) only while the cell kept its line count, so
+ * inserted or removed lines never shift a number onto the wrong text. Only the
+ * lost prefix comes back, with its own indentation and digits: the table
+ * renumbers afterwards. Bullets (`- `) are not steps and stay untouched.
  */
 export const restoreLostStepMarker = (before: string, after: string): string => {
-  const previous = parseFlowLine(before.split('\n')[0] ?? '');
+  const previousLines = before.split('\n');
   const lines = after.split('\n');
-  const first = parseFlowLine(lines[0] ?? '');
+  const sameShape = previousLines.length === lines.length;
 
-  if (previous.kind !== 'step' || previous.number === undefined) return after;
-  if (first.kind !== 'text' || first.body.trim().length === 0) return after;
+  return lines
+    .map((line, index) => {
+      if (index > 0 && !sameShape) return line;
 
-  lines[0] = `${stepIndent.repeat(Math.max(0, previous.level - 1))}${previous.number}. ${(lines[0] ?? '').trimStart()}`;
-  return lines.join('\n');
+      const previous = parseFlowLine(previousLines[index] ?? '');
+      const current = parseFlowLine(line);
+
+      if (previous.kind !== 'step' || previous.number === undefined) return line;
+      if (current.kind !== 'text' || current.body.trim().length === 0) return line;
+
+      return `${stepIndent.repeat(Math.max(0, previous.level - 1))}${previous.number}. ${line.trimStart()}`;
+    })
+    .join('\n');
+};
+
+/**
+ * Text to remember for `restoreLostStepMarker`: `previous` (the cell before a
+ * change) with every numbered line kept. A line that already lost its number
+ * keeps the one remembered at the same position, so deleting a prefix and then
+ * typing on does not forget it. Returns `undefined` when nothing is a step.
+ */
+export const rememberStepLines = (remembered: string | undefined, previous: string): string | undefined => {
+  const previousLines = previous.split('\n');
+  const rememberedLines = remembered?.split('\n');
+  const sameShape = rememberedLines?.length === previousLines.length;
+
+  const merged = previousLines.map((line, index) => {
+    if (parseFlowLine(line).kind === 'step') return line;
+    const old = rememberedLines?.[index];
+    const keepsOld = old !== undefined && parseFlowLine(old).kind === 'step' && (index === 0 || sameShape);
+    return keepsOld ? old : line;
+  });
+
+  return merged.some((line) => parseFlowLine(line).kind === 'step') ? merged.join('\n') : undefined;
 };
 
 // ---------------------------------------------------------------------------

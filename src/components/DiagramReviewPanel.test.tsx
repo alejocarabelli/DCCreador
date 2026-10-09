@@ -21,3 +21,10 @@ describe('DiagramReviewPanel', () => {
     expect(html).toContain('Revisar');
   });
 });
+
+describe('DiagramReviewPanel focus and Escape', () => {
+  it('makes the panel itself focusable so Escape can reach it', () => {
+    const html = renderToString(<DiagramReviewPanel issues={[]} onClose={vi.fn()} onFocus={vi.fn()} />);
+    expect(html).toMatch(/<section[^>]*tabindex="-1"/);
+  });
+});

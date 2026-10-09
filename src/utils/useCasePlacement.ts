@@ -36,7 +36,7 @@ const isTooClose = (a: PlacementRect, b: PlacementRect, clearance: number): bool
  * Where an element created from the toolbar lands: in the middle of what the
  * person sees, at least the edge margin away from every side. If that spot is
  * taken, it cascades right and down until it finds room, up to a few tries.
- * Failing that, it keeps the middle spot.
+ * Failing that, it takes the tried spot with the least overlap with what is there.
  */
 export const placeNewElement = ({ canvas, viewport, size, occupied }: PlacementRequest): XYPosition => {
   const zoom = viewport.zoom > 0 ? viewport.zoom : 1;
@@ -65,6 +65,11 @@ export const placeNewElement = ({ canvas, viewport, size, occupied }: PlacementR
     y: Math.round((point.y - viewport.y) / zoom),
   });
 
+  const overlapArea = (a: PlacementRect, b: PlacementRect): number =>
+    Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x))
+    * Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
+
+  let leastOverlap = { point: start, area: Number.POSITIVE_INFINITY };
   for (let attempt = 0; attempt < NEW_ELEMENT_MAX_ATTEMPTS; attempt += 1) {
     const candidate = {
       x: wrap(start.x + attempt * NEW_ELEMENT_CASCADE_STEP, minX, maxX),
@@ -74,7 +79,10 @@ export const placeNewElement = ({ canvas, viewport, size, occupied }: PlacementR
     if (busy.every((rect) => !isTooClose(frame, rect, NEW_ELEMENT_CLEARANCE))) {
       return toCanvas(candidate);
     }
+    const area = busy.reduce((sum, rect) => sum + overlapArea(frame, rect), 0);
+    if (area < leastOverlap.area) leastOverlap = { point: candidate, area };
   }
 
-  return toCanvas(start);
+  // Every retry is taken: the tried spot that overlaps the least, never one exactly on top of another element.
+  return toCanvas(leastOverlap.point);
 };

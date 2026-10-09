@@ -159,6 +159,9 @@ export function SequenceMessageDialog({
         const nextText = ret ? `${name}(): ${ret}` : `${name}()`;
         setSignatureText(nextText);
         onChange(commitDraft(newType, nextText));
+      } else if (draft.type === 'destroy') {
+        // A destroy keeps the whole text as its name: a call has to split it again.
+        onChange(commitDraft(newType));
       } else {
         onChange(updateSequenceMessageEditModel(draft, { type: newType }));
       }
@@ -188,7 +191,9 @@ export function SequenceMessageDialog({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const finalDraft = commitDraft();
+    // Text changes already update the draft; parsing the displayed signature
+    // here would persist presentation spacing even when nothing was edited.
+    const finalDraft = draft;
     onChange(finalDraft);
     onSubmit(event, finalDraft);
   };

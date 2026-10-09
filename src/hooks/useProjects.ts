@@ -39,6 +39,7 @@ import {
   findClassModelRenames,
   hasClassModelRenames,
   isSequenceUsingClassModel,
+  retainNonEmptyClassModelNames,
 } from '../utils/classRenamePropagation';
 import { createId } from '../utils/id';
 import { artifactTypeInfo } from '../constants/artifactTypes';
@@ -175,9 +176,40 @@ export const setNotebookInProject = (
 
 export type DiagramSaveStatus = 'saved' | 'saving' | 'error';
 
+// Only callers without App's explicit history use this fallback cache.
+const MAX_SEQUENCE_SNAPSHOT_MODELS = 121; // 60 past + 60 future + current
+
+type SequenceSnapshotModels = {
+  managed: boolean;
+  models: Map<string, Pick<ClassDiagramContent, 'nodes'>>;
+};
+
 export const useProjects = () => {
   const [storageLoad, setStorageLoad] = useState(loadProjects);
   const [projects, setProjects] = useState<DiagramProject[]>(storageLoad.projects);
+  // App's undo entries are JSON clones. Keep their model baseline here, outside
+  // persisted/exported data, keyed by the exact sequence state they clone.
+  const sequenceSnapshotModels = useRef(new Map<string, SequenceSnapshotModels>());
+  const lastNonEmptyModels = useRef(new Map<string, Pick<ClassDiagramContent, 'nodes'>>());
+  // The same immutable state can be processed twice by StrictMode. Remember
+  // its effective names by identity so the second pass sees the same baseline.
+  const effectiveModelVersions = useRef(new WeakMap<Pick<ClassDiagramContent, 'nodes'>, Pick<ClassDiagramContent, 'nodes'>>());
+  const artifactKey = (projectId: string, artifactId: string): string => JSON.stringify([projectId, artifactId]);
+  useEffect(() => {
+    const sequences = new Set<string>();
+    const models = new Set<string>();
+    projects.forEach((project) => project.artifacts.forEach((artifact) => {
+      const key = artifactKey(project.id, artifact.id);
+      if (artifact.type === 'sequence-diagram') sequences.add(key);
+      if (artifact.type === 'class-sequence-diagram') models.add(key);
+    }));
+    for (const key of sequenceSnapshotModels.current.keys()) {
+      if (!sequences.has(key)) sequenceSnapshotModels.current.delete(key);
+    }
+    for (const key of lastNonEmptyModels.current.keys()) {
+      if (!models.has(key)) lastNonEmptyModels.current.delete(key);
+    }
+  }, [projects]);
   // Start at the project archive so opening the app does not silently jump into
   // an arbitrary artifact. Creating or selecting a project still opens it as before.
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
@@ -595,7 +627,7 @@ export const useProjects = () => {
     projectId: string,
     artifactId: string,
     content: ArtifactContent,
-    options?: { alreadyNormalized?: boolean; fromHistory?: boolean },
+    options?: { alreadyNormalized?: boolean; fromHistory?: boolean; historySnapshots?: ArtifactContent[] },
   ): void => {
     const now = new Date().toISOString();
 
@@ -607,6 +639,30 @@ export const useProjects = () => {
       const targetArtifact = project.artifacts.find((artifact) => artifact.id === artifactId);
       if (targetArtifact === undefined) {
         return project;
+      }
+
+      // Only a sequence keeps model baselines: skip the serialization for every other artifact.
+      const retainedSnapshots = options?.historySnapshots === undefined || targetArtifact.type !== 'sequence-diagram' ? undefined
+        : new Set(options.historySnapshots.map((snapshot) => JSON.stringify(snapshot)));
+      // Capture only a current state entering history, never infer a baseline
+      // for an unknown old snapshot. Other artifacts cannot evict these entries.
+      for (const artifact of project.artifacts) {
+        if (artifact.type !== 'sequence-diagram') continue;
+        const model = findSequenceModel(project.artifacts, artifact);
+        if (model === undefined) continue;
+        const key = artifactKey(projectId, artifact.id);
+        const cache = sequenceSnapshotModels.current.get(key) ?? { managed: false, models: new Map() };
+        sequenceSnapshotModels.current.set(key, cache);
+        const snapshots = artifact.id === artifactId ? retainedSnapshots : undefined;
+        if (snapshots !== undefined) cache.managed = true;
+        const snapshotKey = JSON.stringify(artifact.content);
+        if ((!cache.managed || snapshots?.has(snapshotKey)) && !cache.models.has(snapshotKey)) {
+          cache.models.set(snapshotKey, effectiveModelVersions.current.get(model.content)
+            ?? lastNonEmptyModels.current.get(artifactKey(projectId, model.id)) ?? model.content);
+          if (!cache.managed && cache.models.size > MAX_SEQUENCE_SNAPSHOT_MODELS) {
+            cache.models.delete(cache.models.keys().next().value!);
+          }
+        }
       }
 
       const normalizedTargetContent = targetArtifact.type === 'use-case-model'
@@ -625,9 +681,19 @@ export const useProjects = () => {
       // classes and methods reach the sequences drawn on it. Undo replays
       // through here, so it carries the old names back. A plain class diagram
       // stays on its own.
-      const renames = targetArtifact.type === 'class-sequence-diagram'
-        ? findClassModelRenames(targetArtifact.content, normalizedTargetContent as ClassDiagramContent)
+      const modelKey = artifactKey(projectId, artifactId);
+      const previousModel = targetArtifact.type === 'class-sequence-diagram'
+        ? effectiveModelVersions.current.get(targetArtifact.content)
+          ?? retainNonEmptyClassModelNames(lastNonEmptyModels.current.get(modelKey) ?? targetArtifact.content, targetArtifact.content)
         : undefined;
+      const renames = previousModel === undefined ? undefined
+        : findClassModelRenames(previousModel, normalizedTargetContent as ClassDiagramContent);
+      if (previousModel !== undefined) {
+        effectiveModelVersions.current.set(targetArtifact.content as ClassDiagramContent, previousModel);
+        const nextModel = retainNonEmptyClassModelNames(previousModel, normalizedTargetContent as ClassDiagramContent);
+        effectiveModelVersions.current.set(normalizedTargetContent as ClassDiagramContent, nextModel);
+        lastNonEmptyModels.current.set(modelKey, nextModel);
+      }
       const propagatesRenames = renames !== undefined && hasClassModelRenames(renames);
 
       // Only a restored sequence snapshot takes the linked names from the model
@@ -636,9 +702,24 @@ export const useProjects = () => {
       const sequenceModel = targetArtifact.type === 'sequence-diagram' && options?.fromHistory
         ? findSequenceModel(project.artifacts, { content: normalizedTargetContent as SequenceDiagramContent })
         : undefined;
-      const restoredContent = sequenceModel === undefined
+      const snapshotModel = sequenceModel === undefined ? undefined
+        : sequenceSnapshotModels.current.get(artifactKey(projectId, artifactId))?.models.get(JSON.stringify(normalizedTargetContent));
+      const restoredContent = sequenceModel === undefined || snapshotModel === undefined
         ? normalizedTargetContent
-        : applyModelNamesToSequence(normalizedTargetContent as SequenceDiagramContent, sequenceModel.content) ?? normalizedTargetContent;
+        : applyModelNamesToSequence(normalizedTargetContent as SequenceDiagramContent, sequenceModel.content, snapshotModel) ?? normalizedTargetContent;
+
+      // Read the restored snapshot before pruning: undo/redo just removed it
+      // from one stack. Also retain that baseline for a repeated StrictMode
+      // pass; the next history update prunes it. At most history + one entry.
+      if (retainedSnapshots !== undefined) {
+        if (options?.fromHistory) retainedSnapshots.add(JSON.stringify(normalizedTargetContent));
+        const cache = sequenceSnapshotModels.current.get(artifactKey(projectId, artifactId));
+        if (cache !== undefined) {
+          for (const key of cache.models.keys()) {
+            if (!retainedSnapshots.has(key)) cache.models.delete(key);
+          }
+        }
+      }
 
       const updatedArtifacts = project.artifacts.map((artifact) => {
         if (artifact.id === artifactId) {
