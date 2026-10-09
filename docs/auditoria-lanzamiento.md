@@ -338,3 +338,9 @@ Agravantes que aparecieron al verificar:
 - **Deshacer en casos de uso (explicado, ya existía):** conectar y mover dentro de una misma ráfaga de ≤650 ms quedan en un solo paso de historial, así que el primer Deshacer ya quita la relación. Con más tiempo entre cambios restaura todo. Para la tanda 3: que crear o borrar una relación siempre abra un paso propio.
 - **Cierre en macOS:** cerrar la ventana principal ahora cierra la app (para entregar los borradores antes de salir), aunque haya ventanas de vista abiertas.
 - **B3, efecto colateral aceptado:** si un participante vinculado muestra a propósito un nombre distinto de su clase, deshacer lo vuelve al nombre de la clase.
+
+## Decisiones para la tanda 2 (8/10)
+
+- **Plantillas de secuencia:** se eliminan (no aportan a la materia).
+- **Sugerir actores ya creados** en flujo y secuencia: queda para después.
+- **Inicio asistido** (recorrido animado de primer uso): se evalúa al terminar la tanda 2.
