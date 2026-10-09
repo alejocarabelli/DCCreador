@@ -169,4 +169,47 @@ describe('flow editor text changes', () => {
     expect(input.value).toBe('• uno más');
     expect(input.selectionStart).toBe(input.value.length);
   });
+
+  it('gives a step its number back when the marker was deleted in its cell', () => {
+    const actorCell = cell(renderEditor(), 0, 'Actor, fila 1');
+    actorCell.onFocus!({ target: textarea('1. Iniciar') } as unknown as Parameters<NonNullable<typeof actorCell.onFocus>>[0]);
+    change(cell(renderEditor(), 0, 'Actor, fila 1'), textarea('Iniciar'));
+    cell(renderEditor(), 0, 'Actor, fila 1').onBlur!({
+      currentTarget: textarea('Iniciar'),
+    } as unknown as Parameters<NonNullable<typeof actorCell.onBlur>>[0]);
+    expect(artifact.content.basicFlow[0].actor).toBe('1. Iniciar');
+  });
+
+  it('gives the number back when the text typed after an automatic marker replaces it', () => {
+    const cellProps = () => cell(renderEditor(), 0, 'Actor, fila 1');
+    artifact = { ...artifact, content: { ...artifact.content, basicFlow: [{ id: 'b1', actor: '', system: '', ref: '' }] } };
+    cellProps().onFocus!({ target: textarea('') } as unknown as Parameters<NonNullable<ComponentProps<typeof FlowRichTextarea>['onFocus']>>[0]);
+    // The empty row gets its marker after it was focused.
+    artifact = { ...artifact, content: { ...artifact.content, basicFlow: [{ id: 'b1', actor: '1. ', system: '', ref: '' }] } };
+    change(cellProps(), textarea('1. U'));
+    change(cellProps(), textarea('Usuario'));
+    cellProps().onBlur!({
+      currentTarget: textarea('Usuario'),
+    } as unknown as Parameters<NonNullable<ComponentProps<typeof FlowRichTextarea>['onBlur']>>[0]);
+    expect(artifact.content.basicFlow[0].actor).toBe('1. Usuario');
+  });
+
+  it('keeps the caret on a Tab that renumbers the cell', () => {
+    const input = textarea('2. Buscar');
+    input.setSelectionRange = vi.fn();
+    const keyDown = cell(renderEditor(), 0, 'Sistema, fila 1').onKeyDown;
+    keyDown!({ currentTarget: input, key: 'Tab', shiftKey: false, preventDefault: vi.fn() } as unknown as Parameters<NonNullable<typeof keyDown>>[0]);
+    // The sub-step 2.1 is stored renumbered as 1.1, so the textarea shows that text and the caret goes after its marker.
+    input.value = String(cell(renderEditor(), 0, 'Sistema, fila 1').value);
+    flushFrames();
+    expect(input.value).toBe('    1.1. Buscar');
+    expect(input.setSelectionRange).toHaveBeenCalledWith(9, 9);
+  });
+
+  it('keeps the row buttons out of the Tab order, so Tab from Ref. reaches the next cell', () => {
+    const rowButtons = elements(renderEditor()).filter((node) =>
+      /^(Agregar fila debajo|Plegar paso|Desplegar paso|Mover fila (arriba|abajo)|Eliminar fila)$/.test(String(node.props['aria-label'])));
+    expect(rowButtons).toHaveLength(10);
+    for (const button of rowButtons) expect(button.props.tabIndex).toBe(-1);
+  });
 });
