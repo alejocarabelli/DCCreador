@@ -56,7 +56,8 @@ import { reorderItemsByIds } from '../utils/reorder';
 import { useDiagramImageExport } from '../hooks/useDiagramImageExport';
 import { useGentleWheelZoom } from '../hooks/useGentleWheelZoom';
 import { getDiagramImageExportBounds } from '../utils/diagramImageExport';
-import { CANVAS_GRID_KEY, readCanvasGridEnabled, readUiPreference, writeUiPreference } from '../storage/uiPreferences';
+import { CANVAS_GRID_KEY, MULTI_SELECT_HINT_KEY, readCanvasGridEnabled, readUiPreference, writeUiPreference } from '../storage/uiPreferences';
+import { shortcutLabel } from '../utils/shortcutLabel';
 import { readAssociationLineStyle, writeAssociationLineStyle } from '../storage/associationPreferences';
 import { getAssociationMarker, normalizeAssociationData, normalizeAssociationEdge } from '../utils/association';
 import {
@@ -133,6 +134,43 @@ const getClassNodeIdFromNoteId = (nodeId: string): string | null =>
 const getChangedNodeId = (change: NodeChange): string | null =>
   'id' in change && typeof change.id === 'string' ? change.id : null;
 
+/** Mayús, ⌘ o Ctrl: el clic suma o quita elementos de la selección en vez de reemplazarla. */
+const isAdditiveSelectionEvent = (event: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }): boolean =>
+  event.shiftKey || event.metaKey || event.ctrlKey;
+
+/** Pista de la selección múltiple, escrita al estilo Mac; shortcutLabel la adapta a Windows. */
+export const MULTI_SELECT_HINT = 'Consejo: con Mayús+clic o ⌘ clic sumás elementos a la selección.';
+
+/** Inspector de dos o más elementos seleccionados: solo se mueven y se eliminan en conjunto. */
+export function MultiSelectionInspector({
+  bodyId,
+  collapsed,
+  count,
+  onDelete,
+  onToggleCollapsed,
+}: {
+  bodyId?: string;
+  collapsed: boolean;
+  count: number;
+  onDelete: () => void;
+  onToggleCollapsed: () => void;
+}) {
+  return (
+    <InspectorPanel
+      actions={<InspectorDeleteButton label={`Eliminar ${count} elementos`} onClick={onDelete} />}
+      bodyId={bodyId}
+      className="inspector"
+      collapsed={collapsed}
+      kind="Selección"
+      title={`${count} elementos seleccionados`}
+      tone="neutral"
+      onToggleCollapsed={onToggleCollapsed}
+    >
+      <p className="helper-text">Arrastrá cualquiera para moverlos juntos.</p>
+    </InspectorPanel>
+  );
+}
+
 const isEditableElement = (element: Element | null): boolean => {
   if (element === null) {
     return false;
@@ -170,7 +208,8 @@ export function DiagramEditor({
   const [hideAttributes, setHideAttributes] = useState(() => readUiPreference('class-diagram-hide-attributes') === 'true');
   const [hideGroupColors, setHideGroupColors] = useState(() => readUiPreference('class-diagram-hide-group-colors') === 'true');
   const [hideMethods, setHideMethods] = useState(() => readUiPreference('class-diagram-hide-methods') === 'true');
-  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
+  const setSelectedEdgeId = useCallback((id: string | null) => setSelectedEdgeIds(id === null ? [] : [id]), []);
   const [associationLineStyle, setAssociationLineStyle] = useState(readAssociationLineStyle);
   const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(
     () => readUiPreference(INSPECTOR_COLLAPSED_KEY) === 'true',
@@ -196,10 +235,20 @@ export function DiagramEditor({
   const toolbarRef = useRef<HTMLElement | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const feedbackTimeoutRef = useRef<number | null>(null);
+  // Si el último clic o tecla traía Mayús, ⌘ o Ctrl. React Flow decide antes que el editor, así que se guarda aquí.
+  const additiveSelectionRef = useRef(false);
+  const rememberSelectionModifiers = (event: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }): void => {
+    additiveSelectionRef.current = isAdditiveSelectionEvent(event);
+  };
   const normalizedContent = useMemo(() => normalizeDiagramContent(artifact.content), [artifact.content]);
   const { nodes, edges } = normalizedContent;
   const activeSelectedIds = selectedNodeIds.filter(id => nodes.some(node => node.id === id));
-  const selectedNodeId = activeSelectedIds.length === 1 ? activeSelectedIds[0] : null;
+  const activeSelectedEdgeIds = selectedEdgeIds.filter(id => edges.some(edge => edge.id === id));
+  // Una sola relación elegida, y ninguna clase: el inspector muestra esa relación.
+  const selectedEdgeId = activeSelectedIds.length === 0 && activeSelectedEdgeIds.length === 1 ? activeSelectedEdgeIds[0] : null;
+  const selectedNodeId = activeSelectedIds.length === 1 && activeSelectedEdgeIds.length === 0 ? activeSelectedIds[0] : null;
+  const selectionCount = activeSelectedIds.length + activeSelectedEdgeIds.length;
+  const isMultiSelection = selectionCount > 1;
   const selectionColors = new Set(nodes.filter(node => activeSelectedIds.includes(node.id)).map(node => node.data.groupColor));
   const selectionColor = selectionColors.size > 1 ? 'mixed' : [...selectionColors][0];
   const reviewIssues = useMemo(() => reviewClassDiagram(normalizedContent), [normalizedContent]);
@@ -218,7 +267,7 @@ export function DiagramEditor({
     () => normalizedEdges.find((edge) => edge.id === selectedEdgeId) ?? null,
     [normalizedEdges, selectedEdgeId],
   );
-  const hasInspectorSelection = selectedNode !== null || selectedEdge !== null;
+  const hasInspectorSelection = selectionCount > 0;
   const relationTitle = (edge: ClassDiagramEdge): string => {
     const nameOf = (nodeId: string): string => nodes.find((node) => node.id === nodeId)?.data.name.trim() || 'Clase sin nombre';
     return `${nameOf(edge.source)} — ${nameOf(edge.target)}`;
@@ -265,22 +314,20 @@ export function DiagramEditor({
       return;
     }
 
-    if (selectedEdgeId !== null) {
-      updateEdges(normalizedEdges.filter((edge) => edge.id !== selectedEdgeId), { separateHistoryEntry: true });
-      setSelectedEdgeId(null);
-      setContextMenu(null);
-      return;
-    }
-
-    const deletingIds = new Set(selectedNodeIds);
-    if (!nodes.some(node => deletingIds.has(node.id))) return;
+    // Clases y relaciones de la selección se borran en un solo paso (un Deshacer las trae de vuelta).
+    const deletingNodeIds = new Set(selectedNodeIds);
+    const deletingEdgeIds = new Set(selectedEdgeIds);
+    if (!nodes.some(node => deletingNodeIds.has(node.id)) && !normalizedEdges.some(edge => deletingEdgeIds.has(edge.id))) return;
     onChangeContent({
-      nodes: nodes.filter(node => !deletingIds.has(node.id)).map(normalizeClassNode),
-      edges: normalizedEdges.filter(edge => !deletingIds.has(edge.source) && !deletingIds.has(edge.target)).map(normalizeAssociationEdge),
+      nodes: nodes.filter(node => !deletingNodeIds.has(node.id)).map(normalizeClassNode),
+      edges: normalizedEdges
+        .filter(edge => !deletingEdgeIds.has(edge.id) && !deletingNodeIds.has(edge.source) && !deletingNodeIds.has(edge.target))
+        .map(normalizeAssociationEdge),
     }, { separateHistoryEntry: true });
     setSelectedNodeId(null);
+    setSelectedEdgeId(null);
     setContextMenu(null);
-  }, [nodes, normalizedEdges, onChangeContent, selectedEdgeId, selectedNodeIds, selectedNoteNodeId, updateEdges, setSelectedNodeId]);
+  }, [nodes, normalizedEdges, onChangeContent, selectedEdgeIds, selectedNodeIds, selectedNoteNodeId, setSelectedEdgeId, setSelectedNodeId]);
 
   const showFeedback = useCallback((message: string): void => {
     if (feedbackTimeoutRef.current !== null) {
@@ -294,12 +341,20 @@ export function DiagramEditor({
     }, 1800);
   }, []);
 
+  // Una sola vez por instalación: la primera selección con clic simple enseña Mayús+clic.
+  const showMultiSelectHintOnce = (): void => {
+    if (readUiPreference(MULTI_SELECT_HINT_KEY) === 'true') return;
+    showFeedback(shortcutLabel(MULTI_SELECT_HINT));
+    writeUiPreference(MULTI_SELECT_HINT_KEY, 'true');
+  };
+
   const handleNodesChange = useCallback(
     (changes: NodeChange[]): void => {
       const selections = changes.filter(change => change.type === 'select');
       if (selections.length > 0) {
         if (selections.some(change => change.type === 'select' && change.selected)) {
-          setSelectedEdgeId(null);
+          // Una selección con Mayús, ⌘ o Ctrl suma clases; sin ellas reemplaza también a las relaciones.
+          if (!additiveSelectionRef.current) setSelectedEdgeId(null);
           setSelectedNoteNodeId(null);
         }
         setSelectedNodeIds(current => {
@@ -375,7 +430,7 @@ export function DiagramEditor({
 
       updateNodes(nextNodes);
     },
-    [nodes, updateNodes],
+    [nodes, updateNodes, setSelectedEdgeId],
   );
 
   const handleEdgesChange = useCallback(
@@ -420,7 +475,7 @@ export function DiagramEditor({
       }
       setConnectionSourceNodeId(null);
     },
-    [associationLineStyle, normalizedEdges, updateEdges, setSelectedNodeId],
+    [associationLineStyle, normalizedEdges, updateEdges, setSelectedEdgeId, setSelectedNodeId],
   );
 
   // Without an explicit point (toolbar, empty-state card), the class lands in
@@ -1070,7 +1125,7 @@ export function DiagramEditor({
       setSelectedNoteNodeId(null);
       showFeedback('Punto de conexión actualizado');
     },
-    [normalizedEdges, showFeedback, updateEdges, setSelectedNodeId],
+    [normalizedEdges, showFeedback, updateEdges, setSelectedEdgeId, setSelectedNodeId],
   );
 
   const handleClassContextMenu = useCallback((nodeId: string, event: MouseEvent<HTMLElement>): void => {
@@ -1093,7 +1148,7 @@ export function DiagramEditor({
       },
       flowPosition: reactFlowInstance?.screenToFlowPosition({ x: event.clientX, y: event.clientY }) ?? { x: 0, y: 0 },
     });
-  }, [reactFlowInstance]);
+  }, [reactFlowInstance, setSelectedEdgeId]);
 
   const renderedNodes = useMemo<Node[]>(
     () => {
@@ -1223,7 +1278,7 @@ export function DiagramEditor({
       const associationEdges = normalizedEdges.map((edge) => {
         return {
           ...edge,
-          selected: edge.id === selectedEdgeId,
+          selected: selectedEdgeIds.includes(edge.id),
           reconnectable: edge.id === selectedEdgeId,
           data: {
             ...edge.data,
@@ -1280,7 +1335,7 @@ export function DiagramEditor({
 
       return [...associationEdges, ...noteEdges];
     },
-    [nodes, nodeSizes, normalizedEdges, reactFlowInstance, selectedEdgeId, updateAssociationMultiplicity, updateAssociation],
+    [nodes, nodeSizes, normalizedEdges, reactFlowInstance, selectedEdgeId, selectedEdgeIds, updateAssociationMultiplicity, updateAssociation],
   );
 
   useEffect(() => { writeUiPreference('class-diagram-hide-attributes', String(hideAttributes)); }, [hideAttributes]);
@@ -1322,7 +1377,7 @@ export function DiagramEditor({
         return;
       }
 
-      if (selectedNodeIds.length === 0 && selectedEdgeId === null && selectedNoteNodeId === null) {
+      if (selectedNodeIds.length === 0 && selectedEdgeIds.length === 0 && selectedNoteNodeId === null) {
         return;
       }
 
@@ -1335,7 +1390,7 @@ export function DiagramEditor({
     return () => {
       document.removeEventListener('keydown', handleDeleteKey);
     };
-  }, [deleteSelectedElement, selectedEdgeId, selectedNodeIds, selectedNoteNodeId]);
+  }, [deleteSelectedElement, selectedEdgeIds, selectedNodeIds, selectedNoteNodeId]);
 
   const getDiagramBounds = useCallback(() => {
     const renderedNodeIds = new Set(renderedNodes.map((node) => node.id));
@@ -1559,6 +1614,8 @@ export function DiagramEditor({
           data-editor-canvas=""
           ref={canvasRef}
           tabIndex={-1}
+          onKeyDownCapture={rememberSelectionModifiers}
+          onPointerDownCapture={rememberSelectionModifiers}
           onDoubleClick={(event) => {
             // Double-click on empty canvas creates a class right there, as the
             // empty state and the Clase tooltip promise.
@@ -1580,13 +1637,16 @@ export function DiagramEditor({
             zoomOnDoubleClick={false}
             onNodesChange={handleNodesChange}
             onNodeDragStart={(_, node, group) => {
-              setSelectedEdgeId(null);
+              // Como React Flow: arrastrar un elemento fuera de la selección la reemplaza; dentro, se mueve con ella.
+              if (!additiveSelectionRef.current && !activeSelectedIds.includes(node.id)) setSelectedEdgeId(null);
               setSelectedNoteNodeId(null);
               setMovingNodeIds(group.length ? group.map(item => item.id) : [node.id]);
             }}
             onNodeDragStop={() => setMovingNodeIds([])}
             onSelectionDragStart={(_, group) => setMovingNodeIds(group.map(node => node.id))}
             onSelectionDragStop={() => setMovingNodeIds([])}
+            // Mayús + arrastrar elige un área: reemplaza la selección, relaciones incluidas.
+            onSelectionStart={() => setSelectedEdgeId(null)}
             onEdgesChange={handleEdgesChange}
             onConnect={handleConnect}
             onConnectStart={(_, params) => {
@@ -1607,7 +1667,7 @@ export function DiagramEditor({
               stroke: 'var(--association-stroke)',
               strokeWidth: 'var(--association-stroke-width)',
             }}
-            onEdgeClick={(_, edge) => {
+            onEdgeClick={(event, edge) => {
               const noteClassNodeId = edge.id.endsWith(NOTE_EDGE_SUFFIX)
                 ? edge.id.slice(0, -NOTE_EDGE_SUFFIX.length)
                 : null;
@@ -1621,9 +1681,16 @@ export function DiagramEditor({
               }
 
               setContextMenu(null);
+              setSelectedNoteNodeId(null);
+              if (isAdditiveSelectionEvent(event)) {
+                setSelectedEdgeIds(activeSelectedEdgeIds.includes(edge.id)
+                  ? activeSelectedEdgeIds.filter(id => id !== edge.id)
+                  : [...activeSelectedEdgeIds, edge.id]);
+                return;
+              }
               setSelectedEdgeId(edge.id);
               setSelectedNodeId(null);
-              setSelectedNoteNodeId(null);
+              showMultiSelectHintOnce();
             }}
             onEdgeContextMenu={(event) => event.stopPropagation()}
             onNodeClick={(event, node) => {
@@ -1631,13 +1698,18 @@ export function DiagramEditor({
               const classNodeId = noteClassNodeId ?? node.id;
 
               setContextMenu(null);
-              setSelectedEdgeId(null);
-              if (noteClassNodeId !== null) setSelectedNodeId(classNodeId);
-              else if (event.metaKey || event.ctrlKey) {
+              if (noteClassNodeId !== null) {
+                setSelectedEdgeId(null);
+                setSelectedNodeId(classNodeId);
+              } else if (isAdditiveSelectionEvent(event)) {
                 // Use the selection from before this click; React Flow may also emit selection changes.
                 setSelectedNodeIds(activeSelectedIds.includes(node.id)
                   ? activeSelectedIds.filter(id => id !== node.id)
                   : [...activeSelectedIds, node.id]);
+              } else {
+                // Un clic simple reemplaza las relaciones elegidas; las clases las reemplaza React Flow.
+                setSelectedEdgeId(null);
+                showMultiSelectHintOnce();
               }
               setSelectedNoteNodeId(noteClassNodeId);
             }}
@@ -1651,7 +1723,7 @@ export function DiagramEditor({
             connectionMode={ConnectionMode.Loose}
             connectionRadius={36}
             deleteKeyCode={null}
-            multiSelectionKeyCode={['Meta', 'Control']}
+            multiSelectionKeyCode={['Meta', 'Control', 'Shift']}
             selectNodesOnDrag={false}
             nodeDragThreshold={3}
             proOptions={{ hideAttribution: true }}
@@ -1782,7 +1854,15 @@ export function DiagramEditor({
             </div>
           ) : null}
         </div>
-        {hasInspectorSelection ? (
+        {isMultiSelection ? (
+          <MultiSelectionInspector
+            bodyId="class-inspector-body"
+            collapsed={isInspectorCollapsed}
+            count={selectionCount}
+            onDelete={deleteSelectedElement}
+            onToggleCollapsed={() => setIsInspectorCollapsed((isCollapsed) => !isCollapsed)}
+          />
+        ) : hasInspectorSelection ? (
           <InspectorPanel
             actions={selectedNoteNodeId === null ? (
               <InspectorDeleteButton
