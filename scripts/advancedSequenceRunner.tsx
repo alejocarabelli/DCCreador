@@ -509,64 +509,7 @@ export function AdvancedSequenceRunner() {
           await wait(200);
         }
 
-        // --- CHECK 5: Templates modal ---
-        const templatesBtn = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.includes("Plantillas")) as HTMLButtonElement | null;
-        if (templatesBtn) {
-          templatesBtn.click();
-          await wait(300);
-        }
-        const modal = document.querySelector(".sequence-modal-card");
-        const templateCards = document.querySelectorAll(".sequence-template-item");
-        report.checks.templates = {
-          opened: modal !== null,
-          count: templateCards.length,
-          names: Array.from(templateCards).map((c) => c.querySelector("h4")?.textContent?.trim()),
-        };
-        await captureScreenshot("06_templates_modal.png");
-
-        // Load interaction-ref template into current diagram (button 0: "Cargar en este diagrama")
-        const refCard = Array.from(templateCards).find((c) => c.querySelector("h4")?.textContent?.includes("Ref"));
-        const loadInCurrentBtn = refCard?.querySelectorAll("button")[0] as HTMLButtonElement | null;
-        if (loadInCurrentBtn) {
-          loadInCurrentBtn.click();
-          await wait(400);
-        }
-        await captureScreenshot("07_template_ref_loaded.png");
-
-        // --- CHECK 6: Ref fragment inspector & navigation button ---
-        // Click on the ref fragment in the outline or canvas
-        const refOutline = Array.from(document.querySelectorAll(".sequence-outline-item")).find((b) => b.textContent?.includes("ref"));
-        if (refOutline) {
-          (refOutline as HTMLElement).click();
-          await wait(300);
-        }
-
-        // Check inspector select for referenced interaction
-        const refSelect = document.querySelector(".sequence-inspector select") as HTMLSelectElement | null;
-        if (refSelect) {
-          const option = Array.from(refSelect.options).find((o) => o.value === "seq-sub");
-          if (option) {
-            refSelect.value = "seq-sub";
-            refSelect.dispatchEvent(new Event("change", { bubbles: true }));
-            await wait(300);
-          }
-        }
-        await captureScreenshot("08_ref_linked.png");
-
-        // Verify canvas has "Abrir ref" badge/button and inspector has "Abrir interacción"
-        const openRefBtn = Array.from(document.querySelectorAll("button, .sequence-ref-nav-btn")).find((b) =>
-          b.textContent?.includes("Abrir interacción") || b.textContent?.includes("Abrir ref")
-        ) as HTMLElement | null;
-
-        if (openRefBtn) {
-          openRefBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-          await wait(200);
-        }
-
-        report.checks.refNavigation = {
-          buttonFound: openRefBtn !== null,
-          navigatedTo: "seq-sub",
-        };
+        // (Los antiguos CHECK 5 y 6 probaban las plantillas de secuencia, que ya no existen.)
 
         // --- CHECK 7: Save status indicator final state ---
         const finalSaveStatusEl = document.querySelector(".sequence-save-status");
