@@ -476,6 +476,7 @@ export function SequenceDiagramEditor({
   }, [keyboardMode, viewKey]);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const exportSvgRef = useRef<SVGSVGElement | null>(null);
+  const getExportSvg = useCallback(() => exportSvgRef.current, []);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   useArtifactScrollMemory(viewKey, scrollRef, initialView, zoom, viewportCanvasSize);
   const editorRootRef = useRef<HTMLElement | null>(null);
@@ -5361,6 +5362,7 @@ export function SequenceDiagramEditor({
         open={exportDialogOpen}
         content={displayContent}
         layout={layout}
+        getSvg={getExportSvg}
         options={exportOptions}
         onOptionsChange={setExportOptions}
         onClose={() => setExportDialogOpen(false)}

@@ -1969,11 +1969,12 @@
 .sequence-export-options p { margin: 0; color: var(--panel-muted-text); font-size: 12px; line-height: 1.45; }
 .sequence-export-options .sequence-export-warning { color: var(--warning-text); }
 .sequence-export-preview { display: grid; gap: 10px; min-width: 0; }
-.sequence-export-page-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); align-items: start; gap: 12px; max-height: 300px; overflow: auto; padding: 4px; }
-.sequence-export-page { display: grid; min-height: 145px; overflow: hidden; border: 1px solid #cbd5e1; border-radius: 4px; background: #fff; box-shadow: 0 2px 7px #172c4912; }
-.sequence-export-preview-header { padding: 4px 6px; border-bottom: 1px solid #cbd5e1; color: #566b80; font-size: 11px; }
-.sequence-export-preview-content { display: grid; place-content: center; gap: 4px; padding: 10px; background: repeating-linear-gradient(0deg, #f8fafc, #f8fafc 10px, #ffffff 10px, #ffffff 20px); text-align: center; color: #50657a; font-size: 11px; }
-.sequence-export-preview-content small { font-size: 11px; }
+.sequence-export-page-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); align-items: start; gap: 14px; max-height: 360px; overflow: auto; padding: 4px; }
+.sequence-export-page-item { display: grid; gap: 5px; margin: 0; }
+.sequence-export-page-item figcaption { color: #50657a; font-size: 11px; text-align: center; }
+.sequence-export-page { position: relative; overflow: hidden; border: 1px solid #cbd5e1; border-radius: 4px; background: #fff; box-shadow: 0 2px 7px #172c4912; }
+.sequence-export-page img { position: absolute; display: block; height: auto; }
+.sequence-export-preview-header { position: absolute; right: 0; display: grid; place-items: center; border-bottom: 1px dashed #cbd5e1; color: #566b80; font-size: 9px; }
 @media (max-width: 620px) { .sequence-export-dialog-body { grid-template-columns: 1fr; } .sequence-export-dialog footer { flex-wrap: wrap; } .sequence-export-dialog footer small { flex-basis: 100%; } }
 
 /* Sequence Save Status Indicator */
