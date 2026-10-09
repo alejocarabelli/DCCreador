@@ -195,7 +195,8 @@ export type AlternativeUseCaseFlow = {
 };
 
 export type UseCaseFlowContent = {
-  classDiagramArtifactId?: string;
+  /** null: "Sin referencia" chosen explicitly. Absent: never chosen, so the project's only class diagram is used. */
+  classDiagramArtifactId?: string | null;
   description: UseCaseFlowDescription;
   basicFlow: UseCaseFlowStep[];
   alternativeFlows: AlternativeUseCaseFlow[];

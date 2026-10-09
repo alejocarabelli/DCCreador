@@ -277,13 +277,14 @@ export function UseCaseFlowEditor({
       ),
     [project.artifacts],
   );
+  // Only a flow that never chose a diagram (undefined) takes the project's single one. null is an explicit
+  // "Sin referencia", and a stored id that no longer exists is reported, never replaced by another diagram.
   const associatedClassDiagramId =
-    content.classDiagramArtifactId !== undefined &&
-    classDiagramArtifacts.some((classDiagramArtifact) => classDiagramArtifact.id === content.classDiagramArtifactId)
-      ? content.classDiagramArtifactId
-      : classDiagramArtifacts.length === 1
+    content.classDiagramArtifactId === undefined
+      ? classDiagramArtifacts.length === 1
         ? classDiagramArtifacts[0].id
-        : undefined;
+        : undefined
+      : content.classDiagramArtifactId ?? undefined;
   const associatedClassDiagram = classDiagramArtifacts.find(
     (classDiagramArtifact) => classDiagramArtifact.id === associatedClassDiagramId,
   );
@@ -482,7 +483,8 @@ export function UseCaseFlowEditor({
   const updateAssociatedClassDiagram = (artifactId: string): void => {
     commitContent({
       ...content,
-      classDiagramArtifactId: artifactId.length > 0 ? artifactId : undefined,
+      // "Sin referencia" is stored as null: undefined would pick the only class diagram again.
+      classDiagramArtifactId: artifactId.length > 0 ? artifactId : null,
     });
   };
 
@@ -1661,7 +1663,7 @@ export function UseCaseFlowEditor({
                     </option>
                   ))}
                 </select>
-                {content.classDiagramArtifactId !== undefined && associatedClassDiagram === undefined ? (
+                {typeof content.classDiagramArtifactId === 'string' && associatedClassDiagram === undefined ? (
                   <small>La referencia guardada ya no existe.</small>
                 ) : null}
               </label>

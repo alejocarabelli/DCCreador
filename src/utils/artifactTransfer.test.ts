@@ -67,6 +67,22 @@ describe('artifact import into an existing project', () => {
     const projects = [destination];
     expect(importArtifactIntoProjects(projects, 'missing', model)).toBe(projects);
   });
+
+  it('imports a flow that pointed at another diagram as "Sin referencia", not as the only local diagram', () => {
+    const local = project('destination', [{ ...model, id: 'local-model' }]);
+    const [result] = importArtifactIntoProjects([local], local.id, flow);
+    expect((result.artifacts.at(-1) as UseCaseFlowArtifact).content.classDiagramArtifactId).toBeNull();
+  });
+
+  it('keeps an explicit "Sin referencia" on import and a never-chosen flow never chosen', () => {
+    const local = project('destination', [{ ...model, id: 'local-model' }]);
+    const none = { ...flow, content: { ...flow.content, classDiagramArtifactId: null } };
+    const never = { ...flow, content: { ...flow.content, classDiagramArtifactId: undefined } };
+    const [withNone] = importArtifactIntoProjects([local], local.id, none);
+    const [withNever] = importArtifactIntoProjects([local], local.id, never);
+    expect((withNone.artifacts.at(-1) as UseCaseFlowArtifact).content.classDiagramArtifactId).toBeNull();
+    expect((withNever.artifacts.at(-1) as UseCaseFlowArtifact).content.classDiagramArtifactId).toBeUndefined();
+  });
 });
 
 describe('moving artifacts between projects', () => {
@@ -105,6 +121,45 @@ describe('moving artifacts between projects', () => {
     expect(result.idMap.size).toBe(2);
     const moved = result.projects[1].artifacts.at(-1) as UseCaseFlowArtifact;
     expect(moved.content.classDiagramArtifactId).toBe(model.id);
+  });
+
+  it('keeps an explicit "Sin referencia" when the flow moves alone, even if the destination has one diagram', () => {
+    const none = { ...flow, content: { ...flow.content, classDiagramArtifactId: null } };
+    const original = project('source', [model, none]);
+    const target = project('destination', [{ ...model, id: 'different-model' }]);
+    const result = moveArtifactsBetweenProjects([original, target], original.id, target.id, none.id, false);
+    expect((result.projects[1].artifacts.at(-1) as UseCaseFlowArtifact).content.classDiagramArtifactId).toBeNull();
+  });
+
+  it('does not pull a "Sin referencia" flow along when its model moves', () => {
+    const none = { ...flow, content: { ...flow.content, classDiagramArtifactId: null } };
+    const original = project('source', [model, none]);
+    const result = moveArtifactsBetweenProjects([original, destination], original.id, destination.id, model.id, true);
+    expect(result.idMap.size).toBe(1);
+    expect(result.projects[1].artifacts.map((artifact) => artifact.id)).not.toContain(none.id);
+    expect(result.projects[0].artifacts.find((artifact) => artifact.id === none.id)?.content).toEqual(none.content);
+  });
+
+  it('turns a choice whose diagram does not come along into "Sin referencia" instead of re-picking another diagram', () => {
+    const original = project('source', [model, flow]);
+    const target = project('destination', [{ ...model, id: 'different-model' }]);
+    const result = moveArtifactsBetweenProjects([original, target], original.id, target.id, flow.id, false);
+    expect((result.projects[1].artifacts.at(-1) as UseCaseFlowArtifact).content.classDiagramArtifactId).toBeNull();
+  });
+
+  it('turns a stale reference into "Sin referencia" at the destination', () => {
+    const stale = { ...flow, content: { ...flow.content, classDiagramArtifactId: 'previously-deleted-model' } };
+    const original = project('source', [model, stale]);
+    const target = project('destination', [{ ...model, id: 'different-model' }]);
+    const result = moveArtifactsBetweenProjects([original, target], original.id, target.id, stale.id, false);
+    expect((result.projects[1].artifacts.at(-1) as UseCaseFlowArtifact).content.classDiagramArtifactId).toBeNull();
+  });
+
+  it('leaves the flow at the source as "Sin referencia" when its model moves away alone', () => {
+    const original = project('source', [model, flow]);
+    const result = moveArtifactsBetweenProjects([original, destination], original.id, destination.id, model.id, false);
+    const remainingFlow = result.projects[0].artifacts.find((artifact) => artifact.id === flow.id) as UseCaseFlowArtifact;
+    expect(remainingFlow.content.classDiagramArtifactId).toBeNull();
   });
 
   it('keeps the content of unrelated artifacts at the source and only drops a stale model link', () => {
