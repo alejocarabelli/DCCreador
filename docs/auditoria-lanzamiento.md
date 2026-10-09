@@ -367,3 +367,5 @@ Para la tanda 3:
 14. Modo teclado: la barra de ayuda se corta.
 15. «Organizar (2)» y «Al día con 1 secuencia» sin explicación.
 16. Consola: `nodeTypes`/`edgeTypes` recreados en cada render (26 avisos de React Flow); falta favicon.
+17. Flujo: Tab desde la columna Ref. lleva el foco al botón «Agregar fila debajo»; un espacio al seguir escribiendo lo acciona y crea una fila.
+18. Estado inicial/final: escribiendo a velocidad inhumana justo después de Enter, el cursor puede reubicarse mal (`setStateBulletCaretAfterRender` / `setCaretAfterRender` en `src/utils/textCaret.ts` no verifican el valor esperado, a diferencia de `setCaretPositionAfterRender`).
