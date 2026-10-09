@@ -150,11 +150,9 @@ function App() {
   const [historyByArtifactId, setHistoryByArtifactId] = useState<Record<string, ProjectHistory>>({});
   const historyByArtifactIdRef = useRef<Record<string, ProjectHistory>>({});
   const updateHistory = useCallback((update: (current: Record<string, ProjectHistory>) => Record<string, ProjectHistory>): void => {
-    setHistoryByArtifactId((current) => {
-      const next = update(current);
-      historyByArtifactIdRef.current = next;
-      return next;
-    });
+    const next = update(historyByArtifactIdRef.current);
+    historyByArtifactIdRef.current = next;
+    setHistoryByArtifactId(next);
   }, []);
   const historyBurstRef = useRef<{ key: string; updatedAt: number } | null>(null);
   const { preference: themePreference, setPreference: setThemePreference, theme, themeStyle } = useTheme();
@@ -428,15 +426,12 @@ function App() {
         ? null
         : { key: activeHistoryKey, updatedAt: now };
 
-      updateHistory((currentHistory) => {
-        const projectHistory = currentHistory[activeHistoryKey] ?? { past: [], future: [] };
-
-        return {
-          ...currentHistory,
-          [activeHistoryKey]: changeHistory(projectHistory, previousContent, shouldCreateHistoryEntry, MAX_HISTORY_ENTRIES),
-        };
+      const projectHistory = historyByArtifactIdRef.current[activeHistoryKey] ?? { past: [], future: [] };
+      const nextHistory = changeHistory(projectHistory, previousContent, shouldCreateHistoryEntry, MAX_HISTORY_ENTRIES);
+      updateHistory((currentHistory) => ({ ...currentHistory, [activeHistoryKey]: nextHistory }));
+      updateProjectArtifactContent(activeProject.id, activeArtifact.id, nextContent, {
+        alreadyNormalized: true, historySnapshots: [...nextHistory.past, ...nextHistory.future],
       });
-      updateProjectArtifactContent(activeProject.id, activeArtifact.id, nextContent, { alreadyNormalized: true });
     },
     [activeArtifact, activeHistoryKey, activeProject, updateHistory, updateProjectArtifactContent],
   );
@@ -577,7 +572,7 @@ function App() {
       ...currentHistory,
       [activeHistoryKey]: result.history,
     }));
-    updateProjectArtifactContent(activeProject.id, activeArtifact.id, cloneContentForType(activeArtifact.type, previousContent), { alreadyNormalized: true, fromHistory: true });
+    updateProjectArtifactContent(activeProject.id, activeArtifact.id, cloneContentForType(activeArtifact.type, previousContent), { alreadyNormalized: true, fromHistory: true, historySnapshots: [...result.history.past, ...result.history.future] });
   }, [activeArtifact, activeHistoryKey, activeProject, updateHistory, updateProjectArtifactContent]);
 
   const handleRedo = useCallback((): void => {
@@ -599,7 +594,7 @@ function App() {
       ...currentHistory,
       [activeHistoryKey]: result.history,
     }));
-    updateProjectArtifactContent(activeProject.id, activeArtifact.id, cloneContentForType(activeArtifact.type, nextContent), { alreadyNormalized: true, fromHistory: true });
+    updateProjectArtifactContent(activeProject.id, activeArtifact.id, cloneContentForType(activeArtifact.type, nextContent), { alreadyNormalized: true, fromHistory: true, historySnapshots: [...result.history.past, ...result.history.future] });
   }, [activeArtifact, activeHistoryKey, activeProject, updateHistory, updateProjectArtifactContent]);
 
   useEffect(() => {

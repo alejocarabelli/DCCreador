@@ -97,6 +97,16 @@ describe('applyClassModelRenamesToSequence', () => {
       .toMatchObject({ name: ' calcularTotal(id, otro) ', arguments: 'separado' });
   });
 
+  it('matches the previous operation token without case sensitivity', () => {
+    const caseRenames = findClassModelRenames(
+      { nodes: [classNode('c1', 'Cliente', [method('m1', 'buscar')])] },
+      { nodes: [classNode('c1', 'Cliente', [method('m1', 'consultar')])] },
+    );
+    const content = sequence({ items: [{ ...call(' Buscar(id) ', 'm1'), arguments: 'otro' }] });
+    expect(applyClassModelRenamesToSequence(content, caseRenames)?.items[0])
+      .toMatchObject({ name: ' consultar(id) ', operationMethodId: 'm1', arguments: 'otro' });
+  });
+
   it('returns null when nothing in the diagram refers to the renamed elements', () => {
     expect(applyClassModelRenamesToSequence(sequence({ items: [call('otro', 'm9')] }), renames)).toBeNull();
   });

@@ -96,6 +96,46 @@ describe('content loss detection', () => {
     expect(loadProjects().skipInitialSave).toBe(true);
   });
 
+  it('keeps distinct class data when duplicate IDs are reassigned', () => {
+    const node = { id: 'duplicate', type: 'classNode', position: { x: 0, y: 0 }, data: { name: 'Cliente', attributes: [], methods: [] } };
+    localStorage.setItem(STORAGE_KEY, storedWith([{ ...validArtifact, content: {
+      nodes: [node, { ...node, data: { ...node.data, attributes: [{ id: 'a', name: 'id', type: 'Integer' }] } }], edges: [],
+    } }]));
+    const loaded = loadProjects();
+    expect(loaded).toMatchObject({ skipInitialSave: false, recoveryRaw: null, warning: null });
+    const content = loaded.projects[0].artifacts[0].content;
+    expect(content).toMatchObject({ nodes: [{ data: { attributes: [] } }, { data: { attributes: [{ id: 'a', name: 'id', type: 'Integer' }] } }] });
+  });
+
+  it('pairs duplicate artifact IDs by position before comparing their type and data', () => {
+    localStorage.setItem(STORAGE_KEY, storedWith([
+      validArtifact,
+      { ...validArtifact, type: 'sequence-diagram', content: { participants: [], items: [], notes: [{
+        id: 'note', text: 'Conservar', anchorKind: 'free', x: 0, y: 0, width: 160, height: 100,
+      }] } },
+    ]));
+    expect(loadProjects()).toMatchObject({ skipInitialSave: false, recoveryRaw: null, warning: null });
+  });
+
+  it('still protects storage if a unique model reference is lost', () => {
+    const raw = storedWith([{ ...validArtifact, type: 'class-sequence-diagram', content: {
+      nodes: [], edges: [], linkedSequenceDiagramIds: ['missing', 'missing'],
+    } }]);
+    localStorage.setItem(STORAGE_KEY, raw);
+    expect(loadProjects()).toMatchObject({ skipInitialSave: true, recoveryRaw: raw });
+  });
+
+  it('accepts duplicated model references when the complete link survives', () => {
+    localStorage.setItem(STORAGE_KEY, storedWith([
+      { ...validArtifact, type: 'class-sequence-diagram', content: { nodes: [], edges: [], linkedSequenceDiagramIds: ['seq', 'seq'] } },
+      { ...validArtifact, id: 'seq', type: 'sequence-diagram', content: { participants: [], items: [], classDiagramArtifactId: 'm' } },
+    ]));
+    const loaded = loadProjects();
+    expect(loaded).toMatchObject({ skipInitialSave: false, recoveryRaw: null, warning: null });
+    expect(loaded.projects[0].artifacts[0].content).toMatchObject({ linkedSequenceDiagramIds: ['seq'] });
+    expect(loaded.projects[0].artifacts[1].content).toMatchObject({ classDiagramArtifactId: 'm' });
+  });
+
   it('does not report loss for healthy populated diagrams or legacy arrays', () => {
     const nodes = ['a', 'b'].map((id) => ({ id, type: 'classNode', position: { x: 0, y: 0 }, data: { name: id, attributes: [], methods: [] } }));
     const content = { nodes, edges: [{ id: 'r', source: 'a', target: 'b' }] };
