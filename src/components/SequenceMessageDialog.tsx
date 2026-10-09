@@ -159,6 +159,9 @@ export function SequenceMessageDialog({
         const nextText = ret ? `${name}(): ${ret}` : `${name}()`;
         setSignatureText(nextText);
         onChange(commitDraft(newType, nextText));
+      } else if (draft.type === 'destroy') {
+        // A destroy keeps the whole text as its name: a call has to split it again.
+        onChange(commitDraft(newType));
       } else {
         onChange(updateSequenceMessageEditModel(draft, { type: newType }));
       }

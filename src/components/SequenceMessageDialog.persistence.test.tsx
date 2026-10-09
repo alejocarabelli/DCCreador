@@ -52,4 +52,23 @@ describe('dialog signature persistence', () => {
     form.props.onSubmit!({ preventDefault: vi.fn() } as unknown as Parameters<NonNullable<typeof form.props.onSubmit>>[0]);
     expect(onSubmit.mock.calls[0][1]).toMatchObject({ name: 'f', arguments: 'c,d', returnType: 'Result' });
   });
+
+  it('splits the signature again when a destroy becomes a call', () => {
+    let draft = createSequenceMessageEditModel({ editId: 'saved', name: 'destroy' });
+    draft = { ...draft, type: 'destroy' };
+    const onChange = vi.fn((next) => { draft = next; });
+    const onSubmit = vi.fn();
+    const render = () => {
+      runtime.begin();
+      return elements(SequenceMessageDialog({ draft, participants: [], onChange, onSubmit, onCancel: vi.fn() }));
+    };
+    const textarea = render().find((node) => node.type === 'textarea') as ReactElement<TextareaHTMLAttributes<HTMLTextAreaElement>>;
+    textarea.props.onChange!({ target: { value: 'cerrar(id): Resultado' } } as Parameters<NonNullable<typeof textarea.props.onChange>>[0]);
+    const syncButton = render().find((node) => typeof node.props.onClick === 'function' && /Síncrono/.test(String(node.props['aria-label'] ?? node.props.title ?? node.props.children ?? '')));
+    expect(syncButton).toBeDefined();
+    (syncButton!.props.onClick as () => void)();
+    const form = render().find((node) => node.type === 'form') as ReactElement<FormHTMLAttributes<HTMLFormElement>>;
+    form.props.onSubmit!({ preventDefault: vi.fn() } as unknown as Parameters<NonNullable<typeof form.props.onSubmit>>[0]);
+    expect(onSubmit.mock.calls[0][1]).toMatchObject({ type: 'synchronous', name: 'cerrar', arguments: 'id', returnType: 'Resultado' });
+  });
 });
