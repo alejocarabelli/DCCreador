@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { handleReactFlowError } from '../utils/reactFlowErrors';
 import ReactFlow, {
   Background,
   BackgroundVariant,
@@ -746,6 +747,7 @@ export function UseCaseModelEditor({
           }}
         >
           <ReactFlow
+            onError={handleReactFlowError}
             connectionMode={ConnectionMode.Loose}
             deleteKeyCode={null}
             edgeTypes={edgeTypes}
