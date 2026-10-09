@@ -495,15 +495,15 @@ export function AdvancedSequenceRunner() {
           reviewBtn.click();
           await wait(300);
         }
-        const reviewPanel = document.querySelector(".sequence-review-panel");
+        const reviewPanel = document.querySelector(".diagram-review-panel");
         report.checks.reviewPanel = {
           opened: reviewPanel !== null,
-          header: reviewPanel?.querySelector(".sequence-review-title")?.textContent?.trim() || "",
+          header: reviewPanel?.querySelector(".diagram-review-heading strong")?.textContent?.trim() || "",
         };
         await captureScreenshot("05_review_panel.png");
 
         // Close review panel
-        const closeReviewBtn = reviewPanel?.querySelector(".icon-button") as HTMLButtonElement | null;
+        const closeReviewBtn = reviewPanel?.querySelector("button[aria-label=\"Cerrar revisión\"]") as HTMLButtonElement | null;
         if (closeReviewBtn) {
           closeReviewBtn.click();
           await wait(200);
