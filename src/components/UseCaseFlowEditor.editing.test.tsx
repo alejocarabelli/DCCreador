@@ -194,16 +194,28 @@ describe('flow editor text changes', () => {
     expect(artifact.content.basicFlow[0].actor).toBe('1. Usuario');
   });
 
-  it('keeps the caret on a Tab that renumbers the cell', () => {
+  it('keeps the caret after the text on a Tab that renumbers the cell, so typing goes on after it', () => {
     const input = textarea('2. Buscar');
     input.setSelectionRange = vi.fn();
     const keyDown = cell(renderEditor(), 0, 'Sistema, fila 1').onKeyDown;
     keyDown!({ currentTarget: input, key: 'Tab', shiftKey: false, preventDefault: vi.fn() } as unknown as Parameters<NonNullable<typeof keyDown>>[0]);
-    // The sub-step 2.1 is stored renumbered as 1.1, so the textarea shows that text and the caret goes after its marker.
+    // The sub-step 2.1 is stored renumbered as 1.1; the caret was at the end of «Buscar» and stays there.
     input.value = String(cell(renderEditor(), 0, 'Sistema, fila 1').value);
     flushFrames();
     expect(input.value).toBe('    1.1. Buscar');
-    expect(input.setSelectionRange).toHaveBeenCalledWith(9, 9);
+    expect(input.setSelectionRange).toHaveBeenCalledWith(15, 15);
+  });
+
+  it('keeps the caret in the middle of the text where it was on a Tab', () => {
+    const input = textarea('2. Buscar');
+    input.selectionStart = 5;
+    input.setSelectionRange = vi.fn();
+    const keyDown = cell(renderEditor(), 0, 'Sistema, fila 1').onKeyDown;
+    keyDown!({ currentTarget: input, key: 'Tab', shiftKey: false, preventDefault: vi.fn() } as unknown as Parameters<NonNullable<typeof keyDown>>[0]);
+    input.value = String(cell(renderEditor(), 0, 'Sistema, fila 1').value);
+    flushFrames();
+    // «2. Bu|scar» → «    1.1. Bu|scar».
+    expect(input.setSelectionRange).toHaveBeenCalledWith(11, 11);
   });
 
   it('keeps the row buttons out of the Tab order, so Tab from Ref. reaches the next cell', () => {
