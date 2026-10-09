@@ -2,7 +2,7 @@
 
 Extensión para Claude Desktop en Mac. Le permite a Claude ver, en modo solo lectura, lo que estás haciendo en el Modelador de Sistemas, para que puedas estudiar con él: "¿está bien esta secuencia según el flujo?", "¿me falta alguna relación en el diagrama de clases?".
 
-No cambia nada en la app. Lee el último respaldo automático que la app ya guarda en **Documentos › Modelador de Sistemas › Respaldos** y se lo pasa a Claude resumido en texto. No modifica nada y no usa internet.
+No cambia nada en la app. Lee, en modo solo lectura, lo que la app guarda mientras trabajás (cada cambio queda guardado al segundo en `~/Library/WebKit/com.alejocarabelli.disenosistemas.v2/`) y se lo pasa a Claude resumido en texto. Si no lo encuentra, usa el último respaldo automático de **Documentos › Modelador de Sistemas › Respaldos**. No modifica nada y no usa internet.
 
 ## Instalar
 
@@ -28,9 +28,9 @@ Claude tiene estas herramientas:
 | `leer_mis_dudas` | Las dudas y apuntes de todo el proyecto. |
 | `leer_artefacto_json` | El JSON completo; solo si el resumen no alcanza. |
 
-### Ojo con la demora
+### De dónde lee
 
-La app escribe un respaldo cada 10 minutos y cada vez que la minimizás. Si acabás de cambiar algo, **minimizá la app (⌘M)** antes de preguntar. Cada respuesta le dice a Claude de qué hora es el respaldo que está viendo.
+Cada respuesta le dice a Claude si está viendo los datos en vivo o, si no los encontró, el último respaldo (que se escribe cada 10 minutos). La carpeta de WebKit es interna de macOS y su formato puede cambiar entre versiones: por eso existe la alternativa de los respaldos.
 
 ## Para desarrollar
 
@@ -39,4 +39,4 @@ npm test       # pruebas (Node 18 o más nuevo, sin dependencias)
 npm run pack   # arma modelador-de-sistemas.mcpb
 ```
 
-Para probar contra otra carpeta de respaldos: `MODELADOR_RESPALDOS=/ruta node server/index.js`.
+Para probar con otras carpetas: `MODELADOR_WEBKIT=/ruta MODELADOR_RESPALDOS=/ruta node server/index.js`.

@@ -4,7 +4,8 @@
 // stdin/stdout, un mensaje por línea, como pide el transporte stdio de MCP.
 
 import { createInterface } from 'node:readline';
-import { antiguedad, buscar, leerUltimoRespaldo, loQueEstaAbierto } from './respaldos.js';
+import { leerDatosEnVivo } from './enVivo.js';
+import { antiguedad, buscar, leerUltimoRespaldo, loQueEstaAbierto, proyectosDe } from './respaldos.js';
 import { nombreDeTipo, resumirApuntes, resumirArtefacto } from './resumen.js';
 
 const VERSION = '0.1.0';
@@ -52,11 +53,26 @@ const HERRAMIENTAS = [
   },
 ].map((herramienta) => ({ ...herramienta, annotations: { readOnlyHint: true, openWorldHint: false } }));
 
-function encabezado(respaldo) {
-  const hora = respaldo.modificado.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+// Primero lo que la app está guardando ahora; si no se encuentra (otra versión
+// de macOS, la app nunca abierta), el último respaldo de Documentos.
+async function leerDatos() {
+  let enVivo = null;
+  try {
+    enVivo = await leerDatosEnVivo();
+  } catch {
+    // Datos en vivo ilegibles: se sigue con los respaldos.
+  }
+  if (enVivo) return { enVivo: true, modificado: enVivo.modificado, proyectos: proyectosDe(enVivo.datos) };
+  const respaldo = await leerUltimoRespaldo();
+  return { enVivo: false, modificado: respaldo.modificado, proyectos: respaldo.proyectos };
+}
+
+function encabezado(datos) {
+  const hora = datos.modificado.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+  if (datos.enVivo) return `(Datos en vivo de la app, guardados por última vez a las ${hora}, ${antiguedad(datos.modificado)}.)`;
   return [
-    `(Datos del último respaldo de la app: ${hora}, ${antiguedad(respaldo.modificado)}.`,
-    ' La app respalda cada 10 minutos y al minimizarla; si el estudiante cambió algo después, puede minimizarla con ⌘M y volver a preguntar.)',
+    `(No se encontraron los datos en vivo de la app; esto es el último respaldo automático, de las ${hora}, ${antiguedad(datos.modificado)}.`,
+    ' Puede no incluir los últimos minutos de trabajo.)',
   ].join('');
 }
 
@@ -77,19 +93,19 @@ function elegirArtefacto(proyecto, consulta) {
 }
 
 async function ejecutar(nombre, argumentos = {}) {
-  const respaldo = await leerUltimoRespaldo();
-  const { proyectos } = respaldo;
+  const datos = await leerDatos();
+  const { proyectos } = datos;
   if (proyectos.length === 0) return 'No hay proyectos en el Modelador de Sistemas.';
 
   switch (nombre) {
     case 'ver_lo_que_estoy_haciendo': {
       const abierto = loQueEstaAbierto(proyectos);
-      if (!abierto?.artefacto) return `${encabezado(respaldo)}\n\nEl proyecto "${abierto?.proyecto?.name}" no tiene artefactos todavía.`;
+      if (!abierto?.artefacto) return `${encabezado(datos)}\n\nEl proyecto "${abierto?.proyecto?.name}" no tiene artefactos todavía.`;
       const otros = abierto.proyecto.artifacts
         .filter((a) => a.id !== abierto.artefacto.id)
         .map((a) => `${nombreDeTipo(a.type)} "${a.name}"`);
       return [
-        encabezado(respaldo),
+        encabezado(datos),
         '',
         `Proyecto: ${abierto.proyecto.name}`,
         otros.length > 0 ? `Otros artefactos del proyecto (se leen con leer_artefacto): ${otros.join('; ')}` : '',
@@ -99,7 +115,7 @@ async function ejecutar(nombre, argumentos = {}) {
     }
     case 'listar_proyectos': {
       const abierto = loQueEstaAbierto(proyectos);
-      const lineas = [encabezado(respaldo)];
+      const lineas = [encabezado(datos)];
       for (const proyecto of proyectos) {
         lineas.push('', `## ${proyecto.name}${proyecto === abierto?.proyecto ? ' (el último en que trabajó)' : ''}`);
         for (const artefacto of proyecto.artifacts ?? []) {
@@ -111,15 +127,15 @@ async function ejecutar(nombre, argumentos = {}) {
     }
     case 'leer_artefacto': {
       const proyecto = elegirProyecto(proyectos, argumentos.proyecto);
-      return `${encabezado(respaldo)}\n\n${resumirArtefacto(elegirArtefacto(proyecto, argumentos.artefacto), proyecto)}`;
+      return `${encabezado(datos)}\n\n${resumirArtefacto(elegirArtefacto(proyecto, argumentos.artefacto), proyecto)}`;
     }
     case 'leer_artefacto_json': {
       const proyecto = elegirProyecto(proyectos, argumentos.proyecto);
-      return `${encabezado(respaldo)}\n\n${JSON.stringify(elegirArtefacto(proyecto, argumentos.artefacto))}`;
+      return `${encabezado(datos)}\n\n${JSON.stringify(elegirArtefacto(proyecto, argumentos.artefacto))}`;
     }
     case 'leer_mis_dudas': {
       const proyecto = elegirProyecto(proyectos, argumentos.proyecto);
-      const lineas = [encabezado(respaldo), '', `Apuntes y dudas del proyecto "${proyecto.name}":`];
+      const lineas = [encabezado(datos), '', `Apuntes y dudas del proyecto "${proyecto.name}":`];
       let hay = false;
       for (const artefacto of proyecto.artifacts ?? []) {
         const apuntes = resumirApuntes(artefacto.notebook);
@@ -153,7 +169,7 @@ async function atender(pedido) {
           capabilities: { tools: {} },
           serverInfo: { name: 'modelador-de-sistemas', version: VERSION },
           instructions:
-            'Herramientas para ver el trabajo del estudiante en el Modelador de Sistemas (materia Diseño de Sistemas). Leen el último respaldo automático de la app; no pueden modificar nada.',
+            'Herramientas para ver el trabajo del estudiante en el Modelador de Sistemas (materia Diseño de Sistemas). Leen lo que la app tiene guardado en este Mac; no pueden modificar nada.',
         },
       });
     case 'ping':

@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { decodificar, leerDatosEnVivo } from '../server/enVivo.js';
 import { buscar, leerUltimoRespaldo, loQueEstaAbierto } from '../server/respaldos.js';
 import { resumirArtefacto } from '../server/resumen.js';
 
@@ -117,10 +118,64 @@ test('elige el respaldo más nuevo y el artefacto abierto del último proyecto',
   await assert.rejects(leerUltimoRespaldo(join(carpeta, 'no-existe')), /No encontré la carpeta/);
 });
 
+// Arma una base como la del localStorage de WebKit: tabla ItemTable con el
+// valor en UTF-16LE, en una subcarpeta con nombre de hash.
+async function baseDeWebKit(proyectos) {
+  const { DatabaseSync } = await import('node:sqlite');
+  const carpeta = await mkdtemp(join(tmpdir(), 'webkit-'));
+  const subcarpeta = join(carpeta, 'WebsiteData', 'Default', 'abc', 'def', 'LocalStorage');
+  await mkdir(subcarpeta, { recursive: true });
+  const base = new DatabaseSync(join(subcarpeta, 'localstorage.sqlite3'));
+  base.exec('CREATE TABLE ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB NOT NULL ON CONFLICT FAIL)');
+  base.prepare('INSERT INTO ItemTable VALUES (?, ?)').run('otra-clave', Buffer.from('x', 'utf16le'));
+  base.prepare('INSERT INTO ItemTable VALUES (?, ?)').run('design-projects:v2', Buffer.from(JSON.stringify({ version: 2, projects: proyectos }), 'utf16le'));
+  base.close();
+  return carpeta;
+}
+
+test('lee los datos en vivo del localStorage de WebKit', async () => {
+  const carpeta = await baseDeWebKit([demo]);
+  const enVivo = await leerDatosEnVivo(carpeta);
+  assert.match(enVivo.ruta, /localstorage\.sqlite3$/);
+  assert.equal(enVivo.datos.projects[0].name, 'Gestión de trámites');
+  assert.equal(await leerDatosEnVivo(join(carpeta, 'no-existe')), null);
+  assert.equal(decodificar(Buffer.from('{"a":"ñ"}', 'utf8')), '{"a":"ñ"}');
+  assert.equal(decodificar(Buffer.from('{"a":"ñ"}', 'utf16le')), '{"a":"ñ"}');
+});
+
+function iniciarServidor(entorno) {
+  return spawn(process.execPath, [join(aqui, '../server/index.js')], { env: { ...process.env, ...entorno } });
+}
+
+async function llamar(servidor, nombre) {
+  return new Promise((resolver) => {
+    servidor.stdout.once('data', (parte) => resolver(JSON.parse(String(parte).trim().split('\n')[0]).result.content[0].text));
+    servidor.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: nombre, arguments: {} } })}\n`);
+  });
+}
+
+test('prefiere los datos en vivo y, si no están, usa el último respaldo', async () => {
+  const respaldos = await mkdtemp(join(tmpdir(), 'respaldos-'));
+  const viejo = { ...demo, name: 'Versión del respaldo' };
+  await writeFile(join(respaldos, 'respaldo-1.json'), JSON.stringify({ version: 2, projects: [viejo] }));
+
+  const conVivo = iniciarServidor({ MODELADOR_RESPALDOS: respaldos, MODELADOR_WEBKIT: await baseDeWebKit([demo]) });
+  const vivo = await llamar(conVivo, 'ver_lo_que_estoy_haciendo');
+  conVivo.kill();
+  assert.match(vivo, /^\(Datos en vivo de la app/);
+  assert.match(vivo, /Proyecto: Gestión de trámites/);
+
+  const sinVivo = iniciarServidor({ MODELADOR_RESPALDOS: respaldos, MODELADOR_WEBKIT: join(respaldos, 'nada') });
+  const respaldo = await llamar(sinVivo, 'ver_lo_que_estoy_haciendo');
+  sinVivo.kill();
+  assert.match(respaldo, /esto es el último respaldo automático/);
+  assert.match(respaldo, /Proyecto: Versión del respaldo/);
+});
+
 test('responde el protocolo MCP por stdio', async () => {
   const carpeta = await mkdtemp(join(tmpdir(), 'respaldos-'));
   await writeFile(join(carpeta, 'respaldo-1.json'), JSON.stringify({ version: 2, projects: [demo] }));
-  const servidor = spawn(process.execPath, [join(aqui, '../server/index.js')], { env: { ...process.env, MODELADOR_RESPALDOS: carpeta } });
+  const servidor = iniciarServidor({ MODELADOR_RESPALDOS: carpeta, MODELADOR_WEBKIT: join(carpeta, 'nada') });
 
   const pedidos = [
     { id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'prueba', version: '1' } } },
