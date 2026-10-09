@@ -5246,6 +5246,8 @@ export function SequenceDiagramEditor({
                       }}
                       value={inlineFragmentEditor.value}
                       placeholder={inlineFragmentEditor.kind === 'guard' ? 'condición' : 'nombre del fragmento'}
+                      // The text it opens with is selected, so typing replaces a default like «condición».
+                      onFocus={(e) => e.currentTarget.select()}
                       onChange={(e) => setInlineFragmentEditor({ ...inlineFragmentEditor, value: e.target.value })}
                       onKeyDown={(e) => {
                         if (shouldIgnoreEditorShortcut(e, document)) return;
