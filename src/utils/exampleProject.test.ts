@@ -2,11 +2,57 @@ import { describe, expect, it } from 'vitest';
 import demo from '../../fixtures/demo-gestion-tramites.json';
 import type { DesignArtifact, DiagramProject } from '../types/diagram';
 import { EXAMPLE_PROJECT_NAME, createExampleProject, findExampleProject } from './exampleProject';
+import { reviewClassDiagram } from './classDiagramReview';
+import { buildProjectSymbolIndex } from './projectSymbolIndex';
+import { reviewUseCaseFlow } from './useCaseFlowReview';
+import { analyzeSequenceDiagramSemantics, collectSequenceReviewProblems } from './sequenceDiagram';
+import { findFlowBranch, getFirstStepNumber, parseFlowLine } from './flowDocument';
+import { normalizeUseCaseFlowContentNumbering } from './useCaseFlowNumbering';
 
 const artifactOfType = <T extends DesignArtifact['type']>(project: DiagramProject, type: T) =>
   project.artifacts.find((artifact): artifact is Extract<DesignArtifact, { type: T }> => artifact.type === type)!;
 
 describe('createExampleProject', () => {
+  it('has no review warnings in any artifact', () => {
+    const project = createExampleProject();
+    const existingArtifactIds = new Set(project.artifacts.map((artifact) => artifact.id));
+
+    for (const artifact of project.artifacts) {
+      switch (artifact.type) {
+        case 'class-diagram':
+        case 'class-sequence-diagram':
+          expect(reviewClassDiagram(artifact.content), artifact.name).toEqual([]);
+          break;
+        case 'use-case-flow': {
+          const model = project.artifacts.find((candidate) => candidate.type === 'class-diagram'
+            && candidate.id === artifact.content.classDiagramArtifactId);
+          expect(model?.type).toBe('class-diagram');
+          const symbols = buildProjectSymbolIndex(model?.type === 'class-diagram' ? model : undefined);
+          expect(reviewUseCaseFlow(artifact.content, symbols), artifact.name).toEqual([]);
+          break;
+        }
+        case 'sequence-diagram': {
+          const semantics = analyzeSequenceDiagramSemantics(artifact.content, { existingArtifactIds });
+          expect(collectSequenceReviewProblems(artifact.content, semantics.problems), artifact.name).toEqual([]);
+          break;
+        }
+        // The use case model has no review panel or review function.
+        case 'use-case-model':
+          break;
+      }
+    }
+  });
+
+  it('branches at the system search and continues with consistent numbering', () => {
+    const content = artifactOfType(createExampleProject(), 'use-case-flow').content;
+    const alternative = content.alternativeFlows[0];
+
+    expect(findFlowBranch(content, alternative.code)).toMatchObject({ number: '2', tableCode: 'basic', field: 'system' });
+    expect(parseFlowLine(alternative.steps[0].system.split('\n')[0]).number)
+      .toBe(String(getFirstStepNumber(content, alternative)));
+    expect(normalizeUseCaseFlowContentNumbering(content)).toEqual(content);
+  });
+
   it('copies the five artifacts of the fixture under the example name', () => {
     const project = createExampleProject();
 
