@@ -33,7 +33,7 @@ export function SequenceParticipantClassField({ participant, model, onChange }: 
       </select>
       <small id="sequence-participant-class-help" className="sequence-inspector-hint">
         {!model
-          ? 'Vinculá la secuencia con un modelo de clases de secuencias para elegir una clase.'
+          ? 'Vinculá la secuencia con unas Clases de secuencias para elegir una clase.'
           : classByName
             ? 'La clase se vincula por nombre automáticamente. Podés elegir otra clase del modelo.'
             : 'Si el nombre coincide con una clase del modelo, se vincula automáticamente.'}

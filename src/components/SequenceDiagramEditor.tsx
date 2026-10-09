@@ -4697,14 +4697,14 @@ export function SequenceDiagramEditor({
             {associatedClassDiagram ? <ToolMenu icon={GitBranch} label={missingCount > 0 ? `${missingCount} ${missingCount === 1 ? 'falta' : 'faltan'}` : '✓ Al día'} title={missingCount > 0 ? `${missingCount} ${missingCount === 1 ? 'elemento falta' : 'elementos faltan'} en «${associatedClassDiagram.name}»` : `Al día con «${associatedClassDiagram.name}»`} align="start" className={`sequence-model-status ${missingCount > 0 ? 'has-novelties' : ''}`}>
               {missingCount > 0 ? <MenuItem disabled={!onImportSequenceIntoClassModel} onSelect={importIntoModel}>Agregar todo a «{associatedClassDiagram.name}»</MenuItem> : null}
               <MenuItem icon={Link2} disabled={!onNavigateToArtifact} onSelect={() => onNavigateToArtifact?.(associatedClassDiagram.id)}>Abrir «{associatedClassDiagram.name}»</MenuItem>
-              <MenuItem icon={Unlink} onSelect={() => commit({ ...content, classDiagramArtifactId: undefined })}>Desvincular</MenuItem>
+              <MenuItem icon={Unlink} onSelect={() => commit({ ...content, classDiagramArtifactId: null })}>Desvincular</MenuItem>
             </ToolMenu> : (
-              <ToolMenu icon={GitBranch} label="Sin modelo de clases" title="Vincular un modelo de clases permite elegir clases y operaciones existentes y mantener los nombres al día." align="start" className="sequence-model-status">
+              <ToolMenu icon={GitBranch} label="Sin vincular" title="Vinculá esta secuencia con unas Clases de secuencias para elegir clases y operaciones ya hechas y mantener los nombres al día." align="start" className="sequence-model-status">
                 {classDiagrams.length > 0 ? <MenuLabel>Vincular con</MenuLabel> : null}
                 {classDiagrams.map((model) => (
                   <MenuItem key={model.id} icon={Link2} onSelect={() => commit({ ...content, classDiagramArtifactId: model.id })}>{model.name}</MenuItem>
                 ))}
-                {onCreateSequenceModel ? <MenuItem icon={Plus} onSelect={onCreateSequenceModel}>Crear clases de secuencias</MenuItem> : null}
+                {onCreateSequenceModel ? <MenuItem icon={Plus} onSelect={onCreateSequenceModel}>Crear Clases de secuencias y vincular</MenuItem> : null}
               </ToolMenu>
             )}
           </>
@@ -4777,13 +4777,13 @@ export function SequenceDiagramEditor({
               </MenuField>
               <MenuSeparator />
               <MenuLabel>Referencias</MenuLabel>
-              <MenuField label="Clases de secuencias" hint="Vincular un modelo de clases permite elegir clases y operaciones existentes y mantener los nombres al día.">
+              <MenuField label="Clases de secuencias" hint="Vinculá esta secuencia con unas Clases de secuencias para elegir clases y operaciones ya hechas y mantener los nombres al día.">
                 <select
-                  title="Vincular un modelo de clases permite elegir clases y operaciones existentes y mantener los nombres al día."
+                  title="Vinculá esta secuencia con unas Clases de secuencias para elegir clases y operaciones ya hechas y mantener los nombres al día."
                   value={associatedClassDiagram?.id ?? ''}
-                  onChange={(event) => commit({ ...content, classDiagramArtifactId: event.target.value || undefined })}
+                  onChange={(event) => commit({ ...content, classDiagramArtifactId: event.target.value || null })}
                 >
-                  <option value="">Sin modelo de clases</option>
+                  <option value="">Sin vincular</option>
                   {classDiagrams.map((diagram) => <option key={diagram.id} value={diagram.id}>{diagram.name}</option>)}
                 </select>
               </MenuField>

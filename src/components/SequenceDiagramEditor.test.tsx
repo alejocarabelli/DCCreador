@@ -130,7 +130,7 @@ describe('SequenceDiagramEditor wording', () => {
     expect(html).not.toContain('Plantilla');
     expect(html).toContain('nombre:Clase');
     expect(html).not.toMatch(/TramiteActual|Consultor/);
-    expect(html).toContain('Sin modelo de clases');
-    expect(html).toContain('title="Vincular un modelo de clases permite elegir clases y operaciones existentes y mantener los nombres al día."');
+    expect(html).toContain('Sin vincular');
+    expect(html).toContain('title="Vinculá esta secuencia con unas Clases de secuencias para elegir clases y operaciones ya hechas y mantener los nombres al día."');
   });
 });
