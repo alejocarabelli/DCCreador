@@ -14,6 +14,7 @@ import { findSequenceItem, formatSequenceParticipantName } from '../utils/sequen
 import { findMarqueeHits } from '../utils/sequenceDiagramSelection';
 import type { SequenceLayout } from '../utils/sequenceDiagramLayout';
 import { isNotebookEvent } from '../utils/notebookKeyboard';
+import { shouldIgnoreEditorShortcut } from '../utils/editorShortcutGuards';
 import { getSequenceMessageEndpoints, SEQUENCE_HEADER_HEIGHT, SEQUENCE_HEADER_Y } from '../utils/sequenceDiagramLayout';
 import {
   SEQUENCE_NOTE_FONT_FAMILY,
@@ -224,7 +225,7 @@ function SequenceDiagramCanvasImpl({
     itemSelection: Exclude<Selection, null>,
     edit?: () => void,
   ): void => {
-    if (!interactive) return;
+    if (!interactive || shouldIgnoreEditorShortcut(event, document)) return;
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
     event.stopPropagation();
@@ -287,7 +288,7 @@ function SequenceDiagramCanvasImpl({
   useEffect(() => {
     if (connection === null) return undefined;
     const handleKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape' || isNotebookEvent(event)) return;
+      if (shouldIgnoreEditorShortcut(event, document) || event.key !== 'Escape' || isNotebookEvent(event)) return;
       event.preventDefault();
       const current = connectionRef.current;
       const svg = svgElementRef.current;
@@ -1509,7 +1510,7 @@ function SequenceDiagramCanvasImpl({
             role={interactive ? 'button' : undefined}
             tabIndex={interactive ? 0 : undefined}
             onClick={(event) => { event.stopPropagation(); onSelect({ kind: 'note', id: note.id }); }}
-            onKeyDown={(event) => handleItemKeyDown(event, { kind: 'note', id: note.id })}
+            onKeyDown={(event) => handleItemKeyDown(event, { kind: 'note', id: note.id }, () => onEditNote?.(note.id))}
             onDoubleClick={(event) => {
               event.stopPropagation();
               onSelect({ kind: 'note', id: note.id });

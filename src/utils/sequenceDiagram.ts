@@ -298,7 +298,7 @@ export const normalizeSequenceDiagramContent = (value: unknown): SequenceDiagram
       if (operands.length < minimumOperands) {
         addRepair(
           `normalization-repair:fragment:${allocation.id}:operand-count`,
-          `El fragmento ${operator} conserva ${operands.length} operando(s); no se inventaron operandos de relleno.`,
+          `El fragmento ${operator} conserva ${operands.length} ${operands.length === 1 ? 'operando' : 'operandos'}; no se inventaron operandos de relleno.`,
           { fragmentId: allocation.id },
         );
       }
