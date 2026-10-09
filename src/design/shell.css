@@ -628,6 +628,19 @@
   gap: 6px;
 }
 
+/* Secondary actions on Inicio: no box until hovered, so the primary one leads. */
+.app-shell .v2-home .home-button.v2-home-quiet {
+  background: transparent;
+  border-color: transparent;
+  color: var(--panel-muted-text);
+}
+
+.app-shell .v2-home .home-button.v2-home-quiet:hover {
+  background: var(--ui-hover-background);
+  border-color: transparent;
+  color: var(--panel-secondary-text);
+}
+
 .app-shell .v2-home-grid {
   display: grid;
   gap: var(--space-3);
@@ -950,23 +963,13 @@
 
 .app-shell .v2-sidebar.collapsed .theme-toggle .v2-menu-chevron { display: none; }
 
-/* First launch: how to bring the projects of the first version. */
-.app-shell .v2-home-migrate {
-  color: var(--panel-muted-text);
-  font-size: var(--text-sm);
-  line-height: 1.5;
-  margin: 0;
-  max-width: 46ch;
-}
-
-.app-shell .v2-home-migrate code {
-  background: var(--panel-muted-background);
-  border-radius: var(--radius-sm);
-  font-family: var(--font-mono);
+/* Footer line of the welcome card for people with a saved project. The more specific
+   selector keeps the welcome paragraph rule from enlarging it. */
+.app-shell .v2-home-welcome .v2-home-migrate {
+  color: var(--panel-faint-text);
   font-size: var(--text-xs);
-  margin-left: 4px;
-  padding: 1px 5px;
-  white-space: nowrap;
+  line-height: 1.5;
+  margin: var(--space-2) 0 0;
 }
 
 /* ─── Apuntes workspace ───────────────────────────────────────────────────
