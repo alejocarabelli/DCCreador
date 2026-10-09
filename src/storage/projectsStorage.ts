@@ -34,11 +34,37 @@ const messageCount = (value: unknown): number => {
   return (value.kind === 'message' ? 1 : 0) + Object.values(value).reduce<number>((total, item) => total + messageCount(item), 0);
 };
 
+// Only schema collections are compared: optional missing collections and
+// empty arrays are normal in older projects. A malformed nonempty collection
+// is loss even when the normalizer creates a replacement item as a fallback.
+const contentCollectionKeys = new Set([
+  'nodes', 'edges', 'messages', 'participants', 'notes', 'activations',
+  'items', 'operands', 'attributes', 'methods', 'parametricValues',
+  'basicFlow', 'alternativeFlows', 'steps', 'linkedSequenceDiagramIds',
+]);
+
+const hasCollectionData = (value: unknown): boolean =>
+  collectionSize(value) > 0 || (typeof value === 'string' && value.length > 0)
+    || typeof value === 'number' || typeof value === 'boolean';
+
 const contentLost = (raw: unknown, normalized: unknown): boolean => {
   if (!isRecord(raw)) return false;
   const clean = isRecord(normalized) ? normalized : {};
-  return ['nodes', 'edges', 'messages', 'participants'].some((key) => collectionSize(raw[key]) > collectionSize(clean[key]))
-    || messageCount(raw.items) > messageCount(clean.items);
+  return Object.entries(raw).some(([key, value]) => {
+    const next = clean[key];
+    if (contentCollectionKeys.has(key)) {
+      if (!Array.isArray(value)) return hasCollectionData(value);
+      const nextItems: unknown[] = Array.isArray(next) ? next : [];
+      if (value.length > nextItems.length) return true;
+      return value.some((item, index) => {
+        const counterpart = isRecord(item) && typeof item.id === 'string'
+          ? nextItems.find((candidate) => isRecord(candidate) && candidate.id === item.id) ?? nextItems[index]
+          : nextItems[index];
+        return contentLost(item, counterpart);
+      });
+    }
+    return isRecord(value) && contentLost(value, next);
+  }) || messageCount(raw.items) > messageCount(clean.items);
 };
 
 const notebookLost = (raw: unknown, normalized: unknown): boolean => {
@@ -55,7 +81,7 @@ const notebookLost = (raw: unknown, normalized: unknown): boolean => {
 
 const projectLost = (raw: unknown, normalized: DiagramProject): boolean => {
   if (!isRecord(raw)) return true;
-  if (!Array.isArray(raw.artifacts)) return contentLost(raw.content, normalized.artifacts[0]?.content);
+  if (!Array.isArray(raw.artifacts)) return hasCollectionData(raw.artifacts) || contentLost(raw.content, normalized.artifacts[0]?.content);
   if (raw.artifacts.length > normalized.artifacts.length) return true;
   return raw.artifacts.some((artifact, index) => {
     if (!isRecord(artifact)) return true;

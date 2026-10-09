@@ -137,3 +137,39 @@ describe('notebook loss detection', () => {
     expect(loaded.projects[0].artifacts[0].notebook).toEqual(notebook);
   });
 });
+
+
+describe('nested collection loss', () => {
+  beforeEach(() => vi.stubGlobal('localStorage', createMemoryStorage()));
+
+  const node = { id: 'c', type: 'classNode', position: { x: 0, y: 0 }, data: { name: 'Cliente' } };
+  const note = { id: 'n', text: 'Conservar', anchorKind: 'free', x: 0, y: 0 };
+  it.each([
+    ['notes object', 'sequence-diagram', { participants: [], items: [], notes: { n: note } }],
+    ['invalid note', 'sequence-diagram', { participants: [], items: [], notes: [note, null] }],
+    ['attributes object', 'class-diagram', { nodes: [{ ...node, data: { ...node.data, attributes: { a: { id: 'a', name: 'id' } } } }], edges: [] }],
+    ['methods object', 'class-diagram', { nodes: [{ ...node, data: { ...node.data, methods: { m: { id: 'm', name: 'buscar' } } } }], edges: [] }],
+    ['invalid method', 'class-diagram', { nodes: [{ ...node, data: { ...node.data, methods: [null] } }], edges: [] }],
+    ['nested items object', 'sequence-diagram', { participants: [], items: [{ kind: 'fragment', id: 'f', fragmentKind: 'loop', operands: [{ id: 'o', items: { m: { kind: 'message', id: 'm' } } }] }] }],
+  ])('protects raw storage for %s', (_label, type, content) => {
+    const raw = storedWith([{ ...validArtifact, type, content }]);
+    localStorage.setItem(STORAGE_KEY, raw);
+    const loaded = loadProjects();
+    expect(loaded.recoveryRaw).toBe(raw);
+    expect(loaded.skipInitialSave).toBe(true);
+    expect(loaded.warning).not.toBeNull();
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(raw);
+  });
+
+  it('accepts a typical 2.4.x project with absent optional collections and empty arrays', () => {
+    const raw = storedWith([
+      { ...validArtifact, content: { nodes: [node], edges: [] } },
+      { ...validArtifact, id: 'seq', type: 'sequence-diagram', content: {
+        participants: [{ id: 'p', kind: 'object', name: 'cliente', classifierName: 'Cliente', x: 0 }],
+        items: [], notes: [], activations: [],
+      } },
+    ]);
+    localStorage.setItem(STORAGE_KEY, raw);
+    expect(loadProjects()).toMatchObject({ skipInitialSave: false, recoveryRaw: null, warning: null });
+  });
+});
