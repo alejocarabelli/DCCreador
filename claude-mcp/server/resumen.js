@@ -238,7 +238,6 @@ function resumirSecuencia(contenido, proyecto) {
   const lineas = [];
   if (contenido.flowArtifactId) lineas.push(`Flujo de sucesos asociado: ${artefactos.get(contenido.flowArtifactId) ?? '(inexistente)'}`);
   if (contenido.classDiagramArtifactId) lineas.push(`Diagrama de clases asociado: ${artefactos.get(contenido.classDiagramArtifactId) ?? '(inexistente)'}`);
-  lineas.push(`Numeración en el dibujo: ${{ sequential: 'secuencial', hierarchical: 'jerárquica', none: 'sin números' }[contenido.numbering] ?? 'secuencial'}`);
 
   lineas.push('', `## Participantes (de izquierda a derecha, ${participantes.length})`);
   const ordenados = [...participantes].sort((a, b) => (a.x ?? 0) - (b.x ?? 0));
@@ -246,9 +245,29 @@ function resumirSecuencia(contenido, proyecto) {
     lineas.push(`- ${nombres.get(participante.id)} (${TIPOS_DE_PARTICIPANTE[participante.kind] ?? participante.kind})`);
   }
 
-  lineas.push('', '## Mensajes en orden', '(los números son el orden de aparición; el dibujo puede numerarlos distinto)');
-  const numeros = new Map();
-  let contador = 0;
+  // Los mensajes se nombran por su texto y sus participantes, nunca por un
+  // número: el estudiante puede tener la numeración apagada, y la del dibujo
+  // no coincide con un simple conteo.
+  const mensajes = new Map();
+  const juntar = (items, dentro) => {
+    for (const item of lista(items)) {
+      if (item.kind === 'fragment') {
+        const rotuloDelFragmento = `${item.operator}${texto(item.name) ? ` "${texto(item.name)}"` : ' sin nombre'}`;
+        for (const operando of lista(item.operands)) juntar(operando.items, rotuloDelFragmento);
+      } else {
+        mensajes.set(item.id, { mensaje: item, dentro });
+      }
+    }
+  };
+  juntar(contenido.items, null);
+  const mencion = (id) => {
+    const encontrado = mensajes.get(id);
+    if (!encontrado) return null;
+    const lugar = encontrado.dentro ? `, dentro del ${encontrado.dentro}` : '';
+    return `${mencionarMensaje(encontrado.mensaje, nombres)}${lugar}`;
+  };
+
+  lineas.push('', '## Mensajes en orden, de arriba hacia abajo', '(Al hablar de un mensaje, nombralo por su texto y sus participantes, no por un número.)');
   const recorrer = (items, sangria) => {
     for (const item of lista(items)) {
       if (item.kind === 'fragment') {
@@ -263,20 +282,18 @@ function resumirSecuencia(contenido, proyecto) {
         lineas.push(`${sangria}fin ${item.operator}`);
         continue;
       }
-      contador += 1;
-      numeros.set(item.id, contador);
-      lineas.push(`${sangria}${contador}. ${describirMensaje(item, nombres, numeros)}`);
+      lineas.push(`${sangria}- ${describirMensaje(item, nombres, mensajes)}`);
     }
   };
   recorrer(contenido.items, '');
-  if (contador === 0 && lista(contenido.items).length === 0) lineas.push('(sin mensajes)');
+  if (mensajes.size === 0 && lista(contenido.items).length === 0) lineas.push('(sin mensajes)');
 
   const notas = lista(contenido.notes).filter((nota) => texto(nota.text));
   if (notas.length > 0) {
     lineas.push('', '## Notas en el diagrama');
     for (const nota of notas) {
-      const ancla = nota.anchorKind === 'message' && numeros.has(nota.anchorId)
-        ? ` (sobre el mensaje ${numeros.get(nota.anchorId)})`
+      const ancla = nota.anchorKind === 'message' && mensajes.has(nota.anchorId)
+        ? ` (sobre el mensaje ${mencion(nota.anchorId)})`
         : nota.anchorKind === 'participant' && nombres.has(nota.anchorId)
           ? ` (sobre ${nombres.get(nota.anchorId)})`
           : '';
@@ -287,7 +304,14 @@ function resumirSecuencia(contenido, proyecto) {
   const problemas = lista(contenido.problems);
   if (problemas.length > 0) {
     lineas.push('', '## Avisos que muestra la app');
-    for (const problema of problemas) lineas.push(`- ${problema.severity === 'error' ? 'Error' : 'Advertencia'}: ${texto(problema.message)}`);
+    for (const problema of problemas) {
+      const donde = problema.messageId && mensajes.has(problema.messageId)
+        ? ` En el mensaje ${mencion(problema.messageId)}.`
+        : problema.participantId && nombres.has(problema.participantId)
+          ? ` En ${nombres.get(problema.participantId)}.`
+          : '';
+      lineas.push(`- ${problema.severity === 'error' ? 'Error' : 'Advertencia'}: ${texto(problema.message)}${donde}`);
+    }
   }
   return lineas;
 }
@@ -313,7 +337,20 @@ function describirFragmento(fragmento, sangria, artefactos) {
   return [`${sangria}fragmento ${fragmento.operator} (${OPERADORES[fragmento.operator] ?? fragmento.operator})${nombre ? ` "${nombre}"` : ''}`];
 }
 
-function describirMensaje(mensaje, nombres, numeros) {
+/** Cómo nombrar un mensaje al hablar de él: «getNombre()» de :A a :B. */
+function mencionarMensaje(mensaje, nombres) {
+  const origen = nombres.get(mensaje.sourceId) ?? '(participante inexistente)';
+  const destino = nombres.get(mensaje.targetId) ?? '(participante inexistente)';
+  const nombre = texto(mensaje.name);
+  const rotulo = {
+    return: `retorno ${nombre || texto(mensaje.returnType) || '(sin valor)'}`,
+    create: `«create»${nombre ? ` ${nombre}()` : ''}`,
+    destroy: '«destroy»',
+  }[mensaje.type] ?? `${nombre || '(sin nombre)'}()`;
+  return `«${rotulo}» de ${origen} a ${destino}`;
+}
+
+function describirMensaje(mensaje, nombres, mensajes) {
   const origen = nombres.get(mensaje.sourceId) ?? '(participante inexistente)';
   const destino = nombres.get(mensaje.targetId) ?? '(participante inexistente)';
   const nombre = texto(mensaje.name);
@@ -323,7 +360,11 @@ function describirMensaje(mensaje, nombres, numeros) {
 
   switch (mensaje.type) {
     case 'return': {
-      const respuesta = numeros.has(mensaje.replyToMessageId) ? ` (responde al ${numeros.get(mensaje.replyToMessageId)})` : '';
+      // Sin replyToMessageId la app lo asocia sola a la última llamada abierta.
+      const llamada = mensajes.get(mensaje.replyToMessageId)?.mensaje;
+      const respuesta = llamada
+        ? ` (responde a ${mencionarMensaje(llamada, nombres)})`
+        : mensaje.replyToMessageId ? ' (responde a una llamada que ya no existe)' : '';
       return `${origen} --> ${destino}: retorno ${nombre || retorno || '(sin valor)'}${respuesta}${referencia}`;
     }
     case 'create':

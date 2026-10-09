@@ -8,7 +8,7 @@ import { leerDatosEnVivo } from './enVivo.js';
 import { antiguedad, buscar, leerUltimoRespaldo, loQueEstaAbierto, proyectosDe } from './respaldos.js';
 import { nombreDeTipo, resumirApuntes, resumirArtefacto } from './resumen.js';
 
-const VERSION = '0.1.0';
+const VERSION = '0.1.1';
 
 const ARGUMENTOS_DE_ARTEFACTO = {
   type: 'object',
@@ -169,7 +169,7 @@ async function atender(pedido) {
           capabilities: { tools: {} },
           serverInfo: { name: 'modelador-de-sistemas', version: VERSION },
           instructions:
-            'Herramientas para ver el trabajo del estudiante en el Modelador de Sistemas (materia Diseño de Sistemas). Leen lo que la app tiene guardado en este Mac; no pueden modificar nada.',
+            'Herramientas para ver el trabajo del estudiante en el Modelador de Sistemas (materia Diseño de Sistemas). Leen lo que la app tiene guardado en este Mac; no pueden modificar nada. Al hablar de un mensaje de una secuencia, nombralo por su texto, sus participantes y el fragmento donde está; no le pongas números, porque el estudiante no los usa.',
         },
       });
     case 'ping':

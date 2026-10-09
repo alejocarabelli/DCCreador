@@ -3,7 +3,7 @@
   "manifest_version": "0.3",
   "name": "modelador-de-sistemas",
   "display_name": "Modelador de Sistemas",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Deja que Claude vea, en modo solo lectura, los diagramas que estás haciendo en el Modelador de Sistemas.",
   "long_description": "Lee lo que la app tiene guardado en el Mac (y, si no lo encuentra, el último respaldo automático) y se lo pasa a Claude resumido en texto: casos de uso, flujos de sucesos, secuencias y clases, con tus apuntes y dudas. No modifica nada y no usa internet.",
   "author": { "name": "Modelador de Sistemas" },

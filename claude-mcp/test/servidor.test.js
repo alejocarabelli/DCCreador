@@ -59,16 +59,16 @@ test('la secuencia conserva el orden, los fragmentos, los retornos y los avisos 
         mensaje('m4', 'g', 'p', '', { type: 'return', replyToMessageId: 'm1', returnType: 'Persona' }),
       ],
       notes: [{ id: 'n', text: 'Revisar', anchorKind: 'message', anchorId: 'm2' }],
-      problems: [{ id: 'e', code: 'unnamed-message', severity: 'warning', message: 'Hay un mensaje sin nombre.' }],
+      problems: [{ id: 'e', code: 'unmatched-return', severity: 'warning', message: 'El retorno no tiene una llamada abierta compatible.', messageId: 'm4' }],
     },
   });
   assert.match(texto, /- :Pantalla \(interfaz\)\n- :Gestor \(control\)/);
-  assert.match(texto, /1\. :Pantalla → :Gestor: buscar\(dni\)/);
-  assert.match(texto, /fragmento alt \(alternativa\)\n {2}operando \[existe\]\n {4}2\. :Gestor → :Pantalla: mostrar\(\)\n {2}else \(sin guarda\)\n {4}3\. :Gestor → :Gestor: «create» crear\(\)\nfin alt/);
-  assert.match(texto, /4\. :Gestor --> :Pantalla: retorno Persona \(responde al 1\)/);
-  assert.match(texto, /- Revisar \(sobre el mensaje 2\)/);
-  assert.match(texto, /Advertencia: Hay un mensaje sin nombre\./);
-  assert.match(texto, /Numeración en el dibujo: jerárquica/);
+  assert.match(texto, /- :Pantalla → :Gestor: buscar\(dni\)/);
+  assert.match(texto, /fragmento alt \(alternativa\)\n {2}operando \[existe\]\n {4}- :Gestor → :Pantalla: mostrar\(\)\n {2}else \(sin guarda\)\n {4}- :Gestor → :Gestor: «create» crear\(\)\nfin alt/);
+  assert.match(texto, /- :Gestor --> :Pantalla: retorno Persona \(responde a «buscar\(\)» de :Pantalla a :Gestor\)/);
+  assert.match(texto, /- Revisar \(sobre el mensaje «mostrar\(\)» de :Gestor a :Pantalla, dentro del alt sin nombre\)/);
+  assert.match(texto, /Advertencia: El retorno no tiene una llamada abierta compatible\. En el mensaje «retorno Persona» de :Gestor a :Pantalla\./);
+  assert.doesNotMatch(texto, /^\s*\d+\. /m);
 });
 
 test('los apuntes se separan del modelo y marcan las dudas pendientes', () => {
