@@ -47,6 +47,7 @@ import type {
   SequenceActivation,
   SequenceDiagramArtifact,
   SequenceDiagramContent,
+  SequenceDiagramProblem,
   SequenceFragment,
   SequenceFragmentOperator,
   SequenceMessage,
@@ -176,7 +177,7 @@ import { SequenceKeyboardComposer } from './SequenceKeyboardComposer';
 import { collectUsedConditionValues, methodInsertText, type SignatureCompletionData } from '../utils/sequenceSignatureCompletion';
 import { SequenceMessageDialog } from './SequenceMessageDialog';
 import type { QuickMessageDraft } from '../utils/sequenceMessageDialogCompatibility';
-import { SequenceReviewPanel } from './SequenceReviewPanel';
+import { DiagramReviewPanel } from './DiagramReviewPanel';
 import { shortcutLabel } from '../utils/shortcutLabel';
 
 type SequenceSelection = SequenceSelectionTarget | null;
@@ -1749,6 +1750,19 @@ export function SequenceDiagramEditor({
   useEffect(() => () => {
     if (highlightTimeoutRef.current !== null) window.clearTimeout(highlightTimeoutRef.current);
   }, []);
+
+  const closeReviewPanel = useCallback(() => setIsReviewPanelOpen(false), []);
+  const reviewIssues = useMemo(() => reviewProblems.map((problem) => ({
+    id: problem.id,
+    kind: problem.severity === 'error' ? 'error' as const : 'review' as const,
+    message: problem.message,
+    problem,
+  })), [reviewProblems]);
+  const focusReviewIssue = useCallback(({ problem }: { problem: SequenceDiagramProblem }): void => {
+    if (problem.messageId) selectOutlineItem({ kind: 'message', id: problem.messageId });
+    else if (problem.fragmentId) selectOutlineItem({ kind: 'fragment', id: problem.fragmentId });
+    else if (problem.participantId) selectOutlineItem({ kind: 'participant', id: problem.participantId });
+  }, [selectOutlineItem]);
 
   const handleToolbarMenuToggle = (event: SyntheticEvent<HTMLDetailsElement>): void => {
     const details = event.currentTarget;
@@ -4734,7 +4748,7 @@ export function SequenceDiagramEditor({
               count={reviewProblems.length}
               hasErrors={reviewProblems.some((problem) => problem.severity === 'error')}
               open={isReviewPanelOpen}
-              onToggle={() => setIsReviewPanelOpen(!isReviewPanelOpen)}
+              onToggle={() => setIsReviewPanelOpen((open) => !open)}
             />
             <ToolMenu icon={Eye} label="Vista">
               <MenuLabel>Paneles</MenuLabel>
@@ -5284,10 +5298,13 @@ export function SequenceDiagramEditor({
           </div>
         </section>
         {isReviewPanelOpen ? (
-          <SequenceReviewPanel
-            problems={reviewProblems}
-            onSelectProblemTarget={selectOutlineItem}
-            onClose={() => setIsReviewPanelOpen(false)}
+          <DiagramReviewPanel
+            helper="Comprueba mensajes sin nombre, fragmentos incompletos y el ciclo de vida de los participantes. No reemplaza la revisión del diagrama."
+            isEmpty={content.participants.length === 0 && content.items.length === 0}
+            issues={reviewIssues}
+            title="Revisión del diagrama"
+            onClose={closeReviewPanel}
+            onFocus={focusReviewIssue}
           />
         ) : null}
         <InspectorPanel

@@ -1708,7 +1708,7 @@ export function DiagramEditor({
               Después tocá la línea para elegir multiplicidades.
             </div>
           ) : null}
-          {reviewOpen ? <DiagramReviewPanel issues={reviewIssues} onFocus={focusIssue} onClose={() => setReviewOpen(false)} /> : null}
+          {reviewOpen ? <DiagramReviewPanel isEmpty={nodes.length === 0} issues={reviewIssues} onFocus={focusIssue} onClose={() => setReviewOpen(false)} /> : null}
           {contextMenu !== null ? (
             <div
               className="canvas-context-menu"

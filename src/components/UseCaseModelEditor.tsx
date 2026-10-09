@@ -43,7 +43,9 @@ import { CANVAS_GRID_KEY, readCanvasGridEnabled, readUiPreference, writeUiPrefer
 import { normalizeUseCaseModelContent } from '../utils/diagramNormalization';
 import { deleteUseCaseSelection } from '../utils/useCaseDeletion';
 import { CanvasControls } from './CanvasControls';
-import { EditorToolbar, MenuItem, NotebookButton, ToolButton, ToolMenu } from './ui/Toolbar';
+import { EditorToolbar, MenuItem, NotebookButton, ReviewButton, ToolButton, ToolMenu } from './ui/Toolbar';
+import { DiagramReviewPanel } from './DiagramReviewPanel';
+import { reviewUseCaseModel, type UseCaseModelIssue } from '../utils/useCaseModelReview';
 import { isNotebookEvent } from '../utils/notebookKeyboard';
 import { InspectorDeleteButton, InspectorPanel } from './ui/Panel';
 import { CanvasStartCard } from './CanvasStartCard';
@@ -201,6 +203,9 @@ export function UseCaseModelEditor({
   const feedbackTimeoutRef = useRef<number | null>(null);
   const normalizedContent = useMemo(() => normalizeUseCaseModelContent(artifact.content), [artifact.content]);
   const { nodes, edges } = normalizedContent;
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const reviewIssues = useMemo(() => reviewUseCaseModel(normalizedContent), [normalizedContent]);
+  const closeReview = useCallback(() => setReviewOpen(false), []);
   // Ids of elements that still exist: an undo can remove a selected element.
   const activeSelectedNodeIds = useMemo(
     () => selectedNodeIds.filter((id) => nodes.some((node) => node.id === id)),
@@ -354,6 +359,12 @@ export function UseCaseModelEditor({
   const selectOnly = (nodeId: string | null, edgeId: string | null): void => {
     setSelectedNodeIds(nodeId === null ? [] : [nodeId]);
     setSelectedEdgeIds(edgeId === null ? [] : [edgeId]);
+  };
+
+  const focusReviewIssue = (issue: UseCaseModelIssue): void => {
+    selectOnly(issue.nodeId, null);
+    const target = renderedNodes.find((node) => node.id === issue.nodeId);
+    if (target !== undefined) void reactFlowInstance?.fitView({ nodes: [target], padding: 0.8, maxZoom: 1.2, duration: 250 });
   };
 
   const addNode = (kind: UseCaseNodeKind, position: XYPosition): void => {
@@ -656,6 +667,12 @@ export function UseCaseModelEditor({
         end={(
           <>
             <NotebookButton />
+            <ReviewButton
+              count={reviewIssues.length}
+              hasErrors={reviewIssues.some((issue) => issue.kind === 'error')}
+              open={reviewOpen}
+              onToggle={() => { closeToolbarMenus(); setReviewOpen((open) => !open); }}
+            />
             <ToolMenu icon={Eye} label="Vista">
               <MenuItem checked={isGridEnabled} onSelect={() => setIsGridEnabled((enabled) => !enabled)}>Grilla</MenuItem>
               <MenuItem checked={isSnapEnabled} onSelect={() => setIsSnapEnabled((enabled) => !enabled)}>Ajustar a la grilla</MenuItem>
@@ -760,6 +777,16 @@ export function UseCaseModelEditor({
             <CanvasControls label="Controles del modelo de casos de uso" />
             {isMiniMapEnabled && nodes.length > 0 ? <MiniMap aria-label="Minimapa del modelo" pannable zoomable /> : null}
           </ReactFlow>
+          {reviewOpen ? (
+            <DiagramReviewPanel
+              helper="Comprueba nombres y elementos sueltos. No reemplaza la revisión del modelo."
+              isEmpty={nodes.length === 0}
+              issues={reviewIssues}
+              title="Revisión del modelo"
+              onClose={closeReview}
+              onFocus={focusReviewIssue}
+            />
+          ) : null}
           {contextMenu !== null ? (
             <div className="canvas-context-menu" style={{ left: contextMenu.screenPosition.x, top: contextMenu.screenPosition.y }}>
               {contextMenu.nodeId === undefined ? (
