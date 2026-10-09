@@ -329,3 +329,9 @@ Agravantes que aparecieron al verificar:
 - **Gatekeeper:** sin notarizar. README y notas de la release con el camino real: abrir una vez → Configuración del Sistema → Privacidad y seguridad → **Abrir igualmente**.
 - **Apuntes en JSON (C2):** siguen viajando en el JSON; se corrige el texto para aclarar que no salen en PDF ni Word pero sí en los archivos exportados.
 - **Retornos (E2):** sin texto por diseño. Solo se evita perder en silencio lo escrito al cambiar a Retorno.
+
+## Pendientes que surgieron en la tanda 1
+
+- **B6 en secuencias:** «Desvincular» y «Sin modelo» guardan `undefined`, y al crear o convertir un modelo de clases de secuencias se vinculan todas las secuencias sin modelo (`src/hooks/useProjects.ts` ~391-397, ~486-491, ~533-537; `src/components/SequenceDiagramEditor.tsx` ~4722, ~4804). La desvinculación voluntaria se pierde. Mismo arreglo que en flujos (null explícito).
+- **B6, UX:** con una referencia borrada el selector muestra «Sin referencia»; elegirla otra vez no cambia nada y el aviso queda.
+- **E13:** la miniatura de la vista previa de exportación es chica.
