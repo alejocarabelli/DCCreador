@@ -413,3 +413,22 @@ Sesión autónoma de Claude Code (sin nadie para consultar). Ante dos opciones s
 - **D4 y D5** (avisos falsos del flujo por atributos heredados y «Fin del caso de uso») seguían abiertos y se arreglaron en la tanda 3, como parte de «sacar falsos avisos».
 - **F16:** el aviso de React Flow sobre `nodeTypes`/`edgeTypes` lo produce el doble render de `StrictMode` en desarrollo: los tipos ya están definidos fuera de los componentes. Se probó filtrarlo con `onError`, pero React Flow lo emite en el primer render, antes de registrar ese manejador, así que se revirtió. La app compilada no lo muestra; queda documentado y sin cambios. El favicon que falta (404) solo se nota en el navegador de desarrollo.
 - **Buscar actualizaciones a mano sin conexión** dice «No se pudo consultar. Probá más tarde.» y no borra un aviso ya encontrado; la consulta automática al abrir queda en silencio.
+
+## G. Tercer recorrido de primer uso (rama tanda-3, 9/10)
+
+Puntaje del agente: **7/10** (antes 6/10). Lo que más ayudó: crear un proyecto eligiendo por dónde empezar, las pantallas vacías con acción, Mayús+clic con su consejo, deshacer en casos de uso, el modo teclado de secuencia, «Crear Clases de secuencias y vincular» y traer con casillas, y el modo oscuro. Consola sin errores propios (solo el aviso de desarrollo de React Flow y el favicon).
+
+Arreglado antes del PR:
+- **Flujo, Tab:** después de bajar o subir un nivel con Tab, el cursor iba al principio de la celda y lo que se escribía quedaba adelante («R1Pide…Elige…»). Ya pasaba en la tanda 2.
+
+Pendiente (para Alejo o una tanda siguiente):
+1. **Flujo, camino alternativo:** Tab desde el nombre pasa por «desde paso N…», «empieza en» y el tacho antes de llegar a la tabla; un Enter de más en «desde paso N» salta al paso y lo que se escribe reemplaza su texto. Se deshace con ⌘Z.
+2. **Secuencia, modo teclado:** después de crear un Retorno (sin texto, por decisión) las letras que siguen se toman como atajos («p» crea un participante).
+3. **Ejemplo:** no dice en qué orden se leen los artefactos ni qué aporta Clases de secuencias (se ve igual que el modelo de dominio).
+4. **Ayuda:** «?» es solo la lista de atajos; no hay explicación de qué es cada artefacto.
+5. **Flujo:** Tab baja un nivel (no cambia de columna) y ⌘↵ pasa al otro lado: potente pero poco descubrible. El campo Actor no sugiere los actores del modelo (fuera de alcance).
+6. **Secuencia vacía:** «Participante» en la barra y «Agregar actor» en la tarjeta son los dos botones destacados.
+7. **Clases:** dos asociaciones que salen del mismo punto comparten un tramo; la multiplicidad sin definir se ve como placeholder gris que parece valor.
+8. **Revisar:** el aviso de multiplicidad no nombra la línea (el clic sí la encuadra); en el flujo cada aviso repite «Revisar».
+9. **1100 px:** las barras quedan solo con íconos (con tooltip).
+10. **Detalles:** «Guardado» se corta con la barra apretada; la barra flotante del participante se recorta a la derecha; al traer en Clases de secuencias aparece el inspector de selección múltiple y achica el lienzo; deshacer en el flujo agrupa varias filas tipeadas de corrido.
