@@ -432,3 +432,16 @@ Pendiente (para Alejo o una tanda siguiente):
 8. **Revisar:** el aviso de multiplicidad no nombra la línea (el clic sí la encuadra); en el flujo cada aviso repite «Revisar».
 9. **1100 px:** las barras quedan solo con íconos (con tooltip).
 10. **Detalles:** «Guardado» se corta con la barra apretada; la barra flotante del participante se recorta a la derecha; al traer en Clases de secuencias aparece el inspector de selección múltiple y achica el lienzo; deshacer en el flujo agrupa varias filas tipeadas de corrido.
+
+## Tanda 4: estado (9/10)
+
+Rama `lanzamiento/tanda-4` (PR contra `lanzamiento/tanda-3`), armada con `lanzamiento/t4-actualizaciones` y `lanzamiento/t4-distribucion`.
+
+| Ítem del encargo | Estado |
+|---|---|
+| 1. Versión visible | Resuelto: abajo en la barra lateral («v2.5.0») y en la ayuda (?). README actualizado |
+| 2. Buscar actualizaciones | Resuelto: al abrir (como mucho una vez por día) y desde la ayuda. Aviso discreto con enlace a la release, que se puede ocultar hasta la siguiente versión. Sin conexión, silencio al abrir; la búsqueda manual dice que no pudo consultar. Comparación semántica con pruebas (`src/utils/appUpdate.ts`). El enlace es un `<a>` sin `target`, que macOS (`AppMain.m`) y Windows (`on_navigation` + opener) ya abren en el navegador; la CSP de Tauri es `null`, así que el `fetch` no necesitó permisos. **Sin probar en las apps nativas** |
+| 3. Notas de la 2.5.0 | Resuelto: `docs/release-notes.md`. Los dos workflows publican con ese archivo, así que no importa cuál cree la release primero |
+| 4. Versión 2.5.0 | Resuelto: solo `package.json` y `package-lock.json`. `src-tauri/Cargo.toml` y `macos/Info.plist` siguen diciendo 2.4.1 en el repo, pero el build los toma de `package.json` (`tauri.conf.json` → `../package.json`; `build-macos-app.sh` → PlistBuddy) |
+| 5. Windows | Atajos: los «⌘» fijos solo están en comentarios y en la ayuda, que ya los convierte con `shortcutLabel`. CI: `windows.yml` en `lanzamiento/tanda-4` pasó (run 37927566618, sobre `22ac9f6`). No se probó en un equipo con Windows |
+| 6. Limpieza | Resuelto: `scripts/advancedSequenceRunner.tsx` sin los CHECK 5 y 6 y con el panel Revisar nuevo; `REDISENO-V2.md` ya no se usa como notas |

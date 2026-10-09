@@ -42,3 +42,18 @@ describe('typeInputWithTypedCase while typing', () => {
     expect(typeInputWithTypedCase('strin', 'string')).toBe('string');
   });
 });
+
+describe('typeInputWithTypedCase keeps user text as typed', () => {
+  it('keeps a capital the user pastes into an empty type', () => {
+    expect(typeInputWithTypedCase('', 'Date')).toBe('Date');
+  });
+
+  it('takes a lowercase suggestion as is when the previous value was the same word in capitals', () => {
+    expect(typeInputWithTypedCase('String', 'string')).toBe('string');
+  });
+
+  it('still applies the typed capital when a suggestion is picked over a partial word', () => {
+    expect(typeInputWithTypedCase('Str', 'string')).toBe('String');
+    expect(typeInputWithTypedCase('', 'date')).toBe('date');
+  });
+});

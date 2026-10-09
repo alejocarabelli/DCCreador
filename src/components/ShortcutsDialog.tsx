@@ -1,6 +1,9 @@
 import { Keyboard, X } from 'lucide-react';
 import { useRef } from 'react';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import type { AppUpdateStatus } from '../hooks/useAppUpdate';
+import { APP_VERSION } from '../constants/appInfo';
+import type { LatestRelease } from '../utils/appUpdate';
 import { shortcutLabel } from '../utils/shortcutLabel';
 
 type Shortcut = [keys: string, description: string];
@@ -74,7 +77,7 @@ const SECTIONS: Array<{ title: string; shortcuts: Shortcut[] }> = [
       ['Esc', 'Volver un paso'],
       ['←  →', 'Elegir participante'],
       ['↵', 'Mensaje síncrono'],
-      ['S  R  C  D', 'Síncrono, retorno, creación, destrucción'],
+      ['S  R  C  D', 'Tipo de mensaje: síncrono, retorno, creación, destrucción (también con clic)'],
       ['P', 'Nuevo participante'],
       ['F', 'Fragmento combinado'],
       ['G', 'Editar la condición del operando'],
@@ -96,9 +99,33 @@ const SECTIONS: Array<{ title: string; shortcuts: Shortcut[] }> = [
   },
 ];
 
-export function ShortcutsDialog({ onClose, onDownloadArtifactGuide }: { onClose: () => void; onDownloadArtifactGuide?: () => void }) {
+type ShortcutsDialogProps = {
+  onClose: () => void;
+  onDownloadArtifactGuide?: () => void;
+  onCheckUpdate?: () => void;
+  update?: LatestRelease | null;
+  updateStatus?: AppUpdateStatus;
+};
+
+/** What the update line says: a search in progress, the newest release, or «up to date» after a search. */
+const updateMessage = (update: LatestRelease | null | undefined, status: AppUpdateStatus | undefined) => {
+  if (status === 'checking') return 'Buscando…';
+  if (update) {
+    return (
+      <>
+        {`Hay una versión nueva (${update.version}). `}
+        <a href={update.url} rel="noreferrer">Ver la versión nueva</a>
+      </>
+    );
+  }
+  if (status === 'error') return 'No se pudo consultar. Probá más tarde.';
+  return status === 'up-to-date' ? 'Tenés la última versión.' : null;
+};
+
+export function ShortcutsDialog({ onClose, onDownloadArtifactGuide, onCheckUpdate, update, updateStatus }: ShortcutsDialogProps) {
   const dialogRef = useRef<HTMLElement | null>(null);
   useFocusTrap(dialogRef, true, onClose);
+  const message = updateMessage(update, updateStatus);
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
@@ -146,6 +173,25 @@ export function ShortcutsDialog({ onClose, onDownloadArtifactGuide }: { onClose:
             <button type="button" onClick={onDownloadArtifactGuide}>Descargá la guía de formato (.md)</button>
           </p>
         ) : null}
+        <div className="v2-shortcuts-update">
+          <p>
+            {`Modelador de Sistemas v${APP_VERSION}`}
+            {onCheckUpdate ? (
+              <>
+                {' · '}
+                {/* aria-disabled, not disabled: a disabled button drops the focus and Escape stops reaching the dialog. */}
+                <button
+                  aria-disabled={updateStatus === 'checking'}
+                  type="button"
+                  onClick={updateStatus === 'checking' ? undefined : onCheckUpdate}
+                >
+                  Buscar actualizaciones
+                </button>
+              </>
+            ) : null}
+          </p>
+          {message ? <p aria-live="polite">{message}</p> : null}
+        </div>
       </section>
     </div>
   );

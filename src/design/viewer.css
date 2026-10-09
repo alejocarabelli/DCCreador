@@ -25,5 +25,31 @@
 .artifact-viewer-canvas { min-height: 0; position: relative; }
 .artifact-viewer-canvas .react-flow__node { cursor: default; pointer-events: none; }
 .artifact-viewer-canvas .react-flow__pane { cursor: grab; }
+.artifact-viewer-canvas .react-flow__handle { opacity: 0; }
 .artifact-viewer-empty { color: var(--text-muted, #6b7280); margin: 48px auto; max-width: 420px; text-align: center; }
 .artifact-viewer-flow { height: 100%; width: 100%; }
+.artifact-viewer-canvas > .sequence-canvas-scroll { height: 100%; }
+
+/* Flujo de caso de uso: la misma planilla que imprimen el PDF y el Word. */
+.artifact-viewer-doc { height: 100%; overflow: auto; padding: 24px 16px 48px; }
+.artifact-viewer-doc-page { display: grid; gap: 20px; margin: 0 auto; max-width: 1080px; }
+.artifact-viewer-doc-table {
+  background: var(--panel-background);
+  border-collapse: collapse;
+  color: var(--panel-text);
+  font-size: 0.875rem;
+  line-height: 1.45;
+  table-layout: fixed;
+  width: 100%;
+}
+.artifact-viewer-doc-table th,
+.artifact-viewer-doc-table td { border: 1px solid var(--panel-border); padding: 6px 10px; text-align: left; vertical-align: top; }
+.artifact-viewer-doc-table thead th { font-weight: 600; text-align: center; }
+.artifact-viewer-doc-table thead th.is-title { background: color-mix(in srgb, var(--panel-border) 45%, transparent); }
+.artifact-viewer-doc-table col.is-ref { width: 104px; }
+.artifact-viewer-doc-table col.is-label { width: 200px; }
+.artifact-viewer-doc-table.is-fields th { font-weight: 600; }
+.artifact-viewer-doc-table tr.is-continuation td { border-top-style: dashed; }
+.artifact-viewer-doc-line { overflow-wrap: anywhere; white-space: pre-wrap; }
+.artifact-viewer-doc-line.is-bold { font-weight: 600; }
+.artifact-viewer-doc-empty { color: var(--panel-muted-text); text-align: center; }

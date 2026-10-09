@@ -16,6 +16,7 @@ export type SequenceClassImportSummary = {
   createdClasses: number;
   addedAttributes: number;
   addedMethods: number;
+  updatedMethods: number;
   updatedClasses: number;
 };
 
@@ -27,12 +28,32 @@ const normalizeKey = (value: string): string => value.trim().toLocaleLowerCase()
 export const participantClassName = (classifierName: string, name: string): string =>
   classifierName.replace(/^:+/, '').trim() || name.trim();
 
-/** Splits at the commas that are not inside `<…>`, `(…)` or `[…]`: `Map<K, V>` stays whole. */
+/**
+ * Splits at the commas that are not inside `<…>`, `(…)` or `[…]` nor inside a
+ * quoted string (`\` escapes the next character): `Map<K, V>` and `"a, b"` stay whole.
+ */
 const splitTopLevel = (text: string): string[] => {
   const parts: string[] = [];
   let depth = 0;
+  let quote: string | null = null;
   let current = '';
-  for (const char of text) {
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (quote !== null) {
+      current += char;
+      if (char === '\\' && index + 1 < text.length) {
+        index += 1;
+        current += text[index];
+      } else if (char === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (char === '"' || char === "'" || char === '`') {
+      quote = char;
+      current += char;
+      continue;
+    }
     if (char === ',' && depth === 0) {
       parts.push(current);
       current = '';
@@ -44,6 +65,8 @@ const splitTopLevel = (text: string): string[] => {
   }
   return [...parts, current];
 };
+
+const literalWords = new Set(['true', 'false', 'null', 'undefined']);
 
 const declaredParameter = /^([A-Za-zÁÉÍÓÚÜÑáéíóúüñ_][\wÁÉÍÓÚÜÑáéíóúüñ]*)\s*(?::\s*(.*))?$/;
 
@@ -57,6 +80,8 @@ const parametersFromText = (text: string): string =>
   splitTopLevel(text)
     .map((part) => declaredParameter.exec(part.trim()))
     .filter((match): match is RegExpExecArray => match !== null)
+    // `true` or `null` alone are values; `nombre: Tipo` always declares.
+    .filter(([, name, type]) => type !== undefined || !literalWords.has(name.toLocaleLowerCase()))
     .map(([, name, type]) => (type?.trim() ? `${name}: ${type.trim()}` : name))
     .join(', ');
 
@@ -126,6 +151,36 @@ const accessorAttributes = (
 /** One operation per name: `buscar(id)` and `buscar(nro)` are the same method. */
 const sameOperation = (a: Pick<ImportedOperation, 'name'>, b: Pick<ImportedOperation, 'name'>): boolean =>
   normalizeKey(a.name.replace(/\(.*$/, '')) === normalizeKey(b.name.replace(/\(.*$/, ''));
+
+/** Existing parameters belong to the student; only empty declarations can be completed. */
+const needsParameters = (method: ClassMethod, operation: ImportedOperation): boolean =>
+  method.parameters.trim() === '' && operation.parameters.trim() !== '';
+
+const operationIsPending = (methods: ClassMethod[], operation: ImportedOperation): boolean => {
+  const existing = methods.filter((method) => sameOperation(method, operation));
+  return existing.length === 0 || (existing.every((method) => method.parameters.trim() === '') && operation.parameters.trim() !== '');
+};
+
+/**
+ * What a selected call means for the methods of its class: the operation it
+ * declares, the method that already has its name, and the parameters that
+ * method can still take (only when none of its homonyms has any).
+ */
+export const resolveMessageOperation = (
+  methods: ClassMethod[],
+  message: SequenceMessage,
+): { operation: ImportedOperation; existing: ClassMethod | undefined; parametersToAdd: string | undefined } | null => {
+  const operation = operationFromMessage(message);
+  if (operation === null) return null;
+  const homonyms = methods.filter((method) => sameOperation(method, operation));
+  const existing = homonyms[0];
+  const complete = existing !== undefined && homonyms.every((method) => needsParameters(method, operation));
+  return { operation, existing, parametersToAdd: complete ? operation.parameters : undefined };
+};
+
+/** True when an import changed the model: new elements or parameters completed. */
+export const importChangesModel = (summary: SequenceClassImportSummary): boolean =>
+  summary.createdClasses + summary.addedMethods + summary.addedAttributes + summary.updatedMethods > 0;
 
 /**
  * The class a participant stands for: the one it is linked to, or else the
@@ -212,7 +267,7 @@ export const importClassesFromSequences = (
   const accepts = (type: SequenceClassImportNovelty['type'], classKey: string, name: string) =>
     acceptedKeys === undefined || acceptedKeys.has(noveltyKey(type, classKey, name));
 
-  const summary: SequenceClassImportSummary = { createdClasses: 0, addedAttributes: 0, addedMethods: 0, updatedClasses: 0 };
+  const summary: SequenceClassImportSummary = { createdClasses: 0, addedAttributes: 0, addedMethods: 0, updatedMethods: 0, updatedClasses: 0 };
   const nodes: ClassDiagramNode[] = classContent.nodes.map((node) => {
     const key = normalizeKey(node.data.name);
     const incoming = operations.get(key);
@@ -220,21 +275,29 @@ export const importClassesFromSequences = (
 
     const missing = incoming.filter((operation) =>
       !node.data.methods.some((method) => sameOperation(method, operation)) && accepts('method', key, operation.name));
+    let updatedMethods = 0;
+    const methods = node.data.methods.map((method) => {
+      const operation = incoming.find((candidate) => sameOperation(method, candidate));
+      if (!operation || !operationIsPending(node.data.methods, operation) || !needsParameters(method, operation) || !accepts('method', key, operation.name)) return method;
+      updatedMethods += 1;
+      return { ...method, parameters: operation.parameters };
+    });
     const attributes = accessorAttributes(incoming, node.data.attributes, classNames)
       .filter((attribute) => accepts('attribute', key, attribute.name))
       .map((attribute) => ({ id: createId(), ...attribute }));
     operations.delete(key);
-    if (missing.length === 0 && attributes.length === 0) return node;
+    if (missing.length === 0 && attributes.length === 0 && updatedMethods === 0) return node;
 
     summary.updatedClasses += 1;
     summary.addedMethods += missing.length;
+    summary.updatedMethods += updatedMethods;
     summary.addedAttributes += attributes.length;
     return {
       ...node,
       data: {
         ...node.data,
         attributes: [...node.data.attributes, ...attributes],
-        methods: [...node.data.methods, ...missing.map((operation) => ({ id: createId(), visibility: '+' as const, ...operation }))],
+        methods: [...methods, ...missing.map((operation) => ({ id: createId(), visibility: '+' as const, ...operation }))],
       },
     };
   });
@@ -357,7 +420,7 @@ export const planSequenceClassImport = (
     const incoming = operations.get(key)!;
     const result: SequenceClassImportNovelty[] = node ? [] : [{ key: noveltyKey('class', key, className), type: 'class', className, elementName: className }];
     for (const operation of incoming) {
-      if (!node?.data.methods.some((method) => sameOperation(method, operation))) {
+      if (operationIsPending(node?.data.methods ?? [], operation)) {
         result.push({ key: noveltyKey('method', key, operation.name), type: 'method', className, elementName: operation.name, parameters: operation.parameters, returnType: operation.returnType });
       }
     }
@@ -386,7 +449,7 @@ export const findSequenceMessagesMissingInModel = (sequence: SequenceDiagramCont
     }
     const operation = operationFromMessage(item);
     if (!operation) continue;
-    if (!classes.get(item.targetId)?.data.methods.some((method) => sameOperation(method, operation))) messageIds.add(item.id);
+    if (operationIsPending(classes.get(item.targetId)?.data.methods ?? [], operation)) messageIds.add(item.id);
   }
   return { messageIds, participantIds };
 };

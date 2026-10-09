@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
-import { isModalOpen } from '../utils/editorShortcutGuards';
+import { isModalOpen, isToolMenuOpen } from '../utils/editorShortcutGuards';
 import { isNotebookEvent } from '../utils/notebookKeyboard';
 
 type ReviewIssue = { id: string; kind: 'error' | 'review'; message: string };
@@ -25,7 +25,7 @@ const isTextField = (target: EventTarget | null): boolean =>
 function useCloseOnEscape(onClose: () => void): void {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape' || event.defaultPrevented || isNotebookEvent(event) || isTextField(event.target) || isModalOpen(document)) return;
+      if (event.key !== 'Escape' || event.defaultPrevented || isNotebookEvent(event) || isTextField(event.target) || isToolMenuOpen(document) || isModalOpen(document)) return;
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
@@ -45,10 +45,19 @@ export function DiagramReviewPanel<Issue extends ReviewIssue>({
   title = 'Revisión del diagrama',
 }: Props<Issue>) {
   useCloseOnEscape(onClose);
+  const panelRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    // Focus moves to the panel so Escape reaches it; it goes back to where it was when the panel closes.
+    const previous = document.activeElement;
+    panelRef.current?.focus();
+    return () => {
+      if (previous instanceof HTMLElement && document.contains(previous)) previous.focus();
+    };
+  }, []);
   const errorCount = issues.filter(issue => issue.kind === 'error').length;
   const reviewCount = issues.length - errorCount;
   return (
-    <section className="diagram-review-panel" aria-label={title}>
+    <section className="diagram-review-panel" aria-label={title} ref={panelRef} tabIndex={-1}>
       <div className="diagram-review-heading"><strong>{title}</strong><button className="v2-tool" type="button" onClick={onClose} aria-label="Cerrar revisión"><X size={16} aria-hidden="true" /></button></div>
       {issues.length > 0 ? (
         <p className="diagram-review-counts">

@@ -13,11 +13,12 @@ import {
   Plus,
   Trash2,
   Upload,
+  X,
 } from 'lucide-react';
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import type { DesignArtifact, DiagramProject } from '../types/diagram';
 import type { ThemePreference } from '../hooks/useTheme';
-import { APP_NAME } from '../constants/appInfo';
+import { APP_NAME, APP_VERSION } from '../constants/appInfo';
 import { ARTIFACT_TYPES } from '../constants/artifactTypes';
 import { ArtifactTypeIcon } from './ArtifactTypeIcon';
 import { ThemeToggle } from './ThemeToggle';
@@ -31,6 +32,7 @@ import {
 } from '../storage/uiPreferences';
 import { filterProjectsByName, formatShortProjectDate, shouldShowProjectFilter, sortProjectsByRecency } from '../utils/projectSidebar';
 import { SidebarFilter, SidebarPane, SidebarSash } from './SidebarPane';
+import type { LatestRelease } from '../utils/appUpdate';
 
 type ProjectSidebarProps = {
   themePreference: ThemePreference;
@@ -55,7 +57,10 @@ type ProjectSidebarProps = {
   onSelectArtifact: (projectId: string, artifactId: string) => void;
   onSelectProject: (projectId: string) => void;
   onToggleCollapsed: () => void;
+  onDismissUpdate?: () => void;
   projects: DiagramProject[];
+  /** A newer release to announce, already filtered for a hidden version. */
+  update?: LatestRelease | null;
 };
 
 type SidebarOptionsMenuState = {
@@ -108,10 +113,12 @@ export function ProjectSidebar({
   onRenameProject,
   onSelectArtifact,
   onSelectProject,
+  onDismissUpdate,
   onToggleCollapsed,
   onThemePreferenceChange,
   projects,
   themePreference,
+  update,
 }: ProjectSidebarProps) {
   const optionsMenuRef = useRef<HTMLDivElement | null>(null);
   const newArtifactMenuRef = useRef<HTMLDivElement | null>(null);
@@ -280,6 +287,9 @@ export function ProjectSidebar({
         <div className="v2-sidebar-rail-footer">
           <button aria-label="Atajos de teclado" className="v2-tool" type="button" onClick={onOpenShortcuts} title="Atajos de teclado (?)">
             <Keyboard size={16} aria-hidden="true" />
+            {update ? (
+              <span className="v2-update-dot" role="img" aria-label={`Hay una versión nueva (${update.version})`} title={`Hay una versión nueva (${update.version})`} />
+            ) : null}
           </button>
           <ThemeToggle preference={themePreference} onChange={onThemePreferenceChange} />
         </div>
@@ -456,11 +466,23 @@ export function ProjectSidebar({
         </div>
       </nav>
 
+      {update ? (
+        <div className="v2-sidebar-update" role="status">
+          <span>{`Hay una versión nueva (${update.version})`}</span>
+          <a href={update.url} rel="noreferrer">Descargar</a>
+          <button aria-label="Ocultar" className="v2-tool" type="button" onClick={onDismissUpdate} title="Ocultar">
+            <X size={14} aria-hidden="true" />
+          </button>
+        </div>
+      ) : null}
       <div className="v2-sidebar-footer">
         <ThemeToggle preference={themePreference} onChange={onThemePreferenceChange} showLabel />
-        <button aria-label="Atajos de teclado" className="v2-tool" type="button" onClick={onOpenShortcuts} title="Atajos de teclado (?)">
-          <Keyboard size={16} aria-hidden="true" />
-        </button>
+        <div className="v2-sidebar-footer-end">
+          <span className="v2-sidebar-version" title="Versión instalada">{`v${APP_VERSION}`}</span>
+          <button aria-label="Atajos de teclado" className="v2-tool" type="button" onClick={onOpenShortcuts} title="Atajos de teclado (?)">
+            <Keyboard size={16} aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
       {optionsMenu !== null ? (

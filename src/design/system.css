@@ -135,10 +135,12 @@
 }
 
 .app-shell[data-ui-version='refined'] .artifact-tabs-project {
-  align-self: center;
+  align-self: flex-end;
   color: var(--panel-muted-text);
   flex: 0 0 auto;
   font-size: var(--text-sm);
+  line-height: 28px;
+  margin-bottom: -1px;
   max-width: 22ch;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -146,10 +148,11 @@
 }
 
 .app-shell[data-ui-version='refined'] .artifact-tabs-divider {
-  align-self: center;
+  align-self: flex-end;
   background: var(--panel-border);
   flex: 0 0 1px;
   height: 16px;
+  margin-bottom: 5px;
 }
 
 .app-shell[data-ui-version='refined'] .artifact-tabs-list {

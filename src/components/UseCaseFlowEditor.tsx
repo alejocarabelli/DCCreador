@@ -48,6 +48,7 @@ import {
   getTurnSwitchLevel,
   normalizeFlowCode,
   parseFlowText,
+  rememberStepLines,
   restoreLostStepMarker,
 } from '../utils/flowDocument';
 import { reviewUseCaseFlow, type FlowIssue } from '../utils/useCaseFlowReview';
@@ -1340,9 +1341,10 @@ export function UseCaseFlowEditor({
     );
   };
 
-  /** Keeps the last text of a cell whose first line is a numbered step, until it loses focus. */
+  /** Keeps the numbered lines of a cell, until it loses focus. */
   const rememberStepText = (cellKey: string, text: string): void => {
-    if (parseFlowText(text)[0]?.kind === 'step') lastStepTexts.current.set(cellKey, text);
+    const remembered = rememberStepLines(lastStepTexts.current.get(cellKey), text);
+    if (remembered !== undefined) lastStepTexts.current.set(cellKey, remembered);
   };
 
   const renderFlowCell = (

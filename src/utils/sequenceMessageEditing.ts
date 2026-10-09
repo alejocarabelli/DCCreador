@@ -393,7 +393,8 @@ const splitTopLevelCommas = (text: string): string[] => {
     const char = text[index];
 
     if (quote !== null) {
-      if (char === quote) quote = null;
+      if (char === '\\') index += 1;
+      else if (char === quote) quote = null;
     } else if (char === '"' || char === "'") {
       quote = char;
     } else if (char === '(' || char === '[' || char === '{' || char === '<') {
@@ -410,21 +411,26 @@ const splitTopLevelCommas = (text: string): string[] => {
   return parts;
 };
 
+/** Nesting deeper than this is shown as typed, so pathological input cannot overflow the stack. */
+const MAX_CALL_NESTING_DEPTH = 32;
+
 /** `a,b` → `a, b`, also inside nested calls. Commas that are not argument separators stay as they are. */
-export const formatArgumentList = (args: string): string => {
+export const formatArgumentList = (args: string, depth = 0): string => {
   const parts = splitTopLevelCommas(args);
 
   if (parts.length > 1 && parts.some((part) => part.trim().length === 0)) {
     return args;
   }
 
-  return parts.map((part) => formatCallText(part.trim())).join(', ');
+  return parts.map((part) => formatCallText(part.trim(), depth)).join(', ');
 };
 
 /** Shows a call as `nombre(a, b)`; text that is not a call comes back as is. */
-export const formatCallText = (text: string): string => {
+export const formatCallText = (text: string, depth = 0): string => {
+  if (depth >= MAX_CALL_NESTING_DEPTH) return text;
+
   const match = /^([^(]*)\(([\s\S]*)\)$/.exec(text);
-  return match === null ? text : `${match[1]}(${formatArgumentList(match[2])})`;
+  return match === null ? text : `${match[1]}(${formatArgumentList(match[2], depth + 1)})`;
 };
 
 /**
