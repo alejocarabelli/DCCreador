@@ -3970,3 +3970,20 @@ textarea {
     width: min(330px, calc(100% - 24px));
   }
 }
+
+/* tanda 3: consistencia */
+.v2-shortcuts .v2-shortcuts-guide {
+  color: var(--panel-muted-text);
+  font-size: var(--text-xs);
+  margin: 16px 0 0;
+}
+
+.v2-shortcuts .v2-shortcuts-guide button {
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-decoration: underline;
+}

@@ -15,8 +15,9 @@ import {
   sequenceMessageEditModelToPatch,
   swapSequenceMessageEditModel,
   updateSequenceMessageEditModel,
+  withReadableArguments,
 } from './sequenceMessageEditing';
-import { applySequenceDiagramMutation, createEmptySequenceDiagramContent, normalizeSequenceDiagramContent, updateSequenceItem } from './sequenceDiagram';
+import { applySequenceDiagramMutation, createEmptySequenceDiagramContent, formatSequenceMessageLabel, normalizeSequenceDiagramContent, updateSequenceItem } from './sequenceDiagram';
 
 const participants: SequenceParticipant[] = [
   { id: 'caller', kind: 'object', name: 'caller', classifierName: 'Caller', classifierNodeId: 'class-caller', x: 120 },
@@ -317,5 +318,32 @@ describe('method link while editing a message', () => {
     expect(updateSequenceMessageEditModel(linked, { name: 'buscarPrestamos', arguments: '5001' }).operationMethodId).toBe('m1');
     expect(updateSequenceMessageEditModel(linked, { returnType: 'Prestamo[]' }).operationMethodId).toBe('m1');
     expect(updateSequenceMessageEditModel(linked, { name: 'buscarSocios' }).operationMethodId).toBeUndefined();
+  });
+});
+
+describe('message arguments shown with ", "', () => {
+  it('writes the signature with a comma and a space between arguments', () => {
+    expect(formatMessageSignature({ type: 'synchronous', name: 'f', arguments: 'a,b' })).toBe('f(a, b)');
+    expect(formatMessageSignature({ type: 'synchronous', name: 'f(a,b)' })).toBe('f(a, b)');
+    expect(formatMessageSignature({ type: 'synchronous', name: 'validar', arguments: 'calcular(a,b),c' })).toBe('validar(calcular(a, b), c)');
+  });
+
+  it('does not touch commas inside types or quotes', () => {
+    expect(formatMessageSignature({ type: 'synchronous', name: 'f', arguments: 'Map<String,Integer> m,"x,y"' })).toBe('f(Map<String,Integer> m, "x,y")');
+  });
+
+  it('keeps the saved message and only changes the shown label', () => {
+    const message: SequenceMessage = {
+      id: 'msg-1',
+      type: 'synchronous',
+      sourceId: 'p1',
+      targetId: 'p2',
+      name: 'f',
+      arguments: 'a,b',
+    } as SequenceMessage;
+
+    expect(formatSequenceMessageLabel(withReadableArguments(message))).toBe('f(a, b)');
+    expect(formatSequenceMessageLabel(message)).toBe('f(a,b)');
+    expect(message.arguments).toBe('a,b');
   });
 });

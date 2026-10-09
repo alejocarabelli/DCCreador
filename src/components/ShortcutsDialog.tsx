@@ -96,7 +96,7 @@ const SECTIONS: Array<{ title: string; shortcuts: Shortcut[] }> = [
   },
 ];
 
-export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
+export function ShortcutsDialog({ onClose, onDownloadArtifactGuide }: { onClose: () => void; onDownloadArtifactGuide?: () => void }) {
   const dialogRef = useRef<HTMLElement | null>(null);
   useFocusTrap(dialogRef, true, onClose);
 
@@ -140,6 +140,12 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
             </section>
           ))}
         </div>
+        {onDownloadArtifactGuide ? (
+          <p className="v2-shortcuts-guide">
+            ¿Usás una IA para armar artefactos?{' '}
+            <button type="button" onClick={onDownloadArtifactGuide}>Descargá la guía de formato (.md)</button>
+          </p>
+        ) : null}
       </section>
     </div>
   );
