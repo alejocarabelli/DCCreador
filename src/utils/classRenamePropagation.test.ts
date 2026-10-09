@@ -8,6 +8,7 @@ import type {
 } from '../types/diagram';
 import {
   applyClassModelRenamesToSequence,
+  applyModelNamesToSequence,
   findClassModelRenames,
   isSequenceUsingClassModel,
 } from './classRenamePropagation';
@@ -80,6 +81,52 @@ describe('applyClassModelRenamesToSequence', () => {
 
   it('returns null when nothing in the diagram refers to the renamed elements', () => {
     expect(applyClassModelRenamesToSequence(sequence({ items: [call('otro', 'm9')] }), renames)).toBeNull();
+  });
+});
+
+describe('applyModelNamesToSequence', () => {
+  const model = { nodes: [classNode('c1', 'Expediente', [method('m1', 'calcularTotal')])] };
+
+  it('gives linked participants and calls the names the model has now, nested calls included', () => {
+    const fragment = createSequenceFragment('loop');
+    fragment.operands[0].items = [call('calcular', 'm1')];
+    const content = sequence({
+      participants: [participant('p1', 'Tramite', 'c1'), participant('p2', 'Otro')],
+      items: [call('calcular', 'm1'), call('calcular'), fragment],
+    });
+
+    const next = applyModelNamesToSequence(content, model)!;
+
+    expect(next.participants.map((candidate) => candidate.classifierName)).toEqual(['Expediente', 'Otro']);
+    expect(next.items[0]).toMatchObject({ name: 'calcularTotal', operationMethodId: 'm1' });
+    expect(next.items[1]).toMatchObject({ name: 'calcular' });
+    const nested = next.items[2];
+    expect(nested.kind === 'fragment' && nested.operands[0].items[0]).toMatchObject({ name: 'calcularTotal' });
+  });
+
+  it('leaves links to elements that no longer exist as they are', () => {
+    const content = sequence({
+      participants: [participant('p1', 'Tramite', 'gone')],
+      items: [call('calcular', 'm9')],
+    });
+
+    expect(applyModelNamesToSequence(content, model)).toBeNull();
+  });
+
+  it('returns null when the names already match the model', () => {
+    const content = sequence({
+      participants: [participant('p1', 'Expediente', 'c1')],
+      items: [call('calcularTotal', 'm1')],
+    });
+
+    expect(applyModelNamesToSequence(content, model)).toBeNull();
+  });
+
+  it('ignores a class or method whose name is cleared in the model', () => {
+    const blank = { nodes: [classNode('c1', '  ', [method('m1', '')])] };
+    const content = sequence({ participants: [participant('p1', 'Tramite', 'c1')], items: [call('calcular', 'm1')] });
+
+    expect(applyModelNamesToSequence(content, blank)).toBeNull();
   });
 });
 

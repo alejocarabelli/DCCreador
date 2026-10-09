@@ -1,4 +1,4 @@
-import { findUnlinkedSequences, linkNewSequenceToOnlyModel, linkSequencesToModel, reconcileSequenceModelLinks } from '../utils/sequenceModelLink';
+import { findSequenceModel, findUnlinkedSequences, linkNewSequenceToOnlyModel, linkSequencesToModel, reconcileSequenceModelLinks } from '../utils/sequenceModelLink';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ArtifactContent,
@@ -37,6 +37,7 @@ import {
 } from '../utils/diagramNormalization';
 import {
   applyClassModelRenamesToSequence,
+  applyModelNamesToSequence,
   findClassModelRenames,
   hasClassModelRenames,
   isSequenceUsingClassModel,
@@ -609,7 +610,7 @@ export const useProjects = () => {
     projectId: string,
     artifactId: string,
     content: ArtifactContent,
-    options?: { alreadyNormalized?: boolean },
+    options?: { alreadyNormalized?: boolean; fromHistory?: boolean },
   ): void => {
     const now = new Date().toISOString();
 
@@ -644,9 +645,19 @@ export const useProjects = () => {
         : undefined;
       const propagatesRenames = renames !== undefined && hasClassModelRenames(renames);
 
+      // Only a restored sequence snapshot takes the linked names from the model
+      // again: it can predate a rename. Ordinary edits keep what was typed,
+      // since a linked participant may read another name on purpose.
+      const sequenceModel = targetArtifact.type === 'sequence-diagram' && options?.fromHistory
+        ? findSequenceModel(project.artifacts, { content: normalizedTargetContent as SequenceDiagramContent })
+        : undefined;
+      const restoredContent = sequenceModel === undefined
+        ? normalizedTargetContent
+        : applyModelNamesToSequence(normalizedTargetContent as SequenceDiagramContent, sequenceModel.content) ?? normalizedTargetContent;
+
       const updatedArtifacts = project.artifacts.map((artifact) => {
         if (artifact.id === artifactId) {
-          return { ...artifact, content: normalizedTargetContent, updatedAt: now } as typeof artifact;
+          return { ...artifact, content: restoredContent, updatedAt: now } as typeof artifact;
         }
 
         if (propagatesRenames && artifact.type === 'sequence-diagram' && isSequenceUsingClassModel(artifact.content, artifactId)) {

@@ -540,7 +540,7 @@ function App() {
       ...currentHistory,
       [activeHistoryKey]: result.history,
     }));
-    updateProjectArtifactContent(activeProject.id, activeArtifact.id, cloneContentForType(activeArtifact.type, previousContent), { alreadyNormalized: true });
+    updateProjectArtifactContent(activeProject.id, activeArtifact.id, cloneContentForType(activeArtifact.type, previousContent), { alreadyNormalized: true, fromHistory: true });
   }, [activeArtifact, activeHistoryKey, activeProject, updateHistory, updateProjectArtifactContent]);
 
   const handleRedo = useCallback((): void => {
@@ -562,7 +562,7 @@ function App() {
       ...currentHistory,
       [activeHistoryKey]: result.history,
     }));
-    updateProjectArtifactContent(activeProject.id, activeArtifact.id, cloneContentForType(activeArtifact.type, nextContent), { alreadyNormalized: true });
+    updateProjectArtifactContent(activeProject.id, activeArtifact.id, cloneContentForType(activeArtifact.type, nextContent), { alreadyNormalized: true, fromHistory: true });
   }, [activeArtifact, activeHistoryKey, activeProject, updateHistory, updateProjectArtifactContent]);
 
   useEffect(() => {

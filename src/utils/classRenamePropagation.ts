@@ -69,10 +69,10 @@ export const applyClassModelRenamesToSequence = (
 
   const participants = content.participants.map((participant) => {
     const rename = participant.classifierNodeId ? renames.classes.get(participant.classifierNodeId) : undefined;
+    if (rename === undefined || participant.classifierName === rename.to) return participant;
     // A rename typed by clearing the name first arrives as `'' → nuevo`; the
-    // linked participant still follows it.
-    if (rename === undefined || (rename.from.length > 0
-      && normalizeClassName(participant.classifierName) !== normalizeClassName(rename.from))) {
+    // linked participant still follows it. An empty `from` matches any name.
+    if (rename.from.length > 0 && normalizeClassName(participant.classifierName) !== normalizeClassName(rename.from)) {
       return participant;
     }
     changed = true;
@@ -91,6 +91,32 @@ export const applyClassModelRenamesToSequence = (
   const items = renameItems(content.items);
 
   return changed ? { ...content, participants, items } : null;
+};
+
+/**
+ * Names a sequence should show for the model it is linked to now. Undo and
+ * redo bring back a snapshot that can predate renames, so each linked
+ * participant takes its class's current name and each linked call its
+ * method's. Links to elements that no longer exist stay as they are. Returns
+ * `null` when nothing changes.
+ */
+export const applyModelNamesToSequence = (
+  content: SequenceDiagramContent,
+  model: Pick<ClassDiagramContent, 'nodes'>,
+): SequenceDiagramContent | null => {
+  const classes = new Map<string, Rename>();
+  const methods = new Map<string, Rename>();
+
+  model.nodes.forEach((node) => {
+    const name = node.data.name.trim();
+    if (name.length > 0) classes.set(node.id, { from: '', to: name });
+    node.data.methods.forEach((method) => {
+      const methodName = method.name.trim();
+      if (methodName.length > 0) methods.set(method.id, { from: '', to: methodName });
+    });
+  });
+
+  return applyClassModelRenamesToSequence(content, { classes, methods });
 };
 
 /** A sequence follows only the "Clases de secuencias" model it points at. */
