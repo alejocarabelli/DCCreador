@@ -553,7 +553,7 @@ export const useProjects = () => {
       const artifacts = project.artifacts.map((artifact): DesignArtifact => {
         if (artifact.id === source.id) return converted;
         if (artifact.type === 'use-case-flow' && artifact.content.classDiagramArtifactId === source.id) {
-          return { ...artifact, updatedAt: now, content: { ...artifact.content, classDiagramArtifactId: undefined } };
+          return { ...artifact, updatedAt: now, content: { ...artifact.content, classDiagramArtifactId: null } };
         }
         return artifact;
       });
