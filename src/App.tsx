@@ -3,6 +3,7 @@ import { createId } from './utils/id';
 import { artifactTypeInfo } from './constants/artifactTypes';
 import { createExampleProject, findExampleProject } from './utils/exampleProject';
 import { useDialogs } from './hooks/useDialogs';
+import { useAppUpdate } from './hooks/useAppUpdate';
 import { ProjectNameDialog } from './components/ProjectNameDialog';
 import { ArtifactImportDialog } from './components/ArtifactImportDialog';
 import { ArtifactMoveDialog } from './components/ArtifactMoveDialog';
@@ -140,6 +141,7 @@ function EditorLoadingState() {
 
 function App() {
   const { confirm, notify } = useDialogs();
+  const appUpdate = useAppUpdate();
   const [projectDialog, setProjectDialog] = useState<ProjectDialogState | null>(null);
   const [artifactTransferDialog, setArtifactTransferDialog] = useState<ArtifactTransferDialogState | null>(null);
   const [isProjectSidebarCollapsed, setIsProjectSidebarCollapsed] = useState(
@@ -819,6 +821,7 @@ function App() {
         onOpenShortcuts={() => setIsShortcutsOpen(true)}
         onDeleteArtifact={handleDeleteArtifact}
         onDeleteProject={handleDeleteProject}
+        onDismissUpdate={appUpdate.dismissUpdate}
         onRenameArtifact={handleRenameArtifact}
         onRenameProject={handleRenameProject}
         onSelectArtifact={handleSelectArtifact}
@@ -827,6 +830,7 @@ function App() {
         onThemePreferenceChange={setThemePreference}
         projects={projects}
         themePreference={themePreference}
+        update={appUpdate.visibleUpdate}
       />
       {isProjectHome ? (
         <ProjectHome
@@ -995,7 +999,15 @@ function App() {
           onConfirm={handleConfirmProjectDialog}
         />
       ) : null}
-      {isShortcutsOpen ? <ShortcutsDialog onClose={() => setIsShortcutsOpen(false)} onDownloadArtifactGuide={handleDownloadArtifactGuide} /> : null}
+      {isShortcutsOpen ? (
+        <ShortcutsDialog
+          onCheckUpdate={() => { void appUpdate.checkNow(); }}
+          onClose={() => setIsShortcutsOpen(false)}
+          onDownloadArtifactGuide={handleDownloadArtifactGuide}
+          update={appUpdate.update}
+          updateStatus={appUpdate.status}
+        />
+      ) : null}
       {artifactTransferDialog?.mode === 'import' && transferProject ? (
         <ArtifactImportDialog
           key={transferProject.id}

@@ -38,6 +38,8 @@ La instalación es solo para tu usuario: no pide permisos de administrador.
 
 Bajá la versión nueva e instalala encima de la anterior. Tus proyectos se conservan.
 
+Si hay internet, la app avisa sola cuando sale una versión nueva: aparece un aviso abajo en la barra lateral. También podés buscarla desde la ayuda (tecla **?**), con **Buscar actualizaciones**.
+
 ## Tus datos
 
 - Los proyectos se guardan solos mientras trabajás. No hace falta tocar nada.
@@ -47,7 +49,4 @@ Bajá la versión nueva e instalala encima de la anterior. Tus proyectos se cons
 
 ## ¿Algo no anda?
 
-Escribile a Alejo contando qué hiciste, qué esperabas que pasara y qué pasó. Incluí también la versión de la app:
-
-- **Mac:** menú **Modelador de Sistemas → Acerca de Modelador de Sistemas**.
-- **Windows:** el número que figura en el nombre del instalador, que tiene la forma `Modelador-de-Sistemas-<versión>-Windows.exe`.
+Escribile a Alejo contando qué hiciste, qué esperabas que pasara y qué pasó. Incluí también la versión de la app: aparece abajo en la barra lateral y en la ayuda (tecla **?**), en Mac y Windows.
