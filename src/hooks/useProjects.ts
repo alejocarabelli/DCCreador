@@ -10,9 +10,7 @@ import type {
   DiagramContent,
   DiagramProject,
   DesignArtifact,
-  SequenceDiagramArtifact,
   SequenceDiagramContent,
-  UseCaseFlowArtifact,
   UseCaseFlowContent,
   UseCaseModelArtifact,
   UseCaseModelContent,
@@ -43,6 +41,7 @@ import {
   isSequenceUsingClassModel,
 } from '../utils/classRenamePropagation';
 import { createId } from '../utils/id';
+import { artifactTypeInfo } from '../constants/artifactTypes';
 import { copyProject, sameProjectContent, type ProjectImportCounts } from '../utils/projectRecovery';
 import { saveBlob } from '../utils/saveFile';
 import { isNotebookEmpty } from '../utils/artifactNotebook';
@@ -92,25 +91,64 @@ const createClassSequenceContent = (
   linkedSequenceDiagramIds,
 });
 
-const buildProject = (name: string): DiagramProject => {
+/** Shared by new projects and the “Nuevo artefacto” actions, including model links. */
+const addArtifactToProject = (
+  project: DiagramProject,
+  type: DesignArtifact['type'],
+  name: string,
+  initialContent?: SequenceDiagramContent,
+): DiagramProject => {
   const now = new Date().toISOString();
-  const artifact: ClassDiagramArtifact = {
+  const base = {
     id: createId(),
-    type: 'class-diagram',
-    name: 'Diagrama de clases',
+    name: name.trim() || (type === 'class-diagram' ? 'Nuevo diagrama de clases' : artifactTypeInfo(type).label),
     createdAt: now,
     updatedAt: now,
-    content: createEmptyContent(),
   };
+  let artifact: DesignArtifact;
+  switch (type) {
+    case 'use-case-model':
+      artifact = { ...base, type, content: createEmptyUseCaseModelContent() };
+      break;
+    case 'use-case-flow':
+      artifact = { ...base, type, content: createEmptyUseCaseFlowContent() };
+      break;
+    case 'sequence-diagram':
+      artifact = {
+        ...base, type,
+        content: initialContent ? normalizeSequenceDiagramContent(initialContent) : createEmptySequenceDiagramContent(),
+      };
+      break;
+    case 'class-sequence-diagram':
+      artifact = { ...base, type, content: createClassSequenceContent(undefined, []) };
+      break;
+    case 'class-diagram':
+      artifact = { ...base, type, content: createEmptyContent() };
+      break;
+  }
 
-  return {
+  let artifacts = [...project.artifacts, artifact];
+  if (artifact.type === 'sequence-diagram') {
+    artifacts = linkNewSequenceToOnlyModel(project.artifacts, artifact);
+  } else if (artifact.type === 'class-sequence-diagram') {
+    // A new model takes only the sequences that have none yet.
+    const unlinkedIds = findUnlinkedSequences(project.artifacts).map((sequence) => sequence.id);
+    artifacts = linkSequencesToModel(artifacts, unlinkedIds, artifact.id, now);
+  }
+
+  return { ...project, activeArtifactId: artifact.id, artifacts, updatedAt: now };
+};
+
+export const buildProject = (name: string, artifactType: DesignArtifact['type'] = 'use-case-model'): DiagramProject => {
+  const now = new Date().toISOString();
+  return addArtifactToProject({
     id: createId(),
     name,
     createdAt: now,
     updatedAt: now,
-    activeArtifactId: artifact.id,
-    artifacts: [artifact],
-  };
+    activeArtifactId: '',
+    artifacts: [],
+  }, artifactType, artifactTypeInfo(artifactType).label);
 };
 
 /** Returns the same project object when nothing about the notes changes. */
@@ -330,8 +368,8 @@ export const useProjects = () => {
     [activeProjectId, projects],
   );
 
-  const createProject = (name: string): void => {
-    const project = buildProject(name.trim() || 'Nuevo proyecto');
+  const createProject = (name: string, artifactType: DesignArtifact['type'] = 'use-case-model'): void => {
+    const project = buildProject(name.trim() || 'Nuevo proyecto', artifactType);
     setProjects((currentProjects) => [project, ...currentProjects]);
     setActiveProjectId(project.id);
   };
@@ -375,108 +413,30 @@ export const useProjects = () => {
     );
   };
 
-  const createClassDiagramArtifact = (projectId: string, name: string): void => {
-    const now = new Date().toISOString();
-    const artifact: ClassDiagramArtifact = {
-      id: createId(),
-      type: 'class-diagram',
-      name: name.trim() || 'Nuevo diagrama de clases',
-      createdAt: now,
-      updatedAt: now,
-      content: createEmptyContent(),
-    };
+  const createArtifact = (
+    projectId: string,
+    type: DesignArtifact['type'],
+    name: string,
+    initialContent?: SequenceDiagramContent,
+  ): void => {
+    setProjects((currentProjects) => currentProjects.map((project) =>
+      project.id === projectId ? addArtifactToProject(project, type, name, initialContent) : project));
+  };
 
-    setProjects((currentProjects) =>
-      currentProjects.map((project) =>
-        project.id === projectId
-          ? {
-              ...project,
-              activeArtifactId: artifact.id,
-              artifacts: [...project.artifacts, artifact],
-              updatedAt: now,
-            }
-          : project,
-      ),
-    );
+  const createClassDiagramArtifact = (projectId: string, name: string): void => {
+    createArtifact(projectId, 'class-diagram', name);
   };
 
   const createClassSequenceDiagramArtifact = (projectId: string, name: string): void => {
-    const now = new Date().toISOString();
-
-    setProjects((currentProjects) => currentProjects.map((project) => {
-      if (project.id !== projectId) {
-        return project;
-      }
-
-      // A new model starts empty and takes the sequences that have none yet; a
-      // sequence already drawn on another model keeps it.
-      const artifact: ClassSequenceDiagramArtifact = {
-        id: createId(),
-        type: 'class-sequence-diagram',
-        name: name.trim() || 'Clases de secuencias',
-        createdAt: now,
-        updatedAt: now,
-        content: createClassSequenceContent(undefined, []),
-      };
-      const unlinkedIds = findUnlinkedSequences(project.artifacts).map((sequence) => sequence.id);
-
-      return {
-        ...project,
-        activeArtifactId: artifact.id,
-        artifacts: linkSequencesToModel([...project.artifacts, artifact], unlinkedIds, artifact.id, now),
-        updatedAt: now,
-      };
-    }));
+    createArtifact(projectId, 'class-sequence-diagram', name);
   };
 
   const createUseCaseModelArtifact = (projectId: string, name: string): void => {
-    const now = new Date().toISOString();
-    const artifact: UseCaseModelArtifact = {
-      id: createId(),
-      type: 'use-case-model',
-      name: name.trim() || 'Modelo de casos de uso',
-      createdAt: now,
-      updatedAt: now,
-      content: createEmptyUseCaseModelContent(),
-    };
-
-    setProjects((currentProjects) =>
-      currentProjects.map((project) =>
-        project.id === projectId
-          ? {
-              ...project,
-              activeArtifactId: artifact.id,
-              artifacts: [...project.artifacts, artifact],
-              updatedAt: now,
-            }
-          : project,
-      ),
-    );
+    createArtifact(projectId, 'use-case-model', name);
   };
 
   const createUseCaseFlowArtifact = (projectId: string, name: string): void => {
-    const now = new Date().toISOString();
-    const artifact: UseCaseFlowArtifact = {
-      id: createId(),
-      type: 'use-case-flow',
-      name: name.trim() || 'Flujo de sucesos',
-      createdAt: now,
-      updatedAt: now,
-      content: createEmptyUseCaseFlowContent(),
-    };
-
-    setProjects((currentProjects) =>
-      currentProjects.map((project) =>
-        project.id === projectId
-          ? {
-              ...project,
-              activeArtifactId: artifact.id,
-              artifacts: [...project.artifacts, artifact],
-              updatedAt: now,
-            }
-          : project,
-      ),
-    );
+    createArtifact(projectId, 'use-case-flow', name);
   };
 
   const createSequenceDiagramArtifact = (
@@ -484,24 +444,7 @@ export const useProjects = () => {
     name: string,
     initialContent?: SequenceDiagramContent,
   ): void => {
-    const now = new Date().toISOString();
-    const artifact: SequenceDiagramArtifact = {
-      id: createId(),
-      type: 'sequence-diagram',
-      name: name.trim() || 'Diagrama de secuencia',
-      createdAt: now,
-      updatedAt: now,
-      content: initialContent ? normalizeSequenceDiagramContent(initialContent) : createEmptySequenceDiagramContent(),
-    };
-
-    setProjects((currentProjects) => currentProjects.map((project) => project.id === projectId
-      ? {
-          ...project,
-          activeArtifactId: artifact.id,
-          artifacts: linkNewSequenceToOnlyModel(project.artifacts, artifact),
-          updatedAt: now,
-        }
-      : project));
+    createArtifact(projectId, 'sequence-diagram', name, initialContent);
   };
 
   /**

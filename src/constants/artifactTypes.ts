@@ -11,15 +11,16 @@ type ArtifactType = DesignArtifact['type'];
 export const ARTIFACT_TYPES: ReadonlyArray<{
   id: ArtifactType;
   label: string;
+  description: string;
   /** Short plural for summaries: "2 secuencias". */
   countLabel: [singular: string, plural: string];
   icon: LucideIcon;
 }> = [
-  { id: 'use-case-model', label: 'Modelo de casos de uso', countLabel: ['modelo de casos de uso', 'modelos de casos de uso'], icon: UsersRound },
-  { id: 'use-case-flow', label: 'Flujo de sucesos', countLabel: ['flujo de sucesos', 'flujos de sucesos'], icon: FileText },
-  { id: 'sequence-diagram', label: 'Diagrama de secuencia', countLabel: ['secuencia', 'secuencias'], icon: Workflow },
-  { id: 'class-diagram', label: 'Diagrama de clases', countLabel: ['diagrama de clases', 'diagramas de clases'], icon: Boxes },
-  { id: 'class-sequence-diagram', label: 'Clases de secuencias', countLabel: ['clases de secuencias', 'clases de secuencias'], icon: GitBranch },
+  { id: 'use-case-model', label: 'Modelo de casos de uso', description: 'Identificá quién usa el sistema y para qué.', countLabel: ['modelo de casos de uso', 'modelos de casos de uso'], icon: UsersRound },
+  { id: 'use-case-flow', label: 'Flujo de sucesos', description: 'Describí los pasos de un caso de uso.', countLabel: ['flujo de sucesos', 'flujos de sucesos'], icon: FileText },
+  { id: 'sequence-diagram', label: 'Diagrama de secuencia', description: 'Mostrá cómo se comunican los objetos.', countLabel: ['secuencia', 'secuencias'], icon: Workflow },
+  { id: 'class-sequence-diagram', label: 'Clases de secuencias', description: 'Reuní las clases que usan tus secuencias.', countLabel: ['clases de secuencias', 'clases de secuencias'], icon: GitBranch },
+  { id: 'class-diagram', label: 'Diagrama de clases', description: 'Definí las clases y sus relaciones.', countLabel: ['diagrama de clases', 'diagramas de clases'], icon: Boxes },
 ];
 
 export const artifactTypeInfo = (type: ArtifactType) =>

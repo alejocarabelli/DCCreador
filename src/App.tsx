@@ -1,5 +1,6 @@
 import { accessorAttribute, importClassesFromSequences } from './utils/sequenceClassImport';
 import { createId } from './utils/id';
+import { artifactTypeInfo } from './constants/artifactTypes';
 import { useDialogs } from './hooks/useDialogs';
 import { ProjectNameDialog } from './components/ProjectNameDialog';
 import { ArtifactImportDialog } from './components/ArtifactImportDialog';
@@ -224,9 +225,9 @@ function App() {
     setProjectDialog({ mode: 'rename', projectId, initialName: project?.name ?? '' });
   };
 
-  const handleConfirmProjectDialog = (name: string): void => {
+  const handleConfirmProjectDialog = (name: string, artifactType: DesignArtifact['type'] = 'use-case-model'): void => {
     if (projectDialog?.mode === 'create') {
-      createProject(name);
+      createProject(name, artifactType);
     }
 
     if (projectDialog?.mode === 'rename') {
@@ -277,16 +278,7 @@ function App() {
       mode: 'createArtifact',
       projectId,
       artifactType,
-      initialName:
-        artifactType === 'use-case-model'
-          ? 'Modelo de casos de uso'
-          : artifactType === 'use-case-flow'
-            ? 'Flujo de sucesos'
-            : artifactType === 'sequence-diagram'
-              ? 'Diagrama de secuencia'
-              : artifactType === 'class-sequence-diagram'
-                ? 'Clases de secuencias'
-            : 'Diagrama de clases',
+      initialName: artifactTypeInfo(artifactType).label,
     });
   };
 
@@ -979,6 +971,7 @@ function App() {
       {projectDialog !== null ? (
         <ProjectNameDialog
           initialName={projectDialog.initialName}
+          chooseInitialArtifact={projectDialog.mode === 'create'}
           title={
             projectDialog.mode === 'create'
               ? 'Crear proyecto'
