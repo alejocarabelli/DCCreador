@@ -273,7 +273,7 @@ export function SequenceKeyboardComposer({
                     state.stage === 'participant'
                       ? 'instancia:Clase o :Clase'
                       : state.messageType === 'create'
-                      ? 'pedido : Pedido'
+                      ? 'nombre:Clase'
                       : 'operación(parámetros): Retorno'
                   }
                   onChange={(event) => {

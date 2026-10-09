@@ -96,7 +96,6 @@ const addArtifactToProject = (
   project: DiagramProject,
   type: DesignArtifact['type'],
   name: string,
-  initialContent?: SequenceDiagramContent,
 ): DiagramProject => {
   const now = new Date().toISOString();
   const base = {
@@ -116,7 +115,7 @@ const addArtifactToProject = (
     case 'sequence-diagram':
       artifact = {
         ...base, type,
-        content: initialContent ? normalizeSequenceDiagramContent(initialContent) : createEmptySequenceDiagramContent(),
+        content: createEmptySequenceDiagramContent(),
       };
       break;
     case 'class-sequence-diagram':
@@ -417,10 +416,9 @@ export const useProjects = () => {
     projectId: string,
     type: DesignArtifact['type'],
     name: string,
-    initialContent?: SequenceDiagramContent,
   ): void => {
     setProjects((currentProjects) => currentProjects.map((project) =>
-      project.id === projectId ? addArtifactToProject(project, type, name, initialContent) : project));
+      project.id === projectId ? addArtifactToProject(project, type, name) : project));
   };
 
   const createClassDiagramArtifact = (projectId: string, name: string): void => {
@@ -439,12 +437,8 @@ export const useProjects = () => {
     createArtifact(projectId, 'use-case-flow', name);
   };
 
-  const createSequenceDiagramArtifact = (
-    projectId: string,
-    name: string,
-    initialContent?: SequenceDiagramContent,
-  ): void => {
-    createArtifact(projectId, 'sequence-diagram', name, initialContent);
+  const createSequenceDiagramArtifact = (projectId: string, name: string): void => {
+    createArtifact(projectId, 'sequence-diagram', name);
   };
 
   /**

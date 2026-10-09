@@ -191,7 +191,6 @@ type SequenceDiagramEditorProps = {
   onNavigateToArtifact?: (artifactId: string) => void;
   onImportSequenceIntoClassModel?: (modelArtifactId: string, sequenceContent: SequenceDiagramContent) => void;
   onCreateClassMethod?: (artifactId: string, nodeId: string, method: ClassMethod) => void;
-  onCreateSequenceDiagramArtifact?: (name: string, initialContent?: SequenceDiagramContent) => void;
   onCreateSequenceModel?: () => void;
   onChangeContent: (content: SequenceDiagramContent, options?: { separateHistoryEntry?: boolean; alreadyNormalized?: boolean }) => void;
   onRedo: () => void;

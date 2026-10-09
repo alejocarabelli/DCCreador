@@ -1,0 +1,47 @@
+- generic [ref=f3e3]:
+  - complementary "Navegación" [ref=f3e4]:
+    - generic [ref=f3e5]:
+      - button "Ocultar barra lateral" [expanded] [ref=f3e6] [cursor=pointer]
+      - paragraph [ref=f3e10]: Modelador de Sistemas
+    - navigation "Proyectos" [ref=f3e15]:
+      - button "Inicio" [ref=f3e16] [cursor=pointer]
+      - region [ref=f3e22]:
+        - generic [ref=f3e23]:
+          - heading "Proyectos 0" [level=2] [ref=f3e24]:
+            - generic [ref=f3e25]:
+              - generic [ref=f3e26]: Proyectos
+              - generic [ref=f3e27]: "0"
+          - button "Nuevo proyecto" [ref=f3e29] [cursor=pointer]
+        - paragraph [ref=f3e32]: Todavía no hay proyectos.
+    - generic [ref=f3e33]:
+      - group [ref=f3e34]:
+        - generic "Automático" [ref=f3e35] [cursor=pointer]
+      - button "Atajos de teclado" [ref=f3e41] [cursor=pointer]
+  - main [ref=f3e44]:
+    - generic [ref=f3e45]:
+      - heading "Empezá un proyecto" [level=1] [ref=f3e50]
+      - paragraph [ref=f3e51]: Un proyecto reúne los casos de uso, los flujos, las secuencias y las clases de un sistema, listos para entregar en PDF o Word.
+      - generic [ref=f3e52]:
+        - button "Nuevo proyecto" [ref=f3e53] [cursor=pointer]
+        - button "Importar proyecto…" [ref=f3e55] [cursor=pointer]
+      - paragraph [ref=f3e59]:
+        - text: ¿Venís de la versión anterior? Tocá
+        - strong [ref=f3e60]: Importar proyecto…
+        - text: y elegí el respaldo más reciente de
+        - code [ref=f3e61]: Documentos › Modelador de Sistemas › Respaldos
+        - text: ": trae todos tus proyectos de una vez."
+      - list "Qué podés modelar" [ref=f3e62]:
+        - listitem [ref=f3e63]: Modelo de casos de uso
+        - listitem [ref=f3e68]: Flujo de sucesos
+        - listitem [ref=f3e72]: Diagrama de secuencia
+        - listitem [ref=f3e77]: Diagrama de clases
+        - listitem [ref=f3e88]: Clases de secuencias
+  - dialog [ref=f3e93]:
+    - heading "Crear proyecto" [level=2] [ref=f3e94]
+    - paragraph [ref=f3e95]: Un proyecto reúne todos los diagramas y especificaciones de un sistema.
+    - generic [ref=f3e96]:
+      - text: Nombre
+      - textbox "Nombre" [active] [ref=f3e97]: Nuevo proyecto
+    - generic [ref=f3e98]:
+      - button "Cancelar" [ref=f3e99] [cursor=pointer]
+      - button "Crear" [ref=f3e100] [cursor=pointer]

@@ -1,0 +1,38 @@
+- generic [ref=f2e3]:
+  - complementary "Navegación" [ref=f2e4]:
+    - generic [ref=f2e5]:
+      - button "Ocultar barra lateral" [expanded] [ref=f2e6] [cursor=pointer]
+      - paragraph [ref=f2e10]: Modelador de Sistemas
+    - navigation "Proyectos" [ref=f2e15]:
+      - button "Inicio" [ref=f2e16] [cursor=pointer]
+      - region [ref=f2e22]:
+        - generic [ref=f2e23]:
+          - heading "Proyectos 0" [level=2] [ref=f2e24]:
+            - generic [ref=f2e25]:
+              - generic [ref=f2e26]: Proyectos
+              - generic [ref=f2e27]: "0"
+          - button "Nuevo proyecto" [ref=f2e29] [cursor=pointer]
+        - paragraph [ref=f2e32]: Todavía no hay proyectos.
+    - generic [ref=f2e33]:
+      - group [ref=f2e34]:
+        - generic "Automático" [ref=f2e35] [cursor=pointer]
+      - button "Atajos de teclado" [ref=f2e41] [cursor=pointer]
+  - main [ref=f2e44]:
+    - generic [ref=f2e45]:
+      - heading "Empezá un proyecto" [level=1] [ref=f2e50]
+      - paragraph [ref=f2e51]: Un proyecto reúne los casos de uso, los flujos, las secuencias y las clases de un sistema, listos para entregar en PDF o Word.
+      - generic [ref=f2e52]:
+        - button "Nuevo proyecto" [ref=f2e53] [cursor=pointer]
+        - button "Importar proyecto…" [ref=f2e55] [cursor=pointer]
+      - paragraph [ref=f2e59]:
+        - text: ¿Venís de la versión anterior? Tocá
+        - strong [ref=f2e60]: Importar proyecto…
+        - text: y elegí el respaldo más reciente de
+        - code [ref=f2e61]: Documentos › Modelador de Sistemas › Respaldos
+        - text: ": trae todos tus proyectos de una vez."
+      - list "Qué podés modelar" [ref=f2e62]:
+        - listitem [ref=f2e63]: Modelo de casos de uso
+        - listitem [ref=f2e68]: Flujo de sucesos
+        - listitem [ref=f2e72]: Diagrama de secuencia
+        - listitem [ref=f2e77]: Diagrama de clases
+        - listitem [ref=f2e88]: Clases de secuencias

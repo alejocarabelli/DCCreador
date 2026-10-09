@@ -1,0 +1,67 @@
+- generic [ref=e3]:
+  - complementary "Navegación" [ref=e4]:
+    - generic [ref=e5]:
+      - button "Ocultar barra lateral" [expanded] [ref=e6] [cursor=pointer]
+      - paragraph [ref=e10]: Modelador de Sistemas
+    - navigation "Proyectos" [ref=e15]:
+      - button "Inicio" [ref=e16] [cursor=pointer]
+      - generic [ref=e21]:
+        - region [ref=e101]:
+          - generic [ref=e102]:
+            - heading "Nuevo proyecto" [level=2] [ref=e103]
+            - generic [ref=e106]:
+              - button "Nuevo artefacto" [ref=e107] [cursor=pointer]
+              - button "Opciones del proyecto Nuevo proyecto" [ref=e109] [cursor=pointer]
+          - list "Artefactos de Nuevo proyecto" [ref=e115]:
+            - listitem [ref=e116]:
+              - button "Diagrama de clases" [ref=e117] [cursor=pointer]
+              - button "Opciones de Diagrama de clases" [ref=e129] [cursor=pointer]
+            - listitem [ref=e134]:
+              - button "Nuevo artefacto" [ref=e135] [cursor=pointer]
+        - region [ref=e138]:
+          - generic [ref=e23]:
+            - heading [level=2] [ref=e139]:
+              - button "Otros proyectos 0" [ref=e140] [cursor=pointer]:
+                - generic [ref=e143]: Otros proyectos
+                - generic [ref=e144]: "0"
+            - button "Nuevo proyecto" [ref=e29] [cursor=pointer]
+    - generic [ref=e33]:
+      - group [ref=e34]:
+        - generic "Automático" [ref=e35] [cursor=pointer]
+      - button "Atajos de teclado" [ref=e41] [cursor=pointer]
+  - generic [ref=e145]:
+    - generic [ref=e146]:
+      - heading "Diagrama de clases" [level=1] [ref=e147]
+      - generic "Nuevo proyecto" [ref=e148]
+      - tablist "Artefactos abiertos" [ref=e150]:
+        - tab "Diagrama de clases" [selected] [ref=e151]:
+          - button "Cerrar Diagrama de clases" [ref=e164] [cursor=pointer]
+    - tabpanel "Diagrama de clases" [ref=e169]:
+      - main [ref=e170]:
+        - generic [ref=e172]:
+          - generic [ref=e174]:
+            - status "Todos los cambios están guardados" [ref=e175]:
+              - generic: Guardado
+            - button "Deshacer" [disabled] [ref=e178]
+            - button "Rehacer" [disabled] [ref=e182]
+          - group "Agregar" [ref=e186]:
+            - button "Clase" [ref=e187] [cursor=pointer]
+            - group [ref=e190]:
+              - generic "Organizar" [ref=e191] [cursor=pointer]
+          - generic [ref=e199]:
+            - button "Apuntes" [ref=e200] [cursor=pointer]
+            - button "Revisar" [ref=e204] [cursor=pointer]
+            - group [ref=e208]:
+              - generic "Vista" [ref=e209] [cursor=pointer]
+            - group [ref=e215]:
+              - generic "Exportar" [ref=e216] [cursor=pointer]
+        - generic [ref=e224]:
+          - note [ref=e231]:
+            - heading "Empezá por una clase" [level=3] [ref=e232]
+            - paragraph [ref=e233]: Agregá las clases del dominio y uní sus asociaciones. También podés hacer doble clic en el lienzo para crear una donde quieras.
+            - button "Crear clase" [ref=e235] [cursor=pointer]
+          - group "Controles del diagrama de clases" [ref=e237]:
+            - button "Alejar" [ref=e238] [cursor=pointer]
+            - button "Zoom 100 %. Restablecer al 100 %" [ref=e240] [cursor=pointer]: 100%
+            - button "Acercar" [ref=e241] [cursor=pointer]
+            - button "Ajustar el diagrama a la vista" [ref=e244] [cursor=pointer]

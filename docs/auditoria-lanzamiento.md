@@ -344,3 +344,4 @@ Agravantes que aparecieron al verificar:
 - **Plantillas de secuencia:** se eliminan (no aportan a la materia).
 - **Sugerir actores ya creados** en flujo y secuencia: queda para después.
 - **Inicio asistido** (recorrido animado de primer uso): se evalúa al terminar la tanda 2.
+- **Sin plantillas:** `scripts/advancedSequenceRunner.tsx` (CHECK 5 y 6, script de verificación manual, no corre en CI) todavía busca el botón Plantillas; `REDISENO-V2.md`, que hoy se usa como notas de cada release, las menciona. Las notas de la 2.5.0 se escriben aparte en la tanda 4.

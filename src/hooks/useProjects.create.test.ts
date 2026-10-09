@@ -83,13 +83,4 @@ describe('primer artefacto del proyecto', () => {
       expect((after.artifacts.find((a) => a.id === sequence.id) as SequenceDiagramArtifact).content.classDiagramArtifactId).toBe(model.id);
     },
   );
-
-  it('conserva el contenido inicial al crear una secuencia desde una plantilla', () => {
-    renderHook().createProject('Proyecto');
-    const initialContent = { ...createEmptySequenceDiagramContent(), showActivations: false };
-    renderHook().createSequenceDiagramArtifact(renderHook().activeProjectId!, 'Consulta', initialContent);
-    const sequence = renderHook().activeProject!.artifacts[1] as SequenceDiagramArtifact;
-    expect(sequence.name).toBe('Consulta');
-    expect(sequence.content.showActivations).toBe(false);
-  });
 });

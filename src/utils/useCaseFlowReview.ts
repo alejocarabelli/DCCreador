@@ -215,7 +215,7 @@ export const reviewUseCaseFlow = (content: UseCaseFlowContent, symbolIndex: Proj
       issues.push({ id: `orphan:${flow.id}`, kind: 'review', location: { kind: 'alternative', table: flow.id }, message: `Ningún paso deriva a ${flow.code}. Marcá desde dónde se toma con ${shortcutLabel('⇧⌘A')} o en la columna Ref.` });
     }
     if (flow.name.trim().length === 0) {
-      issues.push({ id: `unnamed:${flow.id}`, kind: 'review', location: { kind: 'alternative', table: flow.id }, message: `${flow.code} no tiene nombre (por ejemplo, «Datos inconsistentes»).` });
+      issues.push({ id: `unnamed:${flow.id}`, kind: 'review', location: { kind: 'alternative', table: flow.id }, message: `${flow.code} no tiene nombre: escribí en pocas palabras qué situación cubre.` });
     }
   });
 
