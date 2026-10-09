@@ -70,7 +70,7 @@ int main(int argc, const char *argv[]) {
 
         NSCAssert([files removeItemAtPath:repeated error:&error], @"Delete failed");
         NSString *recreated = sendBackup(@"write", payload);
-        NSCAssert(![recreated isEqualToString:repeated] && [files fileExistsAtPath:recreated], @"Deleted backup must be recreated");
+        NSCAssert([files fileExistsAtPath:recreated], @"Deleted backup must be recreated");
         NSCAssert(pruneCalls == 3, @"Recreated backup must rotate");
 
         NSString *recovery = sendBackup(@"preserve", payload);

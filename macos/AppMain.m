@@ -327,8 +327,12 @@ static NSUInteger const kBackupsToKeep = 10;
     NSDateFormatter *stamp = [[NSDateFormatter alloc] init];
     stamp.dateFormat = @"yyyy-MM-dd-HHmmss-SSS";
     stamp.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
-    NSString *filename = [NSString stringWithFormat:@"%@-%@.json", preserve ? @"recuperacion" : @"respaldo", [stamp stringFromDate:[NSDate date]]];
-    NSURL *destination = [directory URLByAppendingPathComponent:filename];
+    NSString *base = [NSString stringWithFormat:@"%@-%@", preserve ? @"recuperacion" : @"respaldo", [stamp stringFromDate:[NSDate date]]];
+    NSURL *destination = [directory URLByAppendingPathComponent:[base stringByAppendingPathExtension:@"json"]];
+    // Two snapshots in the same millisecond must never overwrite each other.
+    for (NSUInteger copy = 2; [[NSFileManager defaultManager] fileExistsAtPath:destination.path]; copy++) {
+        destination = [directory URLByAppendingPathComponent:[NSString stringWithFormat:@"%@-%lu.json", base, (unsigned long)copy]];
+    }
 
     if (![payload writeToURL:destination atomically:YES encoding:NSUTF8StringEncoding error:&error]) {
         replyHandler(nil, error.localizedDescription ?: @"No se pudo escribir el respaldo.");
