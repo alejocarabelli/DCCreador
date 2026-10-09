@@ -350,12 +350,30 @@
 /* Layout contract 1: the toolbar never overflows. The row is a size
    container; as it narrows, labels fold into their icons — first the
    secondary tools and the end zone, then the primary action. Every tool keeps its name in
-   aria-label and title, so folding costs nothing to VoiceOver. */
+   aria-label and title, so folding costs nothing to VoiceOver. The thresholds
+   are tuned so a 1280px window with the rail open (row ~1024px) keeps every
+   label in all five editors; the widest bar (sequence) needs the labelled
+   buttons tightened and its sync badge folded to fit. */
 .app-shell .v2-toolbar-row {
   container: v2-toolbar / inline-size;
 }
 
+@container v2-toolbar (max-width: 1100px) {
+  .app-shell :is(.v2-toolbar-create, .v2-toolbar-end) .v2-tool.has-label {
+    gap: 4px;
+    padding-inline: 6px;
+  }
+}
+
+/* The sequence bar is the widest: its sync badge (not an action) gives up its
+   word first, keeping the icon, title and aria-label. */
 @container v2-toolbar (max-width: 1040px) {
+  .app-shell .sequence-editor-shell .sequence-model-status .v2-tool-label {
+    display: none;
+  }
+}
+
+@container v2-toolbar (max-width: 940px) {
   .app-shell :is(.v2-toolbar-create .v2-tool:not(.is-primary), .v2-toolbar-end .v2-tool) .v2-tool-label {
     display: none;
   }
