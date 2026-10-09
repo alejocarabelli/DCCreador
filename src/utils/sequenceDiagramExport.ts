@@ -242,6 +242,16 @@ export const getSequencePageGeometry = (suppliedOptions: Partial<SequenceExportO
 export const getSequencePagePreviewUri = (source: SVGSVGElement, page: SequenceExportPage): string =>
   `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(cropSvg(source, page.source)))}`;
 
+/** Preview images for every page, or null when the SVG is missing or can't be serialized. */
+export const buildSequencePreviewUris = (source: SVGSVGElement | null, pages: SequenceExportPage[]): string[] | null => {
+  if (!source) return null;
+  try {
+    return pages.map((page) => getSequencePagePreviewUri(source, page));
+  } catch {
+    return null;
+  }
+};
+
 export const canExportSequencePng = (svg: SVGSVGElement, bounds?: SequenceDiagramBounds): boolean => {
   const dimensions = bounds ?? svgDimensions(svg);
   return dimensions.width <= MAX_PNG_DIMENSION && dimensions.height <= MAX_PNG_DIMENSION && dimensions.width * dimensions.height <= MAX_PNG_PIXELS;

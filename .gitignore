@@ -19,3 +19,6 @@ fixtures/r6-academic-review/
 # Windows (Tauri): compilación y esquemas generados
 src-tauri/target/
 src-tauri/gen/
+
+# Registros de las herramientas de navegador
+.playwright-mcp/

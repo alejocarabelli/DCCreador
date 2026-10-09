@@ -27,6 +27,23 @@ describe('A3: crear un proyecto sobre almacenamiento corrupto sin copia de recup
     vi.stubGlobal('localStorage', storage);
   });
 
+  it('pausa el guardado automático ante notas descartadas y conserva el original tras editar', async () => {
+    const raw = JSON.stringify({ version: 2, projects: [{
+      id: 'p', name: 'Proyecto', createdAt: '', updatedAt: '', artifacts: [{
+        id: 'seq', type: 'sequence-diagram', name: 'Secuencia', createdAt: '', updatedAt: '',
+        content: { participants: [], items: [], notes: { n: { id: 'n', text: 'Conservar' } } },
+      }],
+    }] });
+    localStorage.setItem(STORAGE_KEY, raw);
+    expect(renderHook().recoveryPending).toBe(true);
+    renderHook().renameProject('p', 'Editado');
+    renderHook();
+    await vi.advanceTimersByTimeAsync(500);
+    window.dispatchEvent(new Event('pagehide'));
+    runtime.unmount();
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(raw);
+  });
+
   it('el JSON original no se reemplaza al crear un proyecto', () => {
     localStorage.setItem(STORAGE_KEY, CORRUPT);
 

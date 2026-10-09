@@ -159,6 +159,9 @@ export function SequenceMessageDialog({
         const nextText = ret ? `${name}(): ${ret}` : `${name}()`;
         setSignatureText(nextText);
         onChange(commitDraft(newType, nextText));
+      } else if (draft.type === 'destroy') {
+        // A destroy keeps the whole text as its name: a call has to split it again.
+        onChange(commitDraft(newType));
       } else {
         onChange(updateSequenceMessageEditModel(draft, { type: newType }));
       }
@@ -188,7 +191,9 @@ export function SequenceMessageDialog({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const finalDraft = commitDraft();
+    // Text changes already update the draft; parsing the displayed signature
+    // here would persist presentation spacing even when nothing was edited.
+    const finalDraft = draft;
     onChange(finalDraft);
     onSubmit(event, finalDraft);
   };
@@ -290,7 +295,7 @@ export function SequenceMessageDialog({
               aria-label="Objeto nuevo"
               className="sequence-dialog-route-select"
               value={draft.newParticipantName ?? ''}
-              placeholder="nuevo:Clase"
+              placeholder="nombre:Clase"
               onChange={(event) => onChange(updateSequenceMessageEditModel(draft, { newParticipantName: event.target.value }))}
             />
           ) : routeEditable ? (
@@ -321,8 +326,8 @@ export function SequenceMessageDialog({
             value={signatureText}
             placeholder={
               draft.type === 'create'
-                  ? 'create(parámetros) o nombre del objeto...'
-                  : 'Escribí el mensaje o método con sus parámetros...'
+                  ? 'create(parámetros) o nombre del objeto…'
+                  : 'Escribí el mensaje o método con sus parámetros…'
             }
             onChange={(e) => handleTextChange(e.target.value)}
             onKeyDown={handleTextareaKeyDown}

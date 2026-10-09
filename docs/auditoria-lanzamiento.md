@@ -338,3 +338,110 @@ Agravantes que aparecieron al verificar:
 - **Deshacer en casos de uso (explicado, ya existía):** conectar y mover dentro de una misma ráfaga de ≤650 ms quedan en un solo paso de historial, así que el primer Deshacer ya quita la relación. Con más tiempo entre cambios restaura todo. Para la tanda 3: que crear o borrar una relación siempre abra un paso propio.
 - **Cierre en macOS:** cerrar la ventana principal ahora cierra la app (para entregar los borradores antes de salir), aunque haya ventanas de vista abiertas.
 - **B3, efecto colateral aceptado:** si un participante vinculado muestra a propósito un nombre distinto de su clase, deshacer lo vuelve al nombre de la clase.
+
+## Decisiones para la tanda 2 (8/10)
+
+- **Plantillas de secuencia:** se eliminan (no aportan a la materia).
+- **Sugerir actores ya creados** en flujo y secuencia: queda para después.
+- **Inicio asistido** (recorrido animado de primer uso): se evalúa al terminar la tanda 2.
+- **Sin plantillas:** `scripts/advancedSequenceRunner.tsx` (CHECK 5 y 6, script de verificación manual, no corre en CI) todavía busca el botón Plantillas; `REDISENO-V2.md`, que hoy se usa como notas de cada release, las menciona. Las notas de la 2.5.0 se escriben aparte en la tanda 4.
+
+## F. Segundo recorrido de primer uso (rama tanda-2)
+
+Puntaje del agente: **6/10** para arrancar sin ayuda. Lo que más ayudó: el ejemplo, la bienvenida, las pantallas vacías con acción directa y la pista de relaciones. Arreglados antes del PR de la tanda 2: texto al revés en Estado inicial/final, vista previa de exportación en blanco, «Maximum update depth» en el flujo, avisos de Revisar en el propio ejemplo.
+
+Para la tanda 3:
+1. La tarjeta vacía y el botón destacado piden cosas distintas (casos de uso: «Empezá por un actor» vs. botón «Caso de uso»; secuencia: «Empezá por el actor» vs. «Mensaje» activo sin participantes). El primer mensaje propone el último participante como origen.
+2. Selección múltiple: Shift+clic no suma (solo ⌘+clic, sin pista); con varios seleccionados el inspector muestra solo el primero.
+3. En el ejemplo no se entiende la relación entre los artefactos (modelo de dominio y «Clases de secuencias CU 3» se ven iguales; se abre primero el modelo de dominio y no los casos de uso).
+4. Clases de secuencias: «N novedades» es poco claro; no se pueden traer clases del dominio; los métodos llegan sin parámetros (E15).
+5. Secuencia: el botón de vincular mezcla «Vincular un modelo de clases», «Sin modelo de clases» y «Crear clases de secuencias».
+6. Flujo: placeholders que parecen valores («3» en número, «CA 1» en Ref.), el actor no se sugiere, «sin paso de origen» parece enlace y no hace nada, numeración «1. » como texto común (se pierde al borrarla), placeholders numerados repetidos.
+7. «Revisar» con tres formatos distintos (panel lateral en flujo, ventana flotante en clases y secuencia).
+8. Panel Revisar del flujo: cabecera corrida y tabla del camino básico cortada.
+9. Tipos: `Date` → `date` (E16); botón «S» sin explicación (E14).
+10. Mensaje: estructura muestra `f(a, b)` y el diagrama `f(a,b)`.
+11. Los diagramas del ejemplo se abren cortados (secuencia al 100 %) o con etiquetas superpuestas (clases).
+12. «Guía de artefactos para IA (.md)» en «Nuevo artefacto» no se entiende para un estudiante; nombre del ejemplo truncado en la barra lateral; «1 clases de secuencias» (E17).
+13. Casos de uso: elementos nuevos pegados al borde superior. Clases: «Descripción: Notas privadas…» y «Valores paramétricos» poco claros; la pista ocupa lugar; clases nuevas dispersas; «…» en extremos sin multiplicidad; una asociación nueva nace con flecha.
+14. Modo teclado: la barra de ayuda se corta.
+15. «Organizar (2)» y «Al día con 1 secuencia» sin explicación.
+16. Consola: `nodeTypes`/`edgeTypes` recreados en cada render (26 avisos de React Flow); falta favicon.
+17. Flujo: Tab desde la columna Ref. lleva el foco al botón «Agregar fila debajo»; un espacio al seguir escribiendo lo acciona y crea una fila.
+18. Estado inicial/final: escribiendo a velocidad inhumana justo después de Enter, el cursor puede reubicarse mal (`setStateBulletCaretAfterRender` / `setCaretAfterRender` en `src/utils/textCaret.ts` no verifican el valor esperado, a diferencia de `setCaretPositionAfterRender`).
+
+## Tanda 3: estado (9/10)
+
+Rama `lanzamiento/tanda-3` (PR contra `lanzamiento/tanda-2`). Cada ítem se hizo en una rama `lanzamiento/t3-*` y se mergeó a la tanda.
+
+| Ítem del encargo | Hallazgos | Estado |
+|---|---|---|
+| 1. Revisar con un solo formato | F7, F8, E21, E24, D11 | Resuelto. Ventana flotante única, Esc la cierra, casos de uso suma Revisar. Sin avisos falsos en el ejemplo; además se arreglaron D4 y D5 |
+| 2. Pantalla vacía y botón destacado | F1, E12 | Resuelto en casos de uso y secuencia. El primer mensaje sale del actor |
+| 3. Selección múltiple | F2, C4 | Resuelto en clases, clases de secuencias y casos de uso. En casos de uso, el clic sobre el nombre no seleccionaba: arreglado |
+| 4. Flujo de sucesos | F6, pendientes 17-18 | Resuelto, salvo Tab desde Ref. en la **última** fila de una tabla, que sigue cayendo en «Agregar fila» (ver decisiones) |
+| 5. Clases de secuencias | F4, F15, E15 | Resuelto. Los métodos ya traídos sin parámetros no se actualizan solos |
+| 6. Vincular en secuencias | F5, B6 en secuencias | Resuelto con `null` explícito. Las desvinculaciones guardadas antes de este cambio quedaron como `undefined` y no se pueden distinguir |
+| 7. Consistencia chica | E14, E16, E17, F9, F10, F11, F12, F13, F14, F16 | Resuelto, salvo F16: el aviso de React Flow es un falso aviso de `StrictMode` en desarrollo, no aparece en la app compilada; queda documentado. F11 resuelto en secuencia; el diagrama de clases ya se ajustaba a la vista al abrirse, y las etiquetas superpuestas del ejemplo no se tocaron |
+| 8. Deshacer en casos de uso | pendiente de la tanda 1 | Resuelto: crear o borrar una relación abre su propio paso |
+
+Fuera de alcance y sin tocar: inicio asistido, sugerir actores ya creados, E13 (miniatura de la vista previa), E20, E22, E23, E25, favicon.
+
+## Decisiones tomadas de noche (9/10)
+
+Sesión autónoma de Claude Code (sin nadie para consultar). Ante dos opciones se eligió la que cambia menos comportamiento y no toca datos guardados.
+
+- **Ramas:** se usaron los nombres del encargo (`lanzamiento/tanda-3`, `lanzamiento/tanda-4`); cada ítem en una rama `lanzamiento/t3-*` / `lanzamiento/t4-*` mergeada a la tanda, como en la tanda 2.
+- **Revisar (F7, F8, E21):** formato único = ventana flotante de clases (`DiagramReviewPanel`) en los cinco editores, se cierra con Esc, la X o el mismo botón. Casos de uso suma un Revisar con comprobaciones mínimas sin falsos avisos (nombres vacíos o repetidos, elementos sin relaciones). Sin problemas, todos dicen «Sin problemas en las comprobaciones automáticas.»; vacío, «Todavía no hay nada para revisar.».
+- **Clases de secuencias (F4, F15):** «N novedades» → «N para traer»; «Al día con N secuencias» → «✓ Todo traído de N secuencias», ambos con explicación al pasar el mouse; «Organizar (2)» → «Organizar 2 clases».
+- **E17:** el contador de la tarjeta dice «modelo(s) de clases de secuencias».
+- **E14:** el botón «S» se explica con una línea debajo de atributos y métodos.
+- **E16/F9:** la app no cambia las mayúsculas de lo que se escribe: al completar una sugerencia de tipo se respeta la mayúscula inicial tipeada. Los datos ya guardados no se convierten.
+- **F10:** firmas con «, » entre argumentos en estructura y diagrama, solo al mostrar (no cambia lo guardado).
+- **F12:** «Guía de artefactos para IA» pasa al diálogo de atajos (?) como una línea al final.
+- **Vincular en secuencias (F5, B6):** un solo verbo, «Vincular»/«Desvincular», y el nombre del artefacto «Clases de secuencias». `null` = «Sin vincular» elegido a propósito: crear o convertir un modelo ya no vincula esas secuencias solas; el botón explícito «Vincular N secuencias sin vincular» del modelo sí las incluye. Al mover una secuencia cuyo modelo no viaja, queda en `null`, igual que los flujos.
+- **Actualizaciones:** el enlace a la release es un `<a>` sin `target`: macOS (`decidePolicyForNavigationAction`) y Windows (`on_navigation` + opener) ya lo abren en el navegador; no hizo falta tocar código nativo. La CSP de Tauri es `null`, así que el `fetch` a api.github.com no necesita permisos nuevos.
+- **Revisar en casos de uso:** el texto «Sin nombre» que el lienzo guarda al dejar vacío un nombre cuenta como sin nombre. Los límites del sistema no se revisan.
+- **Casos de uso, botón destacado:** mientras no haya ningún actor, el botón relleno es «Actor»; después vuelve a ser «Caso de uso».
+- **Casos de uso, elementos nuevos:** desde la barra o la tarjeta vacía aparecen en la parte visible, a 48 px del borde como mínimo y corridos en cascada si hay algo; doble clic sigue creando donde se hace clic.
+- **Casos de uso, clic en el nombre:** hacer clic sobre el nombre de un caso de uso o actor no lo seleccionaba (es zona `nodrag` para el doble clic). Apareció al verificar Mayús+clic y se arregló en el mismo ítem.
+- **Flujo, Tab en la última fila:** Tab desde Ref. ya no cae en los botones flotantes de la fila. En la última fila de la tabla sigue cayendo en «Agregar fila» (botón visible de la tabla); se dejó así para no quitarle el teclado a ese botón ni a «Agregar camino alternativo».
+- **Flujo, número del paso:** si se borra el «1. » de la primera línea de un paso, vuelve al salir de la celda. Para una línea sin número en una tabla numerada se usa una viñeta «-».
+- **Secuencia, primer mensaje:** sin mensajes, el origen propuesto es siempre el actor (o el primer participante), aunque haya otro seleccionado. «Mensaje» se habilita con un participante (el mensaje a sí mismo es válido). La tecla M sin participantes avisa y abre la creación de un actor.
+- **Secuencia, zoom inicial:** solo la primera vez que se abre en la sesión y si no entra; nunca más de 100 %.
+- **«Crear Clases de secuencias y vincular»** desde la secuencia vincula esa secuencia aunque estuviera desvinculada a propósito (es un pedido explícito).
+- **D4 y D5** (avisos falsos del flujo por atributos heredados y «Fin del caso de uso») seguían abiertos y se arreglaron en la tanda 3, como parte de «sacar falsos avisos».
+- **F16:** el aviso de React Flow sobre `nodeTypes`/`edgeTypes` lo produce el doble render de `StrictMode` en desarrollo: los tipos ya están definidos fuera de los componentes. Se probó filtrarlo con `onError`, pero React Flow lo emite en el primer render, antes de registrar ese manejador, así que se revirtió. La app compilada no lo muestra; queda documentado y sin cambios. El favicon que falta (404) solo se nota en el navegador de desarrollo.
+- **Buscar actualizaciones a mano sin conexión** dice «No se pudo consultar. Probá más tarde.» y no borra un aviso ya encontrado; la consulta automática al abrir queda en silencio.
+
+## G. Tercer recorrido de primer uso (rama tanda-3, 9/10)
+
+Puntaje del agente: **7/10** (antes 6/10). Lo que más ayudó: crear un proyecto eligiendo por dónde empezar, las pantallas vacías con acción, Mayús+clic con su consejo, deshacer en casos de uso, el modo teclado de secuencia, «Crear Clases de secuencias y vincular» y traer con casillas, y el modo oscuro. Consola sin errores propios (solo el aviso de desarrollo de React Flow y el favicon).
+
+Arreglado antes del PR:
+- **Flujo, Tab:** después de bajar o subir un nivel con Tab, el cursor iba al principio de la celda y lo que se escribía quedaba adelante («R1Pide…Elige…»). Ya pasaba en la tanda 2.
+
+Pendiente (para Alejo o una tanda siguiente):
+1. **Flujo, camino alternativo:** Tab desde el nombre pasa por «desde paso N…», «empieza en» y el tacho antes de llegar a la tabla; un Enter de más en «desde paso N» salta al paso y lo que se escribe reemplaza su texto. Se deshace con ⌘Z.
+2. **Secuencia, modo teclado:** después de crear un Retorno (sin texto, por decisión) las letras que siguen se toman como atajos («p» crea un participante).
+3. **Ejemplo:** no dice en qué orden se leen los artefactos ni qué aporta Clases de secuencias (se ve igual que el modelo de dominio).
+4. **Ayuda:** «?» es solo la lista de atajos; no hay explicación de qué es cada artefacto.
+5. **Flujo:** Tab baja un nivel (no cambia de columna) y ⌘↵ pasa al otro lado: potente pero poco descubrible. El campo Actor no sugiere los actores del modelo (fuera de alcance).
+6. **Secuencia vacía:** «Participante» en la barra y «Agregar actor» en la tarjeta son los dos botones destacados.
+7. **Clases:** dos asociaciones que salen del mismo punto comparten un tramo; la multiplicidad sin definir se ve como placeholder gris que parece valor.
+8. **Revisar:** el aviso de multiplicidad no nombra la línea (el clic sí la encuadra); en el flujo cada aviso repite «Revisar».
+9. **1100 px:** las barras quedan solo con íconos (con tooltip).
+10. **Detalles:** «Guardado» se corta con la barra apretada; la barra flotante del participante se recorta a la derecha; al traer en Clases de secuencias aparece el inspector de selección múltiple y achica el lienzo; deshacer en el flujo agrupa varias filas tipeadas de corrido.
+
+## Tanda 4: estado (9/10)
+
+Rama `lanzamiento/tanda-4` (PR contra `lanzamiento/tanda-3`), armada con `lanzamiento/t4-actualizaciones` y `lanzamiento/t4-distribucion`.
+
+| Ítem del encargo | Estado |
+|---|---|
+| 1. Versión visible | Resuelto: abajo en la barra lateral («v2.5.0») y en la ayuda (?). README actualizado |
+| 2. Buscar actualizaciones | Resuelto: al abrir (como mucho una vez por día) y desde la ayuda. Aviso discreto con enlace a la release, que se puede ocultar hasta la siguiente versión. Sin conexión, silencio al abrir; la búsqueda manual dice que no pudo consultar. Comparación semántica con pruebas (`src/utils/appUpdate.ts`). El enlace es un `<a>` sin `target`, que macOS (`AppMain.m`) y Windows (`on_navigation` + opener) ya abren en el navegador; la CSP de Tauri es `null`, así que el `fetch` no necesitó permisos. **Sin probar en las apps nativas** |
+| 3. Notas de la 2.5.0 | Resuelto: `docs/release-notes.md`. Los dos workflows publican con ese archivo, así que no importa cuál cree la release primero |
+| 4. Versión 2.5.0 | Resuelto: solo `package.json` y `package-lock.json`. `src-tauri/Cargo.toml` y `macos/Info.plist` siguen diciendo 2.4.1 en el repo, pero el build los toma de `package.json` (`tauri.conf.json` → `../package.json`; `build-macos-app.sh` → PlistBuddy) |
+| 5. Windows | Atajos: los «⌘» fijos solo están en comentarios y en la ayuda, que ya los convierte con `shortcutLabel`. CI: `windows.yml` en `lanzamiento/tanda-4` pasó (run 37927566618, sobre `22ac9f6`). No se probó en un equipo con Windows |
+| 6. Limpieza | Resuelto: `scripts/advancedSequenceRunner.tsx` sin los CHECK 5 y 6 y con el panel Revisar nuevo; `REDISENO-V2.md` ya no se usa como notas |

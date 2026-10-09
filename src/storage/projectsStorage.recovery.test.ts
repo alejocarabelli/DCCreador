@@ -96,6 +96,46 @@ describe('content loss detection', () => {
     expect(loadProjects().skipInitialSave).toBe(true);
   });
 
+  it('keeps distinct class data when duplicate IDs are reassigned', () => {
+    const node = { id: 'duplicate', type: 'classNode', position: { x: 0, y: 0 }, data: { name: 'Cliente', attributes: [], methods: [] } };
+    localStorage.setItem(STORAGE_KEY, storedWith([{ ...validArtifact, content: {
+      nodes: [node, { ...node, data: { ...node.data, attributes: [{ id: 'a', name: 'id', type: 'Integer' }] } }], edges: [],
+    } }]));
+    const loaded = loadProjects();
+    expect(loaded).toMatchObject({ skipInitialSave: false, recoveryRaw: null, warning: null });
+    const content = loaded.projects[0].artifacts[0].content;
+    expect(content).toMatchObject({ nodes: [{ data: { attributes: [] } }, { data: { attributes: [{ id: 'a', name: 'id', type: 'Integer' }] } }] });
+  });
+
+  it('pairs duplicate artifact IDs by position before comparing their type and data', () => {
+    localStorage.setItem(STORAGE_KEY, storedWith([
+      validArtifact,
+      { ...validArtifact, type: 'sequence-diagram', content: { participants: [], items: [], notes: [{
+        id: 'note', text: 'Conservar', anchorKind: 'free', x: 0, y: 0, width: 160, height: 100,
+      }] } },
+    ]));
+    expect(loadProjects()).toMatchObject({ skipInitialSave: false, recoveryRaw: null, warning: null });
+  });
+
+  it('still protects storage if a unique model reference is lost', () => {
+    const raw = storedWith([{ ...validArtifact, type: 'class-sequence-diagram', content: {
+      nodes: [], edges: [], linkedSequenceDiagramIds: ['missing', 'missing'],
+    } }]);
+    localStorage.setItem(STORAGE_KEY, raw);
+    expect(loadProjects()).toMatchObject({ skipInitialSave: true, recoveryRaw: raw });
+  });
+
+  it('accepts duplicated model references when the complete link survives', () => {
+    localStorage.setItem(STORAGE_KEY, storedWith([
+      { ...validArtifact, type: 'class-sequence-diagram', content: { nodes: [], edges: [], linkedSequenceDiagramIds: ['seq', 'seq'] } },
+      { ...validArtifact, id: 'seq', type: 'sequence-diagram', content: { participants: [], items: [], classDiagramArtifactId: 'm' } },
+    ]));
+    const loaded = loadProjects();
+    expect(loaded).toMatchObject({ skipInitialSave: false, recoveryRaw: null, warning: null });
+    expect(loaded.projects[0].artifacts[0].content).toMatchObject({ linkedSequenceDiagramIds: ['seq'] });
+    expect(loaded.projects[0].artifacts[1].content).toMatchObject({ classDiagramArtifactId: 'm' });
+  });
+
   it('does not report loss for healthy populated diagrams or legacy arrays', () => {
     const nodes = ['a', 'b'].map((id) => ({ id, type: 'classNode', position: { x: 0, y: 0 }, data: { name: id, attributes: [], methods: [] } }));
     const content = { nodes, edges: [{ id: 'r', source: 'a', target: 'b' }] };
@@ -135,5 +175,41 @@ describe('notebook loss detection', () => {
     expect(loaded.skipInitialSave).toBe(false);
     expect(loaded.recoveryRaw).toBeNull();
     expect(loaded.projects[0].artifacts[0].notebook).toEqual(notebook);
+  });
+});
+
+
+describe('nested collection loss', () => {
+  beforeEach(() => vi.stubGlobal('localStorage', createMemoryStorage()));
+
+  const node = { id: 'c', type: 'classNode', position: { x: 0, y: 0 }, data: { name: 'Cliente' } };
+  const note = { id: 'n', text: 'Conservar', anchorKind: 'free', x: 0, y: 0 };
+  it.each([
+    ['notes object', 'sequence-diagram', { participants: [], items: [], notes: { n: note } }],
+    ['invalid note', 'sequence-diagram', { participants: [], items: [], notes: [note, null] }],
+    ['attributes object', 'class-diagram', { nodes: [{ ...node, data: { ...node.data, attributes: { a: { id: 'a', name: 'id' } } } }], edges: [] }],
+    ['methods object', 'class-diagram', { nodes: [{ ...node, data: { ...node.data, methods: { m: { id: 'm', name: 'buscar' } } } }], edges: [] }],
+    ['invalid method', 'class-diagram', { nodes: [{ ...node, data: { ...node.data, methods: [null] } }], edges: [] }],
+    ['nested items object', 'sequence-diagram', { participants: [], items: [{ kind: 'fragment', id: 'f', fragmentKind: 'loop', operands: [{ id: 'o', items: { m: { kind: 'message', id: 'm' } } }] }] }],
+  ])('protects raw storage for %s', (_label, type, content) => {
+    const raw = storedWith([{ ...validArtifact, type, content }]);
+    localStorage.setItem(STORAGE_KEY, raw);
+    const loaded = loadProjects();
+    expect(loaded.recoveryRaw).toBe(raw);
+    expect(loaded.skipInitialSave).toBe(true);
+    expect(loaded.warning).not.toBeNull();
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(raw);
+  });
+
+  it('accepts a typical 2.4.x project with absent optional collections and empty arrays', () => {
+    const raw = storedWith([
+      { ...validArtifact, content: { nodes: [node], edges: [] } },
+      { ...validArtifact, id: 'seq', type: 'sequence-diagram', content: {
+        participants: [{ id: 'p', kind: 'object', name: 'cliente', classifierName: 'Cliente', x: 0 }],
+        items: [], notes: [], activations: [],
+      } },
+    ]);
+    localStorage.setItem(STORAGE_KEY, raw);
+    expect(loadProjects()).toMatchObject({ skipInitialSave: false, recoveryRaw: null, warning: null });
   });
 });

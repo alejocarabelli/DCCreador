@@ -39,11 +39,15 @@ import { createId } from '../utils/id';
 import { useDiagramImageExport } from '../hooks/useDiagramImageExport';
 import { getDiagramImageExportBounds } from '../utils/diagramImageExport';
 import { useGentleWheelZoom } from '../hooks/useGentleWheelZoom';
-import { CANVAS_GRID_KEY, readCanvasGridEnabled, readUiPreference, writeUiPreference } from '../storage/uiPreferences';
+import { CANVAS_GRID_KEY, MULTI_SELECT_HINT_KEY, readCanvasGridEnabled, readUiPreference, writeUiPreference } from '../storage/uiPreferences';
 import { normalizeUseCaseModelContent } from '../utils/diagramNormalization';
 import { deleteUseCaseSelection } from '../utils/useCaseDeletion';
+import { placeNewElement } from '../utils/useCasePlacement';
+import { shortcutLabel } from '../utils/shortcutLabel';
 import { CanvasControls } from './CanvasControls';
-import { EditorToolbar, MenuItem, NotebookButton, ToolButton, ToolMenu } from './ui/Toolbar';
+import { EditorToolbar, MenuItem, NotebookButton, ReviewButton, ToolButton, ToolMenu } from './ui/Toolbar';
+import { DiagramReviewPanel } from './DiagramReviewPanel';
+import { reviewUseCaseModel, type UseCaseModelIssue } from '../utils/useCaseModelReview';
 import { isNotebookEvent } from '../utils/notebookKeyboard';
 import { InspectorDeleteButton, InspectorPanel } from './ui/Panel';
 import { CanvasStartCard } from './CanvasStartCard';
@@ -52,8 +56,16 @@ import { UseCaseRelationEdge } from './UseCaseRelationEdge';
 import { useArtifactViewport } from '../hooks/useArtifactViewMemory';
 import { ToolbarHistory } from './ToolbarHistory';
 import type { DiagramSaveStatus } from '../hooks/useProjects';
-import { findFreeClassPosition } from '../utils/classPlacement';
 import { facingSide, isInside, type Box } from '../utils/useCaseGeometry';
+
+/** Shift joins Meta and Control in adding to a selection; Shift on empty canvas still drags a box. */
+const MULTI_SELECTION_KEYS = ['Meta', 'Control', 'Shift'];
+/** Footprints of new elements until React Flow has measured them. */
+const NEW_ELEMENT_SIZE: Record<UseCaseNodeKind, { width: number; height: number }> = {
+  actor: { width: 110, height: 130 },
+  'use-case': { width: 226, height: 112 },
+  'system-boundary': { width: 520, height: 340 },
+};
 
 const SNAP_ENABLED_KEY = 'class-diagram-snap-enabled';
 /** Shared with the class editor: the minimap is a preference of the person, not of the diagram. */
@@ -201,6 +213,9 @@ export function UseCaseModelEditor({
   const feedbackTimeoutRef = useRef<number | null>(null);
   const normalizedContent = useMemo(() => normalizeUseCaseModelContent(artifact.content), [artifact.content]);
   const { nodes, edges } = normalizedContent;
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const reviewIssues = useMemo(() => reviewUseCaseModel(normalizedContent), [normalizedContent]);
+  const closeReview = useCallback(() => setReviewOpen(false), []);
   // Ids of elements that still exist: an undo can remove a selected element.
   const activeSelectedNodeIds = useMemo(
     () => selectedNodeIds.filter((id) => nodes.some((node) => node.id === id)),
@@ -270,6 +285,13 @@ export function UseCaseModelEditor({
     feedbackTimeoutRef.current = window.setTimeout(() => setFeedbackMessage(null), 1800);
   };
 
+  // Shown once per installation, the first time someone selects with a plain click.
+  const showMultiSelectHintOnce = (): void => {
+    if (readUiPreference(MULTI_SELECT_HINT_KEY) === 'true') return;
+    writeUiPreference(MULTI_SELECT_HINT_KEY, 'true');
+    showFeedback(shortcutLabel('Consejo: con Mayús+clic o ⌘ clic sumás elementos a la selección.'));
+  };
+
   // React Flow reports a node change and an edge change in the same tick
   // (select this node, deselect that relation). Both used to apply over the
   // same rendered content, so the second wiped the first. Each change now
@@ -288,12 +310,13 @@ export function UseCaseModelEditor({
     [onChangeContent],
   );
 
-  const updateNodes = useCallback((nextNodes: UseCaseModelNode[]): void => {
-    commitContent({ nodes: nextNodes, edges });
+  const updateNodes = useCallback((nextNodes: UseCaseModelNode[], options?: ContentChangeOptions): void => {
+    commitContent({ nodes: nextNodes, edges }, options);
   }, [commitContent, edges]);
 
-  const updateEdges = useCallback((nextEdges: UseCaseModelEdge[]): void => {
-    commitContent({ nodes, edges: nextEdges });
+  // Creating or removing a relation is a step of its own in the history: the first Undo takes back just that.
+  const updateEdges = useCallback((nextEdges: UseCaseModelEdge[], options?: ContentChangeOptions): void => {
+    commitContent({ nodes, edges: nextEdges }, options);
   }, [commitContent, nodes]);
 
   const deleteSelectedElement = useCallback((): void => {
@@ -356,6 +379,12 @@ export function UseCaseModelEditor({
     setSelectedEdgeIds(edgeId === null ? [] : [edgeId]);
   };
 
+  const focusReviewIssue = (issue: UseCaseModelIssue): void => {
+    selectOnly(issue.nodeId, null);
+    const target = renderedNodes.find((node) => node.id === issue.nodeId);
+    if (target !== undefined) void reactFlowInstance?.fitView({ nodes: [target], padding: 0.8, maxZoom: 1.2, duration: 250 });
+  };
+
   const addNode = (kind: UseCaseNodeKind, position: XYPosition): void => {
     const id = createId();
     const type = kind === 'actor' ? 'useCaseActor' : kind === 'system-boundary' ? 'systemBoundary' : 'useCaseOval';
@@ -376,14 +405,27 @@ export function UseCaseModelEditor({
     selectOnly(id, null);
   };
 
-  // Toolbar additions used fixed points, so a second actor landed exactly on the
-  // first. Boundaries are containers and are meant to hold other nodes, so they
-  // never count as occupied.
-  const freeSlotFor = (kind: UseCaseNodeKind, preferred: XYPosition): XYPosition => {
-    if (kind === 'system-boundary') return preferred;
-    const size = kind === 'actor' ? { width: 90, height: 120 } : { width: 180, height: 80 };
-    const occupied = renderedNodes.filter((node) => node.data.kind !== 'system-boundary');
-    return findFreeClassPosition(occupied, preferred, size);
+  /**
+   * Where an element made from the toolbar or the start card goes: in view, clear
+   * of the edges and of the others. Boundaries are containers meant to hold other
+   * nodes, so they never count as occupied.
+   */
+  const placeNewNode = (kind: UseCaseNodeKind): XYPosition => {
+    const canvas = canvasRef.current;
+    if (reactFlowInstance === null || canvas === null) return { x: 240, y: 140 };
+    const occupied = nodes
+      .filter((node) => node.data.kind !== 'system-boundary')
+      .map((node) => {
+        const box = measuredBox(node.id);
+        const size = box !== null && box.width > 0 && box.height > 0 ? box : NEW_ELEMENT_SIZE[node.data.kind];
+        return { x: node.position.x, y: node.position.y, width: size.width, height: size.height };
+      });
+    return placeNewElement({
+      canvas: { width: canvas.clientWidth, height: canvas.clientHeight },
+      viewport: reactFlowInstance.getViewport(),
+      size: NEW_ELEMENT_SIZE[kind],
+      occupied,
+    });
   };
 
   const duplicateNode = (nodeId: string): void => {
@@ -402,10 +444,14 @@ export function UseCaseModelEditor({
   };
 
   const deleteNode = (nodeId: string): void => {
-    commitContent({
-      nodes: nodes.filter((node) => node.id !== nodeId),
-      edges: edges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId),
-    });
+    // Its relations go with it, so the removal gets its own history step.
+    commitContent(
+      {
+        nodes: nodes.filter((node) => node.id !== nodeId),
+        edges: edges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId),
+      },
+      { separateHistoryEntry: true },
+    );
     setContextMenu(null);
   };
 
@@ -467,10 +513,10 @@ export function UseCaseModelEditor({
   const toggleAssociation = (actorId: string, useCaseId: string): void => {
     const existing = relationBetween(actorId, useCaseId);
     if (existing !== undefined) {
-      updateEdges(edges.filter((edge) => edge.id !== existing.id));
+      updateEdges(edges.filter((edge) => edge.id !== existing.id), { separateHistoryEntry: true });
       return;
     }
-    updateEdges([...edges, buildRelation(actorId, useCaseId, 'association')]);
+    updateEdges([...edges, buildRelation(actorId, useCaseId, 'association')], { separateHistoryEntry: true });
   };
 
   const onEdgesChange = (changes: EdgeChange[]): void => {
@@ -480,7 +526,11 @@ export function UseCaseModelEditor({
     const contentChanges = changes.filter((change) => change.type !== 'select');
     if (contentChanges.length === 0) return;
     const latest = latestContentRef.current;
-    commitContent({ nodes: latest.nodes, edges: applyEdgeChanges(contentChanges, latest.edges) as UseCaseModelEdge[] });
+    const addsOrRemoves = contentChanges.some((change) => change.type === 'add' || change.type === 'remove');
+    commitContent(
+      { nodes: latest.nodes, edges: applyEdgeChanges(contentChanges, latest.edges) as UseCaseModelEdge[] },
+      addsOrRemoves ? { separateHistoryEntry: true } : undefined,
+    );
   };
 
   const onConnect = (connection: Connection): void => {
@@ -497,7 +547,7 @@ export function UseCaseModelEditor({
       : [sourceNode.id, targetNode.id];
     const edge = buildRelation(from, to, relationType);
     connectedRef.current = true;
-    commitContent({ nodes, edges: addEdge(edge, edges) as UseCaseModelEdge[] });
+    commitContent({ nodes, edges: addEdge(edge, edges) as UseCaseModelEdge[] }, { separateHistoryEntry: true });
     // The new relation comes out selected, so the inspector shows it right away
     // (that is where «include» becomes «extend»).
     selectOnly(null, edge.id);
@@ -626,9 +676,8 @@ export function UseCaseModelEditor({
   // The inspector shows the relation first, as before. Suprimir and the button delete the whole selection.
   const inspectedNode = selectedEdge !== null ? null : selectedNode;
   const selectionSize = activeSelectedNodeIds.length + activeSelectedEdgeIds.length;
-  const deleteLabel = selectionSize > 1
-    ? 'Eliminar selección'
-    : inspectedNode === null ? 'Eliminar relación' : `Eliminar ${labelForUseCaseNode(inspectedNode).toLocaleLowerCase()}`;
+  const hasActor = nodes.some((node) => node.data.kind === 'actor');
+  const deleteLabel = inspectedNode === null ? 'Eliminar relación' : `Eliminar ${labelForUseCaseNode(inspectedNode).toLocaleLowerCase()}`;
 
   return (
     <main className="diagram-editor use-case-editor">
@@ -641,21 +690,35 @@ export function UseCaseModelEditor({
         )}
         create={(
           <>
+            {/* Until there is an actor, the filled button is the actor: the empty canvas card asks for one first. */}
             <ToolButton
               icon={Plus}
               label="Caso de uso"
               showLabel
-              variant="primary"
+              variant={hasActor ? 'primary' : 'default'}
               title="Crear caso de uso (o doble clic en el lienzo)"
-              onClick={() => addNode('use-case', freeSlotFor('use-case', { x: 240, y: 140 }))}
+              onClick={() => addNode('use-case', placeNewNode('use-case'))}
             />
-            <ToolButton icon={UserRound} label="Actor" showLabel title="Crear actor" onClick={() => addNode('actor', freeSlotFor('actor', { x: 80, y: 120 }))} />
-            <ToolButton icon={SquareDashed} label="Límite del sistema" title="Crear límite del sistema" onClick={() => addNode('system-boundary', { x: 180, y: 90 })} />
+            <ToolButton
+              icon={UserRound}
+              label="Actor"
+              showLabel
+              variant={hasActor ? 'default' : 'primary'}
+              title="Crear actor"
+              onClick={() => addNode('actor', placeNewNode('actor'))}
+            />
+            <ToolButton icon={SquareDashed} label="Límite del sistema" title="Crear límite del sistema" onClick={() => addNode('system-boundary', placeNewNode('system-boundary'))} />
           </>
         )}
         end={(
           <>
             <NotebookButton />
+            <ReviewButton
+              count={reviewIssues.length}
+              hasErrors={reviewIssues.some((issue) => issue.kind === 'error')}
+              open={reviewOpen}
+              onToggle={() => { closeToolbarMenus(); setReviewOpen((open) => !open); }}
+            />
             <ToolMenu icon={Eye} label="Vista">
               <MenuItem checked={isGridEnabled} onSelect={() => setIsGridEnabled((enabled) => !enabled)}>Grilla</MenuItem>
               <MenuItem checked={isSnapEnabled} onSelect={() => setIsSnapEnabled((enabled) => !enabled)}>Ajustar a la grilla</MenuItem>
@@ -689,11 +752,23 @@ export function UseCaseModelEditor({
             edges={renderedEdges}
             maxZoom={2}
             minZoom={0.2}
+            multiSelectionKeyCode={MULTI_SELECTION_KEYS}
             nodeTypes={nodeTypes}
             nodes={renderedNodes}
             nodesConnectable
             onConnect={onConnect}
             onEdgesChange={onEdgesChange}
+            onNodeClick={(event, node) => {
+              const additive = event.shiftKey || event.metaKey || event.ctrlKey;
+              // The name is `nodrag` (a double click edits it), and React Flow only selects
+              // where a drag can start: a click on the name selects here.
+              if ((event.target as Partial<Element> | null)?.closest?.('.nodrag')) {
+                if (additive) setSelectedNodeIds((current) => withSelectedId(current, node.id, !current.includes(node.id)));
+                else selectOnly(node.id, null);
+              }
+              if (!additive) showMultiSelectHintOnce();
+            }}
+            selectionKeyCode="Shift"
             onInit={setReactFlowInstance}
             defaultViewport={defaultViewport}
             onMoveEnd={onMoveEnd}
@@ -743,10 +818,10 @@ export function UseCaseModelEditor({
                 title="Empezá por un actor"
                 action={(
                   <>
-                    <button className="secondary-action" type="button" onClick={() => addNode('actor', { x: 80, y: 120 })}>
+                    <button className="secondary-action" type="button" onClick={() => addNode('actor', placeNewNode('actor'))}>
                       <UserRound size={14} />Crear actor
                     </button>
-                    <button className="secondary-action" type="button" onClick={() => addNode('use-case', { x: 240, y: 140 })}>
+                    <button className="secondary-action" type="button" onClick={() => addNode('use-case', placeNewNode('use-case'))}>
                       <Plus size={14} />Crear caso de uso
                     </button>
                   </>
@@ -760,6 +835,16 @@ export function UseCaseModelEditor({
             <CanvasControls label="Controles del modelo de casos de uso" />
             {isMiniMapEnabled && nodes.length > 0 ? <MiniMap aria-label="Minimapa del modelo" pannable zoomable /> : null}
           </ReactFlow>
+          {reviewOpen ? (
+            <DiagramReviewPanel
+              helper="Comprueba nombres y elementos sueltos. No reemplaza la revisión del modelo."
+              isEmpty={nodes.length === 0}
+              issues={reviewIssues}
+              title="Revisión del modelo"
+              onClose={closeReview}
+              onFocus={focusReviewIssue}
+            />
+          ) : null}
           {contextMenu !== null ? (
             <div className="canvas-context-menu" style={{ left: contextMenu.screenPosition.x, top: contextMenu.screenPosition.y }}>
               {contextMenu.nodeId === undefined ? (
@@ -778,7 +863,20 @@ export function UseCaseModelEditor({
           ) : null}
         </div>
 
-        {selectedNode !== null || selectedEdge !== null ? (
+        {selectionSize > 1 ? (
+          <InspectorPanel
+            actions={<InspectorDeleteButton label={`Eliminar ${selectionSize} elementos`} onClick={deleteSelectedElement} />}
+            bodyId="use-case-inspector-body"
+            className="inspector"
+            collapsed={isInspectorCollapsed}
+            kind="Selección"
+            title={`${selectionSize} elementos seleccionados`}
+            tone="neutral"
+            onToggleCollapsed={toggleInspectorCollapsed}
+          >
+            <p className="helper-text">Arrastrá cualquiera para moverlos juntos.</p>
+          </InspectorPanel>
+        ) : selectedNode !== null || selectedEdge !== null ? (
           <InspectorPanel
             actions={<InspectorDeleteButton label={deleteLabel} onClick={deleteSelectedElement} />}
             bodyId="use-case-inspector-body"
@@ -831,7 +929,7 @@ export function UseCaseModelEditor({
                 {(selectedEdge.data?.relationType ?? 'association') === 'association' ? (
                   <label className="field">
                     Etiqueta
-                    <input value={selectedEdge.data?.label ?? ''} onChange={(event) => updateSelectedEdge({ label: event.target.value })} placeholder="<i>" />
+                    <input value={selectedEdge.data?.label ?? ''} onChange={(event) => updateSelectedEdge({ label: event.target.value })} placeholder="Etiqueta (opcional)" />
                   </label>
                 ) : null}
                 <button className="secondary-action v2-inspector-block-action" type="button" onClick={invertSelectedEdge}>Invertir dirección</button>

@@ -8,7 +8,7 @@ import type {
 } from '../types/diagram';
 import { findFreeClassPosition } from './classPlacement';
 import { createEmptySequenceDiagramContent, createSequenceFragment, createSequenceMessage } from './sequenceDiagram';
-import { importClassesFromSequences } from './sequenceClassImport';
+import { importChangesModel, importClassesFromSequences, resolveMessageOperation } from './sequenceClassImport';
 
 const participant = (id: string, kind: SequenceParticipantKind, name: string, classifierName: string, x: number): SequenceParticipant => ({
   id, kind, name, classifierName, x,
@@ -52,12 +52,12 @@ describe('importClassesFromSequences', () => {
 
     expect(result.nodes.map((node) => node.data.name)).toEqual(['Portal', 'Repositorio']);
     expect(result.nodes[0].data.methods).toMatchObject([
-      { name: 'iniciarSesion', parameters: '', returnType: 'void', visibility: '+' },
+      { name: 'iniciarSesion', parameters: 'usuario, clave', returnType: 'void', visibility: '+' },
     ]);
     expect(result.nodes[1].data.methods).toMatchObject([
-      { name: 'buscarPermiso', parameters: '', returnType: 'Permiso' },
+      { name: 'buscarPermiso', parameters: 'rolId', returnType: 'Permiso' },
     ]);
-    expect(summary).toEqual({ createdClasses: 2, addedAttributes: 0, addedMethods: 2, updatedClasses: 0 });
+    expect(summary).toEqual({ createdClasses: 2, addedAttributes: 0, addedMethods: 2, updatedMethods: 0, updatedClasses: 0 });
   });
 
   it('merges into existing classes by name and is idempotent', () => {
@@ -72,15 +72,39 @@ describe('importClassesFromSequences', () => {
     const first = importClassesFromSequences({ nodes: [existing], edges: [] }, [content]);
     expect(first.content.nodes).toHaveLength(1);
     expect(first.content.nodes[0].data.methods.map((method) => [method.name, method.parameters]))
-      .toEqual([['validar', ''], ['guardar', '']]);
-    expect(first.summary).toEqual({ createdClasses: 0, addedAttributes: 0, addedMethods: 1, updatedClasses: 1 });
+      .toEqual([['validar', ''], ['guardar', 'dato']]);
+    expect(first.summary).toEqual({ createdClasses: 0, addedAttributes: 0, addedMethods: 1, updatedMethods: 0, updatedClasses: 1 });
 
     const second = importClassesFromSequences(first.content, [content]);
-    expect(second.summary).toEqual({ createdClasses: 0, addedAttributes: 0, addedMethods: 0, updatedClasses: 0 });
+    expect(second.summary).toEqual({ createdClasses: 0, addedAttributes: 0, addedMethods: 0, updatedMethods: 0, updatedClasses: 0 });
     expect(second.content.nodes[0]).toBe(first.content.nodes[0]);
   });
 
-  it('brings each method once, without the arguments passed in the messages', () => {
+  it('brings the parameters a call declares, in the model format, and leaves out concrete test values', () => {
+    const content = sequence({
+      participants: [participant('p', 'control', '', 'Gestor', 0), participant('t', 'entity', '', 'Tramite', 200)],
+      items: [
+        call('p', 't', 'ingresarDni', { arguments: 'dni' }),
+        call('p', 't', 'buscar', { arguments: 'producto: Producto,cantidad:Integer' }),
+        call('p', 't', 'guardar', { arguments: "mapa: Map<String, Integer>, 42, 'activo'" }),
+        call('p', 't', 'setNombre(valor)'),
+        call('p', 't', 'ingresarClave', { arguments: '' }),
+        call('p', 't', 'ingresarClave', { arguments: 'clave' }),
+      ],
+    });
+
+    const { content: result } = importClassesFromSequences({ nodes: [], edges: [] }, [content]);
+    const tramite = result.nodes.find((node) => node.data.name === 'Tramite');
+    expect(tramite?.data.methods.map((method) => [method.name, method.parameters])).toEqual([
+      ['ingresarDni', 'dni'],
+      ['buscar', 'producto: Producto, cantidad: Integer'],
+      ['guardar', 'mapa: Map<String, Integer>'],
+      ['setNombre', 'valor'],
+      ['ingresarClave', 'clave'],
+    ]);
+  });
+
+  it('brings each method once, with the parameters that a call names', () => {
     const content = sequence({
       participants: [participant('p', 'control', '', 'Gestor', 0), participant('t', 'entity', '', 'Tramite', 200)],
       items: [
@@ -95,7 +119,7 @@ describe('importClassesFromSequences', () => {
 
     const { content: result, summary } = importClassesFromSequences({ nodes: [existing], edges: [] }, [content]);
     expect(result.nodes[0].data.methods.map((method) => [method.name, method.parameters]))
-      .toEqual([['getEstado', 'fecha: Date'], ['buscar', '']]);
+      .toEqual([['getEstado', 'fecha: Date'], ['buscar', 'nroTramite']]);
     expect(summary.addedMethods).toBe(1);
   });
 
@@ -153,6 +177,57 @@ describe('accessor attributes', () => {
     expect(first.summary.addedAttributes).toBe(1);
 
     const second = importClassesFromSequences(first.content, [content]);
-    expect(second.summary).toEqual({ createdClasses: 0, addedAttributes: 0, addedMethods: 0, updatedClasses: 0 });
+    expect(second.summary).toEqual({ createdClasses: 0, addedAttributes: 0, addedMethods: 0, updatedMethods: 0, updatedClasses: 0 });
+  });
+});
+
+describe('literal values are not parameters', () => {
+  const importedParameters = (args: string) => {
+    const content = sequence({
+      participants: [participant('p', 'control', '', 'Gestor', 0), participant('t', 'entity', '', 'Tramite', 200)],
+      items: [call('p', 't', 'op', { arguments: args })],
+    });
+    const { content: result } = importClassesFromSequences({ nodes: [], edges: [] }, [content]);
+    return result.nodes.find((node) => node.data.name === 'Tramite')?.data.methods[0].parameters;
+  };
+
+  it('keeps commas and words inside quotes out of the parameter list', () => {
+    expect(importedParameters('"hola, id, mundo"')).toBe('');
+    expect(importedParameters("'a, b', cantidad")).toBe('cantidad');
+    expect(importedParameters('"dijo \\"x, y\\" ya", total: Integer')).toBe('total: Integer');
+  });
+
+  it('omits true, false, null, undefined and numbers', () => {
+    expect(importedParameters('true, null')).toBe('');
+    expect(importedParameters('false, undefined, 3.5, id')).toBe('id');
+  });
+});
+
+describe('completing parameters of an existing method', () => {
+  const model = (): ClassDiagramNode => classNode('c', 'Cliente', 0, 0, [{ id: 'm', visibility: '+', name: 'buscar', parameters: '', returnType: '' }]);
+  const seq = () => sequence({
+    participants: [participant('p', 'control', '', 'Gestor', 0), participant('t', 'entity', '', 'Cliente', 200)],
+    items: [call('p', 't', 'buscar', { arguments: 'id: Integer' })],
+  });
+
+  it('counts a parameter completion as a change of the model', () => {
+    const { content, summary } = importClassesFromSequences({ nodes: [model()], edges: [] }, [seq()]);
+    expect(summary.updatedMethods).toBe(1);
+    expect(importChangesModel(summary)).toBe(true);
+    expect(content.nodes[0].data.methods[0].parameters).toBe('id: Integer');
+    const again = importClassesFromSequences(content, [seq()]);
+    expect(importChangesModel(again.summary)).toBe(false);
+  });
+
+  it('resolves the declared parameters of a selected call for an existing method without them', () => {
+    const message = seq().items[0] as SequenceMessage;
+    expect(resolveMessageOperation(model().data.methods, message)).toMatchObject({ existing: { id: 'm' }, parametersToAdd: 'id: Integer' });
+  });
+
+  it('never touches parameters the method already has, and proposes a new method when absent', () => {
+    const message = seq().items[0] as SequenceMessage;
+    const withParams = [{ id: 'm', visibility: '+' as const, name: 'buscar', parameters: 'nro', returnType: '' }];
+    expect(resolveMessageOperation(withParams, message)).toMatchObject({ existing: { id: 'm' }, parametersToAdd: undefined });
+    expect(resolveMessageOperation([], message)).toMatchObject({ existing: undefined, operation: { name: 'buscar', parameters: 'id: Integer' } });
   });
 });

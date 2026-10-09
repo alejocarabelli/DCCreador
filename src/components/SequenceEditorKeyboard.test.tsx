@@ -9,7 +9,7 @@ import { SequenceKeyboardComposer } from './SequenceKeyboardComposer';
 import { createEmptySequenceDiagramContent, createSequenceFragment, createSequenceMessage } from '../utils/sequenceDiagram';
 import { buildSequenceLayout } from '../utils/sequenceDiagramLayout';
 import { themes } from '../theme/themes';
-import type { DesignProject, SequenceDiagramArtifact, SequenceDiagramContent } from '../types/diagram';
+import type { DesignProject, SequenceDiagramArtifact } from '../types/diagram';
 
 vi.mock('react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react')>();
@@ -36,10 +36,6 @@ const text = (node: unknown): string => {
   if (isValidElement<{ children?: unknown }>(node)) return text(node.props.children);
   return '';
 };
-const click = (tree: unknown, label: string) => {
-  const node = find(tree, (candidate) => candidate.props.label === label || text(candidate.props.children) === label);
-  return (node.props.onClick as () => unknown)();
-};
 
 class TestElementTarget {
   closest() { return null; }
@@ -50,13 +46,11 @@ let artifact: SequenceDiagramArtifact;
 let project: DesignProject;
 let sequenceId = 0;
 const onChangeContent = vi.fn();
-const onCreateSequenceDiagramArtifact = vi.fn();
-const renderEditor = (allowNew = true) => {
+const renderEditor = () => {
   runtime.begin();
   return SequenceDiagramEditor({
     artifact, project, theme: themes[0], canUndo: false, canRedo: false,
     onChangeContent, onUndo: vi.fn(), onRedo: vi.fn(),
-    onCreateSequenceDiagramArtifact: allowNew ? onCreateSequenceDiagramArtifact : undefined,
   });
 };
 const composerState = (tree: unknown) => find(tree, (node) => node.type === SequenceKeyboardComposer).props.state;
@@ -175,57 +169,6 @@ describe('sequence editor keyboard isolation', () => {
   });
 });
 
-describe('sequence template replacement', () => {
-  const openTemplates = (allowNew = true) => {
-    const tree = renderEditor(allowNew); click(tree, 'Plantillas'); return renderEditor(allowNew);
-  };
-  it('preserves the current diagram when replacement is cancelled', async () => {
-    const tree = openTemplates();
-    expect(text(tree)).toContain('Creá un diagrama nuevo sin alterar los existentes');
-    await click(tree, 'Reemplazar este diagrama…');
-    expect(dialogs.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: '¿Reemplazar este diagrama?', confirmLabel: 'Reemplazar diagrama' }));
-    expect(onChangeContent).not.toHaveBeenCalled();
-    expect(text(renderEditor())).toContain('Plantillas educativas de secuencia');
-  });
-  it('replaces the diagram only after confirmation', async () => {
-    dialogs.confirm.mockResolvedValue(true);
-    await click(openTemplates(), 'Reemplazar este diagrama…');
-    expect(onChangeContent).toHaveBeenCalledOnce();
-    expect(onChangeContent.mock.calls[0][0].items).not.toEqual(artifact.content.items);
-    expect(text(renderEditor())).not.toContain('Plantillas educativas de secuencia');
-  });
-  it.each(['participants', 'items', 'notes', 'activations'] as const)('asks before replacing a diagram containing only %s', async (field) => {
-    const content: SequenceDiagramContent = {
-      ...createEmptySequenceDiagramContent(),
-      [field]: field === 'participants' ? artifact.content.participants
-        : field === 'items' ? [createSequenceFragment('opt')]
-          : field === 'notes' ? [{ id: 'note', text: 'Trabajo', x: 100, y: 100, width: 200, height: 80, anchorKind: 'free' }]
-            : [{ id: 'activation', participantId: 'a', startMessageId: 'call' }],
-    };
-    artifact = { ...artifact, content };
-    await click(openTemplates(), 'Reemplazar este diagrama…');
-    expect(dialogs.confirm).toHaveBeenCalledOnce();
-    expect(onChangeContent).not.toHaveBeenCalled();
-  });
-  it('loads into an empty diagram without a destructive confirmation', async () => {
-    artifact = { ...artifact, content: createEmptySequenceDiagramContent() };
-    await click(openTemplates(), 'Reemplazar este diagrama…');
-    expect(dialogs.confirm).not.toHaveBeenCalled();
-    expect(onChangeContent).toHaveBeenCalledOnce();
-  });
-  it('creates a new diagram without changing or confirming the current one', async () => {
-    await click(openTemplates(), 'Crear como nuevo diagrama');
-    expect(onCreateSequenceDiagramArtifact).toHaveBeenCalledOnce();
-    expect(dialogs.confirm).not.toHaveBeenCalled();
-    expect(onChangeContent).not.toHaveBeenCalled();
-  });
-  it('describes replacement when creating a new diagram is unavailable', () => {
-    const tree = openTemplates(false);
-    expect(text(tree)).toContain('Elegí una plantilla para reemplazar este diagrama.');
-    expect(text(tree)).not.toContain('sin alterar');
-  });
-});
-
 describe('fragment inspector message counts', () => {
   it.each([0, 1, 2])('counts %i nested messages and excludes subfragments', (count) => {
     const nested = createSequenceFragment('opt');
@@ -281,5 +224,209 @@ describe('sequence creation feedback', () => {
     expect(text(renderEditor())).toContain('Agregá un mensaje de tipo «Crear» con «Objeto nuevo».');
     expect(text(renderEditor())).not.toContain('botón create()');
     expect(onChangeContent).not.toHaveBeenCalled();
+  });
+});
+
+describe('keyboard first message', () => {
+  const emptyDiagram = () => {
+    const content = {
+      ...createEmptySequenceDiagramContent(),
+      participants: [
+        { id: 'sys', kind: 'object' as const, name: 'Sistema', classifierName: '', x: 180 },
+        { id: 'user', kind: 'actor' as const, name: 'Usuario', classifierName: '', x: 460 },
+      ],
+      items: [],
+    };
+    artifact = { ...artifact, content };
+  };
+
+  it('proposes the actor as the origin of the first message even when another participant is selected', () => {
+    emptyDiagram();
+    let tree = renderEditor(); select(tree, { kind: 'participant', id: 'sys' }); renderEditor();
+    press('m'); renderEditor();
+    press('Enter'); tree = renderEditor();
+    expect(composerState(tree)).toMatchObject({ stage: 'aim', sourceId: 'user', targetId: 'sys' });
+  });
+
+  it('keeps the selected participant once the diagram has messages', () => {
+    let tree = renderEditor(); select(tree, { kind: 'participant', id: 'b' }); renderEditor();
+    press('m'); renderEditor();
+    press('Enter'); tree = renderEditor();
+    expect(composerState(tree)).toMatchObject({ stage: 'aim', sourceId: 'b' });
+  });
+});
+
+describe('keyboard fragment creation', () => {
+  const threeLifelines = () => {
+    const content = {
+      ...createEmptySequenceDiagramContent(),
+      participants: [
+        { id: 'a', kind: 'object' as const, name: 'A', classifierName: '', x: 180 },
+        { id: 'b', kind: 'object' as const, name: 'B', classifierName: '', x: 460 },
+        { id: 'c', kind: 'object' as const, name: 'C', classifierName: '', x: 740 },
+      ],
+      items: [{ ...createSequenceMessage('synchronous', 'a', 'b'), id: 'call', name: 'buscar' }],
+    };
+    artifact = { ...artifact, content };
+  };
+  const lastContent = () => onChangeContent.mock.calls.at(-1)![0] as typeof artifact.content;
+  const inlineInput = (tree: unknown) => find(tree, (node) => node.props.className === 'sequence-inline-input');
+  const createFragment = (participantId: string) => {
+    const tree = renderEditor(); select(tree, { kind: 'participant', id: participantId }); renderEditor();
+    press('m'); renderEditor();
+    press('f'); renderEditor();
+    press('Enter');
+    return renderEditor();
+  };
+
+  it('starts a new empty fragment at the selected lifeline with a left margin', () => {
+    threeLifelines();
+    createFragment('b');
+    const content = lastContent();
+    const fragment = content.items.find((item) => item.kind === 'fragment')!;
+    const layout = buildSequenceLayout(content);
+    const box = layout.fragmentLayouts.get(fragment.id)!;
+    const lifelineX = layout.participantX.get('b')!;
+    expect(box.x).toBeLessThan(lifelineX);
+    expect(lifelineX - box.x).toBeLessThanOrEqual(100);
+    expect(box.x).toBeGreaterThan(layout.participantX.get('a')!);
+  });
+
+  it('starts a fragment wrapping selected messages at the leftmost involved lifeline', () => {
+    threeLifelines();
+    artifact = { ...artifact, content: { ...artifact.content, items: [
+      { ...createSequenceMessage('synchronous', 'b', 'c'), id: 'm1', name: 'uno' },
+      { ...createSequenceMessage('synchronous', 'c', 'b'), id: 'm2', name: 'dos' },
+    ] } };
+    const tree = renderEditor();
+    (find(tree, (node) => node.type === SequenceDiagramCanvas).props.onMarqueeSelect as (ids: string[], notes: string[]) => void)(['m1', 'm2'], []);
+    renderEditor(); press('m'); renderEditor(); press('f'); renderEditor(); press('Enter'); renderEditor();
+    const content = lastContent();
+    const fragment = content.items.find((item) => item.kind === 'fragment')!;
+    const layout = buildSequenceLayout(content);
+    const box = layout.fragmentLayouts.get(fragment.id)!;
+    expect(box.x).toBeGreaterThan(layout.participantX.get('a')!);
+    expect(layout.participantX.get('b')! - box.x).toBeLessThanOrEqual(100);
+    expect(box.x + box.width).toBeGreaterThan(layout.participantX.get('c')!);
+  });
+
+  it('opens the guard of the first branch for an alt and Enter keeps the typed text', () => {
+    threeLifelines();
+    createFragment('a');
+    artifact = { ...artifact, content: lastContent() };
+    let tree = renderEditor();
+    const input = inlineInput(tree);
+    expect(input.props.value).toBe('condición');
+    (input.props.onChange as (event: { target: { value: string } }) => void)({ target: { value: 'hay stock' } });
+    tree = renderEditor();
+    onChangeContent.mockClear();
+    (inlineInput(tree).props.onKeyDown as (event: KeyboardEvent) => void)(keyEvent('Enter'));
+    const fragment = lastContent().items.find((item) => item.kind === 'fragment')!;
+    expect(fragment.kind === 'fragment' && fragment.operands[0].guard).toBe('hay stock');
+    expect(elements(renderEditor()).some((node) => node.props.className === 'sequence-inline-input')).toBe(false);
+  });
+
+  it('opens the tab name of a loop and Enter saves it as the fragment name', () => {
+    threeLifelines();
+    let tree = renderEditor(); select(tree, { kind: 'participant', id: 'a' }); renderEditor();
+    press('m'); renderEditor(); press('f'); tree = renderEditor();
+    const picker = composerState(tree);
+    expect(picker).toMatchObject({ stage: 'fragment' });
+    for (let guard = 0; guard < 6 && (composerState(tree) as { fragmentOperator: string }).fragmentOperator !== 'loop'; guard += 1) { press('ArrowDown'); tree = renderEditor(); }
+    press('Enter'); renderEditor();
+    artifact = { ...artifact, content: lastContent() };
+    tree = renderEditor();
+    const input = inlineInput(tree);
+    expect(input.props.value).toBe('');
+    (input.props.onChange as (event: { target: { value: string } }) => void)({ target: { value: 'cada pedido' } });
+    tree = renderEditor();
+    onChangeContent.mockClear();
+    (inlineInput(tree).props.onKeyDown as (event: KeyboardEvent) => void)(keyEvent('Enter'));
+    expect(lastContent().items.find((item) => item.kind === 'fragment')).toMatchObject({ operator: 'loop', name: 'cada pedido' });
+  });
+
+  const wrapExistingFragment = (operator: 'loop' | 'alt') => {
+    threeLifelines();
+    const inner = { ...createSequenceMessage('synchronous', 'a', 'b'), id: 'inner', name: 'buscar' };
+    const loop = { ...createSequenceFragment('loop'), id: 'existing', operands: [{ ...createSequenceFragment('loop').operands[0], items: [inner] }] };
+    artifact = { ...artifact, content: { ...artifact.content, items: [loop] } };
+    const first = renderEditor(); select(first, { kind: 'fragment', id: 'existing' }); renderEditor();
+    press('m'); renderEditor(); press('f'); let tree = renderEditor();
+    for (let guard = 0; guard < 6 && (composerState(tree) as { fragmentOperator: string }).fragmentOperator !== operator; guard += 1) { press('ArrowDown'); tree = renderEditor(); }
+    press('Enter');
+    return renderEditor();
+  };
+
+  it('opens the tab name when a new loop wraps an existing fragment', () => {
+    const tree = wrapExistingFragment('loop');
+    const outer = lastContent().items[0];
+    expect(outer).toMatchObject({ kind: 'fragment', operator: 'loop' });
+    expect(outer.id).not.toBe('existing');
+    expect(inlineInput(tree)?.props.value).toBe('');
+  });
+
+  it('opens the guard of the first branch when a new alt wraps an existing fragment', () => {
+    const tree = wrapExistingFragment('alt');
+    expect(lastContent().items[0]).toMatchObject({ kind: 'fragment', operator: 'alt' });
+    expect(inlineInput(tree)?.props.value).toBe('condición');
+  });
+
+  it('Esc leaves the fragment with its default name and closes the editor', () => {
+    threeLifelines();
+    createFragment('a');
+    artifact = { ...artifact, content: lastContent() };
+    let tree = renderEditor();
+    onChangeContent.mockClear();
+    (inlineInput(tree).props.onKeyDown as (event: KeyboardEvent) => void)(keyEvent('Escape'));
+    tree = renderEditor();
+    expect(elements(tree).some((node) => node.props.className === 'sequence-inline-input')).toBe(false);
+    expect(onChangeContent).not.toHaveBeenCalled();
+    expect(artifact.content.items.find((item) => item.kind === 'fragment')).toMatchObject({ name: '' });
+  });
+
+  it('does not treat typed letters as shortcuts while the name is edited', () => {
+    threeLifelines();
+    createFragment('a');
+    artifact = { ...artifact, content: lastContent() };
+    let tree = renderEditor();
+    const before = composerState(tree);
+    onChangeContent.mockClear();
+    for (const key of ['m', 'f', 'p', 'r', 's', 'n', 'Enter']) press(key);
+    tree = renderEditor();
+    expect(onChangeContent).not.toHaveBeenCalled();
+    expect(composerState(tree)).toEqual(before);
+  });
+});
+
+describe('message type choice by letter', () => {
+  const aimFrom = (participantId: string) => {
+    artifact = { ...artifact, content: { ...createEmptySequenceDiagramContent(), participants: [
+      { id: 'a', kind: 'object' as const, name: 'A', classifierName: '', x: 180 },
+      { id: 'b', kind: 'object' as const, name: 'B', classifierName: '', x: 460 },
+    ], items: [{ ...createSequenceMessage('synchronous', 'a', 'b'), id: 'call', name: 'buscar' }] } };
+    let tree = renderEditor(); select(tree, { kind: 'participant', id: participantId }); renderEditor();
+    press('m'); renderEditor(); press('Enter'); tree = renderEditor();
+    return tree;
+  };
+  const typeOf = () => (composerState(renderEditor()) as { messageType: string }).messageType;
+
+  it('does not change the type with the vertical arrows', () => {
+    aimFrom('b');
+    expect(typeOf()).toBe('synchronous');
+    press('ArrowDown'); expect(typeOf()).toBe('synchronous');
+    press('ArrowUp'); expect(typeOf()).toBe('synchronous');
+  });
+
+  it('changes the type with S R C D', () => {
+    aimFrom('b');
+    press('c'); expect(typeOf()).toBe('create');
+    press('r'); expect(typeOf()).toBe('return');
+    press('d'); expect(typeOf()).toBe('destroy');
+    press('s'); expect(typeOf()).toBe('synchronous');
+  });
+
+  it('keeps the type when R has no call to answer', () => {
+    aimFrom('a');
+    press('r'); expect(typeOf()).toBe('synchronous');
   });
 });

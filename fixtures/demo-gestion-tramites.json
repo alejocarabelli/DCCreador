@@ -373,15 +373,15 @@
      "inputParameters": "VcodConsultor, VnroTramite, acción (Confirmar-Rechazar)",
      "precondition": "El consultor inició sesión en el sistema.",
      "postcondition": "El trámite queda en el nuevo estado.",
-     "initialState": "Instancia de Consultor con:\n• fechaHoraBajaConsultor igual a vacío",
-     "finalState": "Si confirma...\nInstancia de EstadoTramite creada con:\n• fechaDesde igual a fecha actual"
+     "initialState": "Instancia de Consultor con:\n• fechaHoraBaja igual a vacío",
+     "finalState": "Si confirma...\nInstancia de EstadoTramite creada con:\n• fechaHoraDesde igual a fecha actual"
     },
     "basicFlow": [
      {
       "id": "b1",
       "actor": "1. El consultor selecciona la opción Cambiar estado de trámite.",
-      "system": "2. El sistema busca los trámites asignados al consultor con estado actual vigente y los muestra.",
-      "ref": "A1"
+      "system": "2. El sistema busca los trámites asignados al consultor con estado actual vigente y los muestra. [CA 1]",
+      "ref": ""
      },
      {
       "id": "b2",
@@ -393,13 +393,13 @@
     "alternativeFlows": [
      {
       "id": "alt1",
-      "code": "A1",
+      "code": "CA 1",
       "name": "No hay trámites para el consultor",
       "steps": [
        {
         "id": "x1",
         "actor": "",
-        "system": "2.A1.1 El sistema informa que no hay trámites para el consultor y finaliza el caso de uso.",
+        "system": "3. El sistema informa que no hay trámites para el consultor.\n4. Fin CU.",
         "ref": ""
        }
       ]

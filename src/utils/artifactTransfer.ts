@@ -80,8 +80,10 @@ export const relinkArtifactForProject = (
   }
   if (artifact.type !== 'sequence-diagram') return artifact;
   // A sequence draws only on a "Clases de secuencias" model.
-  const classDiagramArtifactId = resolve(artifact.content.classDiagramArtifactId, ['class-sequence-diagram']);
-  const model = artifacts.find((candidate) => candidate.id === classDiagramArtifactId);
+  // undefined stays undefined, null stays null, and an id whose model does not travel becomes null.
+  const linkedModelId = resolve(artifact.content.classDiagramArtifactId ?? undefined, ['class-sequence-diagram']);
+  const classDiagramArtifactId = artifact.content.classDiagramArtifactId === undefined ? undefined : linkedModelId ?? null;
+  const model = artifacts.find((candidate) => candidate.id === linkedModelId);
   const classNodes = model?.type === 'class-diagram' || model?.type === 'class-sequence-diagram' ? model.content.nodes : [];
   const nodeIds = new Set(classNodes.map((node) => node.id));
   const methodIds = new Set(classNodes.flatMap((node) => node.data.methods.map((method) => method.id)));
