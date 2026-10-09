@@ -1,11 +1,11 @@
 import { FileImage, FileText, X } from 'lucide-react';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SequenceDiagramContent } from '../types/diagram';
 import {
   buildSequencePdfPlan,
   defaultSequenceExportOptions,
   getSequencePageGeometry,
-  getSequencePagePreviewUri,
+  buildSequencePreviewUris,
   type SequenceExportOptions,
 } from '../utils/sequenceDiagramExport';
 import type { SequenceLayout } from '../utils/sequenceDiagramLayout';
@@ -32,10 +32,22 @@ export function SequenceExportDialog({ open, content, layout, getSvg, options, o
   }, [open]);
   const plan = useMemo(() => buildSequencePdfPlan(content, layout, options), [content, layout, options]);
   const geometry = getSequencePageGeometry(options);
-  const previews = useMemo(() => {
-    const svg = open ? getSvg() : null;
-    return svg ? plan.pages.map((page) => getSequencePagePreviewUri(svg, page)) : [];
+  // The source SVG only mounts once the dialog is open, so it can't be read during render: wait for the commit and retry a few frames.
+  const [preview, setPreview] = useState<{ plan: typeof plan; uris: string[] | null } | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    let frame = 0;
+    let attempts = 0;
+    const attempt = (): void => {
+      const uris = buildSequencePreviewUris(getSvg(), plan.pages);
+      if (uris || attempts >= 20) { setPreview({ plan, uris }); return; }
+      attempts += 1;
+      frame = requestAnimationFrame(attempt);
+    };
+    attempt();
+    return () => cancelAnimationFrame(frame);
   }, [open, getSvg, plan]);
+  const previews = preview?.plan === plan ? preview.uris : undefined;
   const update = <Key extends keyof SequenceExportOptions>(key: Key, value: SequenceExportOptions[Key]): void => onOptionsChange({ ...options, [key]: value });
 
   return (
@@ -63,11 +75,11 @@ export function SequenceExportDialog({ open, content, layout, getSvg, options, o
                     left: `${geometry.margin / geometry.width * 100}%`, top: `${geometry.margin / geometry.height * 100}%`,
                     height: `${plan.headerHeight * plan.effectiveScale / geometry.height * 100}%`,
                   }}>Encabezados repetidos</div> : null}
-                  {previews[page.index] ? <img alt={`Página ${page.index + 1} del diagrama`} src={previews[page.index]} style={{
+                  {previews?.[page.index] ? <img alt={`Página ${page.index + 1} del diagrama`} src={previews[page.index]} style={{
                     left: `${geometry.margin / geometry.width * 100}%`,
                     top: `${(geometry.margin + (page.index > 0 ? plan.headerHeight * plan.effectiveScale : 0)) / geometry.height * 100}%`,
                     width: `${page.source.width * plan.effectiveScale / geometry.width * 100}%`,
-                  }} /> : null}
+                  }} /> : previews === null ? <p className="sequence-export-preview-failed">No se pudo generar la vista previa; el PDF se exporta igual.</p> : null}
                 </div>
                 <figcaption>Página {page.index + 1} de {plan.pages.length}</figcaption>
               </figure>)}

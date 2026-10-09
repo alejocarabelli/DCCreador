@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SequenceDiagramContent, SequenceFragment, SequenceMessage, SequenceParticipant } from '../types/diagram';
 import { createEmptySequenceDiagramContent, normalizeSequenceDiagramContent } from './sequenceDiagram';
-import { buildSequencePdfPlan, getSequencePageGeometry, getSequenceExportBounds, getSequenceExportProtectedBands, getSequencePngScale } from './sequenceDiagramExport';
+import { buildSequencePdfPlan, getSequencePageGeometry, getSequenceExportBounds, getSequenceExportProtectedBands, getSequencePngScale, buildSequencePreviewUris } from './sequenceDiagramExport';
 import { buildSequenceLayout } from './sequenceDiagramLayout';
 
 const participant = (id: string, x: number, name = id): SequenceParticipant => ({ id, kind: 'object', name, classifierName: '', x });
@@ -210,5 +210,16 @@ describe('getSequencePageGeometry', () => {
     expect(landscape.width).toBeGreaterThan(landscape.height);
     expect(portrait.height).toBeGreaterThan(portrait.width);
     expect(landscape.margin).toBeCloseTo(28.35, 1);
+  });
+});
+
+describe('buildSequencePreviewUris', () => {
+  it('returns null instead of blank pages when there is no SVG to draw from', () => {
+    expect(buildSequencePreviewUris(null, [{ index: 0, source: { left: 0, top: 0, right: 10, bottom: 10, width: 10, height: 10 }, repeatedParticipantIds: [] }])).toBeNull();
+  });
+
+  it('returns null when the SVG cannot be cropped', () => {
+    const broken = {} as SVGSVGElement;
+    expect(buildSequencePreviewUris(broken, [{ index: 0, source: { left: 0, top: 0, right: 10, bottom: 10, width: 10, height: 10 }, repeatedParticipantIds: [] }])).toBeNull();
   });
 });
