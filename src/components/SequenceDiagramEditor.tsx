@@ -803,6 +803,7 @@ export function SequenceDiagramEditor({
     showFeedback(`Participante ${formatSequenceParticipantLabel(participant)} creado.`);
   }, [commit, content, keyboardMode.slotIndex, keyboardMode.text, setSelection, showFeedback]);
 
+  const diagramHasActor = content.participants.some((participant) => participant.kind === 'actor');
   const beginKeyboardMessage = useCallback((type: SequenceMessageType): void => {
     if (!keyboardSlot) return;
     if (type === 'return') {
@@ -826,8 +827,19 @@ export function SequenceDiagramEditor({
       : keyboardParticipantIds.includes(keyboardMode.sourceId)
         ? keyboardMode.sourceId
         : keyboardParticipantIds[0] ?? keyboardMode.sourceId;
+    // Like the «Mensaje» button, the first message of a diagram leaves the
+    // actor, whichever participant the cursor happens to be on.
+    const diagramHasMessages = flatEntries.some((entry) => entry.item.kind === 'message');
+    const firstRoute = !diagramHasMessages && !keyboardMode.editId && diagramHasActor
+      ? firstMessageRoute(content.participants)
+      : undefined;
+    if (firstRoute) {
+      dispatchKeyboardMode({ type: 'set-route', sourceId: firstRoute.sourceId });
+      dispatchKeyboardMode({ type: 'begin', messageType: type, targetId: type === 'create' ? '' : firstRoute.targetId });
+      return;
+    }
     dispatchKeyboardMode({ type: 'begin', messageType: type, targetId: defaultTarget });
-  }, [content, keyboardMode.editId, keyboardMode.sourceId, keyboardParticipantIds, keyboardSlot, layout, showFeedback]);
+  }, [content, diagramHasActor, flatEntries, keyboardMode.editId, keyboardMode.sourceId, keyboardParticipantIds, keyboardSlot, layout, showFeedback]);
 
   const setKeyboardMessageType = useCallback((type: SequenceMessageType): void => {
     if (type === 'return') {
@@ -965,6 +977,20 @@ export function SequenceDiagramEditor({
     }
   }, [commit, content, keepAnchoredNotesWithTimeline, keyboardMode.guardFragmentId, keyboardMode.guardOperandId, keyboardMode.guardText, showFeedback]);
 
+  /** Right after a keyboard creation the focus goes straight to the name field. */
+  const openKeyboardFragmentNameEditor = useCallback((fragmentId: string, nextLayout: ReturnType<typeof buildSequenceLayout>): void => {
+    const box = nextLayout.fragmentLayouts.get(fragmentId);
+    if (!box) return;
+    setInlineFragmentEditor({
+      kind: 'name',
+      fragmentId,
+      value: '',
+      x: box.x + 4,
+      y: box.y + 2,
+      width: Math.max(180, Math.min(box.width - 8, (box.tabWidth ?? 94) + 80)),
+    });
+  }, []);
+
   const commitKeyboardFragment = useCallback((): void => {
     if (!keyboardSlot) return;
     if (selectedTimelineIds.length > 0) {
@@ -978,6 +1004,7 @@ export function SequenceDiagramEditor({
         const nextSlots = buildSequenceKeyboardInsertionSlots(nextContent, buildSequenceLayout(nextContent));
         setSelectedTimelineIds([]);
         setSelection({ kind: 'fragment', id: result.createdFragment.id });
+        openKeyboardFragmentNameEditor(result.createdFragment.id, buildSequenceLayout(nextContent));
         dispatchKeyboardMode({
           type: 'committed',
           slotIndex: findSequenceKeyboardSlotAfterItem(nextSlots, result.createdFragment.id),
@@ -987,12 +1014,21 @@ export function SequenceDiagramEditor({
       }
       return;
     }
-    const fragment = createSequenceFragment(keyboardMode.fragmentOperator);
+    // A new empty fragment starts on the lifeline the cursor is on (with the
+    // usual left margin) instead of spanning the whole diagram.
+    const anchorId = content.participants.some((participant) => participant.id === keyboardMode.sourceId) ? keyboardMode.sourceId : undefined;
+    const fragment: SequenceFragment = {
+      ...createSequenceFragment(keyboardMode.fragmentOperator),
+      startParticipantId: anchorId,
+      endParticipantId: anchorId,
+    };
     const items = insertSequenceItemAtSlot(content.items, fragment, keyboardSlot);
     const nextContent = keepAnchoredNotesWithTimeline({ ...content, items });
     if (commit(nextContent)) {
-      const nextSlots = buildSequenceKeyboardInsertionSlots(nextContent, buildSequenceLayout(nextContent));
+      const nextLayout = buildSequenceLayout(nextContent);
+      const nextSlots = buildSequenceKeyboardInsertionSlots(nextContent, nextLayout);
       setSelection({ kind: 'fragment', id: fragment.id });
+      openKeyboardFragmentNameEditor(fragment.id, nextLayout);
       dispatchKeyboardMode({
         type: 'committed',
         slotIndex: findSequenceKeyboardSlotAfterItem(nextSlots, fragment.id),
@@ -1000,7 +1036,7 @@ export function SequenceDiagramEditor({
       });
       showFeedback(`Fragmento ${keyboardMode.fragmentOperator} creado.`);
     }
-  }, [commit, content, keepAnchoredNotesWithTimeline, keyboardMode.fragmentOperator, keyboardMode.sourceId, keyboardSlot, selectedTimelineIds, setSelectedTimelineIds, setSelection, showFeedback]);
+  }, [commit, content, keepAnchoredNotesWithTimeline, keyboardMode.fragmentOperator, keyboardMode.sourceId, keyboardSlot, openKeyboardFragmentNameEditor, selectedTimelineIds, setSelectedTimelineIds, setSelection, showFeedback]);
 
   const commitKeyboardMessage = useCallback((addAutomaticReturn = false): void => {
     if (!keyboardSlot || (keyboardMode.stage !== 'aim' && keyboardMode.stage !== 'typing')) return;
@@ -1160,6 +1196,8 @@ export function SequenceDiagramEditor({
 
   const handleKeyboardMode = useEffectEvent((event: KeyboardEvent): void => {
       if (shouldIgnoreEditorShortcut(event, document) || isNotebookEvent(event)) return;
+      // The fragment name field owns the keyboard while it is open.
+      if (inlineFragmentEditor) return;
       const editableTarget = isKeyboardTextTarget(event.target);
       const key = event.key.toLocaleLowerCase();
       if (key.length === 1 && hasCommandModifier(event)) return;
@@ -1813,7 +1851,6 @@ export function SequenceDiagramEditor({
     });
   };
 
-  const diagramHasActor = content.participants.some((participant) => participant.kind === 'actor');
   // The actor is almost always the first participant and there is usually
   // one: the composer starts on Actor until the diagram has one.
   const beginParticipantCreation = useCallback((kind?: 'object' | 'actor'): void => {
@@ -2537,7 +2574,7 @@ export function SequenceDiagramEditor({
       if (shouldIgnoreEditorShortcut(event, document) || isNotebookEvent(event)) return;
       const target = event.target instanceof Element ? event.target : null;
       if (target?.closest('input, textarea, select, [contenteditable="true"], dialog') !== null) return;
-      if (quickMessage !== null) return;
+      if (quickMessage !== null || inlineFragmentEditor !== null) return;
 
       if (!event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
         && keyboardMode.stage === 'off' && !inlineNoteEditor) {
@@ -2604,7 +2641,7 @@ export function SequenceDiagramEditor({
     };
     window.addEventListener('keydown', handleTimelineShortcuts);
     return () => window.removeEventListener('keydown', handleTimelineShortcuts);
-  }, [moveParticipantHorizontal, addNote, handleEditNote, inlineNoteEditor, keyboardMode.stage, quickMessage, selection, selectedTimelineIds, moveSelectedItem, duplicateSelectedItem, copyBlockSelection, pasteBlockSelection, handleUnwrapFragment]);
+  }, [moveParticipantHorizontal, addNote, handleEditNote, inlineNoteEditor, keyboardMode.stage, quickMessage, selection, selectedTimelineIds, moveSelectedItem, duplicateSelectedItem, copyBlockSelection, pasteBlockSelection, handleUnwrapFragment, inlineFragmentEditor]);
 
   const commitInlineNoteEdit = useCallback((): void => {
     if (!inlineNoteEditor) return;
@@ -5189,9 +5226,11 @@ export function SequenceDiagramEditor({
                         if (e.key === 'Enter') {
                           e.preventDefault();
                           commitInlineFragmentEdit();
+                          window.requestAnimationFrame(() => svgRef.current?.focus());
                         } else if (e.key === 'Escape') {
                           e.preventDefault();
                           setInlineFragmentEditor(null);
+                          window.requestAnimationFrame(() => svgRef.current?.focus());
                         }
                       }}
                       onBlur={() => commitInlineFragmentEdit()}

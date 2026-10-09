@@ -226,3 +226,130 @@ describe('sequence creation feedback', () => {
     expect(onChangeContent).not.toHaveBeenCalled();
   });
 });
+
+describe('keyboard first message', () => {
+  const emptyDiagram = () => {
+    const content = {
+      ...createEmptySequenceDiagramContent(),
+      participants: [
+        { id: 'sys', kind: 'object' as const, name: 'Sistema', classifierName: '', x: 180 },
+        { id: 'user', kind: 'actor' as const, name: 'Usuario', classifierName: '', x: 460 },
+      ],
+      items: [],
+    };
+    artifact = { ...artifact, content };
+  };
+
+  it('proposes the actor as the origin of the first message even when another participant is selected', () => {
+    emptyDiagram();
+    let tree = renderEditor(); select(tree, { kind: 'participant', id: 'sys' }); renderEditor();
+    press('m'); renderEditor();
+    press('Enter'); tree = renderEditor();
+    expect(composerState(tree)).toMatchObject({ stage: 'aim', sourceId: 'user', targetId: 'sys' });
+  });
+
+  it('keeps the selected participant once the diagram has messages', () => {
+    let tree = renderEditor(); select(tree, { kind: 'participant', id: 'b' }); renderEditor();
+    press('m'); renderEditor();
+    press('Enter'); tree = renderEditor();
+    expect(composerState(tree)).toMatchObject({ stage: 'aim', sourceId: 'b' });
+  });
+});
+
+describe('keyboard fragment creation', () => {
+  const threeLifelines = () => {
+    const content = {
+      ...createEmptySequenceDiagramContent(),
+      participants: [
+        { id: 'a', kind: 'object' as const, name: 'A', classifierName: '', x: 180 },
+        { id: 'b', kind: 'object' as const, name: 'B', classifierName: '', x: 460 },
+        { id: 'c', kind: 'object' as const, name: 'C', classifierName: '', x: 740 },
+      ],
+      items: [{ ...createSequenceMessage('synchronous', 'a', 'b'), id: 'call', name: 'buscar' }],
+    };
+    artifact = { ...artifact, content };
+  };
+  const lastContent = () => onChangeContent.mock.calls.at(-1)![0] as typeof artifact.content;
+  const inlineInput = (tree: unknown) => find(tree, (node) => node.props.className === 'sequence-inline-input');
+  const createFragment = (participantId: string) => {
+    const tree = renderEditor(); select(tree, { kind: 'participant', id: participantId }); renderEditor();
+    press('m'); renderEditor();
+    press('f'); renderEditor();
+    press('Enter');
+    return renderEditor();
+  };
+
+  it('starts a new empty fragment at the selected lifeline with a left margin', () => {
+    threeLifelines();
+    createFragment('b');
+    const content = lastContent();
+    const fragment = content.items.find((item) => item.kind === 'fragment')!;
+    const layout = buildSequenceLayout(content);
+    const box = layout.fragmentLayouts.get(fragment.id)!;
+    const lifelineX = layout.participantX.get('b')!;
+    expect(box.x).toBeLessThan(lifelineX);
+    expect(lifelineX - box.x).toBeLessThanOrEqual(100);
+    expect(box.x).toBeGreaterThan(layout.participantX.get('a')!);
+  });
+
+  it('starts a fragment wrapping selected messages at the leftmost involved lifeline', () => {
+    threeLifelines();
+    artifact = { ...artifact, content: { ...artifact.content, items: [
+      { ...createSequenceMessage('synchronous', 'b', 'c'), id: 'm1', name: 'uno' },
+      { ...createSequenceMessage('synchronous', 'c', 'b'), id: 'm2', name: 'dos' },
+    ] } };
+    const tree = renderEditor();
+    (find(tree, (node) => node.type === SequenceDiagramCanvas).props.onMarqueeSelect as (ids: string[], notes: string[]) => void)(['m1', 'm2'], []);
+    renderEditor(); press('m'); renderEditor(); press('f'); renderEditor(); press('Enter'); renderEditor();
+    const content = lastContent();
+    const fragment = content.items.find((item) => item.kind === 'fragment')!;
+    const layout = buildSequenceLayout(content);
+    const box = layout.fragmentLayouts.get(fragment.id)!;
+    expect(box.x).toBeGreaterThan(layout.participantX.get('a')!);
+    expect(layout.participantX.get('b')! - box.x).toBeLessThanOrEqual(100);
+    expect(box.x + box.width).toBeGreaterThan(layout.participantX.get('c')!);
+  });
+
+  it('opens the name editor right away and Enter keeps the typed name', () => {
+    threeLifelines();
+    createFragment('a');
+    const created = lastContent();
+    artifact = { ...artifact, content: created };
+    let tree = renderEditor();
+    const input = inlineInput(tree);
+    expect(input.props.value).toBe('');
+    (input.props.onChange as (event: { target: { value: string } }) => void)({ target: { value: 'cada pedido' } });
+    tree = renderEditor();
+    onChangeContent.mockClear();
+    (inlineInput(tree).props.onKeyDown as (event: KeyboardEvent) => void)(keyEvent('Enter'));
+    const fragment = lastContent().items.find((item) => item.kind === 'fragment')!;
+    expect(fragment).toMatchObject({ name: 'cada pedido' });
+    expect(elements(renderEditor()).some((node) => node.props.className === 'sequence-inline-input')).toBe(false);
+  });
+
+  it('Esc leaves the fragment with its default name and closes the editor', () => {
+    threeLifelines();
+    createFragment('a');
+    artifact = { ...artifact, content: lastContent() };
+    let tree = renderEditor();
+    onChangeContent.mockClear();
+    (inlineInput(tree).props.onKeyDown as (event: KeyboardEvent) => void)(keyEvent('Escape'));
+    tree = renderEditor();
+    expect(elements(tree).some((node) => node.props.className === 'sequence-inline-input')).toBe(false);
+    expect(onChangeContent).not.toHaveBeenCalled();
+    expect(artifact.content.items.find((item) => item.kind === 'fragment')).toMatchObject({ name: '' });
+  });
+
+  it('does not treat typed letters as shortcuts while the name is edited', () => {
+    threeLifelines();
+    createFragment('a');
+    artifact = { ...artifact, content: lastContent() };
+    let tree = renderEditor();
+    const before = composerState(tree);
+    onChangeContent.mockClear();
+    for (const key of ['m', 'f', 'p', 'r', 's', 'n', 'Enter']) press(key);
+    tree = renderEditor();
+    expect(onChangeContent).not.toHaveBeenCalled();
+    expect(composerState(tree)).toEqual(before);
+  });
+});
