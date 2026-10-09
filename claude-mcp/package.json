@@ -1,0 +1,11 @@
+{
+  "name": "modelador-de-sistemas-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Servidor MCP de solo lectura para que Claude Desktop vea el trabajo en el Modelador de Sistemas.",
+  "scripts": {
+    "test": "node --test",
+    "pack": "npx --yes @anthropic-ai/mcpb@2.1.2 pack . modelador-de-sistemas.mcpb"
+  }
+}

@@ -22,3 +22,4 @@ src-tauri/gen/
 
 # Registros de las herramientas de navegador
 .playwright-mcp/
+claude-mcp/*.mcpb
