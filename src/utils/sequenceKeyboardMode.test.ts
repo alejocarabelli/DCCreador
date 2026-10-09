@@ -339,3 +339,15 @@ describe('keyboard insertion lands where the cursor is', () => {
     expect(between.y).toBe(Math.round(m2.top + m2.height));
   });
 });
+
+describe('message type is not remembered between creations', () => {
+  it('starts every new message from the default type after a previous one was committed', () => {
+    let state = sequenceKeyboardModeReducer(createInactiveSequenceKeyboardState(), { type: 'activate', slotIndex: 0, sourceId: 'a' });
+    state = sequenceKeyboardModeReducer(state, { type: 'set-message-type', messageType: 'create' });
+    state = sequenceKeyboardModeReducer(state, { type: 'committed', slotIndex: 1, sourceId: 'a' });
+    expect(state.messageType).toBe('synchronous');
+    state = sequenceKeyboardModeReducer(state, { type: 'deactivate' });
+    state = sequenceKeyboardModeReducer(state, { type: 'activate', slotIndex: 0, sourceId: 'a' });
+    expect(state.messageType).toBe('synchronous');
+  });
+});

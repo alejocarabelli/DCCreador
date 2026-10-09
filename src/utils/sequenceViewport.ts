@@ -48,6 +48,32 @@ export const centerSequenceViewportOnTarget = ({
   };
 };
 
+export const sequenceMinZoom = 0.3;
+
+/**
+ * Zoom that makes the diagram bounds fit the view entirely: never above 100%
+ * and never below the editor minimum. Returns 1 when it already fits.
+ */
+export const fitSequenceZoomToView = ({
+  viewportWidth,
+  viewportHeight,
+  bounds,
+  padding = 40,
+}: {
+  viewportWidth: number;
+  viewportHeight: number;
+  bounds: { width: number; height: number };
+  padding?: number;
+}): number => {
+  const availableWidth = viewportWidth - padding;
+  const availableHeight = viewportHeight - padding;
+  const contentWidth = bounds.width + padding * 2;
+  const contentHeight = bounds.height + padding * 2;
+  if (availableWidth <= 0 || availableHeight <= 0 || contentWidth <= 0 || contentHeight <= 0) return 1;
+  const fit = Math.min(availableWidth / contentWidth, availableHeight / contentHeight);
+  return Math.max(sequenceMinZoom, Math.min(1, Math.floor(fit * 100) / 100));
+};
+
 export const expandSequenceViewportAtEdge = ({
   currentWidth,
   currentHeight,

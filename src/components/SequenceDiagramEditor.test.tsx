@@ -133,4 +133,26 @@ describe('SequenceDiagramEditor wording', () => {
     expect(html).toContain('Sin vincular');
     expect(html).toContain('title="Vinculá esta secuencia con unas Clases de secuencias para elegir clases y operaciones ya hechas y mantener los nombres al día."');
   });
+
+  it('with no participants the primary tool is Participante and Mensaje is disabled', () => {
+    const now = '2026-01-01T00:00:00.000Z';
+    const sequenceArtifact: SequenceDiagramArtifact = {
+      id: 'sequence-1', type: 'sequence-diagram', name: 'Secuencia', createdAt: now, updatedAt: now,
+      content: normalizeSequenceDiagramContent(createEmptySequenceDiagramContent()),
+    };
+    const project: DesignProject = {
+      id: 'project-1', name: 'Proyecto', createdAt: now, updatedAt: now,
+      activeArtifactId: sequenceArtifact.id, artifacts: [sequenceArtifact],
+    };
+    const html = renderToString(
+      <DialogProvider>
+        <SequenceDiagramEditor artifact={sequenceArtifact} canRedo={false} canUndo={false} project={project} theme={themes[0]} onChangeContent={vi.fn()} onRedo={vi.fn()} onUndo={vi.fn()} />
+      </DialogProvider>,
+    );
+    const button = (label: string): string => html.match(new RegExp(`<button[^>]*aria-label="${label}"[^>]*>`))?.[0] ?? '';
+    expect(button('Mensaje')).toContain('disabled');
+    expect(button('Mensaje')).toContain('Primero agregá participantes');
+    expect(button('Mensaje')).not.toContain('is-primary');
+    expect(button('Participante')).toContain('is-primary');
+  });
 });
