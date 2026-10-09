@@ -1,5 +1,3 @@
-import type { ClassDiagramArtifact, ClassSequenceDiagramArtifact, DesignArtifact } from '../types/diagram';
-
 type WindowsBridge = { postMessage: (message: unknown) => Promise<unknown> };
 
 declare global {
@@ -17,7 +15,7 @@ const bridge = (): WindowsBridge | null => {
 
 export const viewerHashPrefix = '#viewer=';
 
-/** Opens a read-only copy of the diagram in its own window, e.g. to drag it to an iPad used as a second display. */
+/** Opens a read-only copy of the artifact in its own window, e.g. to drag it to an iPad used as a second display. */
 export const openArtifactWindow = (projectId: string, artifactId: string, title: string): void => {
   const native = bridge();
   if (native) {
@@ -28,7 +26,7 @@ export const openArtifactWindow = (projectId: string, artifactId: string, title:
   window.open(`${window.location.pathname}${hash}`, '_blank');
 };
 
-/** Brings the main window forward with the diagram selected, so it can be edited there. */
+/** Brings the main window forward with the artifact selected, so it can be edited there. */
 export const focusArtifactInMainWindow = (projectId: string, artifactId: string): void => {
   const native = bridge();
   if (native) void native.postMessage({ action: 'focus-main', projectId, artifactId }).catch(() => undefined);
@@ -41,9 +39,3 @@ export const parseViewerHash = (hash: string): { projectId: string; artifactId: 
   });
   return projectId && artifactId ? { projectId, artifactId } : null;
 };
-
-export type ViewableArtifact = ClassDiagramArtifact | ClassSequenceDiagramArtifact;
-
-/** The diagrams the read-only window can show: the class models, whose renderer is verified. */
-export const isViewableArtifact = (artifact: DesignArtifact | undefined): artifact is ViewableArtifact =>
-  artifact?.type === 'class-diagram' || artifact?.type === 'class-sequence-diagram';
