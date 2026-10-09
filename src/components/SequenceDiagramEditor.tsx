@@ -34,6 +34,8 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useReducer, useRef, us
 import { CanvasZoom } from './ui/CanvasZoom';
 import { EditorToolbar, MenuField, MenuItem, MenuLabel, MenuSeparator, NotebookButton, ReviewButton, ToolbarDivider, ToolButton, ToolMenu } from './ui/Toolbar';
 import { isNotebookEvent } from '../utils/notebookKeyboard';
+import { hasCommandModifier, shouldIgnoreEditorShortcut } from '../utils/editorShortcutGuards';
+import { formatSequenceMessageChange } from '../utils/sequenceEditorFeedback';
 import { InspectorDeleteButton, InspectorPanel, type InspectorTone } from './ui/Panel';
 import { EXPORT_THEME, type DiagramTheme } from '../theme/themes';
 import { CanvasStartCard } from './CanvasStartCard';
@@ -1159,9 +1161,10 @@ export function SequenceDiagramEditor({
   }, [keyboardMode.slotIndex, keyboardMode.stage, keyboardSlots.length]);
 
   const handleKeyboardMode = useEffectEvent((event: KeyboardEvent): void => {
-      if (isNotebookEvent(event)) return;
+      if (shouldIgnoreEditorShortcut(event, document) || isNotebookEvent(event)) return;
       const editableTarget = isKeyboardTextTarget(event.target);
       const key = event.key.toLocaleLowerCase();
+      if (key.length === 1 && hasCommandModifier(event)) return;
 
       if (keyboardMode.stage === 'off') {
         const activeElement = document.activeElement;
@@ -1178,7 +1181,7 @@ export function SequenceDiagramEditor({
       if (key === 'm' && !event.metaKey && !event.ctrlKey && !event.altKey) {
         event.preventDefault();
         dispatchKeyboardMode({ type: 'deactivate' });
-        showFeedback('Modo mensajes desactivado.');
+        showFeedback('Modo teclado desactivado.');
         return;
       }
 
@@ -1378,7 +1381,7 @@ export function SequenceDiagramEditor({
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape' || isNotebookEvent(event)) return;
+      if (shouldIgnoreEditorShortcut(event, document) || event.key !== 'Escape' || isNotebookEvent(event)) return;
       setQuickMessage(null);
       setParticipantDraft(null);
       setParticipantPreview({});
@@ -1397,7 +1400,7 @@ export function SequenceDiagramEditor({
       });
     };
     const closeMenusOnEscape = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape' && !isNotebookEvent(event)) {
+      if (!shouldIgnoreEditorShortcut(event, document) && event.key === 'Escape' && !isNotebookEvent(event)) {
         toolbarRef.current?.querySelectorAll('details[open]').forEach((details) => details.removeAttribute('open'));
       }
     };
@@ -1521,7 +1524,7 @@ export function SequenceDiagramEditor({
     if (total > 1) {
       if (!marqueeTipShownRef.current) {
         marqueeTipShownRef.current = true;
-        showFeedback(`${total} elementos seleccionados en bloque. Tip: Mayús+arrastrar selecciona dentro de fragmentos.`);
+        showFeedback(`${total} elementos seleccionados en bloque. Consejo: Mayús+arrastrar selecciona dentro de fragmentos.`);
       } else {
         showFeedback(`${total} elementos seleccionados en bloque.`);
       }
@@ -1730,7 +1733,7 @@ export function SequenceDiagramEditor({
     window.addEventListener('pointerup', finish, { once: true });
   }, [content, layout, existingArtifactIds, zoom, showFeedback, commit, keepAnchoredNotesWithTimeline, selectedTimelineIds, setSelection]);
 
-  const handleLoadTemplate = useCallback((templateId: string, asNew: boolean): void => {
+  const handleLoadTemplate = useCallback(async (templateId: string, asNew: boolean): Promise<void> => {
     const tmpl = SEQUENCE_TEMPLATES.find((t) => t.id === templateId);
     if (!tmpl) return;
     const newContent = tmpl.createContent();
@@ -1739,6 +1742,15 @@ export function SequenceDiagramEditor({
       setIsTemplatesOpen(false);
       showFeedback(`Diagrama "${tmpl.name}" creado con plantilla.`);
     } else {
+      const hasContent = content.participants.length > 0 || content.items.length > 0 || content.notes.length > 0 || content.activations.length > 0;
+      if (hasContent) {
+        const shouldReplace = await confirm({
+          title: '¿Reemplazar este diagrama?',
+          description: `La plantilla «${tmpl.name}» reemplazará todos los participantes, mensajes, fragmentos y notas de este diagrama.`,
+          confirmLabel: 'Reemplazar diagrama',
+        });
+        if (!shouldReplace) return;
+      }
       const ok = commit(keepAnchoredNotesWithTimeline(newContent), true);
       if (ok) {
         setIsTemplatesOpen(false);
@@ -1747,7 +1759,7 @@ export function SequenceDiagramEditor({
         showFeedback(`Plantilla "${tmpl.name}" cargada.`);
       }
     }
-  }, [commit, keepAnchoredNotesWithTimeline, onCreateSequenceDiagramArtifact, setSelectedTimelineIds, setSelection, showFeedback]);
+  }, [commit, confirm, content, keepAnchoredNotesWithTimeline, onCreateSequenceDiagramArtifact, setSelectedTimelineIds, setSelection, showFeedback]);
 
   const selectOutlineItem = useCallback((nextSelection: Exclude<SequenceSelection, null>): void => {
     setSelection(nextSelection);
@@ -1947,7 +1959,7 @@ export function SequenceDiagramEditor({
       const index = ordered.findIndex((item) => item.id === (activeDraft.editId ?? probe.id));
       const usedBefore = ordered.slice(0, index).some((item) => item.sourceId === activeDraft.targetId || item.targetId === activeDraft.targetId);
       const createdElsewhere = ordered.some((item) => item.id !== (activeDraft.editId ?? probe.id) && item.type === 'create' && item.targetId === activeDraft.targetId);
-      if (usedBefore || createdElsewhere) { showFeedback('create() debe ser la primera interacción del objeto. Usá el botón create() para crear un DTO nuevo.'); return; }
+      if (usedBefore || createdElsewhere) { showFeedback('La creación debe ser la primera interacción del objeto. Agregá un mensaje de tipo «Crear» con «Objeto nuevo».'); return; }
     }
     let saved: boolean;
     if (activeDraft.editId) {
@@ -2190,6 +2202,7 @@ export function SequenceDiagramEditor({
 
   useEffect(() => {
     const handleDeleteSelection = (event: KeyboardEvent): void => {
+      if (shouldIgnoreEditorShortcut(event, document)) return;
       if (event.key !== 'Delete' && event.key !== 'Backspace') return;
       if (quickMessage !== null || isNotebookEvent(event)) return;
       const target = event.target instanceof Element ? event.target : null;
@@ -2499,14 +2512,13 @@ export function SequenceDiagramEditor({
 
   useEffect(() => {
     const handleTimelineShortcuts = (event: KeyboardEvent): void => {
-      if (isNotebookEvent(event)) return;
+      if (shouldIgnoreEditorShortcut(event, document) || isNotebookEvent(event)) return;
       const target = event.target instanceof Element ? event.target : null;
       if (target?.closest('input, textarea, select, [contenteditable="true"], dialog') !== null) return;
       if (quickMessage !== null) return;
 
       if (!event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
-        && keyboardMode.stage === 'off' && !inlineNoteEditor
-        && !document.querySelector('[role="dialog"], dialog[open], [aria-modal="true"]')) {
+        && keyboardMode.stage === 'off' && !inlineNoteEditor) {
         if (event.key.toLowerCase() === 'n') {
           event.preventDefault();
           addNote();
@@ -2521,8 +2533,7 @@ export function SequenceDiagramEditor({
 
       if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey
         && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')
-        && selection?.kind === 'participant' && keyboardMode.stage === 'off' && !inlineNoteEditor
-        && !document.querySelector('[role="dialog"], dialog[open], [aria-modal="true"]')) {
+        && selection?.kind === 'participant' && keyboardMode.stage === 'off' && !inlineNoteEditor) {
         event.preventDefault();
         moveParticipantHorizontal(selection.id, event.key === 'ArrowLeft' ? -1 : 1);
         return;
@@ -2870,11 +2881,11 @@ export function SequenceDiagramEditor({
           const numAbsorbed = lastValidMoveChanges.itemsToAbsorb.length;
           const numEjected = lastValidMoveChanges.itemsToEject.length;
           if (numAbsorbed > 0 && numEjected > 0) {
-            showFeedback(`Fragmento actualizado: ${numAbsorbed} mensaje(s) incorporado(s), ${numEjected} liberado(s).`);
+            showFeedback(`Fragmento actualizado: ${formatSequenceMessageChange(numAbsorbed, 'incorporado')}, ${formatSequenceMessageChange(numEjected, 'liberado')}.`);
           } else if (numAbsorbed > 0) {
-            showFeedback(`Fragmento movido: ${numAbsorbed} mensaje(s) incorporado(s).`);
+            showFeedback(`Fragmento movido: ${formatSequenceMessageChange(numAbsorbed, 'incorporado')}.`);
           } else if (numEjected > 0) {
-            showFeedback(`Fragmento movido: ${numEjected} mensaje(s) liberado(s).`);
+            showFeedback(`Fragmento movido: ${formatSequenceMessageChange(numEjected, 'liberado')}.`);
           } else {
             showFeedback('Fragmento reubicado.');
           }
@@ -3091,11 +3102,11 @@ export function SequenceDiagramEditor({
           const numAbsorbed = lastValidBoundaryChanges.itemsToAbsorb.length;
           const numEjected = lastValidBoundaryChanges.itemsToEject.length;
           if (numAbsorbed > 0 && numEjected > 0) {
-            showFeedback(`Fragmento actualizado: ${numAbsorbed} mensaje(s) incorporado(s), ${numEjected} liberado(s).`);
+            showFeedback(`Fragmento actualizado: ${formatSequenceMessageChange(numAbsorbed, 'incorporado')}, ${formatSequenceMessageChange(numEjected, 'liberado')}.`);
           } else if (numAbsorbed > 0) {
-            showFeedback(`Fragmento expandido: ${numAbsorbed} mensaje(s) incorporado(s).`);
+            showFeedback(`Fragmento expandido: ${formatSequenceMessageChange(numAbsorbed, 'incorporado')}.`);
           } else if (numEjected > 0) {
-            showFeedback(`Fragmento reducido: ${numEjected} mensaje(s) liberado(s).`);
+            showFeedback(`Fragmento reducido: ${formatSequenceMessageChange(numEjected, 'liberado')}.`);
           }
         }
       } else if (didChange) {
@@ -3444,7 +3455,7 @@ export function SequenceDiagramEditor({
             value={participantEditText}
             onChange={(event) => updateParticipantLabel(selectedParticipant.id, event.target.value)}
             onBlur={() => setParticipantColorReference(null)}
-            onKeyDown={(event) => { if (event.key === 'Enter') setParticipantColorReference(null); }}
+            onKeyDown={(event) => { if (!shouldIgnoreEditorShortcut(event, document) && event.key === 'Enter') setParticipantColorReference(null); }}
             placeholder="TramiteActual:Tramite o :Clase"
           />
           <small className="sequence-inspector-hint" style={{ marginTop: 4, display: 'block' }}>
@@ -3909,7 +3920,7 @@ export function SequenceDiagramEditor({
 
   const fragmentInspector = selectedItem?.kind === 'fragment' ? (() => {
     const activeOp = selectedItem.operands.find((op) => op.id === activeOperandId) ?? selectedItem.operands[0];
-    const totalMessages = selectedItem.operands.reduce((acc, op) => acc + op.items.length, 0);
+    const totalMessages = countSequenceMessages([selectedItem]);
 
     const allMessagesInDiagram: {
       message: SequenceMessage;
@@ -4112,7 +4123,7 @@ export function SequenceDiagramEditor({
         <section className="sequence-inspector-section sequence-inspector-operands-section" style={{ marginTop: 6 }}>
           <div className="sequence-fragment-branches-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <h4 style={{ margin: 0, fontSize: '0.78rem', fontWeight: 600 }}>Ramas y Mensajes</h4>
+              <h4 style={{ margin: 0, fontSize: '0.78rem', fontWeight: 600 }}>Ramas y mensajes</h4>
               <span className="sequence-counter-badge">{totalMessages} {totalMessages === 1 ? 'mensaje' : 'mensajes'}</span>
             </div>
             {(selectedItem.operator === 'alt' || selectedItem.operator === 'par') ? (
@@ -4149,7 +4160,7 @@ export function SequenceDiagramEditor({
                     onClick={() => setActiveOperandId(op.id)}
                   >
                     <span>{tabLabel}</span>
-                    <span className={`sequence-tab-counter ${isTabActive ? 'active' : ''}`}>{op.items.length}</span>
+                    <span className={`sequence-tab-counter ${isTabActive ? 'active' : ''}`}>{countSequenceMessages(op.items)}</span>
                   </button>
                 );
               })}
@@ -4900,6 +4911,7 @@ export function SequenceDiagramEditor({
             placeholder={participantDraft.kind === 'actor' ? 'Consultor' : 'TramiteActual:Tramite'}
             onChange={(event) => setParticipantDraft((current) => current ? { ...current, text: event.target.value } : current)}
             onKeyDown={(event) => {
+              if (shouldIgnoreEditorShortcut(event, document)) return;
               if (event.key === 'Escape') {
                 event.preventDefault();
                 setParticipantDraft(null);
@@ -4945,7 +4957,7 @@ export function SequenceDiagramEditor({
           {isKeyboardActive ? (
             <div className="sequence-canvas-guide is-keyboard-active" data-export-control="true">
               <div className="sequence-keyboard-guide-body">
-                <span className="sequence-keyboard-status-badge">MODO MENSAJES</span>
+                <span className="sequence-keyboard-status-badge">MODO TECLADO</span>
                 {keyboardContext ? (
                   <strong className="sequence-keyboard-guide-context" title={keyboardContext}>
                     {keyboardContext}
@@ -4956,10 +4968,10 @@ export function SequenceDiagramEditor({
               <button
                 type="button"
                 className="sequence-keyboard-exit-pill"
-                title="Salir del modo teclado (Esc)"
+                title="Salir del modo teclado (M)"
                 onClick={() => dispatchKeyboardMode({ type: 'deactivate' })}
               >
-                Salir <kbd>Esc</kbd>
+                Salir <kbd>M</kbd>
               </button>
             </div>
           ) : null}
@@ -5140,6 +5152,7 @@ export function SequenceDiagramEditor({
                       placeholder={inlineFragmentEditor.kind === 'guard' ? 'condición' : 'nombre del fragmento'}
                       onChange={(e) => setInlineFragmentEditor({ ...inlineFragmentEditor, value: e.target.value })}
                       onKeyDown={(e) => {
+                        if (shouldIgnoreEditorShortcut(e, document)) return;
                         if (e.key === 'Enter') {
                           e.preventDefault();
                           commitInlineFragmentEdit();
@@ -5281,6 +5294,7 @@ export function SequenceDiagramEditor({
                           }
                         }}
                         onKeyDown={(e) => {
+                          if (shouldIgnoreEditorShortcut(e, document)) return;
                           if (e.key === 'Escape') {
                             e.preventDefault();
                             setNotePreview({});
@@ -5374,7 +5388,9 @@ export function SequenceDiagramEditor({
                 <LayoutTemplate size={22} />
                 <div>
                   <h3 id="sequence-templates-dialog-title">Plantillas educativas de secuencia</h3>
-                  <p>Ejemplos prediseñados listos para usar sin alterar proyectos existentes.</p>
+                  <p>{onCreateSequenceDiagramArtifact
+                    ? 'Creá un diagrama nuevo sin alterar los existentes, o reemplazá el actual con una plantilla.'
+                    : 'Elegí una plantilla para reemplazar este diagrama.'}</p>
                 </div>
               </div>
               <button
@@ -5398,7 +5414,7 @@ export function SequenceDiagramEditor({
                       className="primary-action"
                       onClick={() => handleLoadTemplate(tmpl.id, false)}
                     >
-                      Cargar en este diagrama
+                      Reemplazar este diagrama…
                     </button>
                     {onCreateSequenceDiagramArtifact ? (
                       <button

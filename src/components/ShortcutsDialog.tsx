@@ -70,6 +70,8 @@ const SECTIONS: Array<{ title: string; shortcuts: Shortcut[] }> = [
   {
     title: 'Secuencia · modo teclado',
     shortcuts: [
+      ['M', 'Salir del modo teclado'],
+      ['Esc', 'Volver un paso'],
       ['←  →', 'Elegir participante'],
       ['↵', 'Mensaje síncrono'],
       ['S  R  C  D', 'Síncrono, retorno, creación, destrucción'],
