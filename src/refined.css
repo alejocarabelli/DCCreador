@@ -4323,3 +4323,4 @@
   background: var(--panel-surface, transparent);
   color: var(--panel-text);
 }
+.sequence-export-preview-failed { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: 8px; color: #50657a; font-size: 11px; text-align: center; }
