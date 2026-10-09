@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { hasCommandModifier, isModalOpen, shouldIgnoreEditorShortcut } from './editorShortcutGuards';
+import { hasCommandModifier, isModalOpen, isToolMenuOpen, shouldIgnoreEditorShortcut } from './editorShortcutGuards';
 
 describe('editor shortcut guards', () => {
   it.each(['dialog[open]', '[role="dialog"][aria-modal="true"]', '[role="alertdialog"]'])('detects %s anywhere in the document', (selector) => {
@@ -26,5 +26,10 @@ describe('editor shortcut guards', () => {
 
   it('allows letters without command modifiers, including with Shift', () => {
     expect(hasCommandModifier({ ctrlKey: false, metaKey: false, altKey: false })).toBe(false);
+  });
+
+  it('detects an open toolbar menu, which takes Escape first', () => {
+    expect(isToolMenuOpen({ querySelector: (query: string) => (query === 'details.v2-menu[open]' ? {} : null) })).toBe(true);
+    expect(isToolMenuOpen({ querySelector: () => null })).toBe(false);
   });
 });
