@@ -48,6 +48,7 @@ import {
   getTurnSwitchLevel,
   normalizeFlowCode,
   parseFlowText,
+  restoreLostStepMarker,
 } from '../utils/flowDocument';
 import { reviewUseCaseFlow, type FlowIssue } from '../utils/useCaseFlowReview';
 import { createFlowDocx } from '../utils/flowExportDocx';
@@ -258,6 +259,8 @@ export function UseCaseFlowEditor({
   const feedbackTimeoutRef = useRef<number | null>(null);
   const cellRefs = useRef(new Map<string, HTMLTextAreaElement>());
   const caretPositions = useRef(new Map<string, number>());
+  // Per step cell, the last text whose first line was numbered, while focused: a blur restores the number if edits removed it.
+  const lastStepTexts = useRef(new Map<string, string>());
   const stateFieldRefs = useRef(new Map<StateDescriptionField, HTMLTextAreaElement>());
   const alternativeNameRefs = useRef(new Map<string, HTMLInputElement>());
   const foldSummaryRefs = useRef(new Map<string, HTMLButtonElement>());
@@ -413,7 +416,7 @@ export function UseCaseFlowEditor({
       if (result !== null) {
         event.preventDefault();
         updateDescription(field, result.value);
-        setStateBulletCaretAfterRender(textarea, result.lineIndex, result.markerLength);
+        setStateBulletCaretAfterRender(textarea, result.lineIndex, result.markerLength, result.value);
       }
 
       return;
@@ -425,7 +428,7 @@ export function UseCaseFlowEditor({
       if (result !== null) {
         event.preventDefault();
         updateDescription(field, result.value);
-        setStateBulletCaretAfterRender(textarea, result.lineIndex, result.markerLength);
+        setStateBulletCaretAfterRender(textarea, result.lineIndex, result.markerLength, result.value);
       }
 
       return;
@@ -435,7 +438,7 @@ export function UseCaseFlowEditor({
       event.preventDefault();
       const result = insertStateBulletLine(textarea.value, textarea.selectionStart);
       updateDescription(field, result.value);
-      setStateBulletCaretAfterRender(textarea, result.lineIndex, result.markerLength);
+      setStateBulletCaretAfterRender(textarea, result.lineIndex, result.markerLength, result.value);
     }
   };
 
@@ -480,7 +483,7 @@ export function UseCaseFlowEditor({
     }
 
     updateDescription(field, result.value);
-    setStateBulletCaretAfterRender(textarea, result.lineIndex, result.markerLength);
+    setStateBulletCaretAfterRender(textarea, result.lineIndex, result.markerLength, result.value);
   };
 
   const updateAssociatedClassDiagram = (artifactId: string): void => {
@@ -590,20 +593,22 @@ export function UseCaseFlowEditor({
     (normalizeNumbering ? commitNumberedContent : commitContent)(nextContent);
   };
 
-  const getNormalizedMarkerLengthForCell = useCallback((
+  /** The cell as it will be stored and drawn once renumbered, and the marker length of one of its lines. */
+  const getNormalizedCell = useCallback((
     tableId: FlowTableId,
     stepId: string,
     field: FlowTextField,
     value: string,
     lineIndex: number,
-  ): number => {
+  ): { markerLength: number; value: string } => {
     const normalized = normalizeUseCaseFlowContentNumbering(withRows(content, tableId, (rows) =>
       rows.map((step) => (step.id === stepId ? { ...step, [field]: value } : step))));
     const rows = tableId === 'basic'
       ? normalized.basicFlow
       : normalized.alternativeFlows.find((flow) => flow.id === flowIdOf(tableId))?.steps ?? [];
-    const normalizedLine = rows.find((step) => step.id === stepId)?.[field].split('\n')[lineIndex] ?? '';
-    return getMarkerLength(normalizedLine);
+    const normalizedValue = rows.find((step) => step.id === stepId)?.[field] ?? '';
+    const normalizedLine = normalizedValue.split('\n')[lineIndex] ?? '';
+    return { markerLength: getMarkerLength(normalizedLine), value: normalizedValue };
   }, [content, withRows]);
 
   // -------------------------------------------------------------------------
@@ -984,10 +989,10 @@ export function UseCaseFlowEditor({
     if (event.key === 'Tab') {
       event.preventDefault();
       const result = changeLineLevel(value, textarea.selectionStart, event.shiftKey ? -1 : 1);
-      const markerLength = getNormalizedMarkerLengthForCell(tableId, step.id, field, result.value, result.lineIndex);
+      const normalized = getNormalizedCell(tableId, step.id, field, result.value, result.lineIndex);
       updateFlowCell(tableId, step.id, field, result.value, true);
       caretPositions.current.set(cellKey, textarea.selectionStart);
-      setCaretAfterRender(textarea, result.lineIndex, markerLength);
+      setCaretAfterRender(textarea, result.lineIndex, normalized.markerLength, normalized.value);
       return;
     }
 
@@ -996,9 +1001,9 @@ export function UseCaseFlowEditor({
 
       if (result !== null) {
         event.preventDefault();
-        const markerLength = getNormalizedMarkerLengthForCell(tableId, step.id, field, result.value, result.lineIndex);
+        const normalized = getNormalizedCell(tableId, step.id, field, result.value, result.lineIndex);
         updateFlowCell(tableId, step.id, field, result.value, true);
-        setCaretAfterRender(textarea, result.lineIndex, markerLength);
+        setCaretAfterRender(textarea, result.lineIndex, normalized.markerLength, normalized.value);
       }
 
       return;
@@ -1007,9 +1012,9 @@ export function UseCaseFlowEditor({
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       const result = insertLineAfterCurrent(ensureStepMarker(value), textarea.selectionStart);
-      const markerLength = getNormalizedMarkerLengthForCell(tableId, step.id, field, result.value, result.lineIndex);
+      const normalized = getNormalizedCell(tableId, step.id, field, result.value, result.lineIndex);
       updateFlowCell(tableId, step.id, field, result.value, true);
-      setCaretAfterRender(textarea, result.lineIndex, markerLength);
+      setCaretAfterRender(textarea, result.lineIndex, normalized.markerLength, normalized.value);
       return;
     }
   };
@@ -1076,7 +1081,7 @@ export function UseCaseFlowEditor({
           : action === 'outdent'
             ? changeLineLevel(textarea.value, caretPosition, -1)
             : insertLineAfterCurrent(ensureStepMarker(textarea.value), caretPosition, action === 'substep');
-    const markerLength = getNormalizedMarkerLengthForCell(
+    const normalized = getNormalizedCell(
       focusedCell.tableId,
       focusedCell.stepId,
       focusedCell.field,
@@ -1084,7 +1089,7 @@ export function UseCaseFlowEditor({
       result.lineIndex,
     );
     updateFlowCell(focusedCell.tableId, focusedCell.stepId, focusedCell.field, result.value, true);
-    setCaretAfterRender(textarea, result.lineIndex, markerLength);
+    setCaretAfterRender(textarea, result.lineIndex, normalized.markerLength, normalized.value);
   };
 
   const toggleAlternativeCollapsed = (flowId: string): void => {
@@ -1183,7 +1188,7 @@ export function UseCaseFlowEditor({
       selectLine(textarea, pendingFocus.lineIndex);
       textarea.scrollIntoView({ block: 'center', behavior: 'smooth' });
     } else if (textarea.value.trim().length === 0) {
-      const markerLength = getNormalizedMarkerLengthForCell(
+      const { markerLength } = getNormalizedCell(
         pendingFocus.tableId,
         pendingFocus.stepId,
         pendingFocus.field,
@@ -1197,7 +1202,7 @@ export function UseCaseFlowEditor({
       textarea.scrollIntoView({ block: 'nearest' });
     }
     setPendingFocus(null);
-  }, [content, getNormalizedMarkerLengthForCell, pendingFocus, updateFlowCell]);
+  }, [content, getNormalizedCell, pendingFocus, updateFlowCell]);
 
   useEffect(() => {
     if (pendingNameFocus === null) {
@@ -1329,6 +1334,11 @@ export function UseCaseFlowEditor({
     );
   };
 
+  /** Keeps the last text of a cell whose first line is a numbered step, until it loses focus. */
+  const rememberStepText = (cellKey: string, text: string): void => {
+    if (parseFlowText(text)[0]?.kind === 'step') lastStepTexts.current.set(cellKey, text);
+  };
+
   const renderFlowCell = (
     tableId: FlowTableId,
     step: UseCaseFlowStep,
@@ -1342,7 +1352,7 @@ export function UseCaseFlowEditor({
         value={step[field]}
         variant="flow"
         vocabulary={vocabulary}
-        placeholder={field === 'actor' ? '1. Acción del actor' : '2. Respuesta del sistema'}
+        placeholder={index > 0 ? undefined : field === 'actor' ? '1. Acción del actor' : '2. Respuesta del sistema'}
         minRows={1}
         aria-label={`${field === 'actor' ? 'Actor' : 'Sistema'}, fila ${index + 1}`}
         ref={(element) => {
@@ -1354,15 +1364,22 @@ export function UseCaseFlowEditor({
           }
         }}
         onBlur={(event) => {
-          updateFlowCell(tableId, step.id, field, event.currentTarget.value, true);
+          const cellKey = getCellKey(tableId, step.id, field);
+          const lastStepText = lastStepTexts.current.get(cellKey) ?? event.currentTarget.value;
+          lastStepTexts.current.delete(cellKey);
+          updateFlowCell(tableId, step.id, field, restoreLostStepMarker(lastStepText, event.currentTarget.value), true);
           window.setTimeout(() => setCompletionState((current) => (current?.kind === 'flow' ? null : current)), 120);
         }}
         onChange={(event) => {
+          rememberStepText(getCellKey(tableId, step.id, field), step[field]);
           actions.updateRow(step.id, field, event.target.value);
           openFlowCompletion(tableId, step.id, field, event.target.value, event.target.selectionStart);
         }}
         onClick={(event) => followReference(event, tableId)}
         onFocus={(event) => {
+          const cellKey = getCellKey(tableId, step.id, field);
+          lastStepTexts.current.delete(cellKey);
+          rememberStepText(cellKey, event.target.value);
           setFocusedCell({ tableId, stepId: step.id, field });
           openFlowCompletion(tableId, step.id, field, event.target.value, event.target.selectionStart);
         }}
@@ -1446,7 +1463,7 @@ export function UseCaseFlowEditor({
                       aria-label={`Referencia, fila ${index + 1}`}
                       className="flow-ref-input"
                       value={step.ref}
-                      placeholder="CA 1"
+                      placeholder={index === 0 ? 'ej. CA 1' : undefined}
                       onBlur={() => window.setTimeout(() => setCompletionState((current) => (current?.kind === 'ref' ? null : current)), 120)}
                       onChange={(event) => {
                         actions.updateRow(step.id, 'ref', event.target.value);
@@ -1459,25 +1476,27 @@ export function UseCaseFlowEditor({
                   </td>
                   <td className="flow-row-actions">
                     <div className="flow-row-action-menu">
-                      <button aria-label="Agregar fila debajo" type="button" title="Agregar fila debajo" onClick={() => actions.addRow(index, 'actor')}>
+                      {/* Out of the Tab order: Tab from Ref. goes to the next cell, and a space typed there must not press these. */}
+                      <button aria-label="Agregar fila debajo" tabIndex={-1} type="button" title="Agregar fila debajo" onClick={() => actions.addRow(index, 'actor')}>
                         <Plus size={13} />
                       </button>
                       <button
                         aria-label={collapsed ? 'Desplegar paso' : 'Plegar paso'}
                         disabled={!collapsed && lineCount <= 1}
+                        tabIndex={-1}
                         type="button"
                         title={shortcutLabel(collapsed ? 'Desplegar (⌘.)' : 'Plegar (⌘.)')}
                         onClick={() => setRowCollapsed(step.id, !collapsed)}
                       >
                         {collapsed ? <ChevronsUpDown size={13} /> : <ChevronsDownUp size={13} />}
                       </button>
-                      <button aria-label="Mover fila arriba" type="button" disabled={index === 0} onClick={() => actions.moveRow(index, -1)} title="Mover arriba">
+                      <button aria-label="Mover fila arriba" disabled={index === 0} tabIndex={-1} type="button" onClick={() => actions.moveRow(index, -1)} title="Mover arriba">
                         ↑
                       </button>
-                      <button aria-label="Mover fila abajo" type="button" disabled={index === rows.length - 1} onClick={() => actions.moveRow(index, 1)} title="Mover abajo">
+                      <button aria-label="Mover fila abajo" disabled={index === rows.length - 1} tabIndex={-1} type="button" onClick={() => actions.moveRow(index, 1)} title="Mover abajo">
                         ↓
                       </button>
-                      <button aria-label="Eliminar fila" type="button" onClick={() => actions.deleteRow(step.id)} title="Eliminar fila">
+                      <button aria-label="Eliminar fila" tabIndex={-1} type="button" onClick={() => actions.deleteRow(step.id)} title="Eliminar fila">
                         <Trash2 size={13} />
                       </button>
                     </div>
@@ -1622,7 +1641,7 @@ export function UseCaseFlowEditor({
                 <input
                   inputMode="numeric"
                   value={content.description.useCaseNumber}
-                  placeholder="3"
+                  placeholder="ej. 3"
                   onChange={(event) => updateDescription('useCaseNumber', event.target.value)}
                 />
               </label>
@@ -1795,7 +1814,12 @@ export function UseCaseFlowEditor({
                           desde paso {branch.number} {branchTable}
                         </button>
                       ) : (
-                        <span className="alternative-branch alternative-branch-missing">sin paso de origen</span>
+                        <span
+                          className="alternative-branch alternative-branch-missing"
+                          title="Ningún paso lleva a este camino todavía: escribí su código en la columna Ref. del paso desde el que sale."
+                        >
+                          sin paso de origen
+                        </span>
                       )}
                       <label className="alternative-first-step" title="Número con el que empieza este camino">
                         <span>empieza en</span>

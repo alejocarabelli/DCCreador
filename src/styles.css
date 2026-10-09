@@ -3898,9 +3898,13 @@ textarea {
   text-decoration: underline;
 }
 
-.alternative-branch-missing {
+/* Not a link: the branch rule above colors and weighs it like one, so this one has to win. */
+.alternative-flow-header .alternative-branch.alternative-branch-missing {
   color: var(--panel-muted-text);
+  cursor: default;
   font-style: italic;
+  font-weight: 400;
+  text-decoration: none;
 }
 
 .alternative-flow-header .alternative-first-step {

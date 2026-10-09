@@ -209,6 +209,24 @@ export const createStepLine = (level: number, text = ''): string => {
   return `${stepIndent.repeat(safeLevel - 1)}${Array.from({ length: safeLevel }, () => '1').join('.')}. ${text}`;
 };
 
+/**
+ * A step whose number was deleted while its cell had focus keeps its text and
+ * gets its number back: `before` is the last text of the cell whose first line
+ * was still a step, `after` the text when it lost focus. Only the first line
+ * counts; the table renumbers the digits afterwards.
+ */
+export const restoreLostStepMarker = (before: string, after: string): string => {
+  const previous = parseFlowLine(before.split('\n')[0] ?? '');
+  const lines = after.split('\n');
+  const first = parseFlowLine(lines[0] ?? '');
+
+  if (previous.kind !== 'step' || previous.number === undefined) return after;
+  if (first.kind !== 'text' || first.body.trim().length === 0) return after;
+
+  lines[0] = `${stepIndent.repeat(Math.max(0, previous.level - 1))}${previous.number}. ${(lines[0] ?? '').trimStart()}`;
+  return lines.join('\n');
+};
+
 // ---------------------------------------------------------------------------
 // Alternative paths.
 
