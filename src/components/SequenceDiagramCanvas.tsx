@@ -435,7 +435,7 @@ function SequenceDiagramCanvasImpl({
     const isHighlighted = highlighted?.kind === 'fragment' && highlighted.id === fragment.id;
     const isInvalidResize = boundaryResizePreview?.fragmentId === fragment.id && !boundaryResizePreview.isValid;
     const fragmentStroke = isInvalidResize ? '#ef4444' : isSelected || isHighlighted ? selectedStroke : fragmentStrokeBase;
-    const surfaceFill = box.depth > 0 ? nestedFragmentFill : fragmentFill;
+    const surfaceFill = box.depth % 2 === 1 ? nestedFragmentFill : fragmentFill;
     return (
       <g
         key={fragment.id}
@@ -460,7 +460,7 @@ function SequenceDiagramCanvasImpl({
           onFragmentPointerDown?.(fragment, event);
         }}
       >
-        <rect x={box.x} y={box.y} width={box.width} height={box.height} fill={surfaceFill} stroke={fragmentStroke} strokeWidth={isInvalidResize ? 2.4 : isSelected ? 1.8 : isHighlighted ? 2.2 : 1.1} cursor="move" />
+        <rect x={box.x} y={box.y} width={box.width} height={box.height} fill="transparent" stroke={fragmentStroke} strokeWidth={isInvalidResize ? 2.4 : isSelected ? 1.8 : isHighlighted ? 2.2 : 1.1} cursor="move" />
         {(() => {
           // The tab reads "operator name" like Enterprise Architect and grows with the name.
           const tabHeight = Math.max(22, box.headerHeight - 4);
@@ -578,6 +578,7 @@ function SequenceDiagramCanvasImpl({
             >
               {operand.guardLines.length > 0 ? (
                 <>
+                  <rect x={box.x + 8} y={operand.top + 3} width={guardSurfaceWidth} height={guardSurfaceHeight} rx="2" fill={surfaceFill} />
                   <rect x={box.x + 8} y={operand.top + 3} width={guardSurfaceWidth} height={guardSurfaceHeight} rx="2" fill={guardFill} opacity="0.82" />
                   <text x={box.x + 12} y={operand.top + 17} fill={guardText} fontSize="11" fontWeight={650} fontStyle="italic">
                     {operand.guardLines.map((line, lineIndex) => <tspan key={`${operand.id}:guard:${lineIndex}`} x={box.x + 12} dy={lineIndex === 0 ? 0 : 14}>{lineIndex === 0 ? `[${line}` : line}</tspan>)}
@@ -1132,18 +1133,43 @@ function SequenceDiagramCanvasImpl({
         const endY = layout.participantEndY.get(participant.id) ?? layout.height - 50;
         const identity = participantIdentities.get(participant.id);
         const lifelineStroke = lifelineNeutral ?? identity?.lifelineStroke ?? stroke;
-        const isTerminated = layout.terminatedParticipantIds?.has(participant.id) || layout.participantLayouts.get(participant.id)?.isTerminated;
         return (
           <g key={`life:${participant.id}`}>
             <line x1={x} y1={startY} x2={x} y2={endY} stroke={lifelineStroke} strokeDasharray="4 5" strokeWidth={1.05} opacity={0.86} />
-            {isTerminated ? (
-              <g data-sequence-lifeline-cross="true" stroke={lifelineStroke} strokeWidth="2">
-                <line x1={x - 8} y1={endY - 8} x2={x + 8} y2={endY + 8} />
-                <line x1={x + 8} y1={endY - 8} x2={x - 8} y2={endY + 8} />
-              </g>
-            ) : null}
           </g>
         );
+      })}
+      {/* Layers, bottom to top: lifelines, opaque fragment tints (so nesting never
+          stacks translucency), the same lifelines again but faint (the fragment
+          "covers" them), end-of-life crosses and activations (always crisp),
+          then fragment borders, tabs and guards. */}
+      {Array.from(layout.fragmentLayouts.entries())
+        .sort(([, a], [, b]) => a.depth - b.depth)
+        .map(([id, box]) => (
+          <rect key={`fragment-tint:${id}`} data-sequence-fragment-tint={id} x={box.x} y={box.y} width={box.width} height={box.height} fill={box.depth % 2 === 1 ? nestedFragmentFill : fragmentFill} pointerEvents="none" />
+        ))}
+      {content.participants.map((participant) => {
+        const x = layout.participantX.get(participant.id) ?? 0;
+        const startY = layout.participantStartY.get(participant.id) ?? SEQUENCE_HEADER_Y + SEQUENCE_HEADER_HEIGHT;
+        const endY = layout.participantEndY.get(participant.id) ?? layout.height - 50;
+        const identity = participantIdentities.get(participant.id);
+        const lifelineStroke = lifelineNeutral ?? identity?.lifelineStroke ?? stroke;
+        return (
+          <line key={`life-faint:${participant.id}`} x1={x} y1={startY} x2={x} y2={endY} stroke={lifelineStroke} strokeDasharray="4 5" strokeWidth={1.05} opacity={0.6} pointerEvents="none" />
+        );
+      })}
+      {content.participants.map((participant) => {
+        const x = layout.participantX.get(participant.id) ?? 0;
+        const endY = layout.participantEndY.get(participant.id) ?? layout.height - 50;
+        const identity = participantIdentities.get(participant.id);
+        const lifelineStroke = lifelineNeutral ?? identity?.lifelineStroke ?? stroke;
+        const isTerminated = layout.terminatedParticipantIds?.has(participant.id) || layout.participantLayouts.get(participant.id)?.isTerminated;
+        return isTerminated ? (
+          <g key={`cross:${participant.id}`} data-sequence-lifeline-cross="true" stroke={lifelineStroke} strokeWidth="2">
+            <line x1={x - 8} y1={endY - 8} x2={x + 8} y2={endY + 8} />
+            <line x1={x + 8} y1={endY - 8} x2={x - 8} y2={endY + 8} />
+          </g>
+        ) : null;
       })}
 
       {content.showActivations ? layout.activationLayouts.map((activation) => {
