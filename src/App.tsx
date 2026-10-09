@@ -1,4 +1,4 @@
-import { accessorAttribute, importClassesFromSequences } from './utils/sequenceClassImport';
+import { accessorAttribute, importChangesModel, importClassesFromSequences } from './utils/sequenceClassImport';
 import { createId } from './utils/id';
 import { artifactTypeInfo } from './constants/artifactTypes';
 import { createExampleProject, findExampleProject } from './utils/exampleProject';
@@ -495,6 +495,39 @@ function App() {
     [activeProject, updateHistory, updateProjectArtifactContent],
   );
 
+  const handleCompleteClassMethodParameters = useCallback(
+    (artifactId: string, nodeId: string, methodId: string, parameters: string): void => {
+      if (activeProject === null) return;
+      const modelArtifact = activeProject.artifacts.find(
+        (candidate): candidate is ClassModelArtifact => candidate.id === artifactId
+          && (candidate.type === 'class-diagram' || candidate.type === 'class-sequence-diagram'),
+      );
+      const classNode = modelArtifact?.content.nodes.find((node) => node.id === nodeId);
+      const method = classNode?.data.methods.find((candidate) => candidate.id === methodId);
+      // Parameters the student already wrote are never replaced.
+      if (modelArtifact === undefined || method === undefined || method.parameters.trim() !== '' || parameters.trim() === '') return;
+      const previousContent = cloneArtifactContent(modelArtifact);
+      const nextContent = {
+        ...modelArtifact.content,
+        nodes: modelArtifact.content.nodes.map((node) => node.id === nodeId
+          ? { ...node, data: { ...node.data, methods: node.data.methods.map((candidate) => candidate.id === methodId ? { ...candidate, parameters } : candidate) } }
+          : node),
+      };
+      const normalizedNextContent = cloneContentForType(modelArtifact.type, nextContent);
+      const historyKey = `${activeProject.id}:${modelArtifact.id}`;
+      updateHistory((currentHistory) => {
+        const modelHistory = currentHistory[historyKey] ?? { past: [], future: [] };
+        return {
+          ...currentHistory,
+          [historyKey]: changeHistory(modelHistory, previousContent, true, MAX_HISTORY_ENTRIES),
+        };
+      });
+      historyBurstRef.current = null;
+      updateProjectArtifactContent(activeProject.id, modelArtifact.id, normalizedNextContent, { alreadyNormalized: true });
+    },
+    [activeProject, updateHistory, updateProjectArtifactContent],
+  );
+
   const handleImportSequenceIntoClassModel = useCallback(
     (artifactId: string, sequenceContent: SequenceDiagramContent): void => {
       if (activeProject === null || activeArtifact?.type !== 'sequence-diagram') return;
@@ -505,7 +538,7 @@ function App() {
       if (!modelArtifact) return;
       const { content, summary } = importClassesFromSequences(modelArtifact.content, [sequenceContent]);
       const needsLink = modelArtifact.type === 'class-sequence-diagram' && !modelArtifact.content.linkedSequenceDiagramIds.includes(activeArtifact.id);
-      if (!needsLink && summary.createdClasses + summary.addedMethods + summary.addedAttributes === 0) return;
+      if (!needsLink && !importChangesModel(summary)) return;
       const previousContent = cloneArtifactContent(modelArtifact);
       const nextContent = modelArtifact.type === 'class-sequence-diagram'
         ? { ...content, linkedSequenceDiagramIds: [...new Set([...modelArtifact.content.linkedSequenceDiagramIds, activeArtifact.id])] }
@@ -947,6 +980,7 @@ function App() {
                           handleSelectArtifact(activeProject.id, targetArtifactId)
                         }
                         onCreateClassMethod={handleCreateClassMethodFromSequence}
+                        onCompleteClassMethodParameters={handleCompleteClassMethodParameters}
                         onImportSequenceIntoClassModel={handleImportSequenceIntoClassModel}
                         onCreateSequenceModel={() => createClassSequenceDiagramArtifact(activeProject.id, 'Clases de secuencias', activeArtifact.id)}
                         onChangeContent={handleChangeProjectContent}

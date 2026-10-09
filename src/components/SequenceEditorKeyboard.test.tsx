@@ -345,6 +345,32 @@ describe('keyboard fragment creation', () => {
     expect(lastContent().items.find((item) => item.kind === 'fragment')).toMatchObject({ operator: 'loop', name: 'cada pedido' });
   });
 
+  const wrapExistingFragment = (operator: 'loop' | 'alt') => {
+    threeLifelines();
+    const inner = { ...createSequenceMessage('synchronous', 'a', 'b'), id: 'inner', name: 'buscar' };
+    const loop = { ...createSequenceFragment('loop'), id: 'existing', operands: [{ ...createSequenceFragment('loop').operands[0], items: [inner] }] };
+    artifact = { ...artifact, content: { ...artifact.content, items: [loop] } };
+    const first = renderEditor(); select(first, { kind: 'fragment', id: 'existing' }); renderEditor();
+    press('m'); renderEditor(); press('f'); let tree = renderEditor();
+    for (let guard = 0; guard < 6 && (composerState(tree) as { fragmentOperator: string }).fragmentOperator !== operator; guard += 1) { press('ArrowDown'); tree = renderEditor(); }
+    press('Enter');
+    return renderEditor();
+  };
+
+  it('opens the tab name when a new loop wraps an existing fragment', () => {
+    const tree = wrapExistingFragment('loop');
+    const outer = lastContent().items[0];
+    expect(outer).toMatchObject({ kind: 'fragment', operator: 'loop' });
+    expect(outer.id).not.toBe('existing');
+    expect(inlineInput(tree)?.props.value).toBe('');
+  });
+
+  it('opens the guard of the first branch when a new alt wraps an existing fragment', () => {
+    const tree = wrapExistingFragment('alt');
+    expect(lastContent().items[0]).toMatchObject({ kind: 'fragment', operator: 'alt' });
+    expect(inlineInput(tree)?.props.value).toBe('condición');
+  });
+
   it('Esc leaves the fragment with its default name and closes the editor', () => {
     threeLifelines();
     createFragment('a');

@@ -28,12 +28,32 @@ const normalizeKey = (value: string): string => value.trim().toLocaleLowerCase()
 export const participantClassName = (classifierName: string, name: string): string =>
   classifierName.replace(/^:+/, '').trim() || name.trim();
 
-/** Splits at the commas that are not inside `<…>`, `(…)` or `[…]`: `Map<K, V>` stays whole. */
+/**
+ * Splits at the commas that are not inside `<…>`, `(…)` or `[…]` nor inside a
+ * quoted string (`\` escapes the next character): `Map<K, V>` and `"a, b"` stay whole.
+ */
 const splitTopLevel = (text: string): string[] => {
   const parts: string[] = [];
   let depth = 0;
+  let quote: string | null = null;
   let current = '';
-  for (const char of text) {
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (quote !== null) {
+      current += char;
+      if (char === '\\' && index + 1 < text.length) {
+        index += 1;
+        current += text[index];
+      } else if (char === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (char === '"' || char === "'" || char === '`') {
+      quote = char;
+      current += char;
+      continue;
+    }
     if (char === ',' && depth === 0) {
       parts.push(current);
       current = '';
@@ -45,6 +65,8 @@ const splitTopLevel = (text: string): string[] => {
   }
   return [...parts, current];
 };
+
+const literalWords = new Set(['true', 'false', 'null', 'undefined']);
 
 const declaredParameter = /^([A-Za-zÁÉÍÓÚÜÑáéíóúüñ_][\wÁÉÍÓÚÜÑáéíóúüñ]*)\s*(?::\s*(.*))?$/;
 
@@ -58,6 +80,8 @@ const parametersFromText = (text: string): string =>
   splitTopLevel(text)
     .map((part) => declaredParameter.exec(part.trim()))
     .filter((match): match is RegExpExecArray => match !== null)
+    // `true` or `null` alone are values; `nombre: Tipo` always declares.
+    .filter(([, name, type]) => type !== undefined || !literalWords.has(name.toLocaleLowerCase()))
     .map(([, name, type]) => (type?.trim() ? `${name}: ${type.trim()}` : name))
     .join(', ');
 
@@ -136,6 +160,27 @@ const operationIsPending = (methods: ClassMethod[], operation: ImportedOperation
   const existing = methods.filter((method) => sameOperation(method, operation));
   return existing.length === 0 || (existing.every((method) => method.parameters.trim() === '') && operation.parameters.trim() !== '');
 };
+
+/**
+ * What a selected call means for the methods of its class: the operation it
+ * declares, the method that already has its name, and the parameters that
+ * method can still take (only when none of its homonyms has any).
+ */
+export const resolveMessageOperation = (
+  methods: ClassMethod[],
+  message: SequenceMessage,
+): { operation: ImportedOperation; existing: ClassMethod | undefined; parametersToAdd: string | undefined } | null => {
+  const operation = operationFromMessage(message);
+  if (operation === null) return null;
+  const homonyms = methods.filter((method) => sameOperation(method, operation));
+  const existing = homonyms[0];
+  const complete = existing !== undefined && homonyms.every((method) => needsParameters(method, operation));
+  return { operation, existing, parametersToAdd: complete ? operation.parameters : undefined };
+};
+
+/** True when an import changed the model: new elements or parameters completed. */
+export const importChangesModel = (summary: SequenceClassImportSummary): boolean =>
+  summary.createdClasses + summary.addedMethods + summary.addedAttributes + summary.updatedMethods > 0;
 
 /**
  * The class a participant stands for: the one it is linked to, or else the

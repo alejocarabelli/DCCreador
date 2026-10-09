@@ -1,4 +1,4 @@
-import { findSequenceMessagesMissingInModel, planSequenceClassImport, resolveParticipantClassNode } from '../utils/sequenceClassImport';
+import { findSequenceMessagesMissingInModel, planSequenceClassImport, resolveMessageOperation, resolveParticipantClassNode } from '../utils/sequenceClassImport';
 import {
   Download,
   Eye,
@@ -192,6 +192,7 @@ type SequenceDiagramEditorProps = {
   onNavigateToArtifact?: (artifactId: string) => void;
   onImportSequenceIntoClassModel?: (modelArtifactId: string, sequenceContent: SequenceDiagramContent) => void;
   onCreateClassMethod?: (artifactId: string, nodeId: string, method: ClassMethod) => void;
+  onCompleteClassMethodParameters?: (artifactId: string, nodeId: string, methodId: string, parameters: string) => void;
   onCreateSequenceModel?: () => void;
   onChangeContent: (content: SequenceDiagramContent, options?: { separateHistoryEntry?: boolean; alreadyNormalized?: boolean }) => void;
   onRedo: () => void;
@@ -338,6 +339,7 @@ export function SequenceDiagramEditor({
   saveStatus = 'saved',
   onNavigateToArtifact,
   onCreateClassMethod,
+  onCompleteClassMethodParameters,
   onImportSequenceIntoClassModel,
   onCreateSequenceModel,
   onChangeContent,
@@ -3297,37 +3299,30 @@ export function SequenceDiagramEditor({
 
     const participant = content.participants.find((candidate) => candidate.id === selectedItem.targetId);
     const classNode = participant ? resolveParticipantClassNode(participant, associatedClassDiagram.content) : undefined;
-    // The message's arguments are what this call passes, not the method's
-    // signature: the method is matched and created by name alone.
-    const methodName = selectedItem.name.replace(/\(.*$/, '').trim();
+    // The call's declared parameters travel with it, exactly as in "Traer"
+    // from Clases de secuencias; the shared importer decides what they are.
+    const resolved = resolveMessageOperation(classNode?.data.methods ?? [], selectedItem);
 
     if (classNode === undefined && onImportSequenceIntoClassModel) {
       importIntoModel();
       return;
     }
 
-    if (classNode === undefined || methodName.length === 0) {
+    if (classNode === undefined || resolved === null) {
       showFeedback('Seleccioná una clase y escribí una operación antes de sincronizar.');
       return;
     }
 
-    const matchingMethod = classNode.data.methods.find((method) =>
-      method.name.replace(/\(.*$/, '').trim().toLocaleLowerCase() === methodName.toLocaleLowerCase(),
-    );
-
-    if (matchingMethod !== undefined) {
-      updateMessageEditModel(selectedItem.id, { operationMethodId: matchingMethod.id });
+    if (resolved.existing !== undefined) {
+      if (resolved.parametersToAdd !== undefined && resolved.parametersToAdd !== '') {
+        onCompleteClassMethodParameters?.(associatedClassDiagram.id, classNode.id, resolved.existing.id, resolved.parametersToAdd);
+      }
+      updateMessageEditModel(selectedItem.id, { operationMethodId: resolved.existing.id });
       showFeedback('Mensaje vinculado con el método existente.');
       return;
     }
 
-    const method: ClassMethod = {
-      id: createId(),
-      visibility: '+',
-      name: methodName,
-      parameters: '',
-      returnType: selectedItem.returnType.trim(),
-    };
+    const method: ClassMethod = { id: createId(), visibility: '+', ...resolved.operation };
     onCreateClassMethod(associatedClassDiagram.id, classNode.id, method);
     updateMessageEditModel(selectedItem.id, { operationMethodId: method.id });
     showFeedback(`Método ${method.name} agregado a «${associatedClassDiagram.name}».`);
