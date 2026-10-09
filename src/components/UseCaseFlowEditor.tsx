@@ -333,12 +333,14 @@ export function UseCaseFlowEditor({
   };
 
   const commitContent = useCallback((nextContent: UseCaseFlowContent): void => {
-    onChangeContent(normalizeUseCaseFlowContent(nextContent));
-  }, [onChangeContent]);
+    const normalized = normalizeUseCaseFlowContent(nextContent);
+    if (JSON.stringify(normalized) === JSON.stringify(content)) return;
+    onChangeContent(normalized);
+  }, [content, onChangeContent]);
 
   const commitNumberedContent = useCallback((nextContent: UseCaseFlowContent): void => {
-    onChangeContent(normalizeUseCaseFlowContent(normalizeUseCaseFlowContentNumbering(nextContent)));
-  }, [onChangeContent]);
+    commitContent(normalizeUseCaseFlowContentNumbering(nextContent));
+  }, [commitContent]);
 
   const updateDescription = (field: DescriptionField, value: string): void => {
     commitContent({
@@ -450,7 +452,8 @@ export function UseCaseFlowEditor({
     }
 
     updateDescription(field, normalized.value);
-    setStateBulletCaretAfterRender(textarea, normalized.lineIndex, normalized.markerLength);
+    setCaretPositionAfterRender(textarea, normalized.caretPosition, normalized.value);
+    openStateCompletion(field, normalized.value, normalized.caretPosition);
   };
 
   const applyStateFieldAction = (

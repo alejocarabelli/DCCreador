@@ -12,8 +12,14 @@ export const setCaretAfterRender = (
   });
 };
 
-export const setCaretPositionAfterRender = (element: HTMLTextAreaElement | HTMLInputElement, position: number): void => {
+export const setCaretPositionAfterRender = (
+  element: HTMLTextAreaElement | HTMLInputElement,
+  position: number,
+  expectedValue?: string,
+): void => {
   window.requestAnimationFrame(() => {
+    // A later keystroke must not be moved by an earlier normalization.
+    if (expectedValue !== undefined && element.value !== expectedValue) return;
     element.focus();
     element.setSelectionRange(position, position);
   });

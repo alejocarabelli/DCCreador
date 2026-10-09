@@ -36,7 +36,47 @@ describe('flow text editing', () => {
   it('converts a state bullet shortcut at its current indentation level', () => {
     const value = '    - Pendiente';
     expect(normalizeStateBulletShortcut(value, value.length)).toEqual({
-      lineIndex: 0, markerLength: 6, value: '    ◦ Pendiente',
+      caretPosition: value.length, lineIndex: 0, markerLength: 6, value: '    ◦ Pendiente',
+    });
+  });
+
+  it('leaves typing after an existing state bullet to the native caret', () => {
+    const heading = 'Instancia de Libro con:';
+    const insertion = insertStateBulletLine(heading, heading.length);
+    let value = insertion.value;
+    let position = value.length;
+
+    for (const letter of 'titulo igual a vacío') {
+      value = value.slice(0, position) + letter + value.slice(position);
+      position += letter.length;
+      expect(normalizeStateBulletShortcut(value, position)).toBeNull();
+    }
+
+    expect(value).toBe(`${heading}\n• titulo igual a vacío`);
+    expect(position).toBe(value.length);
+  });
+
+  it.each(['•', '◦', '▪'])('does not move the caret when editing a formatted %s bullet', (symbol) => {
+    const indent = symbol === '•' ? '' : symbol === '◦' ? '    ' : '        ';
+    const value = `${indent}${symbol} titulo igual a vacío`;
+    expect(normalizeStateBulletShortcut(value, value.length)).toBeNull();
+    expect(normalizeStateBulletShortcut(value, value.indexOf('igual'))).toBeNull();
+  });
+
+  it('preserves the body offset when replacing a marker with a different length', () => {
+    const value = 'Instancia de Libro con:\n  -uno más\nOtra línea';
+    const position = value.indexOf(' más');
+    expect(normalizeStateBulletShortcut(value, position)).toEqual({
+      caretPosition: position - 1,
+      lineIndex: 1,
+      markerLength: 2,
+      value: 'Instancia de Libro con:\n• uno más\nOtra línea',
+    });
+  });
+
+  it('keeps a pasted shortcut caret after the pasted body', () => {
+    expect(normalizeStateBulletShortcut('- uno', 5)).toEqual({
+      caretPosition: 5, lineIndex: 0, markerLength: 2, value: '• uno',
     });
   });
 
