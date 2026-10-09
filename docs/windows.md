@@ -30,7 +30,7 @@ En desarrollo los respaldos van a `Respaldos-dev` (o a `MODELADOR_BACKUP_DIR` si
 
 Los tests de la parte nativa: `cargo test --manifest-path src-tauri/Cargo.toml` (necesita `npm run build` antes).
 
-Al subir de versión, cambiarla también en `src-tauri/tauri.conf.json` y `src-tauri/Cargo.toml`.
+Al subir de versión, cambiar solo `version` en `package.json` (la app, `src-tauri/tauri.conf.json` y el macOS la toman de ahí). `src-tauri/Cargo.toml` no la usa para el instalador; conviene mantenerlo igual.
 
 ## El instalador
 

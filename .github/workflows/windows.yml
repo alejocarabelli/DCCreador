@@ -32,7 +32,7 @@ jobs:
       - name: Nombrar el instalador
         shell: pwsh
         run: |
-          $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
           $installer = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
           New-Item -ItemType Directory -Force build | Out-Null
           Copy-Item $installer.FullName "build/Modelador-de-Sistemas-$version-Windows.exe"
