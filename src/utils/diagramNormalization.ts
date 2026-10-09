@@ -261,7 +261,9 @@ export const normalizeUseCaseFlowContent = (
     : [];
 
   return {
-    classDiagramArtifactId: normalizeString(content?.classDiagramArtifactId) || undefined,
+    classDiagramArtifactId: content?.classDiagramArtifactId === null
+      ? null
+      : normalizeString(content?.classDiagramArtifactId) || undefined,
     description: normalizeUseCaseFlowDescription(content?.description),
     basicFlow: ensureUniqueIds(basicFlow),
     alternativeFlows: ensureUniqueIds(alternativeFlows),

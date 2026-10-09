@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import demo from '../../fixtures/demo-gestion-tramites.json';
 import guide from '../../docs/artifact-json-guide.md?raw';
-import { normalizeDiagramProject } from './diagramNormalization';
+import { normalizeDiagramProject, normalizeUseCaseFlowContent } from './diagramNormalization';
 import type { ClassDiagramArtifact, ClassSequenceDiagramArtifact, SequenceDiagramArtifact, SequenceTimelineItem, UseCaseFlowArtifact, UseCaseModelArtifact } from '../types/diagram';
 import { extractImportableArtifacts, serializeArtifact } from './artifactFile';
 import { extractImportableProjects } from './projectImport';
@@ -51,6 +51,18 @@ describe('artifact JSON files', () => {
       expect(edge.source).not.toBe(boundary.id);
       expect(edge.target).not.toBe(boundary.id);
     }
+  });
+
+  it('keeps an explicit "Sin referencia" through export and import, apart from a never-chosen flow', () => {
+    const flowWith = (classDiagramArtifactId: string | null | undefined): UseCaseFlowArtifact => ({
+      id: 'flow', type: 'use-case-flow', name: 'Flujo', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+      content: { ...normalizeUseCaseFlowContent(undefined), classDiagramArtifactId },
+    });
+    const roundTrip = (artifact: UseCaseFlowArtifact): UseCaseFlowArtifact =>
+      extractImportableArtifacts(JSON.parse(serializeArtifact(artifact)))![0] as UseCaseFlowArtifact;
+    expect(JSON.parse(serializeArtifact(flowWith(null))).content.classDiagramArtifactId).toBeNull();
+    expect(roundTrip(flowWith(null)).content.classDiagramArtifactId).toBeNull();
+    expect(roundTrip(flowWith(undefined)).content.classDiagramArtifactId).toBeUndefined();
   });
 
   it('assembles the documented linked project without broken classifier, method or flow references', () => {

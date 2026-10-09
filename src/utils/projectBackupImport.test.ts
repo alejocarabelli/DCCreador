@@ -68,4 +68,17 @@ describe('recovered copy links', () => {
     expect(copy.activeArtifactId).toBe(flow.id);
     expect(original.artifacts[1].id).toBe('flow');
   });
+
+  it('keeps an explicit "Sin referencia" in the recovered copy', () => {
+    const original = normalizeDiagramProject({
+      ...project,
+      artifacts: [project.artifacts[0], {
+        id: 'flow', type: 'use-case-flow', name: 'Flujo', createdAt: '', updatedAt: '',
+        content: { classDiagramArtifactId: null },
+      }] as DiagramProject['artifacts'],
+      activeArtifactId: 'flow',
+    });
+    const copy = copyProject(original, `${original.name} (recuperado)`);
+    expect((copy.artifacts[1] as UseCaseFlowArtifact).content.classDiagramArtifactId).toBeNull();
+  });
 });
