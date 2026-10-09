@@ -753,7 +753,7 @@ export function NotebookSketch({ block, notebookPoints, onChange, onHeightChange
           />
         ) : null}
 
-        {limitHint ? <p className="notebook-sketch-hint" role="status">Este boceto llegó al límite de trazos.</p> : null}
+        {limitHint ? <p className="notebook-sketch-hint" role="status">Llegaste al máximo de figuras o trazos. Podés seguir en otro boceto.</p> : null}
 
         <div
           aria-label="Alto del boceto"

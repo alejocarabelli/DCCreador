@@ -32,6 +32,14 @@ describe('projects storage', () => {
     expect(JSON.parse(localStorage.getItem('design-projects:v2') ?? '{}').version).toBe(2);
   });
 
+  it('distinguishes inaccessible storage from data waiting for preservation', () => {
+    vi.spyOn(localStorage, 'getItem').mockImplementation(() => { throw new Error('unavailable'); });
+    const loaded = loadProjects();
+    expect(loaded.storageUnavailable).toBe(true);
+    expect(loaded.recoveryRaw).toBeNull();
+    expect(loaded.warning).toBe('No se pudo abrir el almacenamiento de la app. Tus cambios de esta sesión se guardan solo en los respaldos de Documentos.');
+  });
+
   it('preserves corrupt data and prevents the initial empty overwrite', () => {
     localStorage.setItem('design-projects:v2', '{not valid json');
 

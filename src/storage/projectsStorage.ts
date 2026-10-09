@@ -12,6 +12,7 @@ type StoredProjectsEnvelope = {
 export type LoadProjectsResult = {
   projects: DiagramProject[];
   skipInitialSave: boolean;
+  storageUnavailable: boolean;
   warning: string | null;
   recoveryRaw: string | null;
 };
@@ -40,6 +41,18 @@ const contentLost = (raw: unknown, normalized: unknown): boolean => {
     || messageCount(raw.items) > messageCount(clean.items);
 };
 
+const notebookLost = (raw: unknown, normalized: unknown): boolean => {
+  if (raw === undefined || raw === null) return false;
+  if (!isRecord(raw) || !Array.isArray(raw.blocks)) return true;
+  const clean = isRecord(normalized) && Array.isArray(normalized.blocks) ? normalized.blocks : [];
+  if (raw.blocks.some((block) => isRecord(block) && block.kind === 'sketch'
+    && block.shapes !== undefined && !Array.isArray(block.shapes))) return true;
+  if (raw.blocks.length > clean.length) return true;
+  const shapeCount = (blocks: unknown[]): number => blocks.reduce<number>((total, block) =>
+    total + (isRecord(block) && block.kind === 'sketch' ? collectionSize(block.shapes) : 0), 0);
+  return shapeCount(raw.blocks) > shapeCount(clean);
+};
+
 const projectLost = (raw: unknown, normalized: DiagramProject): boolean => {
   if (!isRecord(raw)) return true;
   if (!Array.isArray(raw.artifacts)) return contentLost(raw.content, normalized.artifacts[0]?.content);
@@ -48,7 +61,8 @@ const projectLost = (raw: unknown, normalized: DiagramProject): boolean => {
     if (!isRecord(artifact)) return true;
     const clean = normalized.artifacts.find((candidate) => candidate.id === artifact.id)
       ?? normalized.artifacts[index];
-    return clean === undefined || clean.type !== artifact.type || contentLost(artifact.content, clean.content);
+    return clean === undefined || clean.type !== artifact.type || contentLost(artifact.content, clean.content)
+      || notebookLost(artifact.notebook, clean.notebook);
   });
 };
 
@@ -82,14 +96,15 @@ export const loadProjects = (): LoadProjectsResult => {
       projects: [],
       skipInitialSave: true,
       recoveryRaw: null,
-      warning: 'El almacenamiento local no está disponible. Los cambios de esta sesión no se guardarán.',
+      storageUnavailable: true,
+      warning: 'No se pudo abrir el almacenamiento de la app. Tus cambios de esta sesión se guardan solo en los respaldos de Documentos.',
     };
   }
 
   const rawProjects = currentProjects ?? legacyProjects;
 
   if (rawProjects === null) {
-    return { projects: [], skipInitialSave: false, warning: null, recoveryRaw: null };
+    return { projects: [], skipInitialSave: false, storageUnavailable: false, warning: null, recoveryRaw: null };
   }
 
   try {
@@ -97,6 +112,7 @@ export const loadProjects = (): LoadProjectsResult => {
     return {
       projects,
       skipInitialSave: loss,
+      storageUnavailable: false,
       warning: loss ? RECOVERY_WARNING : null,
       recoveryRaw: loss ? rawProjects : null,
     };
@@ -104,6 +120,7 @@ export const loadProjects = (): LoadProjectsResult => {
     return {
       projects: [],
       skipInitialSave: true,
+      storageUnavailable: false,
       warning: RECOVERY_WARNING,
       recoveryRaw: rawProjects,
     };

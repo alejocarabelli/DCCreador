@@ -6,7 +6,7 @@ import { NotebookBlockView, type NotebookBlockViewProps } from './NotebookBlockV
 import { ToolButton } from '../ui/Toolbar';
 import { NotebookSketch } from './NotebookSketch';
 import { NotebookTextField } from './NotebookTextField';
-import { MAX_TEXT_LENGTH } from '../../utils/artifactNotebook';
+import { MAX_SHAPES_PER_SKETCH, MAX_TEXT_LENGTH } from '../../utils/artifactNotebook';
 
 vi.mock('react', async (importOriginal) => ({
   ...await importOriginal<typeof import('react')>(),
@@ -107,4 +107,24 @@ it('delivers the focused sketch text before the sheet flushes its blocks', () =>
   (input.props.onChange as (event: unknown) => void)({ currentTarget: element });
   window.dispatchEvent(new Event('modelador:flush-drafts'));
   expect(onChange).toHaveBeenCalledExactlyOnceWith([{ ...options.block.shapes[0], text: 'último texto' }]);
+});
+
+
+it.each([MAX_SHAPES_PER_SKETCH, MAX_SHAPES_PER_SKETCH + 1])('shows a limit notice when drawing on a sketch with %i figures', (count) => {
+  const onChange = vi.fn();
+  const shapes = Array.from({ length: count }, (_, index) => ({
+    id: `s${index}`, kind: 'rect' as const, color: 'ink' as const, x: index, y: 0, w: 10, h: 10,
+  }));
+  const options = { block: { id: 's', height: 660, shapes }, notebookPoints: 0, onChange, onHeightChange: vi.fn() };
+  runtime.begin();
+  const surface = find(NotebookSketch(options), 'svg')!;
+  const setPointerCapture = vi.fn();
+  (surface.props.onPointerDown as (event: unknown) => void)({
+    button: 0, clientX: 0, clientY: 0, pointerId: 1, currentTarget: { setPointerCapture },
+  });
+  expect(onChange).not.toHaveBeenCalled();
+  expect(setPointerCapture).not.toHaveBeenCalled();
+  runtime.begin();
+  expect(JSON.stringify(NotebookSketch(options))).toContain('Llegaste al máximo de figuras o trazos. Podés seguir en otro boceto.');
+  expect(shapes).toHaveLength(count);
 });

@@ -139,15 +139,16 @@ export const setNotebookInProject = (
 export type DiagramSaveStatus = 'saved' | 'saving' | 'error';
 
 export const useProjects = () => {
-  const [initialLoad] = useState(loadProjects);
-  const [projects, setProjects] = useState<DiagramProject[]>(initialLoad.projects);
+  const [storageLoad, setStorageLoad] = useState(loadProjects);
+  const [projects, setProjects] = useState<DiagramProject[]>(storageLoad.projects);
   // Start at the project archive so opening the app does not silently jump into
   // an arbitrary artifact. Creating or selecting a project still opens it as before.
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
-  const [storageWarning, setStorageWarning] = useState<string | null>(initialLoad.warning);
-  const [saveStatus, setSaveStatus] = useState<DiagramSaveStatus>(initialLoad.skipInitialSave ? 'error' : 'saved');
-  const [saveBlocked, setSaveBlocked] = useState(initialLoad.skipInitialSave);
-  const saveBlockedRef = useRef(initialLoad.skipInitialSave);
+  const [storageWarning, setStorageWarning] = useState<string | null>(storageLoad.warning);
+  const [saveStatus, setSaveStatus] = useState<DiagramSaveStatus>(storageLoad.skipInitialSave ? 'error' : 'saved');
+  const [saveBlocked, setSaveBlocked] = useState(storageLoad.recoveryRaw !== null);
+  const saveBlockedRef = useRef(storageLoad.recoveryRaw !== null);
+  const storageUnavailableRef = useRef(storageLoad.storageUnavailable);
   const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
   const latestProjectsRef = useRef(projects);
   const hasPendingSaveRef = useRef(false);
@@ -157,6 +158,7 @@ export const useProjects = () => {
     at: readLastBackupAt(),
     error: null,
   });
+  const lastBackupAtRef = useRef(backup.at);
   const backupQueueRef = useRef<Promise<void>>(Promise.resolve());
   const backupTimeoutRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
@@ -173,19 +175,19 @@ export const useProjects = () => {
   }, []);
 
   useEffect(() => {
-    if (initialLoad.recoveryRaw === null) return;
+    if (storageLoad.recoveryRaw === null) return;
     let cancelled = false;
-    void preserveRecoveryCopy(initialLoad.recoveryRaw).then((preserved) => {
+    void preserveRecoveryCopy(storageLoad.recoveryRaw).then((preserved) => {
       if (cancelled || !preserved) return;
       setRecoveryNotice('No se pudo leer todo el trabajo guardado. Se guardó una copia en Documentos › Modelador de Sistemas › Respaldos.');
       allowSaving();
     });
     return () => { cancelled = true; };
-  }, [initialLoad, allowSaving]);
+  }, [storageLoad, allowSaving]);
 
   const downloadRecoveryCopy = async (): Promise<boolean> => {
-    if (initialLoad.recoveryRaw === null) return false;
-    const outcome = await saveBlob(new Blob([initialLoad.recoveryRaw], { type: 'application/json' }), `recuperacion-${Date.now()}.json`);
+    if (storageLoad.recoveryRaw === null) return false;
+    const outcome = await saveBlob(new Blob([storageLoad.recoveryRaw], { type: 'application/json' }), `recuperacion-${Date.now()}.json`);
     if (outcome.status === 'saved') {
       if (outcome.path === null) return true;
       setRecoveryNotice('No se pudo leer todo el trabajo guardado. Se guardó una copia de seguridad del original.');
@@ -204,13 +206,14 @@ export const useProjects = () => {
   useEffect(() => {
     latestProjectsRef.current = projects;
 
-    if (saveBlockedRef.current) {
+    if (saveBlockedRef.current || storageUnavailableRef.current) {
       return;
     }
 
     setSaveStatus('saving');
     hasPendingSaveRef.current = true;
     const timeoutId = window.setTimeout(() => {
+      if (saveBlockedRef.current || storageUnavailableRef.current) return;
       const result = saveProjects(projects);
       hasPendingSaveRef.current = false;
       setStorageWarning(result.error);
@@ -222,11 +225,11 @@ export const useProjects = () => {
     }, 250);
 
     return () => window.clearTimeout(timeoutId);
-  }, [projects, saveBlocked]);
+  }, [projects, saveBlocked, storageLoad.storageUnavailable]);
 
   useEffect(() => {
     const flushPendingSave = (): void => {
-      if (saveBlockedRef.current || !hasPendingSaveRef.current) {
+      if (saveBlockedRef.current || storageUnavailableRef.current || !hasPendingSaveRef.current) {
         return;
       }
 
@@ -261,7 +264,7 @@ export const useProjects = () => {
     if (!isBackupAvailable() || saveBlockedRef.current) return;
     const task = backupQueueRef.current.then(async () => {
       if (!mountedRef.current || saveBlockedRef.current) return;
-      const last = readLastBackupAt();
+      const last = readLastBackupAt() ?? lastBackupAtRef.current;
       if (!force && last !== null && Date.now() - last < BACKUP_INTERVAL_MS) {
         if (backupTimeoutRef.current !== null) window.clearTimeout(backupTimeoutRef.current);
         backupTimeoutRef.current = window.setTimeout(() => {
@@ -273,6 +276,7 @@ export const useProjects = () => {
       if (backupTimeoutRef.current !== null) window.clearTimeout(backupTimeoutRef.current);
       backupTimeoutRef.current = null;
       const result = await writeBackup(snapshot ?? latestProjectsRef.current);
+      if (result.at !== null) lastBackupAtRef.current = result.at;
       if (mountedRef.current && (result.at !== null || result.error !== null)) setBackup(result);
     });
     backupQueueRef.current = task;
@@ -296,6 +300,30 @@ export const useProjects = () => {
       if (backupTimeoutRef.current !== null) window.clearTimeout(backupTimeoutRef.current);
     };
   }, [runBackup]);
+
+  const retryStorage = (): void => {
+    const loaded = loadProjects();
+    if (loaded.storageUnavailable) {
+      setStorageWarning(loaded.warning);
+      return;
+    }
+    saveBlockedRef.current = loaded.recoveryRaw !== null;
+    storageUnavailableRef.current = false;
+    hasPendingSaveRef.current = false;
+    setSaveBlocked(saveBlockedRef.current);
+    setStorageLoad(loaded);
+    setStorageWarning(loaded.warning);
+    setSaveStatus(loaded.skipInitialSave ? 'error' : 'saved');
+    setProjects((sessionProjects) => {
+      const stored = new Map(loaded.projects.map((project) => [project.id, project]));
+      const session = sessionProjects.flatMap((project) => {
+        const existing = stored.get(project.id);
+        if (existing === undefined) return [project];
+        return sameProjectContent(existing, project) ? [] : [copyProject(project)];
+      });
+      return [...loaded.projects, ...session];
+    });
+  };
 
   const activeProject = useMemo(
     () => projects.find((project) => project.id === activeProjectId) ?? null,
@@ -769,7 +797,9 @@ export const useProjects = () => {
     setActiveArtifactId,
     setActiveProjectId,
     storageWarning: storageWarning ?? recoveryNotice,
-    recoveryPending: saveBlocked && initialLoad.recoveryRaw !== null,
+    recoveryPending: saveBlocked && storageLoad.recoveryRaw !== null,
+    storageUnavailable: storageLoad.storageUnavailable,
+    retryStorage,
     downloadRecoveryCopy,
     confirmRecoveryDownload,
     continueWithoutRecovery: () => {

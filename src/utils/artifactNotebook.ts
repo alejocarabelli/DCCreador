@@ -159,7 +159,6 @@ const normalizeBlock = (value: unknown, usedIds: Set<string>): NotebookBlock | n
     const shapeIds = new Set<string>();
     if (Array.isArray(value.shapes)) {
       for (const rawShape of value.shapes) {
-        if (shapes.length >= MAX_SHAPES_PER_SKETCH) break;
         const shape = normalizeShape(rawShape, shapeIds);
         if (shape !== null) shapes.push(shape);
       }

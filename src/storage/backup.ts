@@ -25,7 +25,6 @@ export type BackupState = {
 };
 
 const LAST_BACKUP_KEY = 'design-projects:last-backup';
-const LAST_BACKUP_HASH_KEY = 'design-projects:last-backup-hash';
 
 /** At most one snapshot every ten minutes of actual editing. */
 export const BACKUP_INTERVAL_MS = 10 * 60 * 1000;
@@ -54,21 +53,9 @@ export const readLastBackupAt = (): number | null => {
   }
 };
 
-const payloadHash = (payload: string): string => {
-  let first = 2166136261;
-  let second = 5381;
-  for (let index = 0; index < payload.length; index += 1) {
-    const code = payload.charCodeAt(index);
-    first = Math.imul(first ^ code, 16777619);
-    second = Math.imul(second, 33) ^ code;
-  }
-  return `${payload.length}:${first >>> 0}:${second >>> 0}`;
-};
-
-const rememberBackupAt = (at: number, hash: string): void => {
+const rememberBackupAt = (at: number): void => {
   try {
     localStorage.setItem(LAST_BACKUP_KEY, String(at));
-    localStorage.setItem(LAST_BACKUP_HASH_KEY, hash);
   } catch {
     // A failed bookkeeping write must not fail the backup itself.
   }
@@ -92,18 +79,9 @@ export const writeBackup = async (projects: DiagramProject[]): Promise<BackupSta
   } catch {
     return { path: null, directory: null, at: null, error: 'No se pudo preparar la copia de seguridad. Exportá tu proyecto para conservar el trabajo.' };
   }
-  const hash = payloadHash(payload);
-  try {
-    if (localStorage.getItem(LAST_BACKUP_HASH_KEY) === hash) {
-      return { path: null, directory: null, at: readLastBackupAt(), error: null };
-    }
-  } catch {
-    // A missing hash only means that the snapshot may be repeated.
-  }
-
   try {
     const reply = await handler.postMessage({ action: 'write', payload });
-    rememberBackupAt(at, hash);
+    rememberBackupAt(at);
     return { path: reply?.path ?? null, directory: reply?.directory ?? null, at, error: null };
   } catch {
     return { path: null, directory: null, at: null, error: 'No se pudo guardar la copia en disco. Reintentá o exportá tu proyecto.' };

@@ -190,7 +190,7 @@ describe('normalizeArtifactNotebook', () => {
     expect(new Set(result.map((shape) => shape.id)).size).toBe(2);
   });
 
-  it('preserves existing text and blocks beyond editing limits, and caps shapes', () => {
+  it('preserves existing text, blocks and shapes beyond editing limits', () => {
     const longText = 'a'.repeat(MAX_TEXT_LENGTH + 500);
     const manyShapes = Array.from({ length: MAX_SHAPES_PER_SKETCH + 20 }, (_, i) => ({ id: `s${i}`, kind: 'rect', color: 'ink', x: i, y: 0, w: 1, h: 1 }));
     const result = raw(notebookOf([
@@ -201,7 +201,7 @@ describe('normalizeArtifactNotebook', () => {
     const [text, question, sketch] = result?.blocks ?? [];
     expect(text.kind === 'text' && text.text.length).toBe(longText.length);
     expect(question.kind === 'question' && question.text.length).toBe(longText.length);
-    expect(sketch.kind === 'sketch' && sketch.shapes.length).toBe(MAX_SHAPES_PER_SKETCH);
+    expect(sketch.kind === 'sketch' && sketch.shapes.length).toBe(manyShapes.length);
 
     const manyBlocks = Array.from({ length: MAX_BLOCKS + 10 }, (_, i) => ({ id: `b${i}`, kind: 'text', text: 'x' }));
     expect(raw(notebookOf(manyBlocks))?.blocks).toHaveLength(manyBlocks.length);

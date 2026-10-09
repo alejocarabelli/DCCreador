@@ -251,20 +251,19 @@ static NSUInteger const kBackupsToKeep = 10;
     return directory;
 }
 
-+ (void)pruneBackupsIn:(NSURL *)directory {
++ (NSArray<NSURL *> *)backupsIn:(NSURL *)directory {
     NSArray<NSURL *> *entries = [[NSFileManager defaultManager]
         contentsOfDirectoryAtURL:directory
-      includingPropertiesForKeys:@[NSURLContentModificationDateKey]
+      includingPropertiesForKeys:@[NSURLContentModificationDateKey, NSURLIsRegularFileKey]
                          options:NSDirectoryEnumerationSkipsHiddenFiles
                            error:nil];
     NSMutableArray<NSURL *> *backups = [NSMutableArray array];
     for (NSURL *entry in entries) {
         if ([entry.lastPathComponent hasPrefix:@"respaldo-"] && [entry.pathExtension isEqualToString:@"json"]) {
-            [backups addObject:entry];
+            NSNumber *regular = nil;
+            [entry getResourceValue:&regular forKey:NSURLIsRegularFileKey error:nil];
+            if (regular.boolValue) [backups addObject:entry];
         }
-    }
-    if (backups.count <= kBackupsToKeep) {
-        return;
     }
     [backups sortUsingComparator:^NSComparisonResult(NSURL *left, NSURL *right) {
         NSDate *leftDate = nil, *rightDate = nil;
@@ -272,6 +271,14 @@ static NSUInteger const kBackupsToKeep = 10;
         [right getResourceValue:&rightDate forKey:NSURLContentModificationDateKey error:nil];
         return [rightDate compare:leftDate];
     }];
+    return backups;
+}
+
++ (void)pruneBackupsIn:(NSURL *)directory {
+    NSArray<NSURL *> *backups = [self backupsIn:directory];
+    if (backups.count <= kBackupsToKeep) {
+        return;
+    }
     for (NSUInteger index = kBackupsToKeep; index < backups.count; index++) {
         [[NSFileManager defaultManager] removeItemAtURL:backups[index] error:nil];
     }
@@ -283,7 +290,7 @@ static NSUInteger const kBackupsToKeep = 10;
     NSDictionary *body = [message.body isKindOfClass:NSDictionary.class] ? message.body : nil;
     NSString *action = body[@"action"];
     NSError *error = nil;
-    NSURL *directory = [BackupBridge backupDirectoryCreatingIfNeeded:&error];
+    NSURL *directory = [self.class backupDirectoryCreatingIfNeeded:&error];
 
     if (!directory) {
         replyHandler(nil, error.localizedDescription ?: @"No se pudo preparar la carpeta de respaldos.");
@@ -308,6 +315,15 @@ static NSUInteger const kBackupsToKeep = 10;
         return;
     }
 
+    if (!preserve) {
+        NSURL *latest = [self.class backupsIn:directory].firstObject;
+        NSString *previous = latest ? [NSString stringWithContentsOfURL:latest encoding:NSUTF8StringEncoding error:nil] : nil;
+        if ([previous isEqualToString:payload]) {
+            replyHandler(@{@"path": latest.path, @"directory": directory.path}, nil);
+            return;
+        }
+    }
+
     NSDateFormatter *stamp = [[NSDateFormatter alloc] init];
     stamp.dateFormat = @"yyyy-MM-dd-HHmmss-SSS";
     stamp.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
@@ -319,7 +335,7 @@ static NSUInteger const kBackupsToKeep = 10;
         return;
     }
 
-    if (!preserve) [BackupBridge pruneBackupsIn:directory];
+    if (!preserve) [self.class pruneBackupsIn:directory];
     replyHandler(@{@"path": destination.path, @"directory": directory.path}, nil);
 }
 
