@@ -182,7 +182,15 @@ export const useProjects = () => {
   // an arbitrary artifact. Creating or selecting a project still opens it as before.
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [storageWarning, setStorageWarning] = useState<string | null>(storageLoad.warning);
-  const [saveStatus, setSaveStatus] = useState<DiagramSaveStatus>(storageLoad.skipInitialSave ? 'error' : 'saved');
+  const [saveStatus, setSaveStatusState] = useState<DiagramSaveStatus>(storageLoad.skipInitialSave ? 'error' : 'saved');
+  const saveStatusRef = useRef(saveStatus);
+  // Typing changes projects on every keystroke. Setting the status it already has would still queue a
+  // synchronous render per keystroke and, typing fast enough, trip React's update-depth limit.
+  const setSaveStatus = useCallback((next: DiagramSaveStatus): void => {
+    if (saveStatusRef.current === next) return;
+    saveStatusRef.current = next;
+    setSaveStatusState(next);
+  }, []);
   const [saveBlocked, setSaveBlocked] = useState(storageLoad.recoveryRaw !== null);
   const saveBlockedRef = useRef(storageLoad.recoveryRaw !== null);
   const storageUnavailableRef = useRef(storageLoad.storageUnavailable);
@@ -262,7 +270,7 @@ export const useProjects = () => {
     }, 250);
 
     return () => window.clearTimeout(timeoutId);
-  }, [projects, saveBlocked, storageLoad.storageUnavailable]);
+  }, [projects, saveBlocked, setSaveStatus, storageLoad.storageUnavailable]);
 
   useEffect(() => {
     const flushPendingSave = (): void => {
@@ -295,7 +303,7 @@ export const useProjects = () => {
       document.removeEventListener('visibilitychange', flushWhenHidden);
       flushPendingSave();
     };
-  }, []);
+  }, [setSaveStatus]);
 
   const runBackup = useCallback(async function performBackup(force: boolean, snapshot?: DiagramProject[]): Promise<void> {
     if (!isBackupAvailable() || saveBlockedRef.current) return;
