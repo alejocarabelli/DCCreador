@@ -348,3 +348,15 @@ describe('message arguments shown with ", "', () => {
     expect(message.arguments).toBe('a,b');
   });
 });
+
+
+describe('escaped quotes in displayed arguments', () => {
+  it.each([
+    [String.raw`"a\",b,c",d`, String.raw`f("a\",b,c", d)`],
+    [String.raw`'a\',b,c',d`, String.raw`f('a\',b,c', d)`],
+    [String.raw`"a\\",d`, String.raw`f("a\\", d)`],
+    [String.raw`g("a\",b,c",d),e`, String.raw`f(g("a\",b,c", d), e)`],
+  ])('preserves quoted contents of %s', (args, expected) => {
+    expect(formatMessageSignature({ name: 'f', arguments: args })).toBe(expected);
+  });
+});

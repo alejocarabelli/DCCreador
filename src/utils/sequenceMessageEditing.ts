@@ -393,7 +393,8 @@ const splitTopLevelCommas = (text: string): string[] => {
     const char = text[index];
 
     if (quote !== null) {
-      if (char === quote) quote = null;
+      if (char === '\\') index += 1;
+      else if (char === quote) quote = null;
     } else if (char === '"' || char === "'") {
       quote = char;
     } else if (char === '(' || char === '[' || char === '{' || char === '<') {

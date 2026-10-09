@@ -48,6 +48,17 @@ describe('sequence model synchronization UI', () => {
     const html = renderModel(model, { ...project, artifacts: [model, withParameters] });
     expect(html).toContain('ingresarDni(dni)');
   });
+  it('shows legacy parameter completion as pending until it is imported', () => {
+    const withParameters = { ...sequence, content: { ...sequence.content, items: [{ ...createSequenceMessage('synchronous', 't', 't'), id: 'call', name: 'f(dato)' }] } };
+    const legacy = { ...model, content: { ...model.content, nodes: [{ id: 'class-t', type: 'classNode' as const, position: { x: 0, y: 0 }, data: { name: 'Tramite', attributes: [], methods: [{ id: 'method', visibility: '-' as const, name: 'f', parameters: '', returnType: 'Saved' }] } }] } };
+    const current = { ...project, artifacts: [legacy, withParameters] };
+    const html = renderModel(legacy, current);
+    expect(html).toContain('1 para traer');
+    expect(html).toContain('f(dato)');
+    expect(html).not.toContain('✓ Todo traído');
+    const completed = { ...legacy, content: { ...legacy.content, ...importClassesFromSequences(legacy.content, [withParameters.content]).content } };
+    expect(renderModel(completed, { ...current, artifacts: [completed, withParameters] })).toContain('✓ Todo traído de 1 secuencia');
+  });
   it('shows the neutral up-to-date and no-linked-sequences states', () => {
     const synced = { ...model, content: { ...model.content, ...importClassesFromSequences(model.content, [sequence.content]).content } };
     expect(renderModel(synced)).toContain('✓ Todo traído de 1 secuencia');

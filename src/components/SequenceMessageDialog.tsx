@@ -188,7 +188,9 @@ export function SequenceMessageDialog({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const finalDraft = commitDraft();
+    // Text changes already update the draft; parsing the displayed signature
+    // here would persist presentation spacing even when nothing was edited.
+    const finalDraft = draft;
     onChange(finalDraft);
     onSubmit(event, finalDraft);
   };

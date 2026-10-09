@@ -144,3 +144,32 @@ describe('bindSequenceToModel', () => {
     expect(bindSequenceToModel(orphan, model).participants[1].classifierNodeId).toBeUndefined();
   });
 });
+
+
+describe('legacy methods without parameters', () => {
+  const call = { ...sequence, items: [{ ...createSequenceMessage('synchronous', 'actor', 't'), id: 'call', name: 'f(dato)', returnType: 'Incoming' }] };
+  const method = { id: 'legacy', visibility: '-' as const, name: 'f', parameters: '', returnType: 'Saved' };
+  const model = { ...empty, nodes: [{ ...node, data: { ...node.data, methods: [method] } }] };
+
+  it('plans and completes parameters without duplicating or changing other fields', () => {
+    const before = JSON.stringify(model);
+    const plan = planSequenceClassImport(model, [call]);
+    expect(plan).toMatchObject([{ key: 'method:tramite:f', parameters: 'dato' }]);
+    expect([...findSequenceMessagesMissingInModel(call, model).messageIds]).toEqual(['call']);
+    const imported = importClassesFromSequences(model, [call], new Set(plan.map((item) => item.key)));
+    expect(imported.content.nodes[0].data.methods).toEqual([{ ...method, parameters: 'dato' }]);
+    expect(imported.summary).toMatchObject({ addedMethods: 0, updatedMethods: 1, updatedClasses: 1 });
+    expect(planSequenceClassImport(imported.content, [call])).toEqual([]);
+    expect(importClassesFromSequences(imported.content, [call]).content.nodes[0]).toBe(imported.content.nodes[0]);
+    expect(JSON.stringify(model)).toBe(before);
+  });
+
+  it('respects deselection and existing parameters, even when different', () => {
+    expect(importClassesFromSequences(model, [call], new Set()).content.nodes[0]).toBe(model.nodes[0]);
+    const populated = { ...model, nodes: [{ ...model.nodes[0], data: { ...node.data, methods: [{ ...method, parameters: 'otro: int' }] } }] };
+    expect(planSequenceClassImport(populated, [call])).toEqual([]);
+    expect(importClassesFromSequences(populated, [call]).content.nodes[0]).toBe(populated.nodes[0]);
+    const noParameters = { ...call, items: [{ ...createSequenceMessage('synchronous', 'actor', 't'), name: 'f()' }] };
+    expect(planSequenceClassImport(model, [noParameters])).toEqual([]);
+  });
+});

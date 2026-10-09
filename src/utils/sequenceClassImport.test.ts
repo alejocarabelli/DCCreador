@@ -57,7 +57,7 @@ describe('importClassesFromSequences', () => {
     expect(result.nodes[1].data.methods).toMatchObject([
       { name: 'buscarPermiso', parameters: 'rolId', returnType: 'Permiso' },
     ]);
-    expect(summary).toEqual({ createdClasses: 2, addedAttributes: 0, addedMethods: 2, updatedClasses: 0 });
+    expect(summary).toEqual({ createdClasses: 2, addedAttributes: 0, addedMethods: 2, updatedMethods: 0, updatedClasses: 0 });
   });
 
   it('merges into existing classes by name and is idempotent', () => {
@@ -73,10 +73,10 @@ describe('importClassesFromSequences', () => {
     expect(first.content.nodes).toHaveLength(1);
     expect(first.content.nodes[0].data.methods.map((method) => [method.name, method.parameters]))
       .toEqual([['validar', ''], ['guardar', 'dato']]);
-    expect(first.summary).toEqual({ createdClasses: 0, addedAttributes: 0, addedMethods: 1, updatedClasses: 1 });
+    expect(first.summary).toEqual({ createdClasses: 0, addedAttributes: 0, addedMethods: 1, updatedMethods: 0, updatedClasses: 1 });
 
     const second = importClassesFromSequences(first.content, [content]);
-    expect(second.summary).toEqual({ createdClasses: 0, addedAttributes: 0, addedMethods: 0, updatedClasses: 0 });
+    expect(second.summary).toEqual({ createdClasses: 0, addedAttributes: 0, addedMethods: 0, updatedMethods: 0, updatedClasses: 0 });
     expect(second.content.nodes[0]).toBe(first.content.nodes[0]);
   });
 
@@ -177,6 +177,6 @@ describe('accessor attributes', () => {
     expect(first.summary.addedAttributes).toBe(1);
 
     const second = importClassesFromSequences(first.content, [content]);
-    expect(second.summary).toEqual({ createdClasses: 0, addedAttributes: 0, addedMethods: 0, updatedClasses: 0 });
+    expect(second.summary).toEqual({ createdClasses: 0, addedAttributes: 0, addedMethods: 0, updatedMethods: 0, updatedClasses: 0 });
   });
 });
