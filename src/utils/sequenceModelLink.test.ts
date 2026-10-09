@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ClassSequenceDiagramArtifact, DesignArtifact, SequenceDiagramArtifact } from '../types/diagram';
 import { createEmptySequenceDiagramContent } from './sequenceDiagram';
-import { linkNewSequenceToOnlyModel, linkSequencesToModel, reconcileSequenceModelLinks } from './sequenceModelLink';
+import { findNeverLinkedSequences, findSequenceModel, findUnlinkedSequences, linkNewSequenceToOnlyModel, linkSequencesToModel, reconcileSequenceModelLinks } from './sequenceModelLink';
 
 const model: ClassSequenceDiagramArtifact = { id: 'model', type: 'class-sequence-diagram', name: 'Modelo', createdAt: 'before', updatedAt: 'before', content: { version: 1, nodes: [], edges: [], linkedSequenceDiagramIds: ['old'] } };
 const old: SequenceDiagramArtifact = { id: 'old', type: 'sequence-diagram', name: 'Vieja', createdAt: 'before', updatedAt: 'before', content: { ...createEmptySequenceDiagramContent(), classDiagramArtifactId: 'model' } };
@@ -65,5 +65,41 @@ describe('reconcileSequenceModelLinks', () => {
     const result = linkSequencesToModel([csd('m', []), csd('n', ['b']), seq('a'), seq('b', 'n')], ['a'], 'm');
     expect((result[0] as ClassSequenceDiagramArtifact).content.linkedSequenceDiagramIds).toEqual(['a']);
     expect((result[1] as ClassSequenceDiagramArtifact).content.linkedSequenceDiagramIds).toEqual(['b']);
+  });
+});
+
+describe('sequences unlinked on purpose (null)', () => {
+  const seq = (id: string, classDiagramArtifactId?: string | null): SequenceDiagramArtifact => ({
+    id, type: 'sequence-diagram', name: id, createdAt: 'x', updatedAt: 'x',
+    content: { ...createEmptySequenceDiagramContent(), classDiagramArtifactId },
+  });
+
+  it('automatic links skip null, the explicit list includes it', () => {
+    const artifacts = [model, seq('never'), seq('none', null), seq('stale', 'gone')];
+    expect(findNeverLinkedSequences(artifacts).map((s) => s.id)).toEqual(['never', 'stale']);
+    expect(findUnlinkedSequences(artifacts).map((s) => s.id)).toEqual(['never', 'none', 'stale']);
+  });
+
+  it('a new model takes only never-chosen sequences; the explicit button also takes null', () => {
+    const artifacts = [seq('never'), seq('none', null)];
+    const created = linkSequencesToModel([...artifacts, { ...model, content: { ...model.content, linkedSequenceDiagramIds: [] } }], findNeverLinkedSequences(artifacts).map((s) => s.id), 'model');
+    expect(created.filter((a): a is SequenceDiagramArtifact => a.type === 'sequence-diagram').map((s) => s.content.classDiagramArtifactId)).toEqual(['model', null]);
+    const explicit = linkSequencesToModel(created, findUnlinkedSequences(created).map((s) => s.id), 'model');
+    expect(explicit.filter((a): a is SequenceDiagramArtifact => a.type === 'sequence-diagram').map((s) => s.content.classDiagramArtifactId)).toEqual(['model', 'model']);
+  });
+
+  it('unlinking stores null and keeps it through reconcile', () => {
+    const linked = [{ ...model, content: { ...model.content, linkedSequenceDiagramIds: ['a'] } }, seq('a', 'model')];
+    const result = linkSequencesToModel(linked, ['a'], null);
+    expect((result[1] as SequenceDiagramArtifact).content.classDiagramArtifactId).toBeNull();
+    expect((result[0] as ClassSequenceDiagramArtifact).content.linkedSequenceDiagramIds).toEqual([]);
+    const withNull = [model, seq('n', null)];
+    expect(reconcileSequenceModelLinks(withNull)[1]).toBe(withNull[1]);
+    expect(findSequenceModel(withNull, seq('n', null))).toBeUndefined();
+  });
+
+  it('does not link a new sequence that is already null', () => {
+    const none = seq('n', null);
+    expect(linkNewSequenceToOnlyModel([model], none)).toEqual([model, none]);
   });
 });

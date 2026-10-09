@@ -1788,19 +1788,20 @@
   background: color-mix(in srgb, var(--panel-background) 93%, var(--button-active-background));
   border-bottom: 1px solid color-mix(in srgb, var(--button-active-background) 25%, var(--panel-border));
   justify-content: space-between;
+  height: auto;
+  min-height: 38px;
 }
 .sequence-keyboard-guide-body {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  overflow: hidden;
+  gap: 2px 10px;
+  min-width: 0;
   flex: 1;
 }
 .sequence-keyboard-guide-context {
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--panel-text);
   font-weight: 700;
   font-size: 11px;
@@ -1808,9 +1809,8 @@
 .sequence-keyboard-guide-instruction {
   color: var(--panel-muted-text);
   font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .sequence-keyboard-exit-pill {
   flex: 0 0 auto;
@@ -2158,138 +2158,6 @@
   background: var(--status-warning-soft);
 }
 
-/* Sequence Review Panel */
-.sequence-review-panel {
-  width: 320px;
-  background: var(--panel-background);
-  border-left: 1px solid var(--panel-border);
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow-y: auto;
-  z-index: 5;
-}
-.sequence-review-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--panel-border);
-}
-.sequence-review-title h3 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-}
-.sequence-review-badges {
-  display: flex;
-  gap: 6px;
-  margin-top: 4px;
-}
-.sequence-review-badges .badge-pill {
-  font-size: 12px;
-  padding: 1px 7px;
-  border-radius: 10px;
-  background: var(--panel-strong-background);
-  color: var(--panel-faint-text);
-  font-weight: 500;
-}
-.sequence-review-badges .badge-error.active {
-  background: var(--status-danger-soft-strong);
-  color: var(--status-danger-text);
-}
-.sequence-review-badges .badge-warning.active {
-  background: var(--status-warning-soft-strong);
-  color: var(--status-warning-text);
-}
-.sequence-review-content {
-  padding: 14px 16px;
-  flex: 1;
-}
-.sequence-review-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 40px 10px;
-  gap: 8px;
-}
-.sequence-review-empty-title {
-  font-weight: 600;
-  font-size: 14px;
-  margin: 0;
-}
-.sequence-review-empty-subtitle {
-  font-size: 12px;
-  color: var(--panel-muted-text);
-  margin: 0;
-}
-.sequence-review-section {
-  margin-bottom: 18px;
-}
-.sequence-review-section-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  margin: 0 0 8px;
-}
-.sequence-review-section-title.error-title {
-  color: var(--status-danger-text);
-}
-.sequence-review-section-title.warning-title {
-  color: var(--status-warning-text);
-}
-.sequence-review-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.sequence-review-item {
-  padding: 10px;
-  border-radius: 8px;
-  font-size: 12px;
-  border: 1px solid transparent;
-  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, box-shadow 120ms ease, opacity 120ms ease, transform 120ms ease;
-}
-.sequence-review-item.clickable {
-  cursor: pointer;
-}
-.sequence-review-item.item-error {
-  background: var(--status-danger-soft);
-  border-color: var(--status-danger-border);
-}
-.sequence-review-item.item-error:hover {
-  background: var(--status-danger-soft-strong);
-  border-color: var(--status-danger-border-strong);
-}
-.sequence-review-item.item-warning {
-  background: var(--status-warning-soft);
-  border-color: var(--status-warning-border);
-}
-.sequence-review-item.item-warning:hover {
-  background: var(--status-warning-soft-strong);
-  border-color: var(--status-warning-border-strong);
-}
-.sequence-review-code {
-  font-family: monospace;
-  font-size: 12px;
-  color: var(--panel-muted-text);
-}
-.sequence-review-message {
-  margin: 4px 0 0;
-  font-size: 12px;
-  line-height: 1.4;
-}
-.sequence-review-focus-hint {
-  display: inline-block;
-  margin-top: 6px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--status-info-text);
-}
 
 /* Sequence Inspector Polish & Resizer */
 .sequence-inspector-panel {
@@ -3523,7 +3391,7 @@
 }
 
 .app-shell[data-ui-version='refined'] .sequence-canvas-panel.keyboard-mode-active .sequence-canvas-scroll {
-  height: calc(100% - 38px);
+  height: calc(100% - var(--sequence-guide-height, 38px));
 }
 
 .app-shell[data-ui-version='refined'] .sequence-canvas-panel .sequence-sticky-participants {
@@ -3533,7 +3401,7 @@
 }
 
 .app-shell[data-ui-version='refined'] .sequence-canvas-panel.keyboard-mode-active .sequence-sticky-participants {
-  top: 38px;
+  top: var(--sequence-guide-height, 38px);
 }
 
 .app-shell[data-ui-version='refined'] .sequence-canvas-controls {
@@ -3548,8 +3416,9 @@
   top: auto;
   left: auto;
   width: 100%;
-  height: 38px;
-  padding: 0 12px;
+  height: auto;
+  min-height: 38px;
+  padding: 4px 12px;
   transform: none;
   border: 0;
   border-bottom: 1px solid var(--accent-outline);

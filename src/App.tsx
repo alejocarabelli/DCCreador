@@ -815,7 +815,6 @@ function App() {
         onImportArtifact={(projectId) => setArtifactTransferDialog({ mode: 'import', projectId })}
         onMoveArtifact={(projectId, artifactId) => setArtifactTransferDialog({ mode: 'move', projectId, artifactId })}
         onConvertToSequenceModel={(projectId, artifactId) => { void handleConvertToSequenceModel(projectId, artifactId); }}
-        onDownloadArtifactGuide={handleDownloadArtifactGuide}
         onOpenHome={handleOpenHome}
         onOpenShortcuts={() => setIsShortcutsOpen(true)}
         onDeleteArtifact={handleDeleteArtifact}
@@ -945,7 +944,7 @@ function App() {
                         }
                         onCreateClassMethod={handleCreateClassMethodFromSequence}
                         onImportSequenceIntoClassModel={handleImportSequenceIntoClassModel}
-                        onCreateSequenceModel={() => createClassSequenceDiagramArtifact(activeProject.id, 'Clases de secuencias')}
+                        onCreateSequenceModel={() => createClassSequenceDiagramArtifact(activeProject.id, 'Clases de secuencias', activeArtifact.id)}
                         onChangeContent={handleChangeProjectContent}
                         onRedo={handleRedo}
                         onUndo={handleUndo}
@@ -996,7 +995,7 @@ function App() {
           onConfirm={handleConfirmProjectDialog}
         />
       ) : null}
-      {isShortcutsOpen ? <ShortcutsDialog onClose={() => setIsShortcutsOpen(false)} /> : null}
+      {isShortcutsOpen ? <ShortcutsDialog onClose={() => setIsShortcutsOpen(false)} onDownloadArtifactGuide={handleDownloadArtifactGuide} /> : null}
       {artifactTransferDialog?.mode === 'import' && transferProject ? (
         <ArtifactImportDialog
           key={transferProject.id}

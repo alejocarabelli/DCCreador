@@ -29,7 +29,7 @@ import {
   PersonStanding,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useEffectEvent, useMemo, useReducer, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction, type SyntheticEvent } from 'react';
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction, type SyntheticEvent } from 'react';
 import { CanvasZoom } from './ui/CanvasZoom';
 import { EditorToolbar, MenuField, MenuItem, MenuLabel, MenuSeparator, NotebookButton, ReviewButton, ToolbarDivider, ToolButton, ToolMenu } from './ui/Toolbar';
 import { isNotebookEvent } from '../utils/notebookKeyboard';
@@ -47,6 +47,7 @@ import type {
   SequenceActivation,
   SequenceDiagramArtifact,
   SequenceDiagramContent,
+  SequenceDiagramProblem,
   SequenceFragment,
   SequenceFragmentOperator,
   SequenceMessage,
@@ -141,7 +142,7 @@ import {
   validateBlockCandidate,
 } from '../utils/sequenceDiagramReordering';
 import type { DiagramSaveStatus } from '../hooks/useProjects';
-import { centerSequenceViewportOnTarget, expandSequenceViewportAtEdge, type SequenceViewportTarget } from '../utils/sequenceViewport';
+import { centerSequenceViewportOnTarget, expandSequenceViewportAtEdge, fitSequenceZoomToView, type SequenceViewportTarget } from '../utils/sequenceViewport';
 import {
   buildSequenceKeyboardInsertionSlots,
   createInactiveSequenceKeyboardState,
@@ -175,8 +176,8 @@ import { SequenceExportDialog } from './SequenceExportDialog';
 import { SequenceKeyboardComposer } from './SequenceKeyboardComposer';
 import { collectUsedConditionValues, methodInsertText, type SignatureCompletionData } from '../utils/sequenceSignatureCompletion';
 import { SequenceMessageDialog } from './SequenceMessageDialog';
-import type { QuickMessageDraft } from '../utils/sequenceMessageDialogCompatibility';
-import { SequenceReviewPanel } from './SequenceReviewPanel';
+import { firstMessageRoute, type QuickMessageDraft } from '../utils/sequenceMessageDialogCompatibility';
+import { DiagramReviewPanel } from './DiagramReviewPanel';
 import { shortcutLabel } from '../utils/shortcutLabel';
 
 type SequenceSelection = SequenceSelectionTarget | null;
@@ -759,6 +760,11 @@ export function SequenceDiagramEditor({
   }, [content]);
 
   const activateKeyboardMode = useCallback((): void => {
+    if (content.participants.length === 0) {
+      showFeedback('Primero agregá participantes.');
+      setParticipantDraft({ text: '', kind: 'actor' });
+      return;
+    }
     const selectedTimelineItem = selection?.kind === 'message' || selection?.kind === 'fragment'
       ? findSequenceItem(content.items, selection.id)
       : undefined;
@@ -775,7 +781,7 @@ export function SequenceDiagramEditor({
     setParticipantDraft(null);
     dispatchKeyboardMode({ type: 'activate', slotIndex, sourceId });
     window.requestAnimationFrame(() => svgRef.current?.focus());
-  }, [content.items, content.participants, keyboardSlots, selection]);
+  }, [content.items, content.participants, keyboardSlots, selection, showFeedback]);
 
   const commitKeyboardParticipant = useCallback((): void => {
     const participant = createSequenceParticipantFromLabel({
@@ -1442,6 +1448,42 @@ export function SequenceDiagramEditor({
     });
   }, [layout.bounds]);
 
+  const keyboardModeOff = keyboardMode.stage === 'off';
+  const keyboardGuideRef = useRef<HTMLDivElement | null>(null);
+  // The help bar can wrap onto two lines; the canvas below follows its height.
+  useLayoutEffect(() => {
+    const guide = keyboardGuideRef.current;
+    const panel = guide?.parentElement;
+    if (!guide || !panel || keyboardModeOff) return;
+    const sync = (): void => { panel.style.setProperty('--sequence-guide-height', `${guide.offsetHeight}px`); };
+    sync();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(sync);
+    observer?.observe(guide);
+    return () => {
+      observer?.disconnect();
+      panel.style.removeProperty('--sequence-guide-height');
+    };
+  }, [keyboardModeOff]);
+
+  // A sequence opened for the first time in the session starts fitted to the
+  // view when it does not fit at 100%. A remembered view is always respected.
+  const initialFitDone = useRef(false);
+  useLayoutEffect(() => {
+    if (initialFitDone.current) return;
+    initialFitDone.current = true;
+    const scrollEl = scrollRef.current;
+    if (!scrollEl || initialView !== undefined || content.participants.length === 0) return;
+    const fit = fitSequenceZoomToView({
+      viewportWidth: scrollEl.clientWidth,
+      viewportHeight: scrollEl.clientHeight,
+      bounds: layout.bounds,
+    });
+    if (fit >= 1) return;
+    setZoom(fit);
+    scrollEl.scrollLeft = Math.max(0, (layout.bounds.left - 40) * fit);
+    scrollEl.scrollTop = Math.max(0, (layout.bounds.top - 40) * fit);
+  }, [content.participants.length, initialView, layout.bounds]);
+
   const getSelectionTarget = useCallback((targetSelection: SequenceSelection): SequenceViewportTarget | undefined => {
     if (targetSelection === null) return undefined;
     if (targetSelection.kind === 'participant') {
@@ -1750,6 +1792,19 @@ export function SequenceDiagramEditor({
     if (highlightTimeoutRef.current !== null) window.clearTimeout(highlightTimeoutRef.current);
   }, []);
 
+  const closeReviewPanel = useCallback(() => setIsReviewPanelOpen(false), []);
+  const reviewIssues = useMemo(() => reviewProblems.map((problem) => ({
+    id: problem.id,
+    kind: problem.severity === 'error' ? 'error' as const : 'review' as const,
+    message: problem.message,
+    problem,
+  })), [reviewProblems]);
+  const focusReviewIssue = useCallback(({ problem }: { problem: SequenceDiagramProblem }): void => {
+    if (problem.messageId) selectOutlineItem({ kind: 'message', id: problem.messageId });
+    else if (problem.fragmentId) selectOutlineItem({ kind: 'fragment', id: problem.fragmentId });
+    else if (problem.participantId) selectOutlineItem({ kind: 'participant', id: problem.participantId });
+  }, [selectOutlineItem]);
+
   const handleToolbarMenuToggle = (event: SyntheticEvent<HTMLDetailsElement>): void => {
     const details = event.currentTarget;
     if (!details.open) return;
@@ -1837,9 +1892,12 @@ export function SequenceDiagramEditor({
     const chainFrom = selectedItem?.kind === 'message'
       ? selectedItem
       : selectedItem === null && lastMessage?.kind === 'message' ? lastMessage : undefined;
-    const sourceId = selectedParticipant?.id ?? chainFrom?.targetId ?? sorted[0].id;
+    // The first message of a diagram starts at the actor, whatever is selected.
+    const hasMessages = lastMessage !== undefined;
+    const firstRoute = hasMessages ? undefined : firstMessageRoute(content.participants);
+    const sourceId = firstRoute?.sourceId ?? selectedParticipant?.id ?? chainFrom?.targetId ?? sorted[0].id;
     const sourceIndex = sorted.findIndex((participant) => participant.id === sourceId);
-    const targetId = sorted[sourceIndex + 1]?.id ?? sorted[sourceIndex - 1]?.id ?? sourceId;
+    const targetId = firstRoute?.targetId ?? sorted[sourceIndex + 1]?.id ?? sorted[sourceIndex - 1]?.id ?? sourceId;
     setQuickMessage(createSequenceMessageEditModel({
       type,
       sourceId,
@@ -4683,14 +4741,14 @@ export function SequenceDiagramEditor({
             {associatedClassDiagram ? <ToolMenu icon={GitBranch} label={missingCount > 0 ? `${missingCount} ${missingCount === 1 ? 'falta' : 'faltan'}` : '✓ Al día'} title={missingCount > 0 ? `${missingCount} ${missingCount === 1 ? 'elemento falta' : 'elementos faltan'} en «${associatedClassDiagram.name}»` : `Al día con «${associatedClassDiagram.name}»`} align="start" className={`sequence-model-status ${missingCount > 0 ? 'has-novelties' : ''}`}>
               {missingCount > 0 ? <MenuItem disabled={!onImportSequenceIntoClassModel} onSelect={importIntoModel}>Agregar todo a «{associatedClassDiagram.name}»</MenuItem> : null}
               <MenuItem icon={Link2} disabled={!onNavigateToArtifact} onSelect={() => onNavigateToArtifact?.(associatedClassDiagram.id)}>Abrir «{associatedClassDiagram.name}»</MenuItem>
-              <MenuItem icon={Unlink} onSelect={() => commit({ ...content, classDiagramArtifactId: undefined })}>Desvincular</MenuItem>
+              <MenuItem icon={Unlink} onSelect={() => commit({ ...content, classDiagramArtifactId: null })}>Desvincular</MenuItem>
             </ToolMenu> : (
-              <ToolMenu icon={GitBranch} label="Sin modelo de clases" title="Vincular un modelo de clases permite elegir clases y operaciones existentes y mantener los nombres al día." align="start" className="sequence-model-status">
+              <ToolMenu icon={GitBranch} label="Sin vincular" title="Vinculá esta secuencia con unas Clases de secuencias para elegir clases y operaciones ya hechas y mantener los nombres al día." align="start" className="sequence-model-status">
                 {classDiagrams.length > 0 ? <MenuLabel>Vincular con</MenuLabel> : null}
                 {classDiagrams.map((model) => (
                   <MenuItem key={model.id} icon={Link2} onSelect={() => commit({ ...content, classDiagramArtifactId: model.id })}>{model.name}</MenuItem>
                 ))}
-                {onCreateSequenceModel ? <MenuItem icon={Plus} onSelect={onCreateSequenceModel}>Crear clases de secuencias</MenuItem> : null}
+                {onCreateSequenceModel ? <MenuItem icon={Plus} onSelect={onCreateSequenceModel}>Crear Clases de secuencias y vincular</MenuItem> : null}
               </ToolMenu>
             )}
           </>
@@ -4701,11 +4759,19 @@ export function SequenceDiagramEditor({
               icon={MessageSquarePlus}
               label="Mensaje"
               showLabel
-              variant="primary"
-              title="Insertar mensaje (o doble clic en el lienzo)"
+              variant={content.participants.length === 0 ? 'default' : 'primary'}
+              disabled={content.participants.length === 0}
+              title={content.participants.length === 0 ? 'Primero agregá participantes' : 'Insertar mensaje (o doble clic en el lienzo)'}
               onClick={() => beginMessage()}
             />
-            <ToolButton icon={UserRoundPlus} label="Participante" showLabel title="Agregar participante (objeto o actor)" onClick={() => beginParticipantCreation()} />
+            <ToolButton
+              icon={UserRoundPlus}
+              label="Participante"
+              showLabel
+              variant={content.participants.length === 0 ? 'primary' : 'default'}
+              title="Agregar participante (objeto o actor)"
+              onClick={() => beginParticipantCreation()}
+            />
             <ToolMenu icon={BoxSelect} label="Fragmento" align="start" title="Agregar fragmento combinado (alt, loop, opt…)">
               {Object.entries(fragmentLabels).map(([value, label]) => {
                 const [operator, description] = label.split(' · ');
@@ -4734,7 +4800,7 @@ export function SequenceDiagramEditor({
               count={reviewProblems.length}
               hasErrors={reviewProblems.some((problem) => problem.severity === 'error')}
               open={isReviewPanelOpen}
-              onToggle={() => setIsReviewPanelOpen(!isReviewPanelOpen)}
+              onToggle={() => setIsReviewPanelOpen((open) => !open)}
             />
             <ToolMenu icon={Eye} label="Vista">
               <MenuLabel>Paneles</MenuLabel>
@@ -4763,13 +4829,13 @@ export function SequenceDiagramEditor({
               </MenuField>
               <MenuSeparator />
               <MenuLabel>Referencias</MenuLabel>
-              <MenuField label="Clases de secuencias" hint="Vincular un modelo de clases permite elegir clases y operaciones existentes y mantener los nombres al día.">
+              <MenuField label="Clases de secuencias" hint="Vinculá esta secuencia con unas Clases de secuencias para elegir clases y operaciones ya hechas y mantener los nombres al día.">
                 <select
-                  title="Vincular un modelo de clases permite elegir clases y operaciones existentes y mantener los nombres al día."
+                  title="Vinculá esta secuencia con unas Clases de secuencias para elegir clases y operaciones ya hechas y mantener los nombres al día."
                   value={associatedClassDiagram?.id ?? ''}
-                  onChange={(event) => commit({ ...content, classDiagramArtifactId: event.target.value || undefined })}
+                  onChange={(event) => commit({ ...content, classDiagramArtifactId: event.target.value || null })}
                 >
-                  <option value="">Sin modelo de clases</option>
+                  <option value="">Sin vincular</option>
                   {classDiagrams.map((diagram) => <option key={diagram.id} value={diagram.id}>{diagram.name}</option>)}
                 </select>
               </MenuField>
@@ -4922,7 +4988,7 @@ export function SequenceDiagramEditor({
         </aside>
         <section className={`sequence-canvas-panel ${isKeyboardActive ? 'keyboard-mode-active' : ''}`}>
           {isKeyboardActive ? (
-            <div className="sequence-canvas-guide is-keyboard-active" data-export-control="true">
+            <div className="sequence-canvas-guide is-keyboard-active" data-export-control="true" ref={keyboardGuideRef}>
               <div className="sequence-keyboard-guide-body">
                 <span className="sequence-keyboard-status-badge">MODO TECLADO</span>
                 {keyboardContext ? (
@@ -5284,10 +5350,13 @@ export function SequenceDiagramEditor({
           </div>
         </section>
         {isReviewPanelOpen ? (
-          <SequenceReviewPanel
-            problems={reviewProblems}
-            onSelectProblemTarget={selectOutlineItem}
-            onClose={() => setIsReviewPanelOpen(false)}
+          <DiagramReviewPanel
+            helper="Comprueba mensajes sin nombre, fragmentos incompletos y el ciclo de vida de los participantes. No reemplaza la revisión del diagrama."
+            isEmpty={content.participants.length === 0 && content.items.length === 0}
+            issues={reviewIssues}
+            title="Revisión del diagrama"
+            onClose={closeReviewPanel}
+            onFocus={focusReviewIssue}
           />
         ) : null}
         <InspectorPanel

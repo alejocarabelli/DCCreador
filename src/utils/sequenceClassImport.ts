@@ -27,11 +27,48 @@ const normalizeKey = (value: string): string => value.trim().toLocaleLowerCase()
 export const participantClassName = (classifierName: string, name: string): string =>
   classifierName.replace(/^:+/, '').trim() || name.trim();
 
+/** Splits at the commas that are not inside `<…>`, `(…)` or `[…]`: `Map<K, V>` stays whole. */
+const splitTopLevel = (text: string): string[] => {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const char of text) {
+    if (char === ',' && depth === 0) {
+      parts.push(current);
+      current = '';
+      continue;
+    }
+    if ('<(['.includes(char)) depth += 1;
+    if ('>)]'.includes(char)) depth = Math.max(0, depth - 1);
+    current += char;
+  }
+  return [...parts, current];
+};
+
+const declaredParameter = /^([A-Za-zÁÉÍÓÚÜÑáéíóúüñ_][\wÁÉÍÓÚÜÑáéíóúüñ]*)\s*(?::\s*(.*))?$/;
+
 /**
- * Only calls (synchronous or asynchronous) become operations. A message's
- * arguments are what that call passes at that moment, not the operation's
- * signature, so they are left out: the import brings the name alone. A name
- * typed as `buscar(id)` is cut at the parenthesis for the same reason.
+ * The parameters a call declares, in the form the class model keeps for a
+ * method: `producto: Producto, cantidad: Integer`, or a bare name when no type
+ * is written. Concrete values such as `42` or `'activo'` are not declarations,
+ * so they are left out.
+ */
+const parametersFromText = (text: string): string =>
+  splitTopLevel(text)
+    .map((part) => declaredParameter.exec(part.trim()))
+    .filter((match): match is RegExpExecArray => match !== null)
+    .map(([, name, type]) => (type?.trim() ? `${name}: ${type.trim()}` : name))
+    .join(', ');
+
+/** A call's parameters are the ones its name carries (`buscar(id)`), else the ones its arguments list. */
+const parametersOf = (message: SequenceMessage): string => {
+  const inName = /\(([^()]*)\)\s*$/.exec(message.name.trim())?.[1] ?? '';
+  return parametersFromText(inName.trim().length > 0 ? inName : message.arguments);
+};
+
+/**
+ * Only calls (synchronous or asynchronous) become operations. The operation
+ * takes the parameters the message declares; the name is cut at the parenthesis.
  */
 const operationFromMessage = (message: SequenceMessage): ImportedOperation | null => {
   if (message.type !== 'synchronous' && message.type !== 'asynchronous') return null;
@@ -39,7 +76,7 @@ const operationFromMessage = (message: SequenceMessage): ImportedOperation | nul
   const name = message.name.replace(/\(.*$/, '').trim();
   if (name.length === 0) return null;
 
-  return { name, parameters: '', returnType: message.returnType.trim() };
+  return { name, parameters: parametersOf(message), returnType: message.returnType.trim() };
 };
 
 /**
@@ -259,6 +296,7 @@ export type SequenceClassImportNovelty = {
   type: 'class' | 'method' | 'attribute';
   className: string;
   elementName: string;
+  parameters?: string;
   returnType?: string;
   attributeType?: string;
 };
@@ -295,7 +333,10 @@ const collectSequenceOperations = (classContent: ClassDiagramContent, sequences:
       const operation = operationFromMessage(item);
       if (key === undefined || operation === null) continue;
       const known = operations.get(key) ?? [];
-      if (!known.some((candidate) => sameOperation(candidate, operation))) known.push(operation);
+      const index = known.findIndex((candidate) => sameOperation(candidate, operation));
+      if (index === -1) known.push(operation);
+      // The first call may leave its parameters out; a later call of the same operation can name them.
+      else if (known[index].parameters === '' && operation.parameters !== '') known[index] = { ...known[index], parameters: operation.parameters };
       operations.set(key, known);
     }
   }
@@ -317,7 +358,7 @@ export const planSequenceClassImport = (
     const result: SequenceClassImportNovelty[] = node ? [] : [{ key: noveltyKey('class', key, className), type: 'class', className, elementName: className }];
     for (const operation of incoming) {
       if (!node?.data.methods.some((method) => sameOperation(method, operation))) {
-        result.push({ key: noveltyKey('method', key, operation.name), type: 'method', className, elementName: operation.name, returnType: operation.returnType });
+        result.push({ key: noveltyKey('method', key, operation.name), type: 'method', className, elementName: operation.name, parameters: operation.parameters, returnType: operation.returnType });
       }
     }
     for (const attribute of accessorAttributes(incoming, node?.data.attributes ?? [], classNames)) {

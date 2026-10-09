@@ -379,7 +379,8 @@ export type SequenceSpacingMode = 'normal' | 'compact';
 
 export type SequenceDiagramContent = {
   version: 1;
-  classDiagramArtifactId?: string;
+  /** `undefined` = never chose; `null` = "Sin vincular" chosen on purpose (automatic links skip it). */
+  classDiagramArtifactId?: string | null;
   flowArtifactId?: string;
   numbering: SequenceNumberingMode;
   showActivations: boolean;

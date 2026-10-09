@@ -382,6 +382,62 @@ export const parseMessageSignature = (text: string): {
   };
 };
 
+/** Splits at the commas that separate arguments: not those inside parentheses, brackets, generics or quotes. */
+const splitTopLevelCommas = (text: string): string[] => {
+  const parts: string[] = [];
+  let depth = 0;
+  let quote: string | null = null;
+  let start = 0;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+
+    if (quote !== null) {
+      if (char === quote) quote = null;
+    } else if (char === '"' || char === "'") {
+      quote = char;
+    } else if (char === '(' || char === '[' || char === '{' || char === '<') {
+      depth += 1;
+    } else if (char === ')' || char === ']' || char === '}' || char === '>') {
+      depth = Math.max(0, depth - 1);
+    } else if (char === ',' && depth === 0) {
+      parts.push(text.slice(start, index));
+      start = index + 1;
+    }
+  }
+
+  parts.push(text.slice(start));
+  return parts;
+};
+
+/** `a,b` → `a, b`, also inside nested calls. Commas that are not argument separators stay as they are. */
+export const formatArgumentList = (args: string): string => {
+  const parts = splitTopLevelCommas(args);
+
+  if (parts.length > 1 && parts.some((part) => part.trim().length === 0)) {
+    return args;
+  }
+
+  return parts.map((part) => formatCallText(part.trim())).join(', ');
+};
+
+/** Shows a call as `nombre(a, b)`; text that is not a call comes back as is. */
+export const formatCallText = (text: string): string => {
+  const match = /^([^(]*)\(([\s\S]*)\)$/.exec(text);
+  return match === null ? text : `${match[1]}(${formatArgumentList(match[2])})`;
+};
+
+/**
+ * A copy of the message with the arguments written as `a, b`, for showing it
+ * (canvas, labels). The saved message is not changed.
+ */
+export const withReadableArguments = (message: SequenceMessage): SequenceMessage => ({
+  ...message,
+  name: formatCallText((message.name ?? '').trim()),
+  arguments: formatArgumentList((message.arguments ?? '').trim()),
+  parameterValues: formatArgumentList((message.parameterValues ?? '').trim()),
+});
+
 export const formatMessageSignature = (d: {
   type?: SequenceMessageType;
   name?: string;
@@ -395,9 +451,10 @@ export const formatMessageSignature = (d: {
     return d.type === 'create' ? 'create' : '';
   }
   if (d.name && d.name.includes('(')) {
-    return d.returnType ? `${d.name}: ${d.returnType}` : d.name;
+    const name = formatCallText(d.name);
+    return d.returnType ? `${name}: ${d.returnType}` : name;
   }
-  const args = (d.arguments || '').trim();
+  const args = formatArgumentList((d.arguments || '').trim());
   const base = d.name ? (args ? `${d.name}(${args})` : `${d.name}()`) : (d.type === 'create' ? 'create' : '');
   return d.returnType ? `${base}: ${d.returnType}` : base;
 };

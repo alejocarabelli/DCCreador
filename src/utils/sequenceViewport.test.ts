@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { centerSequenceViewportOnTarget, expandSequenceViewportAtEdge } from './sequenceViewport';
+import { centerSequenceViewportOnTarget, expandSequenceViewportAtEdge, fitSequenceZoomToView } from './sequenceViewport';
 
 describe('sequence viewport contract', () => {
   it('centers a search target without changing document coordinates', () => {
@@ -33,5 +33,18 @@ describe('sequence viewport contract', () => {
       clientWidth: 800,
       clientHeight: 500,
     })).toMatchObject({ width: 2400, height: 2100, expanded: true });
+  });
+});
+
+describe('fitSequenceZoomToView', () => {
+  it('keeps 100% when the content already fits', () => {
+    expect(fitSequenceZoomToView({ viewportWidth: 1200, viewportHeight: 800, bounds: { width: 600, height: 400 } })).toBe(1);
+  });
+
+  it('shrinks so the whole content fits, without going under the editor minimum', () => {
+    const fit = fitSequenceZoomToView({ viewportWidth: 1000, viewportHeight: 700, bounds: { width: 1960, height: 900 } });
+    expect(fit).toBeLessThan(1);
+    expect(fit * (1960 + 80)).toBeLessThanOrEqual(1000);
+    expect(fitSequenceZoomToView({ viewportWidth: 300, viewportHeight: 300, bounds: { width: 9000, height: 9000 } })).toBe(0.3);
   });
 });

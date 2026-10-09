@@ -69,3 +69,6 @@ export const readSidebarSplit = (): number | null => {
 
 export const writeSidebarSplit = (fraction: number | null): boolean =>
   writeUiPreference(SIDEBAR_SPLIT_KEY, fraction === null ? '' : String(Number(clampSidebarSplit(fraction).toFixed(4))));
+
+/** Set once the canvas has shown how to add to a selection (Mayús/⌘ + clic). */
+export const MULTI_SELECT_HINT_KEY = 'modelador.multi-select-hint-shown';

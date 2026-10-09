@@ -16,6 +16,7 @@ import type {
   SequenceTimelineItem,
 } from '../types/diagram';
 import { createId } from './id';
+import { formatArgumentList } from './sequenceMessageEditing';
 import { resolveSequenceParticipantX, SEQUENCE_MIN_PARTICIPANT_GAP } from './sequenceDiagramGeometry';
 import type { SequenceLayout } from './sequenceDiagramLayout';
 
@@ -491,7 +492,9 @@ export const normalizeSequenceDiagramContent = (value: unknown): SequenceDiagram
 
   const normalized: SequenceDiagramContent = {
     version: 1,
-    classDiagramArtifactId: asOptionalString(content.classDiagramArtifactId),
+    classDiagramArtifactId: (content as { classDiagramArtifactId?: unknown }).classDiagramArtifactId === null
+      ? null
+      : asOptionalString(content.classDiagramArtifactId),
     flowArtifactId: asOptionalString(content.flowArtifactId),
     numbering: numberingModes.includes(content.numbering as SequenceNumberingMode)
       ? (content.numbering as SequenceNumberingMode)
@@ -2207,7 +2210,7 @@ export const formatSequenceMessageLabel = (message: SequenceMessage, number?: st
   const rawName = (message.name ?? '').trim();
   const name = rawName || (message.type === 'create' ? 'create' : message.type === 'destroy' ? 'destroy' : 'mensaje');
   const cleanName = name.endsWith('()') ? name.slice(0, -2).trim() : name;
-  const call = cleanName.endsWith(')') ? cleanName : `${cleanName}(${values})`;
+  const call = cleanName.endsWith(')') ? cleanName : `${cleanName}(${formatArgumentList(values)})`;
   const returnType = (message.returnType ?? '').trim();
   const result = returnType.length > 0 ? `${call}: ${returnType}` : call;
   return number === undefined ? result : `${number}. ${result}`;

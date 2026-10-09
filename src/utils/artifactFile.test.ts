@@ -6,6 +6,7 @@ import type { ClassDiagramArtifact, ClassSequenceDiagramArtifact, SequenceDiagra
 import { extractImportableArtifacts, serializeArtifact } from './artifactFile';
 import { extractImportableProjects } from './projectImport';
 import { getSequenceFlowOptions } from './sequenceMessageEditing';
+import { createEmptySequenceDiagramContent } from './sequenceDiagram';
 import { buildSequenceLayout } from './sequenceDiagramLayout';
 import { buildProjectSymbolIndex } from './projectSymbolIndex';
 import { reviewUseCaseFlow } from './useCaseFlowReview';
@@ -63,6 +64,19 @@ describe('artifact JSON files', () => {
     expect(JSON.parse(serializeArtifact(flowWith(null))).content.classDiagramArtifactId).toBeNull();
     expect(roundTrip(flowWith(null)).content.classDiagramArtifactId).toBeNull();
     expect(roundTrip(flowWith(undefined)).content.classDiagramArtifactId).toBeUndefined();
+  });
+
+  it('keeps a sequence "Sin vincular" through export and import, apart from a never-chosen one', () => {
+    const sequenceWith = (classDiagramArtifactId: string | null | undefined): SequenceDiagramArtifact => ({
+      id: 'seq', type: 'sequence-diagram', name: 'Secuencia', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+      content: { ...createEmptySequenceDiagramContent(), classDiagramArtifactId },
+    });
+    const roundTrip = (artifact: SequenceDiagramArtifact): SequenceDiagramArtifact =>
+      extractImportableArtifacts(JSON.parse(serializeArtifact(artifact)))![0] as SequenceDiagramArtifact;
+    expect(JSON.parse(serializeArtifact(sequenceWith(null))).content.classDiagramArtifactId).toBeNull();
+    expect(roundTrip(sequenceWith(null)).content.classDiagramArtifactId).toBeNull();
+    expect(roundTrip(sequenceWith(undefined)).content.classDiagramArtifactId).toBeUndefined();
+    expect(roundTrip(sequenceWith('model')).content.classDiagramArtifactId).toBe('model');
   });
 
   it('assembles the documented linked project without broken classifier, method or flow references', () => {

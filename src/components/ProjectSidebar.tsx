@@ -1,6 +1,5 @@
 import {
   Blocks,
-  BookOpen,
   Download,
   GitBranch,
   FolderClosed,
@@ -51,7 +50,6 @@ type ProjectSidebarProps = {
   onImportArtifact: (projectId: string) => void;
   onMoveArtifact: (projectId: string, artifactId: string) => void;
   onConvertToSequenceModel?: (projectId: string, artifactId: string) => void;
-  onDownloadArtifactGuide: () => void;
   onRenameArtifact: (projectId: string, artifactId: string) => void;
   onRenameProject: (projectId: string) => void;
   onSelectArtifact: (projectId: string, artifactId: string) => void;
@@ -106,7 +104,6 @@ export function ProjectSidebar({
   onImportArtifact,
   onMoveArtifact,
   onConvertToSequenceModel,
-  onDownloadArtifactGuide,
   onRenameArtifact,
   onRenameProject,
   onSelectArtifact,
@@ -213,10 +210,6 @@ export function ProjectSidebar({
             onImportArtifact(newArtifactMenu.projectId);
             setNewArtifactMenu(null);
           }}>Importar artefacto…</MenuItem>
-          <MenuItem icon={BookOpen} onSelect={() => {
-            onDownloadArtifactGuide();
-            setNewArtifactMenu(null);
-          }}>Guía de artefactos para IA (.md)</MenuItem>
         </div>
       ) : null;
 

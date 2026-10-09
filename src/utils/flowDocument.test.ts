@@ -8,6 +8,7 @@ import {
   getTurnSwitchLevel,
   parseFlowLine,
   parseFlowText,
+  restoreLostStepMarker,
   tokenizeFlowInline,
 } from './flowDocument';
 import { normalizeUseCaseFlowContentNumbering } from './useCaseFlowNumbering';
@@ -51,6 +52,38 @@ describe('parseFlowLine', () => {
   it('counts bullet depth from the step they detail', () => {
     const lines = parseFlowText('    3.1. Buscar Tramite con:\n        - a\n        - Relacionada a X con:\n            - b');
     expect(getBulletDepths(lines)).toEqual([0, 0, 0, 1]);
+  });
+});
+
+describe('restoreLostStepMarker', () => {
+  it('gives a step back its number when the marker was deleted', () => {
+    expect(restoreLostStepMarker('1. Iniciar', 'Iniciar')).toBe('1. Iniciar');
+    expect(restoreLostStepMarker('1. Iniciar', ' Iniciar')).toBe('1. Iniciar');
+  });
+
+  it('keeps the depth of a sub-step', () => {
+    expect(restoreLostStepMarker('    3.1. Buscar', 'Buscar')).toBe('    3.1. Buscar');
+  });
+
+  it('keeps the typed text, even when it starts with digits', () => {
+    expect(restoreLostStepMarker('1. Iniciar', '1 Iniciar')).toBe('1. 1 Iniciar');
+  });
+
+  it('only restores the first line of the cell', () => {
+    expect(restoreLostStepMarker('1. A\n2. B', 'A\nB')).toBe('1. A\nB');
+    expect(restoreLostStepMarker('1. A\n2. B', '1. A\nB')).toBe('1. A\nB');
+  });
+
+  it('leaves lines that were never numbered, bullets and empty cells alone', () => {
+    expect(restoreLostStepMarker('', 'Iniciar')).toBe('Iniciar');
+    expect(restoreLostStepMarker('Iniciar', 'Iniciar')).toBe('Iniciar');
+    expect(restoreLostStepMarker('1. Iniciar', '- Iniciar')).toBe('- Iniciar');
+    expect(restoreLostStepMarker('1. Iniciar', '')).toBe('');
+    expect(restoreLostStepMarker('1. Iniciar', '[CA 2]')).toBe('[CA 2]');
+  });
+
+  it('does nothing when the number is still there', () => {
+    expect(restoreLostStepMarker('1. Iniciar', '1. Iniciar sesión')).toBe('1. Iniciar sesión');
   });
 });
 

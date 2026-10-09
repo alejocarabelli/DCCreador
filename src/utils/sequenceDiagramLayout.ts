@@ -22,6 +22,7 @@ import {
   type SequenceDiagramBounds,
   type SequenceRect,
 } from './sequenceDiagramGeometry';
+import { withReadableArguments } from './sequenceMessageEditing';
 
 export const SEQUENCE_HEADER_Y = 34;
 export const SEQUENCE_HEADER_HEIGHT = 48;
@@ -333,7 +334,7 @@ export const buildSequenceLayout = (
       ? targetX - direction * targetHalfWidth
       : targetX;
     const span = Math.max(MESSAGE_LABEL_MIN_CHARACTERS, Math.floor(Math.abs(effectiveTargetX - sourceX) / 7.6));
-    const label = message.type === 'return' ? '' : formatSequenceMessageLabel(message, messageNumbers.get(message.id));
+    const label = message.type === 'return' ? '' : formatSequenceMessageLabel(withReadableArguments(message), messageNumbers.get(message.id));
     const labelText = label.length > 0 ? keepNumberWithName(measureSequenceText(label, span, 6.3, MESSAGE_LINE_HEIGHT)) : undefined;
     const flowReference = message.flowReference ?? '';
     const flowText = flowReference.length > 0
