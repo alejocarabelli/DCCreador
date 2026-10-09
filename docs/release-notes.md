@@ -67,11 +67,17 @@ Instalá la versión nueva encima de la anterior: tus proyectos se conservan. De
 - **Vincular** y **Desvincular** con unas Clases de secuencias se llaman siempre igual, y si desvinculás una secuencia, queda desvinculada.
 - Los atajos no actúan detrás de un diálogo abierto y la ayuda muestra todos los que existen.
 - Se quitaron las plantillas de secuencia.
+- Con fragmentos anidados, las activaciones y las cruces de fin de vida se ven nítidas, y la línea de vida queda tenue adentro.
+- **loop**, **opt** y los demás fragmentos de una sola parte llevan su nombre en la pestaña («loop por cada trámite»), sin la línea entre corchetes. **alt** sigue con una condición por rama.
+- Modo teclado: **F** crea un fragmento que nace en la línea de vida donde estás y te lleva directo a escribir su nombre; Enter lo confirma.
+- Modo teclado: al conectar un mensaje, el tipo se elige con **S** mensaje, **R** retorno, **C** crear y **D** destruir (o con un clic), y cada opción muestra su flecha. Retorno se apaga cuando no hay una llamada para responder.
+- Deshacer en una secuencia vinculada ya no cambia argumentos ni nombres que nadie renombró.
 
 ### Clases de secuencias
 
 - La barra dice cuántas clases y operaciones hay **para traer** de las secuencias, o que ya está **todo traído**.
 - Los métodos traídos conservan sus parámetros, por ejemplo `ingresarDni(dni)`.
+- Un método que ya estaba en el modelo sin parámetros se completa al traerlo, también desde **Agregar todo** y **Agregar al modelo**. Los valores fijos (`"hola"`, `true`) no se toman como parámetros.
 
 ### Windows
 
