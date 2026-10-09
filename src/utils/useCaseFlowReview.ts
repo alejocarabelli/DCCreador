@@ -183,7 +183,7 @@ export const reviewUseCaseFlow = (content: UseCaseFlowContent, symbolIndex: Proj
       const last = [...lines].reverse().find((line) => line.body.trim().length > 0);
       if (last === undefined) {
         issues.push({ id: `empty:${table.code}`, kind: 'review', location: { kind: 'alternative', table: table.tableId }, message: `${table.code} todavía no tiene pasos.` });
-      } else if (!/^(Retornar|Volver|Ir\s+a|Fin(?:alizar)?\s+(?:CU|caso)|Extender|FIN\s+CU)/i.test(last.body.trim())) {
+      } else if (!/^(Retornar|Volver|Ir\s+a|Fin(?:alizar)?\s+(?:(?:del?|el)\s+)?(?:CU|caso)|Extender|FIN\s+CU)/i.test(last.body.trim())) {
         issues.push({
           id: `end:${table.code}`,
           kind: 'review',

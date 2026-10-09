@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { UseCaseFlowContent, UseCaseFlowStep } from '../types/diagram';
+import type { ClassDiagramArtifact, ClassDiagramNode, UseCaseFlowContent, UseCaseFlowStep } from '../types/diagram';
+import { buildProjectSymbolIndex } from './projectSymbolIndex';
 import { buildFlowDocument } from './flowDocument';
 import { buildFlowDocumentXml } from './flowExportDocx';
 import { reviewUseCaseFlow } from './useCaseFlowReview';
@@ -65,6 +66,55 @@ describe('reviewUseCaseFlow', () => {
 });
 
 describe('buildFlowDocumentXml', () => {
+  it.each(['Fin del caso de uso', 'Finalizar el caso de uso', 'Fin de CU', 'Fin CU'])('accepts «%s» as the end of a path (D5)', (ending) => {
+    const issues = reviewUseCaseFlow(content({
+      basicFlow: [row('a', '1. Ingresar [CA 1]', '2. Mostrar')],
+      alternativeFlows: [{ id: 'p', code: 'CA 1', name: 'Cancela', steps: [row('x', '', `3. ${ending}`)] }],
+    }), symbols);
+
+    expect(issues.map((issue) => issue.id)).not.toContain('end:CA 1');
+  });
+
+  it('knows the attributes a class inherits (D4)', () => {
+    const node = (id: string, name: string, attribute: string): ClassDiagramNode => ({
+      id, type: 'classNode', position: { x: 0, y: 0 },
+      data: { name, attributes: attribute ? [{ id: `${id}-a`, name: attribute, type: 'string', visibility: 'private' }] : [], methods: [] },
+    } as unknown as ClassDiagramNode);
+    const diagram = {
+      id: 'd', type: 'class-diagram', name: 'Dominio', createdAt: 'now', updatedAt: 'now',
+      content: {
+        nodes: [node('persona', 'Persona', 'nombre'), node('alumno', 'Alumno', 'legajo')],
+        edges: [{ id: 'g', source: 'alumno', target: 'persona', type: 'association', data: { relationType: 'generalization' } }],
+      },
+    } as unknown as ClassDiagramArtifact;
+    const index = buildProjectSymbolIndex(diagram);
+    const alumno = index.classes.find((entry) => entry.name === 'Alumno');
+
+    expect(alumno?.attributes.map((attribute) => attribute.name)).toEqual(['legajo', 'nombre']);
+    const issues = reviewUseCaseFlow(content({
+      basicFlow: [row('a', '1. Ingresar', '2. Buscar instancia de Alumno con:\n        - nombre igual a Ana')],
+    }), index);
+    expect(issues.map((issue) => issue.message).join('\n')).not.toContain('nombre');
+  });
+
+  it('does not loop on an inheritance cycle', () => {
+    const node = (id: string, name: string): ClassDiagramNode => ({
+      id, type: 'classNode', position: { x: 0, y: 0 }, data: { name, attributes: [], methods: [] },
+    } as unknown as ClassDiagramNode);
+    const diagram = {
+      id: 'd', type: 'class-diagram', name: 'Dominio', createdAt: 'now', updatedAt: 'now',
+      content: {
+        nodes: [node('a', 'A'), node('b', 'B')],
+        edges: [
+          { id: 'g1', source: 'a', target: 'b', type: 'association', data: { relationType: 'generalization' } },
+          { id: 'g2', source: 'b', target: 'a', type: 'association', data: { relationType: 'generalization' } },
+        ],
+      },
+    } as unknown as ClassDiagramArtifact;
+
+    expect(buildProjectSymbolIndex(diagram).classes).toHaveLength(2);
+  });
+
   it('writes the description, the flow tables and the path reference column', () => {
     const flow = content({
       basicFlow: [row('a', '1. Ingresar', '2. Validar datos [CA 1]')],
