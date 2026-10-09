@@ -160,3 +160,29 @@ describe('removeBlock / appendBlock / focusSheetEnd', () => {
     expect(hasOnlyEmptyText(focusSheetEnd([], true).blocks)).toBe(true);
   });
 });
+
+describe('block editing limit', () => {
+  const full = () => Array.from({ length: 500 }, (_, i) => question(`q${i}`, `duda ${i}`));
+
+  it('refuses buttons, question splitting and trailing scaffolding at the limit', () => {
+    const blocks = full();
+    expect(appendBlock(blocks, 'question')).toEqual({ blocks, limitReached: true });
+    expect(appendBlock(blocks, 'sketch')).toEqual({ blocks, limitReached: true });
+    expect(enterInQuestion(blocks, 'q0', 2, 4)).toEqual({ blocks, limitReached: true });
+    expect(focusSheetEnd(blocks, false)).toEqual({ blocks, limitReached: true });
+  });
+
+  it('still reuses an empty trailing text block and converts an empty question', () => {
+    const blocks = [...full().slice(1), text('tail')];
+    expect(appendBlock(blocks, 'sketch').blocks).toHaveLength(500);
+    const questions = [...full().slice(1), question('tail')];
+    expect(enterInQuestion(questions, 'tail', 0, 0).blocks.at(-1)?.kind).toBe('text');
+  });
+
+  it('keeps oversized saved notebooks editable without adding more blocks', () => {
+    const blocks = [...full(), question('extra', 'guardada')];
+    expect(appendBlock(blocks, 'sketch')).toEqual({ blocks, limitReached: true });
+    expect(changeText(blocks, 'extra', 'corregida', 9).blocks).toHaveLength(501);
+    expect(removeBlock(blocks, 'extra').blocks).toHaveLength(500);
+  });
+});

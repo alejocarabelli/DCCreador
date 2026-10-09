@@ -352,6 +352,8 @@ static NSUInteger const kBackupsToKeep = 10;
 @interface AppDelegate : NSObject <NSApplicationDelegate, NSWindowDelegate>
 @property(nonatomic, strong) NSWindow *window;
 @property(nonatomic, strong) WKWebView *mainWebView;
+@property(nonatomic) BOOL terminationPending;
+@property(nonatomic) BOOL terminationReady;
 @property(nonatomic, strong) WebCoordinator *coordinator;
 @property(nonatomic, strong) AppSchemeHandler *schemeHandler;
 @property(nonatomic, strong) BackupBridge *backupBridge;
@@ -403,7 +405,27 @@ static NSUInteger const kBackupsToKeep = 10;
                                            contentWorld:WKContentWorld.pageWorld
                                                    name:@"modeladorBackup"];
     [contentController addUserScript:[[WKUserScript alloc]
-        initWithSource:@"window.__modeladorNativeBackup = true;"
+        initWithSource:
+            @"(() => {"
+             "window.__modeladorNativeBackup = true;"
+             "const pending = new Set();"
+             "window.__modeladorBridges = window.__modeladorBridges || {};"
+             "window.__modeladorBridges.backup = { postMessage(message) {"
+             "const call = window.webkit.messageHandlers.modeladorBackup.postMessage(message);"
+             "pending.add(call);"
+             "call.catch(() => undefined).finally(() => pending.delete(call));"
+             "return call;"
+             "} };"
+             "window.__modeladorPrepareClose = async () => {"
+             "window.dispatchEvent(new Event('modelador:flush-drafts'));"
+             "for (let round = 0; round < 2; round += 1) {"
+             "window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: false }));"
+             "await new Promise(resolve => setTimeout(resolve, 0));"
+             "await Promise.allSettled([...pending]);"
+             "await new Promise(resolve => setTimeout(resolve, 0));"
+             "}"
+             "};"
+             "})();"
          injectionTime:WKUserScriptInjectionTimeAtDocumentStart
       forMainFrameOnly:YES]];
     self.windowBridge = [[WindowBridge alloc] init];
@@ -564,6 +586,38 @@ static NSUInteger const kBackupsToKeep = 10;
             [self.viewerCoordinators removeObjectForKey:key];
         }
     }
+}
+
+- (BOOL)windowShouldClose:(NSWindow *)sender {
+    if (sender != self.window || self.terminationReady) return YES;
+    [NSApp terminate:nil];
+    return NO;
+}
+
+- (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender {
+    if (self.terminationReady || self.mainWebView == nil) return NSTerminateNow;
+    if (self.terminationPending) return NSTerminateLater;
+    self.terminationPending = YES;
+
+    __weak AppDelegate *weakSelf = self;
+    void (^finish)(void) = ^{
+        AppDelegate *strongSelf = weakSelf;
+        if (strongSelf == nil || !strongSelf.terminationPending) return;
+        strongSelf.terminationPending = NO;
+        strongSelf.terminationReady = YES;
+        [sender replyToApplicationShouldTerminate:YES];
+    };
+    [self.mainWebView callAsyncJavaScript:@"await window.__modeladorPrepareClose?.();"
+                              arguments:@{}
+                                inFrame:nil
+                         inContentWorld:WKContentWorld.pageWorld
+                      completionHandler:^(id result, NSError *error) {
+        // Always reply after applicationShouldTerminate has returned.
+        dispatch_async(dispatch_get_main_queue(), finish);
+    }];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), finish);
+    return NSTerminateLater;
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
