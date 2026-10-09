@@ -1,6 +1,7 @@
 import { accessorAttribute, importClassesFromSequences } from './utils/sequenceClassImport';
 import { createId } from './utils/id';
 import { artifactTypeInfo } from './constants/artifactTypes';
+import { createExampleProject, findExampleProject } from './utils/exampleProject';
 import { useDialogs } from './hooks/useDialogs';
 import { ProjectNameDialog } from './components/ProjectNameDialog';
 import { ArtifactImportDialog } from './components/ArtifactImportDialog';
@@ -213,6 +214,12 @@ function App() {
 
   const handleCreateProject = (): void => {
     setProjectDialog({ mode: 'create', initialName: 'Nuevo proyecto' });
+  };
+
+  const handleExploreExample = (): void => {
+    const example = findExampleProject(projects);
+    if (example !== undefined) setActiveProjectId(example.id);
+    else importProject(createExampleProject());
   };
 
   const handleOpenHome = (): void => {
@@ -830,6 +837,7 @@ function App() {
           onRetryBackup={() => void runBackupNow()}
           projects={projects}
           onCreateProject={handleCreateProject}
+          onExploreExample={handleExploreExample}
           onImportProject={importProject}
           onImportProjects={importProjects}
           onOpenProject={setActiveProjectId}

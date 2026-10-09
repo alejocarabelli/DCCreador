@@ -1,4 +1,4 @@
-import { Blocks, FolderOpen, Plus, Search, ShieldCheck, Upload, X } from 'lucide-react';
+import { BookOpen, Blocks, FolderOpen, Plus, Search, ShieldCheck, Upload, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import type { DesignArtifact, DesignProject } from '../types/diagram';
 import { importProjectFiles, projectImportFeedback } from '../utils/projectBackupImport';
@@ -14,6 +14,8 @@ type ProjectHomeProps = {
   onImportProject: (project: DesignProject) => void;
   /** Restore changed projects as independent copies. */
   onImportProjects: (projects: DesignProject[]) => ProjectImportCounts;
+  /** Opens the example project, importing it first if it is not in the list yet. */
+  onExploreExample: () => void;
   onOpenProject: (projectId: string) => void;
   backup: BackupState;
   backupAvailable: boolean;
@@ -68,7 +70,7 @@ const formatArtifactSummary = (project: DesignProject): string => {
   return summary.length > 0 ? summary.join(' · ') : 'Sin artefactos todavía';
 };
 
-export function ProjectHome({ projects, onCreateProject, onImportProject, onImportProjects, onOpenProject, backup, backupAvailable, onRevealBackups, onRetryBackup }: ProjectHomeProps) {
+export function ProjectHome({ projects, onCreateProject, onExploreExample, onImportProject, onImportProjects, onOpenProject, backup, backupAvailable, onRevealBackups, onRetryBackup }: ProjectHomeProps) {
   const [query, setQuery] = useState('');
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -125,23 +127,23 @@ export function ProjectHome({ projects, onCreateProject, onImportProject, onImpo
       <main className="project-home v2-home is-empty" aria-labelledby="project-home-title">
         <section className="v2-home-welcome">
           <span className="v2-home-mark" aria-hidden="true"><Blocks size={26} /></span>
-          <h1 id="project-home-title">Empezá un proyecto</h1>
-          <p>Un proyecto reúne los casos de uso, los flujos, las secuencias y las clases de un sistema, listos para entregar en PDF o Word.</p>
+          <h1 id="project-home-title">Te damos la bienvenida al Modelador de Sistemas</h1>
+          <p>Armá los modelos de Diseño de Sistemas —casos de uso, flujos, secuencias y clases— y exportalos a PDF o Word.</p>
           <div className="v2-home-welcome-actions">
             <button className="home-button home-button-primary" type="button" onClick={onCreateProject}>
               <Plus aria-hidden="true" size={16} />
               Nuevo proyecto
             </button>
-            <button className="home-button" type="button" onClick={() => fileInputRef.current?.click()}>
+            <button className="home-button" type="button" onClick={onExploreExample}>
+              <BookOpen aria-hidden="true" size={15} />
+              Explorar un ejemplo
+            </button>
+            <button className="home-button v2-home-quiet" type="button" onClick={() => fileInputRef.current?.click()}>
               <Upload aria-hidden="true" size={15} />
               Importar proyecto…
             </button>
             {fileInput}
           </div>
-          <p className="v2-home-migrate">
-            ¿Venís de la versión anterior? Tocá <strong>Importar proyecto…</strong> y elegí el respaldo más reciente de
-            <code>Documentos › Modelador de Sistemas › Respaldos</code>: trae todos tus proyectos de una vez.
-          </p>
           {feedbackBanner}
           <ol className="v2-home-artifact-types" aria-label="Qué podés modelar">
             {ARTIFACT_TYPES.map((type) => (
@@ -151,6 +153,7 @@ export function ProjectHome({ projects, onCreateProject, onImportProject, onImpo
               </li>
             ))}
           </ol>
+          <p className="v2-home-migrate">¿Tenés un proyecto guardado? Importalo desde un archivo .json.</p>
         </section>
         {backupLine}
       </main>
@@ -176,6 +179,10 @@ export function ProjectHome({ projects, onCreateProject, onImportProject, onImpo
             onChange={(event) => setQuery(event.target.value)}
           />
         </label>
+        <button className="home-button v2-home-quiet" type="button" onClick={onExploreExample}>
+          <BookOpen aria-hidden="true" size={15} />
+          Explorar un ejemplo
+        </button>
         <button className="home-button" title="Importar proyectos exportados o un respaldo de la versión anterior" type="button" onClick={() => fileInputRef.current?.click()}>
           <Upload aria-hidden="true" size={15} />
           Importar…
