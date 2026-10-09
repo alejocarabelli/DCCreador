@@ -101,7 +101,7 @@ import {
 } from '../utils/sequenceDiagramGeometry';
 import { hasMeaningfulSequenceNoteDrag, resolveNewSequenceNotePosition, resolveSequenceNoteDragPosition } from '../utils/sequenceNoteInteraction';
 import { sequencePointerToCanvas } from '../utils/sequencePointer';
-import { buildSequenceLayout, SEQUENCE_HEADER_HEIGHT } from '../utils/sequenceDiagramLayout';
+import { buildSequenceLayout, getFragmentTabLabel, isSingleOperandFragment, SEQUENCE_HEADER_HEIGHT } from '../utils/sequenceDiagramLayout';
 import { defaultSequenceExportOptions, exportSequencePdf, exportSequencePng, type SequenceExportOptions } from '../utils/sequenceDiagramExport';
 import {
   createSequenceMessageEditModel,
@@ -977,14 +977,34 @@ export function SequenceDiagramEditor({
     }
   }, [commit, content, keepAnchoredNotesWithTimeline, keyboardMode.guardFragmentId, keyboardMode.guardOperandId, keyboardMode.guardText, showFeedback]);
 
-  /** Right after a keyboard creation the focus goes straight to the name field. */
-  const openKeyboardFragmentNameEditor = useCallback((fragmentId: string, nextLayout: ReturnType<typeof buildSequenceLayout>): void => {
-    const box = nextLayout.fragmentLayouts.get(fragmentId);
+  /**
+   * Right after a keyboard creation the focus goes straight to the text the
+   * diagram shows: the name in the tab for a single-branch fragment (loop,
+   * opt...) and the first branch's guard for alt / par.
+   */
+  const openKeyboardFragmentNameEditor = useCallback((fragment: SequenceFragment, nextLayout: ReturnType<typeof buildSequenceLayout>): void => {
+    const box = nextLayout.fragmentLayouts.get(fragment.id);
     if (!box) return;
+    if (!isSingleOperandFragment(fragment)) {
+      const operand = fragment.operands[0];
+      const operandBox = box.operands.find((candidate) => candidate.id === operand.id);
+      if (operand && operandBox) {
+        setInlineFragmentEditor({
+          kind: 'guard',
+          fragmentId: fragment.id,
+          operandId: operand.id,
+          value: operand.guard,
+          x: box.x + 8,
+          y: operandBox.top + 2,
+          width: Math.min(260, Math.max(140, box.width - 30)),
+        });
+        return;
+      }
+    }
     setInlineFragmentEditor({
       kind: 'name',
-      fragmentId,
-      value: '',
+      fragmentId: fragment.id,
+      value: fragment.name,
       x: box.x + 4,
       y: box.y + 2,
       width: Math.max(180, Math.min(box.width - 8, (box.tabWidth ?? 94) + 80)),
@@ -1004,7 +1024,7 @@ export function SequenceDiagramEditor({
         const nextSlots = buildSequenceKeyboardInsertionSlots(nextContent, buildSequenceLayout(nextContent));
         setSelectedTimelineIds([]);
         setSelection({ kind: 'fragment', id: result.createdFragment.id });
-        openKeyboardFragmentNameEditor(result.createdFragment.id, buildSequenceLayout(nextContent));
+        openKeyboardFragmentNameEditor(result.createdFragment, buildSequenceLayout(nextContent));
         dispatchKeyboardMode({
           type: 'committed',
           slotIndex: findSequenceKeyboardSlotAfterItem(nextSlots, result.createdFragment.id),
@@ -1028,7 +1048,7 @@ export function SequenceDiagramEditor({
       const nextLayout = buildSequenceLayout(nextContent);
       const nextSlots = buildSequenceKeyboardInsertionSlots(nextContent, nextLayout);
       setSelection({ kind: 'fragment', id: fragment.id });
-      openKeyboardFragmentNameEditor(fragment.id, nextLayout);
+      openKeyboardFragmentNameEditor(fragment, nextLayout);
       dispatchKeyboardMode({
         type: 'committed',
         slotIndex: findSequenceKeyboardSlotAfterItem(nextSlots, fragment.id),
@@ -2712,16 +2732,23 @@ export function SequenceDiagramEditor({
 
   const handleEditFragmentName = useCallback(
     (fragmentId: string, currentName: string, rect: { x: number; y: number; width: number }) => {
+      // A single-branch fragment may keep its text in the branch guard (older
+      // data): edit that field so nothing is duplicated or lost.
+      const target = findSequenceItem(content.items, fragmentId);
+      if (target?.kind === 'fragment' && getFragmentTabLabel(target).field === 'guard') {
+        setInlineFragmentEditor({ kind: 'guard', fragmentId, operandId: target.operands[0].id, value: currentName, x: rect.x, y: rect.y, width: rect.width });
+        return;
+      }
       setInlineFragmentEditor({
         kind: 'name',
         fragmentId,
-        value: currentName,
+        value: target?.kind === 'fragment' ? target.name : currentName,
         x: rect.x,
         y: rect.y,
         width: rect.width,
       });
     },
-    [],
+    [content.items],
   );
 
   const handleAddFragmentOperand = useCallback(
@@ -3360,12 +3387,12 @@ export function SequenceDiagramEditor({
           ) : <span className="sequence-outline-dot" />}
           <span>
             <strong>{item.kind === 'fragment' ? item.operator : item.type === 'return' ? 'Retorno' : formatSequenceMessageLabel(item)}</strong>
-            {item.kind === 'fragment' ? <small>{item.name || 'Bloque combinado'}</small> : <small>{messageTypeLabels[item.type]}</small>}
+            {item.kind === 'fragment' ? <small>{getFragmentTabLabel(item).text || 'Bloque combinado'}</small> : <small>{messageTypeLabels[item.type]}</small>}
           </span>
         </button>
         {item.kind === 'fragment' && !isCollapsed ? item.operands.map((operand) => (
           <div className="sequence-outline-operand" key={operand.id}>
-            {operand.guard.trim() ? <span style={{ paddingLeft: 24 + depth * 16 }}>[{operand.guard}]</span> : null}
+            {item.operands.length > 1 && operand.guard.trim() ? <span style={{ paddingLeft: 24 + depth * 16 }}>[{operand.guard}]</span> : null}
             {renderOutline(operand.items, depth + 1)}
           </div>
         )) : null}

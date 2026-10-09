@@ -310,21 +310,39 @@ describe('keyboard fragment creation', () => {
     expect(box.x + box.width).toBeGreaterThan(layout.participantX.get('c')!);
   });
 
-  it('opens the name editor right away and Enter keeps the typed name', () => {
+  it('opens the guard of the first branch for an alt and Enter keeps the typed text', () => {
     threeLifelines();
     createFragment('a');
-    const created = lastContent();
-    artifact = { ...artifact, content: created };
+    artifact = { ...artifact, content: lastContent() };
     let tree = renderEditor();
+    const input = inlineInput(tree);
+    expect(input.props.value).toBe('condición');
+    (input.props.onChange as (event: { target: { value: string } }) => void)({ target: { value: 'hay stock' } });
+    tree = renderEditor();
+    onChangeContent.mockClear();
+    (inlineInput(tree).props.onKeyDown as (event: KeyboardEvent) => void)(keyEvent('Enter'));
+    const fragment = lastContent().items.find((item) => item.kind === 'fragment')!;
+    expect(fragment.kind === 'fragment' && fragment.operands[0].guard).toBe('hay stock');
+    expect(elements(renderEditor()).some((node) => node.props.className === 'sequence-inline-input')).toBe(false);
+  });
+
+  it('opens the tab name of a loop and Enter saves it as the fragment name', () => {
+    threeLifelines();
+    let tree = renderEditor(); select(tree, { kind: 'participant', id: 'a' }); renderEditor();
+    press('m'); renderEditor(); press('f'); tree = renderEditor();
+    const picker = composerState(tree);
+    expect(picker).toMatchObject({ stage: 'fragment' });
+    for (let guard = 0; guard < 6 && (composerState(tree) as { fragmentOperator: string }).fragmentOperator !== 'loop'; guard += 1) { press('ArrowDown'); tree = renderEditor(); }
+    press('Enter'); renderEditor();
+    artifact = { ...artifact, content: lastContent() };
+    tree = renderEditor();
     const input = inlineInput(tree);
     expect(input.props.value).toBe('');
     (input.props.onChange as (event: { target: { value: string } }) => void)({ target: { value: 'cada pedido' } });
     tree = renderEditor();
     onChangeContent.mockClear();
     (inlineInput(tree).props.onKeyDown as (event: KeyboardEvent) => void)(keyEvent('Enter'));
-    const fragment = lastContent().items.find((item) => item.kind === 'fragment')!;
-    expect(fragment).toMatchObject({ name: 'cada pedido' });
-    expect(elements(renderEditor()).some((node) => node.props.className === 'sequence-inline-input')).toBe(false);
+    expect(lastContent().items.find((item) => item.kind === 'fragment')).toMatchObject({ operator: 'loop', name: 'cada pedido' });
   });
 
   it('Esc leaves the fragment with its default name and closes the editor', () => {

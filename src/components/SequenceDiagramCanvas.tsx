@@ -15,7 +15,7 @@ import { findMarqueeHits } from '../utils/sequenceDiagramSelection';
 import type { SequenceLayout } from '../utils/sequenceDiagramLayout';
 import { isNotebookEvent } from '../utils/notebookKeyboard';
 import { shouldIgnoreEditorShortcut } from '../utils/editorShortcutGuards';
-import { getSequenceMessageEndpoints, SEQUENCE_HEADER_HEIGHT, SEQUENCE_HEADER_Y } from '../utils/sequenceDiagramLayout';
+import { getFragmentTabLabel, getSequenceMessageEndpoints, isSingleOperandFragment, SEQUENCE_HEADER_HEIGHT, SEQUENCE_HEADER_Y } from '../utils/sequenceDiagramLayout';
 import {
   SEQUENCE_NOTE_FONT_FAMILY,
   SEQUENCE_NOTE_FONT_SIZE,
@@ -434,12 +434,14 @@ function SequenceDiagramCanvasImpl({
     const isSelected = isPrimarySelected || isMultiSelected;
     const isHighlighted = highlighted?.kind === 'fragment' && highlighted.id === fragment.id;
     const isInvalidResize = boundaryResizePreview?.fragmentId === fragment.id && !boundaryResizePreview.isValid;
+    const tabLabel = getFragmentTabLabel(fragment);
+    const singleBranch = isSingleOperandFragment(fragment);
     const fragmentStroke = isInvalidResize ? '#ef4444' : isSelected || isHighlighted ? selectedStroke : fragmentStrokeBase;
     const surfaceFill = box.depth % 2 === 1 ? nestedFragmentFill : fragmentFill;
     return (
       <g
         key={fragment.id}
-        aria-label={`Fragmento ${fragment.operator}${fragment.name ? `: ${fragment.name}` : ''}`}
+        aria-label={`Fragmento ${fragment.operator}${tabLabel.text ? `: ${tabLabel.text}` : ''}`}
         className={`sequence-fragment ${isHighlighted ? 'sequence-highlighted' : ''} ${isMultiSelected ? 'sequence-multi-selected' : ''}`}
         data-selected={isSelected || undefined}
         data-multi-selected={isMultiSelected || undefined}
@@ -468,7 +470,7 @@ function SequenceDiagramCanvasImpl({
           const firstLine = box.tabLines?.[0] ?? fragment.operator;
           const editName = (event: ReactMouseEvent<SVGElement>): void => {
             event.stopPropagation();
-            onEditFragmentName?.(fragment.id, fragment.name, {
+            onEditFragmentName?.(fragment.id, tabLabel.text, {
               x: box.x + 4,
               y: box.y + 2,
               width: Math.max(180, Math.min(box.width - 8, tabWidth + 80)),
@@ -483,14 +485,14 @@ function SequenceDiagramCanvasImpl({
                 fill={textColor}
                 fontSize="12"
                 cursor="move"
-                aria-label={fragment.name ? 'Doble clic para editar el nombre' : undefined}
+                aria-label={tabLabel.text ? 'Doble clic para editar el nombre' : undefined}
                 onDoubleClick={editName}
               >
                 <tspan fontWeight="bold">{fragment.operator}</tspan>
                 {firstLine.length > fragment.operator.length ? <tspan>{firstLine.slice(fragment.operator.length)}</tspan> : null}
                 {(box.tabLines ?? []).slice(1).map((line, index) => <tspan key={`${fragment.id}:tab:${index}`} x={box.x + 9} dy={14}>{line}</tspan>)}
               </text>
-              {!fragment.name && isPrimarySelected ? (
+              {!tabLabel.text && isPrimarySelected ? (
                 <text
                   data-export-control="true"
                   x={box.x + tabWidth + 10}
@@ -563,7 +565,7 @@ function SequenceDiagramCanvasImpl({
           return (
           <g key={operand.id}>
             {index > 0 ? <line x1={box.x} y1={operand.top} x2={box.x + box.width} y2={operand.top} stroke={fragmentStrokeBase} strokeDasharray="5 5" opacity="0.78" /> : null}
-            <g
+            {singleBranch ? null : <g
               cursor="pointer"
               className="sequence-operand-guard-group"
               aria-label="Doble clic para editar condición de guarda"
@@ -594,7 +596,7 @@ function SequenceDiagramCanvasImpl({
               ) : (
                 <rect data-export-control="true" x={box.x + 8} y={operand.top} width={Math.min(140, box.width - 16)} height={12} fill="transparent" />
               )}
-            </g>
+            </g>}
             {showEmptyCta ? (
               <g data-export-control="true" opacity={isSelected ? 1 : 0.85}>
                 <rect
