@@ -114,7 +114,7 @@ export const noPendingCallFeedback = 'No hay llamada pendiente para retornar.';
 
 /**
  * Where ← / → send the target. The arrows only move the destination: the
- * message type is chosen explicitly (S, R, C, D, ↑ ↓) and never changes here,
+ * message type is chosen explicitly (S, R, C, D) and never changes here,
  * so a call can go either way and a return can go back to either side.
  *
  * A return can only go back to someone who has a call waiting for it, so its
@@ -541,10 +541,10 @@ export const getSequenceKeyboardInstruction = (state: SequenceKeyboardModeState)
   }
   if (state.stage === 'aim') {
     return state.messageType === 'create'
-      ? '← → ubicación · ↑ ↓ tipo · Enter confirmar · Esc volver'
+      ? '← → ubicación · S R C D tipo · Enter confirmar · Esc volver'
       : state.messageType === 'return'
-        ? '← → quién llamó · ↑ ↓ tipo · Enter confirmar · Esc volver'
-        : '← → destino · ↑ ↓ tipo · Enter confirmar · Esc volver';
+        ? '← → quién llamó · S R C D tipo · Enter confirmar · Esc volver'
+        : '← → destino · S R C D tipo · Enter confirmar · Esc volver';
   }
   if (state.stage === 'typing') {
     return state.messageType === 'create'

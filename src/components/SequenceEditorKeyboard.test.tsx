@@ -397,3 +397,36 @@ describe('keyboard fragment creation', () => {
     expect(composerState(tree)).toEqual(before);
   });
 });
+
+describe('message type choice by letter', () => {
+  const aimFrom = (participantId: string) => {
+    artifact = { ...artifact, content: { ...createEmptySequenceDiagramContent(), participants: [
+      { id: 'a', kind: 'object' as const, name: 'A', classifierName: '', x: 180 },
+      { id: 'b', kind: 'object' as const, name: 'B', classifierName: '', x: 460 },
+    ], items: [{ ...createSequenceMessage('synchronous', 'a', 'b'), id: 'call', name: 'buscar' }] } };
+    let tree = renderEditor(); select(tree, { kind: 'participant', id: participantId }); renderEditor();
+    press('m'); renderEditor(); press('Enter'); tree = renderEditor();
+    return tree;
+  };
+  const typeOf = () => (composerState(renderEditor()) as { messageType: string }).messageType;
+
+  it('does not change the type with the vertical arrows', () => {
+    aimFrom('b');
+    expect(typeOf()).toBe('synchronous');
+    press('ArrowDown'); expect(typeOf()).toBe('synchronous');
+    press('ArrowUp'); expect(typeOf()).toBe('synchronous');
+  });
+
+  it('changes the type with S R C D', () => {
+    aimFrom('b');
+    press('c'); expect(typeOf()).toBe('create');
+    press('r'); expect(typeOf()).toBe('return');
+    press('d'); expect(typeOf()).toBe('destroy');
+    press('s'); expect(typeOf()).toBe('synchronous');
+  });
+
+  it('keeps the type when R has no call to answer', () => {
+    aimFrom('a');
+    press('r'); expect(typeOf()).toBe('synchronous');
+  });
+});

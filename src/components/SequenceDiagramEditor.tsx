@@ -158,7 +158,6 @@ import {
   noPendingCallFeedback,
   sequenceKeyboardCreateKinds,
   sequenceKeyboardFragmentOperators,
-  sequenceKeyboardMessageTypes,
   sequenceKeyboardModeReducer,
 } from '../utils/sequenceKeyboardMode';
 import {
@@ -1341,9 +1340,7 @@ export function SequenceDiagramEditor({
             dispatchKeyboardMode({ type: 'set-route', returnCandidateIndex: nextCandidateIndex });
             return;
           }
-          const currentType = keyboardMode.messageType === 'asynchronous' ? 'synchronous' : keyboardMode.messageType;
-          const messageType = moveCircular(sequenceKeyboardMessageTypes, currentType, direction);
-          if (messageType) setKeyboardMessageType(messageType);
+          // The type is chosen with S, R, C and D (or by clicking it); the vertical arrows do not change it.
           return;
         }
         const key = event.key.toLocaleLowerCase();
@@ -3439,7 +3436,10 @@ export function SequenceDiagramEditor({
       ? Math.max(90, Math.min(...content.participants.map((participant) => participant.x)) - 230)
       : Math.max(...content.participants.map((participant) => participant.x)) + 230
     : undefined;
-  const keyboardRouteMidpoint = keyboardSlot
+  const keyboardRouteMidpoint = keyboardSlot && keyboardMode.stage === 'navigate'
+    // Navigating has no destination yet (the last one is stale): the sign sits on the lifeline.
+    ? layout.participantX.get(keyboardMode.sourceId) ?? 120
+    : keyboardSlot
     ? ((layout.participantX.get(keyboardMode.sourceId) ?? 120)
       + (keyboardGhostX ?? layout.participantX.get(keyboardMode.targetId) ?? layout.participantX.get(keyboardMode.sourceId) ?? 120)) / 2
     : 120;
@@ -3451,7 +3451,7 @@ export function SequenceDiagramEditor({
   const slotScreenY = rawSlotY * zoom - scrollPosition.top + keyboardGuideHeight;
   const isPopoverBelow = rawSlotY < 180;
   const keyboardPopoverPlacement: 'above' | 'below' = isPopoverBelow ? 'below' : 'above';
-  const popoverHalfWidth = keyboardMode.stage === 'navigate' ? 70 : 188;
+  const popoverHalfWidth = keyboardMode.stage === 'navigate' ? 140 : 188;
   const keyboardPopoverPosition = {
     left: `clamp(${popoverHalfWidth}px, ${keyboardRouteMidpoint * zoom - scrollPosition.left}px, calc(100% - ${popoverHalfWidth}px))`,
     top: isPopoverBelow
@@ -5093,6 +5093,10 @@ export function SequenceDiagramEditor({
                 text: methodInsertText(method),
               })}
               onAddParticipant={() => dispatchKeyboardMode({ type: 'begin-participant' })}
+              onOpenFragment={() => dispatchKeyboardMode({ type: 'open-fragment' })}
+              onSelectType={setKeyboardMessageType}
+              onMoveTarget={(direction) => moveKeyboardParticipant(direction, true)}
+              returnAvailable={keyboardMode.stage !== 'aim' || findCompatibleSequenceReturnCalls(content, layout, keyboardSlot, keyboardMode.sourceId).length > 0}
             />
           ) : null}
           {content.participants.length === 0 && !participantDraft ? (
