@@ -279,6 +279,7 @@ export function ClassInspector({
           </div>
         ))}
         {node.data.attributes.length === 0 ? <p className="helper-text">Esta clase no tiene atributos.</p> : null}
+        {node.data.attributes.length > 0 ? <p className="helper-text">S marca un miembro estático: se dibuja subrayado.</p> : null}
       </div>
 
       <div className="inspector-section-header">
@@ -340,6 +341,7 @@ export function ClassInspector({
             </button>
           </div>
         ))}
+        {node.data.methods.length > 0 ? <p className="helper-text">S marca un miembro estático: se dibuja subrayado.</p> : null}
       </div>
 
       <div className="inspector-section-header">
