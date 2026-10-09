@@ -1,9 +1,9 @@
 import type { ArtifactNotebook, NotebookBlock, SketchShape } from '../../types/diagram';
-import { createNotebookBlock, isNotebookBlockEmpty } from '../../utils/artifactNotebook';
+import { MAX_BLOCKS, createNotebookBlock, isNotebookBlockEmpty } from '../../utils/artifactNotebook';
 
 /** Where the caret goes after an edit; sketches ignore `caret`. */
 export type FocusTarget = { id: string; caret: number | 'start' | 'end' };
-export type BlockEdit = { blocks: NotebookBlock[]; focus?: FocusTarget };
+export type BlockEdit = { blocks: NotebookBlock[]; focus?: FocusTarget; limitReached?: boolean };
 
 type QuestionBlock = Extract<NotebookBlock, { kind: 'question' }>;
 type TextBlock = Extract<NotebookBlock, { kind: 'text' }>;
@@ -68,6 +68,8 @@ export const enterInQuestion = (
     return { blocks: withBlock(blocks, id, () => text), focus: { id, caret: 0 } };
   }
 
+  if (blocks.length >= MAX_BLOCKS) return { blocks, limitReached: true };
+
   const before = block.text.slice(0, selectionStart);
   const after = block.text.slice(selectionEnd);
   const next = { ...createNotebookBlock('question'), text: after } as QuestionBlock;
@@ -115,6 +117,7 @@ export const removeBlock = (blocks: NotebookBlock[], id: string): BlockEdit => {
 export const appendBlock = (blocks: NotebookBlock[], kind: NotebookBlock['kind']): BlockEdit => {
   const last = blocks[blocks.length - 1];
   const base = last !== undefined && last.kind === 'text' && last.text.length === 0 ? blocks.slice(0, -1) : blocks;
+  if (base.length >= MAX_BLOCKS) return { blocks, limitReached: true };
   const block = createNotebookBlock(kind);
   return { blocks: [...base, block], focus: { id: block.id, caret: 'end' } };
 };

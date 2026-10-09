@@ -10,6 +10,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
+import { flushSync } from 'react-dom';
 import { Plus, X } from 'lucide-react';
 import type { ArtifactNotebook, NotebookBlock, SketchShape } from '../../types/diagram';
 import { countNotebookPoints, countResolvedQuestions } from '../../utils/artifactNotebook';
@@ -84,6 +85,7 @@ export function NotebookSheet({
   const [seenNotebook, setSeenNotebook] = useState(notebook);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [hideResolved, setHideResolved] = useState(false);
+  const [blockLimitHint, setBlockLimitHint] = useState(false);
 
   const blocksRef = useRef(blocks);
   const dirtyRef = useRef(false);
@@ -126,12 +128,21 @@ export function NotebookSheet({
     onCommitRef.current(next);
   }, []);
 
-  useEffect(() => flush, [flush]);
+  useEffect(() => {
+    const flushDrafts = () => flushSync(flush);
+    window.addEventListener('modelador:flush-drafts', flushDrafts);
+    return () => {
+      window.removeEventListener('modelador:flush-drafts', flushDrafts);
+      flush();
+    };
+  }, [flush]);
 
   /** Applies an edit to the draft; `now` commits at once, otherwise ~400 ms later. */
   const apply = useCallback(
     (edit: BlockEdit | NotebookBlock[], mode: 'now' | 'later') => {
       const edited = Array.isArray(edit) ? { blocks: edit } : edit;
+      setBlockLimitHint(edited.limitReached === true);
+      if (edited.limitReached) return;
       blocksRef.current = edited.blocks;
       setBlocks(edited.blocks);
       if (edited.focus !== undefined) pendingFocusRef.current = edited.focus;
@@ -166,6 +177,8 @@ export function NotebookSheet({
   const focusEnd = useCallback(
     (reuseLastQuestion: boolean) => {
       const edit = focusSheetEnd(blocksRef.current, reuseLastQuestion);
+      setBlockLimitHint(edit.limitReached === true);
+      if (edit.limitReached) return;
       if (edit.blocks === blocksRef.current && edit.focus !== undefined) {
         const element = elementsRef.current.get(edit.focus.id);
         if (element instanceof HTMLTextAreaElement) {
@@ -399,11 +412,12 @@ export function NotebookSheet({
             <span className="v2-tool-label">Boceto</span>
           </button>
         </div>
+        {blockLimitHint ? <p className="notebook-empty-hint" role="status">Llegaste al máximo de bloques. Para agregar otro, borrá un bloque.</p> : null}
         <div className="notebook-tail" />
       </div>
 
       <footer className="notebook-footer">
-        <p>Solo para vos: no se exporta.</p>
+        <p>No aparecen en PDF ni Word. Sí van en los archivos .json exportados.</p>
         <p className="notebook-footer-error" role="status">{saveFailed ? 'No se pudo guardar. Revisá el aviso de arriba.' : null}</p>
       </footer>
     </aside>

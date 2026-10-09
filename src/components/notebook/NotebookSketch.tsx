@@ -1,6 +1,7 @@
 import {
   memo,
   useEffect,
+  useEffectEvent,
   useId,
   useMemo,
   useRef,
@@ -14,12 +15,14 @@ import { Eraser, MousePointer2, MoveUpRight, Pencil, Redo2, Square, Type, Undo2 
 import type { SketchColor, SketchShape } from '../../types/diagram';
 import {
   MAX_NOTEBOOK_POINTS,
+  MAX_TEXT_LENGTH,
   MAX_SHAPES_PER_SKETCH,
   MAX_SKETCH_HEIGHT,
   MIN_SKETCH_HEIGHT,
   NOTEBOOK_LOGICAL_WIDTH,
   simplifyStroke,
 } from '../../utils/artifactNotebook';
+import { limitTextChange, limitTextPaste, TEXT_LIMIT_HINT, TEXT_PASTE_HINT } from './notebookTextLimits';
 import { createId } from '../../utils/id';
 import { shortcutLabel } from '../../utils/shortcutLabel';
 import { ToolButton } from '../ui/Toolbar';
@@ -174,6 +177,8 @@ export function NotebookSketch({ block, notebookPoints, onChange, onHeightChange
   const gestureRef = useRef<Gesture | null>(null);
   const [history, setHistory] = useState<SketchHistory<SketchShape[]>>(emptySketchHistory);
   const [textEdit, setTextEditState] = useState<TextEdit | null>(null);
+  const textInputRef = useRef<HTMLInputElement | null>(null);
+  const [textLimitHint, setTextLimitHint] = useState<string | null>(null);
   const textEditRef = useRef<TextEdit | null>(null);
   const [limitHint, setLimitHint] = useState(false);
   const hintTimerRef = useRef<number | undefined>(undefined);
@@ -186,6 +191,7 @@ export function NotebookSketch({ block, notebookPoints, onChange, onHeightChange
     setGestureState(next);
   };
   const setTextEdit = (next: TextEdit | null) => {
+    setTextLimitHint(next !== null && next.value.length >= MAX_TEXT_LENGTH ? TEXT_LIMIT_HINT : null);
     textEditRef.current = next;
     setTextEditState(next);
   };
@@ -270,6 +276,15 @@ export function NotebookSketch({ block, notebookPoints, onChange, onHeightChange
     if (text === '' || !canAddShape()) return;
     applyShapes([...shapes, { id: createId(), kind: 'text', color: edit.color, x: edit.x, y: edit.y, text }]);
   };
+
+  const flushTextDraft = useEffectEvent(() => {
+    if (textInputRef.current !== null) commitText(textInputRef.current.value);
+  });
+  useEffect(() => {
+    const flushDraft = () => flushTextDraft();
+    window.addEventListener('modelador:flush-drafts', flushDraft, true);
+    return () => window.removeEventListener('modelador:flush-drafts', flushDraft, true);
+  }, []);
 
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (event.button !== 0 || gestureRef.current !== null || tool === 'text') return;
@@ -687,12 +702,14 @@ export function NotebookSketch({ block, notebookPoints, onChange, onHeightChange
           Dibujá con el mouse o el trackpad. Atajos: V, P, A, R, T y E cambian de herramienta; Esc vuelve al diagrama.
         </span>
 
+        {textLimitHint !== null ? <p className="notebook-sketch-hint" role="status">{textLimitHint}</p> : null}
         {textEdit !== null ? (
           <input
             aria-label="Texto del boceto"
             autoFocus
             className="notebook-sketch-input"
             defaultValue={textEdit.value}
+            ref={textInputRef}
             style={{
               color: COLOR_VAR[textEdit.color],
               left: `${textEdit.x / 10}%`,
@@ -701,7 +718,21 @@ export function NotebookSketch({ block, notebookPoints, onChange, onHeightChange
             }}
             onBlur={(event) => commitText(event.currentTarget.value)}
             onChange={(event) => {
-              event.currentTarget.style.width = `${Math.max(6, event.currentTarget.value.length + 1)}ch`;
+              const field = event.currentTarget;
+              field.value = limitTextChange(textEditRef.current?.value ?? '', field.value);
+              if (textEditRef.current !== null) textEditRef.current = { ...textEditRef.current, value: field.value };
+              setTextLimitHint(field.value.length >= MAX_TEXT_LENGTH ? TEXT_LIMIT_HINT : null);
+              field.style.width = `${Math.max(6, field.value.length + 1)}ch`;
+            }}
+            onPaste={(event) => {
+              event.preventDefault();
+              const field = event.currentTarget;
+              const next = limitTextPaste(field.value, field.selectionStart ?? 0, field.selectionEnd ?? 0, event.clipboardData.getData('text/plain'));
+              field.value = next.value;
+              field.setSelectionRange(next.caret, next.caret);
+              if (textEditRef.current !== null) textEditRef.current = { ...textEditRef.current, value: next.value };
+              setTextLimitHint(next.truncated ? TEXT_PASTE_HINT : next.value.length >= MAX_TEXT_LENGTH ? TEXT_LIMIT_HINT : null);
+              field.style.width = `${Math.max(6, field.value.length + 1)}ch`;
             }}
             onKeyDown={(event) => {
               if (event.nativeEvent.isComposing) return;
