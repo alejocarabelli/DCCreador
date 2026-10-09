@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { handleReactFlowError } from '../utils/reactFlowErrors';
 import ReactFlow, { Background, BackgroundVariant, ConnectionMode, ReactFlowProvider, type Edge, type Node, type NodeChange, type ReactFlowInstance } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { SquarePen } from 'lucide-react';
@@ -127,7 +126,6 @@ function ViewerCanvas({ artifact }: { artifact: ViewableArtifact }) {
   return (
     <div className="artifact-viewer-flow" ref={canvasRef}>
     <ReactFlow
-      onError={handleReactFlowError}
       onInit={setInstance}
       nodes={nodes}
       edges={edges}
