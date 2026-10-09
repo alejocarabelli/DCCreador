@@ -91,15 +91,16 @@ fn backup(window: WebviewWindow, action: String, payload: Option<String>) -> Res
             window.app_handle().opener().open_path(&directory, None::<&str>).map_err(|error| error.to_string())?;
             Ok(serde_json::json!({ "path": directory }))
         }
-        "write" => {
+        "write" | "preserve" => {
             let payload = payload.filter(|text| !text.is_empty()).ok_or("El respaldo llegó vacío.")?;
-            let stamp = chrono::Local::now().format("%Y-%m-%d-%H%M%S");
-            let destination = dir.join(format!("respaldo-{stamp}.json"));
+            let prefix = if action == "preserve" { "recuperacion" } else { "respaldo" };
+            let stamp = chrono::Local::now().format("%Y-%m-%d-%H%M%S-%f");
+            let destination = dir.join(format!("{prefix}-{stamp}.json"));
             // Escritura atómica: primero a un temporal y después se renombra.
-            let temporary = dir.join(format!(".respaldo-{stamp}.tmp"));
+            let temporary = dir.join(format!(".{prefix}-{stamp}.tmp"));
             std::fs::write(&temporary, payload).map_err(|error| error.to_string())?;
             std::fs::rename(&temporary, &destination).map_err(|error| error.to_string())?;
-            prune_backups(&dir);
+            if action == "write" { prune_backups(&dir); }
             Ok(serde_json::json!({ "path": destination.to_string_lossy(), "directory": directory }))
         }
         _ => Err("Acción de respaldo desconocida.".into()),

@@ -22,6 +22,7 @@ import {
   BACKUP_INTERVAL_MS,
   isBackupAvailable,
   readLastBackupAt,
+  preserveRecoveryCopy,
   revealBackups,
   writeBackup,
   type BackupState,
@@ -41,6 +42,8 @@ import {
   isSequenceUsingClassModel,
 } from '../utils/classRenamePropagation';
 import { createId } from '../utils/id';
+import { copyProject, sameProjectContent, type ProjectImportCounts } from '../utils/projectRecovery';
+import { saveBlob } from '../utils/saveFile';
 import { isNotebookEmpty } from '../utils/artifactNotebook';
 import { createEmptySequenceDiagramContent, normalizeSequenceDiagramContent } from '../utils/sequenceDiagram';
 import { importArtifactIntoProjects, moveArtifactsBetweenProjects, type ArtifactMoveResult } from '../utils/artifactTransfer';
@@ -141,8 +144,10 @@ export const useProjects = () => {
   // an arbitrary artifact. Creating or selecting a project still opens it as before.
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [storageWarning, setStorageWarning] = useState<string | null>(initialLoad.warning);
-  const [saveStatus, setSaveStatus] = useState<DiagramSaveStatus>('saved');
-  const skipInitialSaveRef = useRef(initialLoad.skipInitialSave);
+  const [saveStatus, setSaveStatus] = useState<DiagramSaveStatus>(initialLoad.skipInitialSave ? 'error' : 'saved');
+  const [saveBlocked, setSaveBlocked] = useState(initialLoad.skipInitialSave);
+  const saveBlockedRef = useRef(initialLoad.skipInitialSave);
+  const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
   const latestProjectsRef = useRef(projects);
   const hasPendingSaveRef = useRef(false);
   const [backup, setBackup] = useState<BackupState>({
@@ -151,13 +156,54 @@ export const useProjects = () => {
     at: readLastBackupAt(),
     error: null,
   });
-  const backupInFlightRef = useRef(false);
+  const backupQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const backupTimeoutRef = useRef<number | null>(null);
+  const mountedRef = useRef(true);
+
+  const allowSaving = useCallback((): void => {
+    saveBlockedRef.current = false;
+    setSaveBlocked(false);
+    setStorageWarning(null);
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  useEffect(() => {
+    if (initialLoad.recoveryRaw === null) return;
+    let cancelled = false;
+    void preserveRecoveryCopy(initialLoad.recoveryRaw).then((preserved) => {
+      if (cancelled || !preserved) return;
+      setRecoveryNotice('No se pudo leer todo el trabajo guardado. Se guardó una copia en Documentos › Modelador de Sistemas › Respaldos.');
+      allowSaving();
+    });
+    return () => { cancelled = true; };
+  }, [initialLoad, allowSaving]);
+
+  const downloadRecoveryCopy = async (): Promise<boolean> => {
+    if (initialLoad.recoveryRaw === null) return false;
+    const outcome = await saveBlob(new Blob([initialLoad.recoveryRaw], { type: 'application/json' }), `recuperacion-${Date.now()}.json`);
+    if (outcome.status === 'saved') {
+      if (outcome.path === null) return true;
+      setRecoveryNotice('No se pudo leer todo el trabajo guardado. Se guardó una copia de seguridad del original.');
+      allowSaving();
+    } else if (outcome.status === 'failed') {
+      setStorageWarning('No se pudo guardar la copia de seguridad. Reintentá la descarga. El original sigue protegido.');
+    }
+    return false;
+  };
+
+  const confirmRecoveryDownload = (): void => {
+    setRecoveryNotice('No se pudo leer todo el trabajo guardado. Se descargó una copia de seguridad del original.');
+    allowSaving();
+  };
 
   useEffect(() => {
     latestProjectsRef.current = projects;
 
-    if (skipInitialSaveRef.current) {
-      skipInitialSaveRef.current = false;
+    if (saveBlockedRef.current) {
       return;
     }
 
@@ -175,11 +221,11 @@ export const useProjects = () => {
     }, 250);
 
     return () => window.clearTimeout(timeoutId);
-  }, [projects]);
+  }, [projects, saveBlocked]);
 
   useEffect(() => {
     const flushPendingSave = (): void => {
-      if (!hasPendingSaveRef.current) {
+      if (saveBlockedRef.current || !hasPendingSaveRef.current) {
         return;
       }
 
@@ -210,41 +256,45 @@ export const useProjects = () => {
     };
   }, []);
 
-  const runBackup = useCallback(async (force: boolean): Promise<void> => {
-    if (!isBackupAvailable() || backupInFlightRef.current) return;
-
-    const last = readLastBackupAt();
-    if (!force && last !== null && Date.now() - last < BACKUP_INTERVAL_MS) return;
-    if (latestProjectsRef.current.length === 0) return;
-
-    backupInFlightRef.current = true;
-    try {
-      const result = await writeBackup(latestProjectsRef.current);
-      if (result.at !== null || result.error !== null) setBackup(result);
-    } finally {
-      backupInFlightRef.current = false;
-    }
+  const runBackup = useCallback(async function performBackup(force: boolean, snapshot?: DiagramProject[]): Promise<void> {
+    if (!isBackupAvailable() || saveBlockedRef.current) return;
+    const task = backupQueueRef.current.then(async () => {
+      if (!mountedRef.current || saveBlockedRef.current) return;
+      const last = readLastBackupAt();
+      if (!force && last !== null && Date.now() - last < BACKUP_INTERVAL_MS) {
+        if (backupTimeoutRef.current !== null) window.clearTimeout(backupTimeoutRef.current);
+        backupTimeoutRef.current = window.setTimeout(() => {
+          backupTimeoutRef.current = null;
+          void performBackup(false);
+        }, BACKUP_INTERVAL_MS - (Date.now() - last));
+        return;
+      }
+      if (backupTimeoutRef.current !== null) window.clearTimeout(backupTimeoutRef.current);
+      backupTimeoutRef.current = null;
+      const result = await writeBackup(snapshot ?? latestProjectsRef.current);
+      if (mountedRef.current && (result.at !== null || result.error !== null)) setBackup(result);
+    });
+    backupQueueRef.current = task;
+    await task;
   }, []);
 
-  // A snapshot rides along with editing (throttled to BACKUP_INTERVAL_MS) and
-  // one more is forced when the window goes away, which is the moment a lost
-  // localStorage would actually cost work.
   useEffect(() => {
-    if (!isBackupAvailable()) return;
+    if (!saveBlocked) void runBackup(false);
+  }, [projects, saveBlocked, runBackup]);
 
-    void runBackup(false);
-
+  useEffect(() => {
+    const onPageHide = (): void => { void runBackup(true); };
     const onHide = (): void => {
       if (document.visibilityState === 'hidden') void runBackup(true);
     };
-
-    window.addEventListener('pagehide', () => void runBackup(true));
+    window.addEventListener('pagehide', onPageHide);
     document.addEventListener('visibilitychange', onHide);
-
     return () => {
+      window.removeEventListener('pagehide', onPageHide);
       document.removeEventListener('visibilitychange', onHide);
+      if (backupTimeoutRef.current !== null) window.clearTimeout(backupTimeoutRef.current);
     };
-  }, [projects, runBackup]);
+  }, [runBackup]);
 
   const activeProject = useMemo(
     () => projects.find((project) => project.id === activeProjectId) ?? null,
@@ -274,6 +324,7 @@ export const useProjects = () => {
   };
 
   const deleteProject = (projectId: string): void => {
+    if (projects.some((project) => project.id === projectId)) void runBackup(true, projects);
     setProjects((currentProjects) => {
       const nextProjects = currentProjects.filter((project) => project.id !== projectId);
 
@@ -525,6 +576,10 @@ export const useProjects = () => {
   };
 
   const deleteArtifact = (projectId: string, artifactId: string): void => {
+    const target = projects.find((project) => project.id === projectId);
+    if (target && target.artifacts.length > 1 && target.artifacts.some((artifact) => artifact.id === artifactId)) {
+      void runBackup(true, projects);
+    }
     const now = new Date().toISOString();
 
     setProjects((currentProjects) =>
@@ -629,10 +684,8 @@ export const useProjects = () => {
 
     setProjects((currentProjects) => {
       const idExists = currentProjects.some((currentProject) => currentProject.id === normalizedProject.id);
-      const importedId = normalizedProject.id && !idExists ? normalizedProject.id : createId();
       const importedProject = {
-        ...normalizedProject,
-        id: importedId,
+        ...(idExists ? copyProject(normalizedProject) : normalizedProject),
         createdAt: normalizedProject.createdAt || now,
         updatedAt: now,
       };
@@ -656,29 +709,25 @@ export const useProjects = () => {
     return result;
   };
 
-  /**
-   * Brings in many projects at once (a backup of the first version). A project
-   * whose id is already here is skipped, so importing the same backup twice
-   * does not duplicate anything.
-   */
-  const importProjects = (incoming: DiagramProject[]): { imported: number; skipped: number } => {
-    const knownIds = new Set(projects.map((project) => project.id));
-    const now = new Date().toISOString();
-    const fresh = incoming
-      .map((project) => normalizeDiagramProject(project))
-      .filter((project) => {
-        if (project.id && knownIds.has(project.id)) return false;
-        if (project.id) knownIds.add(project.id);
-        return true;
-      })
-      .map((project) => ({
-        ...project,
-        id: project.id || createId(),
-        createdAt: project.createdAt || now,
-        updatedAt: project.updatedAt || now,
-      }));
+  const importProjects = (incoming: DiagramProject[]): ProjectImportCounts => {
+    const known = new Map(projects.map((project) => [project.id, project]));
+    const counts: ProjectImportCounts = { imported: 0, recovered: 0, skipped: 0 };
+    const fresh: DiagramProject[] = [];
+    incoming.forEach((project) => {
+      const normalized = normalizeDiagramProject(project);
+      const existing = known.get(normalized.id);
+      if (existing && sameProjectContent(existing, normalized)) {
+        counts.skipped += 1;
+        return;
+      }
+      const imported = existing ? copyProject(normalized, `${normalized.name} (recuperado)`) : normalized;
+      if (existing) counts.recovered += 1;
+      else counts.imported += 1;
+      fresh.push(imported);
+      known.set(imported.id, imported);
+    });
     if (fresh.length > 0) setProjects((currentProjects) => [...fresh, ...currentProjects]);
-    return { imported: fresh.length, skipped: incoming.length - fresh.length };
+    return counts;
   };
 
   return {
@@ -708,7 +757,14 @@ export const useProjects = () => {
     saveStatus,
     setActiveArtifactId,
     setActiveProjectId,
-    storageWarning,
+    storageWarning: storageWarning ?? recoveryNotice,
+    recoveryPending: saveBlocked && initialLoad.recoveryRaw !== null,
+    downloadRecoveryCopy,
+    confirmRecoveryDownload,
+    continueWithoutRecovery: () => {
+      setRecoveryNotice('Elegiste seguir sin copia de seguridad. El próximo guardado reemplaza el original.');
+      allowSaving();
+    },
     updateArtifactNotebook,
     updateProjectArtifactContent,
     updateProjectContent,
