@@ -172,17 +172,20 @@ export const normalizeDiagramContent = (
   };
 };
 
+// The editor trims these as text: a number is its text, anything else is empty.
+const normalizeText = (value: unknown): string =>
+  typeof value === 'number' ? String(value) : typeof value === 'string' ? value : '';
+
 export const normalizeUseCaseNode = (node: UseCaseModelNode): UseCaseModelNode => {
   const kind = node.data?.kind ?? (node.type === 'useCaseActor' ? 'actor' : node.type === 'systemBoundary' ? 'system-boundary' : 'use-case');
   const type = kind === 'actor' ? 'useCaseActor' : kind === 'system-boundary' ? 'systemBoundary' : 'useCaseOval';
-
-  return {
+  const normalizedNode: UseCaseModelNode = {
     ...node,
     type,
     data: {
       ...node.data,
       kind,
-      name: node.data?.name ?? '',
+      name: normalizeText(node.data?.name),
     },
     style: {
       ...node.style,
@@ -190,16 +193,32 @@ export const normalizeUseCaseNode = (node: UseCaseModelNode): UseCaseModelNode =
       height: kind === 'system-boundary' ? node.style?.height ?? node.height ?? 300 : node.style?.height,
     },
   };
+
+  // Selection and React Flow measurements are not content: they never reach the saved artifact or its undo history.
+  delete normalizedNode.selected;
+  delete normalizedNode.dragging;
+  delete normalizedNode.width;
+  delete normalizedNode.height;
+  delete (normalizedNode as UseCaseModelNode & { positionAbsolute?: unknown }).positionAbsolute;
+  delete (normalizedNode as UseCaseModelNode & { resizing?: unknown }).resizing;
+
+  return normalizedNode;
 };
 
-export const normalizeUseCaseEdge = (edge: UseCaseModelEdge): UseCaseModelEdge => ({
-  ...edge,
-  type: 'useCaseRelation',
-  data: {
-    relationType: edge.data?.relationType ?? 'association',
-    label: edge.data?.label ?? '',
-  } satisfies UseCaseEdgeData,
-});
+export const normalizeUseCaseEdge = (edge: UseCaseModelEdge): UseCaseModelEdge => {
+  const normalizedEdge: UseCaseModelEdge = {
+    ...edge,
+    type: 'useCaseRelation',
+    data: {
+      relationType: edge.data?.relationType ?? 'association',
+      label: normalizeText(edge.data?.label),
+    } satisfies UseCaseEdgeData,
+  };
+
+  delete normalizedEdge.selected;
+
+  return normalizedEdge;
+};
 
 export const normalizeUseCaseModelContent = (
   content: Partial<UseCaseModelContent> | undefined,

@@ -6,6 +6,7 @@ import { ArtifactImportDialog } from './components/ArtifactImportDialog';
 import { ArtifactMoveDialog } from './components/ArtifactMoveDialog';
 import { ProjectHome } from './components/ProjectHome';
 import { ProjectBackupWarning } from './components/ProjectBackupWarning';
+import { ArtifactErrorBoundary } from './components/ArtifactErrorBoundary';
 import { ProjectSidebar } from './components/ProjectSidebar';
 import { ShortcutsDialog } from './components/ShortcutsDialog';
 import { ArtifactTabs } from './components/ArtifactTabs';
@@ -867,87 +868,89 @@ function App() {
               ref={workspaceRef}
             >
               <div id="artifact-editor-panel" className="artifact-editor-panel" role="tabpanel" aria-labelledby={`artifact-tab-${activeArtifact.id}`} tabIndex={-1}>
-                <Suspense fallback={<EditorLoadingState />}>
-                  {activeArtifact.type === 'class-diagram' ? (
-                    <DiagramEditor
-                      key={`${activeProject.id}:${activeArtifact.id}`}
-                      artifact={activeArtifact}
-                      canRedo={canRedo}
-                      canUndo={canUndo}
-                      saveStatus={saveStatus}
-                      project={activeProject}
-                      theme={theme}
-                      onChangeContent={handleChangeProjectContent}
-                      onRedo={handleRedo}
-                      onUndo={handleUndo}
-                    />
-                  ) : activeArtifact.type === 'class-sequence-diagram' ? (
-                    <ClassSequenceDiagramEditor
-                      key={`${activeProject.id}:${activeArtifact.id}`}
-                      artifact={activeArtifact}
-                      canRedo={canRedo}
-                      canUndo={canUndo}
-                      saveStatus={saveStatus}
-                      project={activeProject}
-                      theme={theme}
-                      onNavigateToArtifact={(targetArtifactId) => handleSelectArtifact(activeProject.id, targetArtifactId)}
-                      onLinkAllSequenceDiagrams={(classModelArtifactId) =>
-                        linkSequenceDiagramsToClassModel(activeProject.id, classModelArtifactId)
-                      }
-                      onChangeContent={handleChangeProjectContent}
-                      onRedo={handleRedo}
-                      onUndo={handleUndo}
-                    />
-                  ) : activeArtifact.type === 'use-case-model' ? (
-                    <UseCaseModelEditor
-                      key={`${activeProject.id}:${activeArtifact.id}`}
-                      artifact={activeArtifact}
-                      canRedo={canRedo}
-                      canUndo={canUndo}
-                      saveStatus={saveStatus}
-                      project={activeProject}
-                      theme={theme}
-                      onChangeContent={handleChangeProjectContent}
-                      onRedo={handleRedo}
-                      onUndo={handleUndo}
-                    />
-                  ) : activeArtifact.type === 'use-case-flow' ? (
-                    <UseCaseFlowEditor
-                      key={`${activeProject.id}:${activeArtifact.id}`}
-                      artifact={activeArtifact}
-                      canRedo={canRedo}
-                      canUndo={canUndo}
-                      saveStatus={saveStatus}
-                      project={activeProject}
-                      theme={theme}
-                      onChangeContent={handleChangeProjectContent}
-                      onRedo={handleRedo}
-                      onUndo={handleUndo}
-                    />
-                  ) : (
-                    <SequenceDiagramEditor
-                      key={`${activeProject.id}:${activeArtifact.id}`}
-                      artifact={activeArtifact}
-                      canRedo={canRedo}
-                      canUndo={canUndo}
-                      saveStatus={saveStatus}
-                      project={activeProject}
-                      theme={theme}
-                      onNavigateToArtifact={(targetArtifactId) =>
-                        handleSelectArtifact(activeProject.id, targetArtifactId)
-                      }
-                      onCreateClassMethod={handleCreateClassMethodFromSequence}
-                      onImportSequenceIntoClassModel={handleImportSequenceIntoClassModel}
-                      onCreateSequenceDiagramArtifact={(name, initialContent) =>
-                        createSequenceDiagramArtifact(activeProject.id, name, initialContent)
-                      }
-                      onCreateSequenceModel={() => createClassSequenceDiagramArtifact(activeProject.id, 'Clases de secuencias')}
-                      onChangeContent={handleChangeProjectContent}
-                      onRedo={handleRedo}
-                      onUndo={handleUndo}
-                    />
-                  )}
-                </Suspense>
+                <ArtifactErrorBoundary key={activeArtifact.id} onExportProject={() => handleExportProject(activeProject.id)}>
+                  <Suspense fallback={<EditorLoadingState />}>
+                    {activeArtifact.type === 'class-diagram' ? (
+                      <DiagramEditor
+                        key={`${activeProject.id}:${activeArtifact.id}`}
+                        artifact={activeArtifact}
+                        canRedo={canRedo}
+                        canUndo={canUndo}
+                        saveStatus={saveStatus}
+                        project={activeProject}
+                        theme={theme}
+                        onChangeContent={handleChangeProjectContent}
+                        onRedo={handleRedo}
+                        onUndo={handleUndo}
+                      />
+                    ) : activeArtifact.type === 'class-sequence-diagram' ? (
+                      <ClassSequenceDiagramEditor
+                        key={`${activeProject.id}:${activeArtifact.id}`}
+                        artifact={activeArtifact}
+                        canRedo={canRedo}
+                        canUndo={canUndo}
+                        saveStatus={saveStatus}
+                        project={activeProject}
+                        theme={theme}
+                        onNavigateToArtifact={(targetArtifactId) => handleSelectArtifact(activeProject.id, targetArtifactId)}
+                        onLinkAllSequenceDiagrams={(classModelArtifactId) =>
+                          linkSequenceDiagramsToClassModel(activeProject.id, classModelArtifactId)
+                        }
+                        onChangeContent={handleChangeProjectContent}
+                        onRedo={handleRedo}
+                        onUndo={handleUndo}
+                      />
+                    ) : activeArtifact.type === 'use-case-model' ? (
+                      <UseCaseModelEditor
+                        key={`${activeProject.id}:${activeArtifact.id}`}
+                        artifact={activeArtifact}
+                        canRedo={canRedo}
+                        canUndo={canUndo}
+                        saveStatus={saveStatus}
+                        project={activeProject}
+                        theme={theme}
+                        onChangeContent={handleChangeProjectContent}
+                        onRedo={handleRedo}
+                        onUndo={handleUndo}
+                      />
+                    ) : activeArtifact.type === 'use-case-flow' ? (
+                      <UseCaseFlowEditor
+                        key={`${activeProject.id}:${activeArtifact.id}`}
+                        artifact={activeArtifact}
+                        canRedo={canRedo}
+                        canUndo={canUndo}
+                        saveStatus={saveStatus}
+                        project={activeProject}
+                        theme={theme}
+                        onChangeContent={handleChangeProjectContent}
+                        onRedo={handleRedo}
+                        onUndo={handleUndo}
+                      />
+                    ) : (
+                      <SequenceDiagramEditor
+                        key={`${activeProject.id}:${activeArtifact.id}`}
+                        artifact={activeArtifact}
+                        canRedo={canRedo}
+                        canUndo={canUndo}
+                        saveStatus={saveStatus}
+                        project={activeProject}
+                        theme={theme}
+                        onNavigateToArtifact={(targetArtifactId) =>
+                          handleSelectArtifact(activeProject.id, targetArtifactId)
+                        }
+                        onCreateClassMethod={handleCreateClassMethodFromSequence}
+                        onImportSequenceIntoClassModel={handleImportSequenceIntoClassModel}
+                        onCreateSequenceDiagramArtifact={(name, initialContent) =>
+                          createSequenceDiagramArtifact(activeProject.id, name, initialContent)
+                        }
+                        onCreateSequenceModel={() => createClassSequenceDiagramArtifact(activeProject.id, 'Clases de secuencias')}
+                        onChangeContent={handleChangeProjectContent}
+                        onRedo={handleRedo}
+                        onUndo={handleUndo}
+                      />
+                    )}
+                  </Suspense>
+                </ArtifactErrorBoundary>
               </div>
               {isNotebookOpen ? (
                 <NotebookSheet
