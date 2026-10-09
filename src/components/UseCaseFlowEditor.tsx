@@ -992,7 +992,13 @@ export function UseCaseFlowEditor({
       const normalized = getNormalizedCell(tableId, step.id, field, result.value, result.lineIndex);
       updateFlowCell(tableId, step.id, field, result.value, true);
       caretPositions.current.set(cellKey, textarea.selectionStart);
-      setCaretAfterRender(textarea, result.lineIndex, normalized.markerLength, normalized.value);
+      // The caret keeps its place in the text (usually its end), so typing goes on after what was written.
+      const oldLineEnd = value.indexOf('\n', textarea.selectionStart);
+      const fromLineEnd = (oldLineEnd === -1 ? value.length : oldLineEnd) - textarea.selectionStart;
+      const newLines = normalized.value.split('\n');
+      const newLineEnd = newLines.slice(0, result.lineIndex + 1).reduce((total, line) => total + line.length + 1, 0) - 1;
+      const newLineStart = newLineEnd - (newLines[result.lineIndex]?.length ?? 0);
+      setCaretPositionAfterRender(textarea, Math.max(newLineStart + normalized.markerLength, newLineEnd - fromLineEnd), normalized.value);
       return;
     }
 
