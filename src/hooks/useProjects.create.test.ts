@@ -83,4 +83,31 @@ describe('primer artefacto del proyecto', () => {
       expect((after.artifacts.find((a) => a.id === sequence.id) as SequenceDiagramArtifact).content.classDiagramArtifactId).toBe(model.id);
     },
   );
+  it('un modelo nuevo no vincula la secuencia que se desvinculó a propósito, pero el botón explícito sí', () => {
+    renderHook().createProject('Proyecto', 'sequence-diagram');
+    const id = renderHook().activeProjectId!;
+    const sequenceId = renderHook().activeProject!.artifacts[0].id;
+    const sequenceOf = () => renderHook().activeProject!.artifacts.find((a) => a.id === sequenceId) as SequenceDiagramArtifact;
+    renderHook().updateProjectArtifactContent(id, sequenceId, { ...sequenceOf().content, classDiagramArtifactId: null });
+
+    renderHook().createClassSequenceDiagramArtifact(id, 'Clases');
+    const model = renderHook().activeProject!.artifacts.find((a) => a.type === 'class-sequence-diagram') as ClassSequenceDiagramArtifact;
+    expect(sequenceOf().content.classDiagramArtifactId).toBeNull();
+    expect(model.content.linkedSequenceDiagramIds).toEqual([]);
+
+    renderHook().linkSequenceDiagramsToClassModel(id, model.id);
+    expect(sequenceOf().content.classDiagramArtifactId).toBe(model.id);
+  });
+  it('crear Clases de secuencias desde una secuencia desvinculada la vincula igual', () => {
+    renderHook().createProject('Proyecto', 'sequence-diagram');
+    const id = renderHook().activeProjectId!;
+    const sequenceId = renderHook().activeProject!.artifacts[0].id;
+    const sequenceOf = () => renderHook().activeProject!.artifacts.find((a) => a.id === sequenceId) as SequenceDiagramArtifact;
+    renderHook().updateProjectArtifactContent(id, sequenceId, { ...sequenceOf().content, classDiagramArtifactId: null });
+
+    renderHook().createClassSequenceDiagramArtifact(id, 'Clases', sequenceId);
+    const model = renderHook().activeProject!.artifacts.find((a) => a.type === 'class-sequence-diagram') as ClassSequenceDiagramArtifact;
+    expect(sequenceOf().content.classDiagramArtifactId).toBe(model.id);
+    expect(model.content.linkedSequenceDiagramIds).toEqual([sequenceId]);
+  });
 });

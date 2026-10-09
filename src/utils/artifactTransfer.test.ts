@@ -52,7 +52,8 @@ describe('artifact import into an existing project', () => {
   it('detaches external links even if destination IDs match, preserving messages, texts and local note anchors', () => {
     const [result] = importArtifactIntoProjects([project('destination', [model, flow, reference])], 'destination', sequence);
     const imported = result.artifacts.at(-1) as SequenceDiagramArtifact;
-    expect(imported.content.classDiagramArtifactId).toBeUndefined();
+    // The model it pointed at does not travel: that is a choice of "Sin vincular", not a blank.
+    expect(imported.content.classDiagramArtifactId).toBeNull();
     expect(imported.content.flowArtifactId).toBeUndefined();
     expect(imported.content.participants[0].classifierNodeId).toBeUndefined();
     expect(imported.content.participants[0].classifierName).toBe('Persona');
@@ -111,6 +112,14 @@ describe('moving artifacts between projects', () => {
     const moved = result.projects[1].artifacts.at(-1) as SequenceDiagramArtifact;
     expect(moved.content.classDiagramArtifactId).toBeUndefined();
     expect(moved.content.participants[0].classifierNodeId).toBeUndefined();
+  });
+
+  it('keeps a sequence unlinked on purpose (null) as null at the destination', () => {
+    const none = { ...sequence, content: { ...sequence.content, classDiagramArtifactId: null } };
+    const original = project('source', [model, none]);
+    const target = project('destination', [{ ...classSequence, id: 'different-model', content: { ...classSequence.content, linkedSequenceDiagramIds: [] } }]);
+    const result = moveArtifactsBetweenProjects([original, target], original.id, target.id, none.id, true);
+    expect((result.projects[1].artifacts.at(-1) as SequenceDiagramArtifact).content.classDiagramArtifactId).toBeNull();
   });
 
   it('preserves the implicit class model used by a flow at a destination with several models', () => {
@@ -189,7 +198,8 @@ describe('moving artifacts between projects', () => {
     const remainingModel = result.projects[0].artifacts.find((artifact) => artifact.id === classSequence.id) as ClassSequenceDiagramArtifact;
     expect(remainingModel.content.linkedSequenceDiagramIds).toEqual([]);
     const moved = result.projects[1].artifacts.at(-1) as SequenceDiagramArtifact;
-    expect(moved.content.classDiagramArtifactId).toBeUndefined();
+    // The model stays behind: the sequence arrives as "Sin vincular" (null), not as never-chosen.
+    expect(moved.content.classDiagramArtifactId).toBeNull();
     expect(moved.content.flowArtifactId).toBeUndefined();
     expect(moved.content.items[0]).toMatchObject({ id: 'fragment', interactionArtifactId: undefined });
     expect(moved.content.notes).toEqual(sequence.content.notes);
@@ -198,7 +208,8 @@ describe('moving artifacts between projects', () => {
   it('moving a sequence model alone detaches its sequences at the source without deleting their data', () => {
     const result = moveArtifactsBetweenProjects([source, destination], source.id, destination.id, classSequence.id, false);
     const remaining = result.projects[0].artifacts.find((artifact) => artifact.id === sequence.id) as SequenceDiagramArtifact;
-    expect(remaining.content.classDiagramArtifactId).toBeUndefined();
+    // The model left: the sequence stays "Sin vincular" (null), like a flow whose diagram left.
+    expect(remaining.content.classDiagramArtifactId).toBeNull();
     expect(remaining.content.participants[0].classifierNodeId).toBeUndefined();
     expect(remaining.content.participants[0].classifierName).toBe('Persona');
     expect(remaining.content.flowArtifactId).toBe(flow.id);

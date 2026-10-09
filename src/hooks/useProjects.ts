@@ -1,4 +1,4 @@
-import { findSequenceModel, findUnlinkedSequences, linkNewSequenceToOnlyModel, linkSequencesToModel, reconcileSequenceModelLinks } from '../utils/sequenceModelLink';
+import { findNeverLinkedSequences, findSequenceModel, findUnlinkedSequences, linkNewSequenceToOnlyModel, linkSequencesToModel, reconcileSequenceModelLinks } from '../utils/sequenceModelLink';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ArtifactContent,
@@ -130,8 +130,8 @@ const addArtifactToProject = (
   if (artifact.type === 'sequence-diagram') {
     artifacts = linkNewSequenceToOnlyModel(project.artifacts, artifact);
   } else if (artifact.type === 'class-sequence-diagram') {
-    // A new model takes only the sequences that have none yet.
-    const unlinkedIds = findUnlinkedSequences(project.artifacts).map((sequence) => sequence.id);
+    // A new model takes only the sequences that never chose (not the ones unlinked on purpose).
+    const unlinkedIds = findNeverLinkedSequences(project.artifacts).map((sequence) => sequence.id);
     artifacts = linkSequencesToModel(artifacts, unlinkedIds, artifact.id, now);
   }
 
@@ -433,8 +433,20 @@ export const useProjects = () => {
     createArtifact(projectId, 'class-diagram', name);
   };
 
-  const createClassSequenceDiagramArtifact = (projectId: string, name: string): void => {
-    createArtifact(projectId, 'class-sequence-diagram', name);
+  /** A sequence that asks for the new model is linked to it even if it was unlinked on purpose. */
+  const createClassSequenceDiagramArtifact = (projectId: string, name: string, forSequenceId?: string): void => {
+    if (forSequenceId === undefined) {
+      createArtifact(projectId, 'class-sequence-diagram', name);
+      return;
+    }
+    setProjects((currentProjects) => currentProjects.map((project) => {
+      if (project.id !== projectId) return project;
+      const next = addArtifactToProject(project, 'class-sequence-diagram', name);
+      const previousIds = new Set(project.artifacts.map((artifact) => artifact.id));
+      const model = next.artifacts.find((artifact) => !previousIds.has(artifact.id));
+      if (model === undefined) return next;
+      return { ...next, artifacts: linkSequencesToModel(next.artifacts, [forSequenceId], model.id, next.updatedAt) };
+    }));
   };
 
   const createUseCaseModelArtifact = (projectId: string, name: string): void => {
@@ -469,8 +481,8 @@ export const useProjects = () => {
 
   /**
    * Turns a plain class diagram into a "Clases de secuencias" model in place:
-   * same id, name, classes and relations. It takes the sequences that have no
-   * model yet. Flows that pointed at it lose that link, since a flow reads a
+   * same id, name, classes and relations. It takes the sequences that never
+   * chose a model. Flows that pointed at it lose that link, since a flow reads a
    * plain class diagram.
    */
   const convertClassDiagramToSequenceModel = (projectId: string, artifactId: string): void => {
@@ -502,7 +514,7 @@ export const useProjects = () => {
         }
         return artifact;
       });
-      const unlinkedIds = findUnlinkedSequences(artifacts).map((sequence) => sequence.id);
+      const unlinkedIds = findNeverLinkedSequences(artifacts).map((sequence) => sequence.id);
 
       return {
         ...project,

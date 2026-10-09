@@ -333,6 +333,7 @@ describe('message arguments shown with ", "', () => {
   });
 
   it('keeps the saved message and only changes the shown label', () => {
+    // The label itself now always shows "a, b"; the saved arguments keep what was typed.
     const message: SequenceMessage = {
       id: 'msg-1',
       type: 'synchronous',
@@ -343,7 +344,7 @@ describe('message arguments shown with ", "', () => {
     } as SequenceMessage;
 
     expect(formatSequenceMessageLabel(withReadableArguments(message))).toBe('f(a, b)');
-    expect(formatSequenceMessageLabel(message)).toBe('f(a,b)');
+    expect(formatSequenceMessageLabel(message)).toBe('f(a, b)');
     expect(message.arguments).toBe('a,b');
   });
 });

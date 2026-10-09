@@ -944,7 +944,7 @@ function App() {
                         }
                         onCreateClassMethod={handleCreateClassMethodFromSequence}
                         onImportSequenceIntoClassModel={handleImportSequenceIntoClassModel}
-                        onCreateSequenceModel={() => createClassSequenceDiagramArtifact(activeProject.id, 'Clases de secuencias')}
+                        onCreateSequenceModel={() => createClassSequenceDiagramArtifact(activeProject.id, 'Clases de secuencias', activeArtifact.id)}
                         onChangeContent={handleChangeProjectContent}
                         onRedo={handleRedo}
                         onUndo={handleUndo}
