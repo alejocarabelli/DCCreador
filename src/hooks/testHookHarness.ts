@@ -39,6 +39,16 @@ export const runtime = (() => {
       useRef: <T>(initial: T) => memo(() => ({ current: initial }), []),
       useMemo: memo,
       useCallback: <T>(callback: T, deps: unknown[]) => memo(() => callback, deps),
+      useReducer: <S, A, I>(reducer: (state: S, action: A) => S, initial: I, initialize?: (value: I) => S): [S, (action: A) => void] => {
+        const [value, setValue] = runtime.api.useState<S>(() => initialize ? initialize(initial) : initial as unknown as S);
+        const dispatch = memo(() => (action: A) => setValue((current) => reducer(current, action)), []);
+        return [value, dispatch];
+      },
+      useEffectEvent: <Args extends unknown[], Result>(callback: (...args: Args) => Result): ((...args: Args) => Result) => {
+        const box = memo(() => ({ callback }), []);
+        box.callback = callback;
+        return memo(() => (...args: Args) => box.callback(...args), []);
+      },
       useEffect: (effect: () => void | (() => void), deps?: unknown[]) => {
         const slot = state.index++;
         const previous = slots[slot] as { deps?: unknown[]; cleanup?: () => void } | undefined;
