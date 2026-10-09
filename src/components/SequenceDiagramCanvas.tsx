@@ -14,7 +14,8 @@ import { findSequenceItem, formatSequenceParticipantName } from '../utils/sequen
 import { findMarqueeHits } from '../utils/sequenceDiagramSelection';
 import type { SequenceLayout } from '../utils/sequenceDiagramLayout';
 import { isNotebookEvent } from '../utils/notebookKeyboard';
-import { getSequenceMessageEndpoints, SEQUENCE_HEADER_HEIGHT, SEQUENCE_HEADER_Y } from '../utils/sequenceDiagramLayout';
+import { shouldIgnoreEditorShortcut } from '../utils/editorShortcutGuards';
+import { getFragmentTabLabel, getSequenceMessageEndpoints, isSingleOperandFragment, SEQUENCE_HEADER_HEIGHT, SEQUENCE_HEADER_Y } from '../utils/sequenceDiagramLayout';
 import {
   SEQUENCE_NOTE_FONT_FAMILY,
   SEQUENCE_NOTE_FONT_SIZE,
@@ -224,7 +225,7 @@ function SequenceDiagramCanvasImpl({
     itemSelection: Exclude<Selection, null>,
     edit?: () => void,
   ): void => {
-    if (!interactive) return;
+    if (!interactive || shouldIgnoreEditorShortcut(event, document)) return;
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
     event.stopPropagation();
@@ -287,7 +288,7 @@ function SequenceDiagramCanvasImpl({
   useEffect(() => {
     if (connection === null) return undefined;
     const handleKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape' || isNotebookEvent(event)) return;
+      if (shouldIgnoreEditorShortcut(event, document) || event.key !== 'Escape' || isNotebookEvent(event)) return;
       event.preventDefault();
       const current = connectionRef.current;
       const svg = svgElementRef.current;
@@ -433,12 +434,14 @@ function SequenceDiagramCanvasImpl({
     const isSelected = isPrimarySelected || isMultiSelected;
     const isHighlighted = highlighted?.kind === 'fragment' && highlighted.id === fragment.id;
     const isInvalidResize = boundaryResizePreview?.fragmentId === fragment.id && !boundaryResizePreview.isValid;
+    const tabLabel = getFragmentTabLabel(fragment);
+    const singleBranch = isSingleOperandFragment(fragment);
     const fragmentStroke = isInvalidResize ? '#ef4444' : isSelected || isHighlighted ? selectedStroke : fragmentStrokeBase;
-    const surfaceFill = box.depth > 0 ? nestedFragmentFill : fragmentFill;
+    const surfaceFill = box.depth % 2 === 1 ? nestedFragmentFill : fragmentFill;
     return (
       <g
         key={fragment.id}
-        aria-label={`Fragmento ${fragment.operator}${fragment.name ? `: ${fragment.name}` : ''}`}
+        aria-label={`Fragmento ${fragment.operator}${tabLabel.text ? `: ${tabLabel.text}` : ''}`}
         className={`sequence-fragment ${isHighlighted ? 'sequence-highlighted' : ''} ${isMultiSelected ? 'sequence-multi-selected' : ''}`}
         data-selected={isSelected || undefined}
         data-multi-selected={isMultiSelected || undefined}
@@ -459,7 +462,7 @@ function SequenceDiagramCanvasImpl({
           onFragmentPointerDown?.(fragment, event);
         }}
       >
-        <rect x={box.x} y={box.y} width={box.width} height={box.height} fill={surfaceFill} stroke={fragmentStroke} strokeWidth={isInvalidResize ? 2.4 : isSelected ? 1.8 : isHighlighted ? 2.2 : 1.1} cursor="move" />
+        <rect x={box.x} y={box.y} width={box.width} height={box.height} fill="transparent" stroke={fragmentStroke} strokeWidth={isInvalidResize ? 2.4 : isSelected ? 1.8 : isHighlighted ? 2.2 : 1.1} cursor="move" />
         {(() => {
           // The tab reads "operator name" like Enterprise Architect and grows with the name.
           const tabHeight = Math.max(22, box.headerHeight - 4);
@@ -467,7 +470,7 @@ function SequenceDiagramCanvasImpl({
           const firstLine = box.tabLines?.[0] ?? fragment.operator;
           const editName = (event: ReactMouseEvent<SVGElement>): void => {
             event.stopPropagation();
-            onEditFragmentName?.(fragment.id, fragment.name, {
+            onEditFragmentName?.(fragment.id, tabLabel.text, {
               x: box.x + 4,
               y: box.y + 2,
               width: Math.max(180, Math.min(box.width - 8, tabWidth + 80)),
@@ -482,14 +485,14 @@ function SequenceDiagramCanvasImpl({
                 fill={textColor}
                 fontSize="12"
                 cursor="move"
-                aria-label={fragment.name ? 'Doble clic para editar el nombre' : undefined}
+                aria-label={tabLabel.text ? 'Doble clic para editar el nombre' : undefined}
                 onDoubleClick={editName}
               >
                 <tspan fontWeight="bold">{fragment.operator}</tspan>
                 {firstLine.length > fragment.operator.length ? <tspan>{firstLine.slice(fragment.operator.length)}</tspan> : null}
                 {(box.tabLines ?? []).slice(1).map((line, index) => <tspan key={`${fragment.id}:tab:${index}`} x={box.x + 9} dy={14}>{line}</tspan>)}
               </text>
-              {!fragment.name && isPrimarySelected ? (
+              {!tabLabel.text && isPrimarySelected ? (
                 <text
                   data-export-control="true"
                   x={box.x + tabWidth + 10}
@@ -562,7 +565,7 @@ function SequenceDiagramCanvasImpl({
           return (
           <g key={operand.id}>
             {index > 0 ? <line x1={box.x} y1={operand.top} x2={box.x + box.width} y2={operand.top} stroke={fragmentStrokeBase} strokeDasharray="5 5" opacity="0.78" /> : null}
-            <g
+            {singleBranch ? null : <g
               cursor="pointer"
               className="sequence-operand-guard-group"
               aria-label="Doble clic para editar condición de guarda"
@@ -577,6 +580,7 @@ function SequenceDiagramCanvasImpl({
             >
               {operand.guardLines.length > 0 ? (
                 <>
+                  <rect x={box.x + 8} y={operand.top + 3} width={guardSurfaceWidth} height={guardSurfaceHeight} rx="2" fill={surfaceFill} />
                   <rect x={box.x + 8} y={operand.top + 3} width={guardSurfaceWidth} height={guardSurfaceHeight} rx="2" fill={guardFill} opacity="0.82" />
                   <text x={box.x + 12} y={operand.top + 17} fill={guardText} fontSize="11" fontWeight={650} fontStyle="italic">
                     {operand.guardLines.map((line, lineIndex) => <tspan key={`${operand.id}:guard:${lineIndex}`} x={box.x + 12} dy={lineIndex === 0 ? 0 : 14}>{lineIndex === 0 ? `[${line}` : line}</tspan>)}
@@ -592,7 +596,7 @@ function SequenceDiagramCanvasImpl({
               ) : (
                 <rect data-export-control="true" x={box.x + 8} y={operand.top} width={Math.min(140, box.width - 16)} height={12} fill="transparent" />
               )}
-            </g>
+            </g>}
             {showEmptyCta ? (
               <g data-export-control="true" opacity={isSelected ? 1 : 0.85}>
                 <rect
@@ -1131,18 +1135,43 @@ function SequenceDiagramCanvasImpl({
         const endY = layout.participantEndY.get(participant.id) ?? layout.height - 50;
         const identity = participantIdentities.get(participant.id);
         const lifelineStroke = lifelineNeutral ?? identity?.lifelineStroke ?? stroke;
-        const isTerminated = layout.terminatedParticipantIds?.has(participant.id) || layout.participantLayouts.get(participant.id)?.isTerminated;
         return (
           <g key={`life:${participant.id}`}>
             <line x1={x} y1={startY} x2={x} y2={endY} stroke={lifelineStroke} strokeDasharray="4 5" strokeWidth={1.05} opacity={0.86} />
-            {isTerminated ? (
-              <g data-sequence-lifeline-cross="true" stroke={lifelineStroke} strokeWidth="2">
-                <line x1={x - 8} y1={endY - 8} x2={x + 8} y2={endY + 8} />
-                <line x1={x + 8} y1={endY - 8} x2={x - 8} y2={endY + 8} />
-              </g>
-            ) : null}
           </g>
         );
+      })}
+      {/* Layers, bottom to top: lifelines, opaque fragment tints (so nesting never
+          stacks translucency), the same lifelines again but faint (the fragment
+          "covers" them), end-of-life crosses and activations (always crisp),
+          then fragment borders, tabs and guards. */}
+      {Array.from(layout.fragmentLayouts.entries())
+        .sort(([, a], [, b]) => a.depth - b.depth)
+        .map(([id, box]) => (
+          <rect key={`fragment-tint:${id}`} data-sequence-fragment-tint={id} x={box.x} y={box.y} width={box.width} height={box.height} fill={box.depth % 2 === 1 ? nestedFragmentFill : fragmentFill} pointerEvents="none" />
+        ))}
+      {content.participants.map((participant) => {
+        const x = layout.participantX.get(participant.id) ?? 0;
+        const startY = layout.participantStartY.get(participant.id) ?? SEQUENCE_HEADER_Y + SEQUENCE_HEADER_HEIGHT;
+        const endY = layout.participantEndY.get(participant.id) ?? layout.height - 50;
+        const identity = participantIdentities.get(participant.id);
+        const lifelineStroke = lifelineNeutral ?? identity?.lifelineStroke ?? stroke;
+        return (
+          <line key={`life-faint:${participant.id}`} x1={x} y1={startY} x2={x} y2={endY} stroke={lifelineStroke} strokeDasharray="4 5" strokeWidth={1.05} opacity={0.6} pointerEvents="none" />
+        );
+      })}
+      {content.participants.map((participant) => {
+        const x = layout.participantX.get(participant.id) ?? 0;
+        const endY = layout.participantEndY.get(participant.id) ?? layout.height - 50;
+        const identity = participantIdentities.get(participant.id);
+        const lifelineStroke = lifelineNeutral ?? identity?.lifelineStroke ?? stroke;
+        const isTerminated = layout.terminatedParticipantIds?.has(participant.id) || layout.participantLayouts.get(participant.id)?.isTerminated;
+        return isTerminated ? (
+          <g key={`cross:${participant.id}`} data-sequence-lifeline-cross="true" stroke={lifelineStroke} strokeWidth="2">
+            <line x1={x - 8} y1={endY - 8} x2={x + 8} y2={endY + 8} />
+            <line x1={x + 8} y1={endY - 8} x2={x - 8} y2={endY + 8} />
+          </g>
+        ) : null;
       })}
 
       {content.showActivations ? layout.activationLayouts.map((activation) => {
@@ -1509,7 +1538,7 @@ function SequenceDiagramCanvasImpl({
             role={interactive ? 'button' : undefined}
             tabIndex={interactive ? 0 : undefined}
             onClick={(event) => { event.stopPropagation(); onSelect({ kind: 'note', id: note.id }); }}
-            onKeyDown={(event) => handleItemKeyDown(event, { kind: 'note', id: note.id })}
+            onKeyDown={(event) => handleItemKeyDown(event, { kind: 'note', id: note.id }, () => onEditNote?.(note.id))}
             onDoubleClick={(event) => {
               event.stopPropagation();
               onSelect({ kind: 'note', id: note.id });

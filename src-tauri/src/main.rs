@@ -91,15 +91,34 @@ fn backup(window: WebviewWindow, action: String, payload: Option<String>) -> Res
             window.app_handle().opener().open_path(&directory, None::<&str>).map_err(|error| error.to_string())?;
             Ok(serde_json::json!({ "path": directory }))
         }
-        "write" => {
+        "write" | "preserve" => {
             let payload = payload.filter(|text| !text.is_empty()).ok_or("El respaldo llegó vacío.")?;
-            let stamp = chrono::Local::now().format("%Y-%m-%d-%H%M%S");
-            let destination = dir.join(format!("respaldo-{stamp}.json"));
+            if action == "write" {
+                let latest = std::fs::read_dir(&dir).ok().into_iter().flatten().flatten()
+                    .filter_map(|entry| {
+                        let path = entry.path();
+                        let name = path.file_name()?.to_str()?;
+                        let metadata = entry.metadata().ok()?;
+                        if !metadata.is_file() || !name.starts_with("respaldo-") || !name.ends_with(".json") {
+                            return None;
+                        }
+                        Some((metadata.modified().ok()?, path))
+                    })
+                    .max_by_key(|(modified, _)| *modified);
+                if let Some((_, path)) = latest {
+                    if std::fs::read_to_string(&path).ok().as_deref() == Some(payload.as_str()) {
+                        return Ok(serde_json::json!({ "path": path.to_string_lossy(), "directory": directory }));
+                    }
+                }
+            }
+            let prefix = if action == "preserve" { "recuperacion" } else { "respaldo" };
+            let stamp = chrono::Local::now().format("%Y-%m-%d-%H%M%S-%f");
+            let destination = dir.join(format!("{prefix}-{stamp}.json"));
             // Escritura atómica: primero a un temporal y después se renombra.
-            let temporary = dir.join(format!(".respaldo-{stamp}.tmp"));
+            let temporary = dir.join(format!(".{prefix}-{stamp}.tmp"));
             std::fs::write(&temporary, payload).map_err(|error| error.to_string())?;
             std::fs::rename(&temporary, &destination).map_err(|error| error.to_string())?;
-            prune_backups(&dir);
+            if action == "write" { prune_backups(&dir); }
             Ok(serde_json::json!({ "path": destination.to_string_lossy(), "directory": directory }))
         }
         _ => Err("Acción de respaldo desconocida.".into()),

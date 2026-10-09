@@ -251,20 +251,19 @@ static NSUInteger const kBackupsToKeep = 10;
     return directory;
 }
 
-+ (void)pruneBackupsIn:(NSURL *)directory {
++ (NSArray<NSURL *> *)backupsIn:(NSURL *)directory {
     NSArray<NSURL *> *entries = [[NSFileManager defaultManager]
         contentsOfDirectoryAtURL:directory
-      includingPropertiesForKeys:@[NSURLContentModificationDateKey]
+      includingPropertiesForKeys:@[NSURLContentModificationDateKey, NSURLIsRegularFileKey]
                          options:NSDirectoryEnumerationSkipsHiddenFiles
                            error:nil];
     NSMutableArray<NSURL *> *backups = [NSMutableArray array];
     for (NSURL *entry in entries) {
         if ([entry.lastPathComponent hasPrefix:@"respaldo-"] && [entry.pathExtension isEqualToString:@"json"]) {
-            [backups addObject:entry];
+            NSNumber *regular = nil;
+            [entry getResourceValue:&regular forKey:NSURLIsRegularFileKey error:nil];
+            if (regular.boolValue) [backups addObject:entry];
         }
-    }
-    if (backups.count <= kBackupsToKeep) {
-        return;
     }
     [backups sortUsingComparator:^NSComparisonResult(NSURL *left, NSURL *right) {
         NSDate *leftDate = nil, *rightDate = nil;
@@ -272,6 +271,14 @@ static NSUInteger const kBackupsToKeep = 10;
         [right getResourceValue:&rightDate forKey:NSURLContentModificationDateKey error:nil];
         return [rightDate compare:leftDate];
     }];
+    return backups;
+}
+
++ (void)pruneBackupsIn:(NSURL *)directory {
+    NSArray<NSURL *> *backups = [self backupsIn:directory];
+    if (backups.count <= kBackupsToKeep) {
+        return;
+    }
     for (NSUInteger index = kBackupsToKeep; index < backups.count; index++) {
         [[NSFileManager defaultManager] removeItemAtURL:backups[index] error:nil];
     }
@@ -283,7 +290,7 @@ static NSUInteger const kBackupsToKeep = 10;
     NSDictionary *body = [message.body isKindOfClass:NSDictionary.class] ? message.body : nil;
     NSString *action = body[@"action"];
     NSError *error = nil;
-    NSURL *directory = [BackupBridge backupDirectoryCreatingIfNeeded:&error];
+    NSURL *directory = [self.class backupDirectoryCreatingIfNeeded:&error];
 
     if (!directory) {
         replyHandler(nil, error.localizedDescription ?: @"No se pudo preparar la carpeta de respaldos.");
@@ -296,7 +303,8 @@ static NSUInteger const kBackupsToKeep = 10;
         return;
     }
 
-    if (![action isEqualToString:@"write"]) {
+    BOOL preserve = [action isEqualToString:@"preserve"];
+    if (![action isEqualToString:@"write"] && !preserve) {
         replyHandler(nil, @"Acción de respaldo desconocida.");
         return;
     }
@@ -307,18 +315,31 @@ static NSUInteger const kBackupsToKeep = 10;
         return;
     }
 
+    if (!preserve) {
+        NSURL *latest = [self.class backupsIn:directory].firstObject;
+        NSString *previous = latest ? [NSString stringWithContentsOfURL:latest encoding:NSUTF8StringEncoding error:nil] : nil;
+        if ([previous isEqualToString:payload]) {
+            replyHandler(@{@"path": latest.path, @"directory": directory.path}, nil);
+            return;
+        }
+    }
+
     NSDateFormatter *stamp = [[NSDateFormatter alloc] init];
-    stamp.dateFormat = @"yyyy-MM-dd-HHmmss";
+    stamp.dateFormat = @"yyyy-MM-dd-HHmmss-SSS";
     stamp.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
-    NSString *filename = [NSString stringWithFormat:@"respaldo-%@.json", [stamp stringFromDate:[NSDate date]]];
-    NSURL *destination = [directory URLByAppendingPathComponent:filename];
+    NSString *base = [NSString stringWithFormat:@"%@-%@", preserve ? @"recuperacion" : @"respaldo", [stamp stringFromDate:[NSDate date]]];
+    NSURL *destination = [directory URLByAppendingPathComponent:[base stringByAppendingPathExtension:@"json"]];
+    // Two snapshots in the same millisecond must never overwrite each other.
+    for (NSUInteger copy = 2; [[NSFileManager defaultManager] fileExistsAtPath:destination.path]; copy++) {
+        destination = [directory URLByAppendingPathComponent:[NSString stringWithFormat:@"%@-%lu.json", base, (unsigned long)copy]];
+    }
 
     if (![payload writeToURL:destination atomically:YES encoding:NSUTF8StringEncoding error:&error]) {
         replyHandler(nil, error.localizedDescription ?: @"No se pudo escribir el respaldo.");
         return;
     }
 
-    [BackupBridge pruneBackupsIn:directory];
+    if (!preserve) [self.class pruneBackupsIn:directory];
     replyHandler(@{@"path": destination.path, @"directory": directory.path}, nil);
 }
 
@@ -351,6 +372,8 @@ static NSUInteger const kBackupsToKeep = 10;
 @interface AppDelegate : NSObject <NSApplicationDelegate, NSWindowDelegate>
 @property(nonatomic, strong) NSWindow *window;
 @property(nonatomic, strong) WKWebView *mainWebView;
+@property(nonatomic) BOOL terminationPending;
+@property(nonatomic) BOOL terminationReady;
 @property(nonatomic, strong) WebCoordinator *coordinator;
 @property(nonatomic, strong) AppSchemeHandler *schemeHandler;
 @property(nonatomic, strong) BackupBridge *backupBridge;
@@ -402,7 +425,27 @@ static NSUInteger const kBackupsToKeep = 10;
                                            contentWorld:WKContentWorld.pageWorld
                                                    name:@"modeladorBackup"];
     [contentController addUserScript:[[WKUserScript alloc]
-        initWithSource:@"window.__modeladorNativeBackup = true;"
+        initWithSource:
+            @"(() => {"
+             "window.__modeladorNativeBackup = true;"
+             "const pending = new Set();"
+             "window.__modeladorBridges = window.__modeladorBridges || {};"
+             "window.__modeladorBridges.backup = { postMessage(message) {"
+             "const call = window.webkit.messageHandlers.modeladorBackup.postMessage(message);"
+             "pending.add(call);"
+             "call.catch(() => undefined).finally(() => pending.delete(call));"
+             "return call;"
+             "} };"
+             "window.__modeladorPrepareClose = async () => {"
+             "window.dispatchEvent(new Event('modelador:flush-drafts'));"
+             "for (let round = 0; round < 2; round += 1) {"
+             "window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: false }));"
+             "await new Promise(resolve => setTimeout(resolve, 0));"
+             "await Promise.allSettled([...pending]);"
+             "await new Promise(resolve => setTimeout(resolve, 0));"
+             "}"
+             "};"
+             "})();"
          injectionTime:WKUserScriptInjectionTimeAtDocumentStart
       forMainFrameOnly:YES]];
     self.windowBridge = [[WindowBridge alloc] init];
@@ -563,6 +606,38 @@ static NSUInteger const kBackupsToKeep = 10;
             [self.viewerCoordinators removeObjectForKey:key];
         }
     }
+}
+
+- (BOOL)windowShouldClose:(NSWindow *)sender {
+    if (sender != self.window || self.terminationReady) return YES;
+    [NSApp terminate:nil];
+    return NO;
+}
+
+- (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender {
+    if (self.terminationReady || self.mainWebView == nil) return NSTerminateNow;
+    if (self.terminationPending) return NSTerminateLater;
+    self.terminationPending = YES;
+
+    __weak AppDelegate *weakSelf = self;
+    void (^finish)(void) = ^{
+        AppDelegate *strongSelf = weakSelf;
+        if (strongSelf == nil || !strongSelf.terminationPending) return;
+        strongSelf.terminationPending = NO;
+        strongSelf.terminationReady = YES;
+        [sender replyToApplicationShouldTerminate:YES];
+    };
+    [self.mainWebView callAsyncJavaScript:@"await window.__modeladorPrepareClose?.();"
+                              arguments:@{}
+                                inFrame:nil
+                         inContentWorld:WKContentWorld.pageWorld
+                      completionHandler:^(id result, NSError *error) {
+        // Always reply after applicationShouldTerminate has returned.
+        dispatch_async(dispatch_get_main_queue(), finish);
+    }];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), finish);
+    return NSTerminateLater;
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {

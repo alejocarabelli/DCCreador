@@ -1,17 +1,22 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { ARTIFACT_TYPES } from '../constants/artifactTypes';
+import type { DesignArtifact } from '../types/diagram';
+import { ArtifactTypeIcon } from './ArtifactTypeIcon';
 
 type ProjectNameDialogProps = {
   initialName: string;
   title: string;
   description: string;
   confirmLabel: string;
+  chooseInitialArtifact?: boolean;
   onCancel: () => void;
-  onConfirm: (name: string) => void;
+  onConfirm: (name: string, artifactType?: DesignArtifact['type']) => void;
 };
 
-export function ProjectNameDialog({ initialName, title, description, confirmLabel, onCancel, onConfirm }: ProjectNameDialogProps) {
+export function ProjectNameDialog({ initialName, title, description, confirmLabel, chooseInitialArtifact = false, onCancel, onConfirm }: ProjectNameDialogProps) {
   const [name, setName] = useState(initialName);
+  const [artifactType, setArtifactType] = useState<DesignArtifact['type']>('use-case-model');
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const dialogRef = useRef<HTMLFormElement | null>(null);
@@ -36,7 +41,8 @@ export function ProjectNameDialog({ initialName, title, description, confirmLabe
     }
 
     setError(null);
-    onConfirm(cleanName);
+    if (chooseInitialArtifact) onConfirm(cleanName, artifactType);
+    else onConfirm(cleanName);
   };
 
   return (
@@ -52,7 +58,7 @@ export function ProjectNameDialog({ initialName, title, description, confirmLabe
         aria-describedby={descriptionId}
         aria-labelledby={titleId}
         aria-modal="true"
-        className="project-dialog"
+        className={`project-dialog${chooseInitialArtifact ? ' project-create-dialog' : ''}`}
         onMouseDown={(event) => event.stopPropagation()}
         onSubmit={handleSubmit}
         role="dialog"
@@ -79,6 +85,35 @@ export function ProjectNameDialog({ initialName, title, description, confirmLabe
           />
         </label>
         {error !== null ? <p className="dialog-error" id={errorId} role="alert">{error}</p> : null}
+        {chooseInitialArtifact ? (
+          <fieldset className="project-artifact-choice" role="radiogroup" aria-labelledby={`${titleId}-artifact-choice`}>
+            <legend id={`${titleId}-artifact-choice`}>¿Con qué querés empezar?</legend>
+            {ARTIFACT_TYPES.map((type) => (
+              <label className="project-artifact-option" key={type.id}>
+                <input
+                  type="radio"
+                  name={`${titleId}-artifact-type`}
+                  value={type.id}
+                  checked={artifactType === type.id}
+                  aria-labelledby={`${titleId}-${type.id}-label`}
+                  aria-describedby={`${titleId}-${type.id}-description`}
+                  onChange={() => setArtifactType(type.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      event.currentTarget.form?.requestSubmit();
+                    }
+                  }}
+                />
+                <ArtifactTypeIcon type={type.id} size={20} />
+                <span className="project-artifact-option-text">
+                  <strong id={`${titleId}-${type.id}-label`}>{type.label}</strong>
+                  <span id={`${titleId}-${type.id}-description`}>{type.description}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+        ) : null}
         <div className="dialog-actions">
           <button type="button" onClick={onCancel}>
             Cancelar

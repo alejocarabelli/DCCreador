@@ -51,6 +51,14 @@ describe('diagram normalization', () => {
     expect(new Set(flow.basicFlow.map((step) => step.id)).size).toBe(2);
   });
 
+  it('keeps null ("Sin referencia") apart from a missing class diagram reference', () => {
+    expect(normalizeUseCaseFlowContent({ classDiagramArtifactId: null }).classDiagramArtifactId).toBeNull();
+    expect(normalizeUseCaseFlowContent({ classDiagramArtifactId: '' }).classDiagramArtifactId).toBeUndefined();
+    expect(normalizeUseCaseFlowContent(undefined).classDiagramArtifactId).toBeUndefined();
+    const saved = JSON.parse(JSON.stringify(normalizeUseCaseFlowContent({ classDiagramArtifactId: null })));
+    expect(normalizeUseCaseFlowContent(saved).classDiagramArtifactId).toBeNull();
+  });
+
   it('fills missing use case flow fields without discarding valid values', () => {
     const partial = {
       description: { useCaseName: 'Tomar Caso', priority: 'C' },

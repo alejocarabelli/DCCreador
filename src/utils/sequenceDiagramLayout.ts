@@ -22,6 +22,7 @@ import {
   type SequenceDiagramBounds,
   type SequenceRect,
 } from './sequenceDiagramGeometry';
+import { withReadableArguments } from './sequenceMessageEditing';
 
 export const SEQUENCE_HEADER_Y = 34;
 export const SEQUENCE_HEADER_HEIGHT = 48;
@@ -174,8 +175,29 @@ const getHorizontalEnvelope = (
   return { left: Math.min(...xs) - 86, right: Math.max(...xs) + 86 };
 };
 
+/** The condition of a single-branch fragment lives in the tab, not in brackets. */
+export const isSingleOperandFragment = (fragment: SequenceFragment): boolean => fragment.operands.length === 1;
+
+const stripGuardBrackets = (text: string): string => text.trim().replace(/^\[/, '').replace(/\]$/, '').trim();
+
+/**
+ * What the tab shows after the operator. A single-branch fragment (loop, opt,
+ * break...) shows its name; stored data may hold the text in the branch guard
+ * instead, or in both, so the tab shows whichever exists without repeating it.
+ * `field` is where an edit from the tab is saved.
+ */
+export const getFragmentTabLabel = (fragment: SequenceFragment): { text: string; field: 'name' | 'guard' } => {
+  const name = fragment.name.trim();
+  if (!isSingleOperandFragment(fragment)) return { text: name, field: 'name' };
+  const guard = stripGuardBrackets(fragment.operands[0].guard);
+  const parts = [name, guard].filter((part, index, all) => part.length > 0
+    && all.findIndex((other) => other.toLocaleLowerCase() === part.toLocaleLowerCase()) === index);
+  return { text: parts.join(' · '), field: name ? 'name' : 'guard' };
+};
+
 const measureFragmentTab = (fragment: SequenceFragment): { lines: string[]; width: number; height: number } => {
-  const text = fragment.name.trim() ? `${fragment.operator} ${fragment.name.trim()}` : fragment.operator;
+  const label = getFragmentTabLabel(fragment).text;
+  const text = label ? `${fragment.operator} ${label}` : fragment.operator;
   const capacity = Math.floor((FRAGMENT_TAB_MAX_WIDTH - 30) / 6.6);
   const measured = measureSequenceText(text, capacity, 6.6, MESSAGE_LINE_HEIGHT);
   return {
@@ -190,8 +212,8 @@ const getFragmentMinimumWidth = (
   participantX: Map<string, number>,
 ): number => {
   const envelope = getHorizontalEnvelope(fragment, participantX);
-  const nameWidth = fragment.name ? measureFragmentTab(fragment).width + 24 : 0;
-  const guardWidth = Math.max(...fragment.operands.map((operand) =>
+  const nameWidth = getFragmentTabLabel(fragment).text ? measureFragmentTab(fragment).width + 24 : 0;
+  const guardWidth = isSingleOperandFragment(fragment) ? 0 : Math.max(...fragment.operands.map((operand) =>
     measureSequenceText(operand.guard || 'condición', 44, 6.1, MESSAGE_LINE_HEIGHT).width + 28), 0);
   const nestedWidth = Math.max(...containedFragments(fragment).map((nested) =>
     getFragmentMinimumWidth(nested, participantX) + FRAGMENT_INSET * 2), 0);
@@ -333,7 +355,7 @@ export const buildSequenceLayout = (
       ? targetX - direction * targetHalfWidth
       : targetX;
     const span = Math.max(MESSAGE_LABEL_MIN_CHARACTERS, Math.floor(Math.abs(effectiveTargetX - sourceX) / 7.6));
-    const label = message.type === 'return' ? '' : formatSequenceMessageLabel(message, messageNumbers.get(message.id));
+    const label = message.type === 'return' ? '' : formatSequenceMessageLabel(withReadableArguments(message), messageNumbers.get(message.id));
     const labelText = label.length > 0 ? keepNumberWithName(measureSequenceText(label, span, 6.3, MESSAGE_LINE_HEIGHT)) : undefined;
     const flowReference = message.flowReference ?? '';
     const flowText = flowReference.length > 0
@@ -426,7 +448,7 @@ export const buildSequenceLayout = (
         const top = cursorY;
         // An operand without a guard draws none (as in Enterprise Architect)
         // and keeps only a small gap under the tab or the separator.
-        const hasGuard = operand.guard.trim().length > 0;
+        const hasGuard = !isSingleOperandFragment(item) && operand.guard.trim().length > 0;
         const guardText = hasGuard
           ? measureSequenceText(
             operand.guard,

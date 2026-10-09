@@ -648,3 +648,18 @@ describe('operaciones de bloque', () => {
     expect({ ...clones[0], id: 'm1' }).toEqual(items[0]);
   });
 });
+
+describe('classDiagramArtifactId in sequences', () => {
+  it('keeps null ("Sin vincular"), and reads missing, empty and string values as before', () => {
+    const read = (value: unknown): unknown => normalizeSequenceDiagramContent({ ...createEmptySequenceDiagramContent(), classDiagramArtifactId: value } as never).classDiagramArtifactId;
+    expect(read(null)).toBeNull();
+    expect(read(undefined)).toBeUndefined();
+    expect(read('')).toBeUndefined();
+    expect(read('  ')).toBeUndefined();
+    expect(read('model')).toBe('model');
+  });
+
+  it('shows arguments separated by ", "', () => {
+    expect(formatSequenceMessageLabel({ id: 'm', kind: 'message', type: 'synchronous', sourceId: 'a', targetId: 'b', name: 'saludar', arguments: 'a,b', parameterValues: '', returnType: '' } as SequenceMessage)).toBe('saludar(a, b)');
+  });
+});

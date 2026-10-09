@@ -1,4 +1,4 @@
-import { findSequenceMessagesMissingInModel, planSequenceClassImport, resolveParticipantClassNode } from '../utils/sequenceClassImport';
+import { findSequenceMessagesMissingInModel, planSequenceClassImport, resolveMessageOperation, resolveParticipantClassNode } from '../utils/sequenceClassImport';
 import {
   Download,
   Eye,
@@ -17,7 +17,6 @@ import {
   Keyboard,
   Link2,
   Unlink,
-  LayoutTemplate,
   MessageSquarePlus,
   PanelLeftClose,
   Plus,
@@ -30,10 +29,12 @@ import {
   PersonStanding,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useEffectEvent, useMemo, useReducer, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction, type SyntheticEvent } from 'react';
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction, type SyntheticEvent } from 'react';
 import { CanvasZoom } from './ui/CanvasZoom';
 import { EditorToolbar, MenuField, MenuItem, MenuLabel, MenuSeparator, NotebookButton, ReviewButton, ToolbarDivider, ToolButton, ToolMenu } from './ui/Toolbar';
 import { isNotebookEvent } from '../utils/notebookKeyboard';
+import { hasCommandModifier, shouldIgnoreEditorShortcut } from '../utils/editorShortcutGuards';
+import { formatSequenceMessageChange } from '../utils/sequenceEditorFeedback';
 import { InspectorDeleteButton, InspectorPanel, type InspectorTone } from './ui/Panel';
 import { EXPORT_THEME, type DiagramTheme } from '../theme/themes';
 import { CanvasStartCard } from './CanvasStartCard';
@@ -46,6 +47,7 @@ import type {
   SequenceActivation,
   SequenceDiagramArtifact,
   SequenceDiagramContent,
+  SequenceDiagramProblem,
   SequenceFragment,
   SequenceFragmentOperator,
   SequenceMessage,
@@ -99,7 +101,7 @@ import {
 } from '../utils/sequenceDiagramGeometry';
 import { hasMeaningfulSequenceNoteDrag, resolveNewSequenceNotePosition, resolveSequenceNoteDragPosition } from '../utils/sequenceNoteInteraction';
 import { sequencePointerToCanvas } from '../utils/sequencePointer';
-import { buildSequenceLayout, SEQUENCE_HEADER_HEIGHT } from '../utils/sequenceDiagramLayout';
+import { buildSequenceLayout, getFragmentTabLabel, isSingleOperandFragment, SEQUENCE_HEADER_HEIGHT } from '../utils/sequenceDiagramLayout';
 import { defaultSequenceExportOptions, exportSequencePdf, exportSequencePng, type SequenceExportOptions } from '../utils/sequenceDiagramExport';
 import {
   createSequenceMessageEditModel,
@@ -139,9 +141,8 @@ import {
   insertTimelineItemsAt,
   validateBlockCandidate,
 } from '../utils/sequenceDiagramReordering';
-import { SEQUENCE_TEMPLATES } from '../data/sequenceTemplates';
 import type { DiagramSaveStatus } from '../hooks/useProjects';
-import { centerSequenceViewportOnTarget, expandSequenceViewportAtEdge, type SequenceViewportTarget } from '../utils/sequenceViewport';
+import { centerSequenceViewportOnTarget, expandSequenceViewportAtEdge, fitSequenceZoomToView, type SequenceViewportTarget } from '../utils/sequenceViewport';
 import {
   buildSequenceKeyboardInsertionSlots,
   createInactiveSequenceKeyboardState,
@@ -157,7 +158,6 @@ import {
   noPendingCallFeedback,
   sequenceKeyboardCreateKinds,
   sequenceKeyboardFragmentOperators,
-  sequenceKeyboardMessageTypes,
   sequenceKeyboardModeReducer,
 } from '../utils/sequenceKeyboardMode';
 import {
@@ -175,9 +175,8 @@ import { SequenceExportDialog } from './SequenceExportDialog';
 import { SequenceKeyboardComposer } from './SequenceKeyboardComposer';
 import { collectUsedConditionValues, methodInsertText, type SignatureCompletionData } from '../utils/sequenceSignatureCompletion';
 import { SequenceMessageDialog } from './SequenceMessageDialog';
-import type { QuickMessageDraft } from '../utils/sequenceMessageDialogCompatibility';
-import { SequenceReviewPanel } from './SequenceReviewPanel';
-import { useFocusTrap } from '../hooks/useFocusTrap';
+import { firstMessageRoute, type QuickMessageDraft } from '../utils/sequenceMessageDialogCompatibility';
+import { DiagramReviewPanel } from './DiagramReviewPanel';
 import { shortcutLabel } from '../utils/shortcutLabel';
 
 type SequenceSelection = SequenceSelectionTarget | null;
@@ -192,7 +191,7 @@ type SequenceDiagramEditorProps = {
   onNavigateToArtifact?: (artifactId: string) => void;
   onImportSequenceIntoClassModel?: (modelArtifactId: string, sequenceContent: SequenceDiagramContent) => void;
   onCreateClassMethod?: (artifactId: string, nodeId: string, method: ClassMethod) => void;
-  onCreateSequenceDiagramArtifact?: (name: string, initialContent?: SequenceDiagramContent) => void;
+  onCompleteClassMethodParameters?: (artifactId: string, nodeId: string, methodId: string, parameters: string) => void;
   onCreateSequenceModel?: () => void;
   onChangeContent: (content: SequenceDiagramContent, options?: { separateHistoryEntry?: boolean; alreadyNormalized?: boolean }) => void;
   onRedo: () => void;
@@ -339,8 +338,8 @@ export function SequenceDiagramEditor({
   saveStatus = 'saved',
   onNavigateToArtifact,
   onCreateClassMethod,
+  onCompleteClassMethodParameters,
   onImportSequenceIntoClassModel,
-  onCreateSequenceDiagramArtifact,
   onCreateSequenceModel,
   onChangeContent,
   onRedo,
@@ -388,8 +387,6 @@ export function SequenceDiagramEditor({
     containerBounds?: { x: number; width: number; top: number; bottom: number };
   } | null>(null);
   const [isReviewPanelOpen, setIsReviewPanelOpen] = useState(false);
-  const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
-  const templateDialogRef = useRef<HTMLDivElement | null>(null);
   const [quickMessage, setQuickMessage] = useState<QuickMessageDraft | null>(null);
   const [quickMessageRouteEditable, setQuickMessageRouteEditable] = useState(false);
   const [participantDraft, setParticipantDraft] = useState<{ text: string; kind: 'object' | 'actor' } | null>(null);
@@ -474,6 +471,7 @@ export function SequenceDiagramEditor({
   }, [keyboardMode, viewKey]);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const exportSvgRef = useRef<SVGSVGElement | null>(null);
+  const getExportSvg = useCallback(() => exportSvgRef.current, []);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   useArtifactScrollMemory(viewKey, scrollRef, initialView, zoom, viewportCanvasSize);
   const editorRootRef = useRef<HTMLElement | null>(null);
@@ -482,8 +480,6 @@ export function SequenceDiagramEditor({
   const highlightTimeoutRef = useRef<number | null>(null);
   const blockClipboard = useRef<{ items: SequenceTimelineItem[]; notes: SequenceNote[] } | null>(null);
   const marqueeTipShownRef = useRef(false);
-
-  useFocusTrap(templateDialogRef, isTemplatesOpen, () => setIsTemplatesOpen(false));
 
   useEffect(() => {
     const compactWindow = window.matchMedia('(max-width: 700px)');
@@ -765,6 +761,11 @@ export function SequenceDiagramEditor({
   }, [content]);
 
   const activateKeyboardMode = useCallback((): void => {
+    if (content.participants.length === 0) {
+      showFeedback('Primero agregá participantes.');
+      setParticipantDraft({ text: '', kind: 'actor' });
+      return;
+    }
     const selectedTimelineItem = selection?.kind === 'message' || selection?.kind === 'fragment'
       ? findSequenceItem(content.items, selection.id)
       : undefined;
@@ -781,7 +782,7 @@ export function SequenceDiagramEditor({
     setParticipantDraft(null);
     dispatchKeyboardMode({ type: 'activate', slotIndex, sourceId });
     window.requestAnimationFrame(() => svgRef.current?.focus());
-  }, [content.items, content.participants, keyboardSlots, selection]);
+  }, [content.items, content.participants, keyboardSlots, selection, showFeedback]);
 
   const commitKeyboardParticipant = useCallback((): void => {
     const participant = createSequenceParticipantFromLabel({
@@ -803,6 +804,7 @@ export function SequenceDiagramEditor({
     showFeedback(`Participante ${formatSequenceParticipantLabel(participant)} creado.`);
   }, [commit, content, keyboardMode.slotIndex, keyboardMode.text, setSelection, showFeedback]);
 
+  const diagramHasActor = content.participants.some((participant) => participant.kind === 'actor');
   const beginKeyboardMessage = useCallback((type: SequenceMessageType): void => {
     if (!keyboardSlot) return;
     if (type === 'return') {
@@ -826,8 +828,19 @@ export function SequenceDiagramEditor({
       : keyboardParticipantIds.includes(keyboardMode.sourceId)
         ? keyboardMode.sourceId
         : keyboardParticipantIds[0] ?? keyboardMode.sourceId;
+    // Like the «Mensaje» button, the first message of a diagram leaves the
+    // actor, whichever participant the cursor happens to be on.
+    const diagramHasMessages = flatEntries.some((entry) => entry.item.kind === 'message');
+    const firstRoute = !diagramHasMessages && !keyboardMode.editId && diagramHasActor
+      ? firstMessageRoute(content.participants)
+      : undefined;
+    if (firstRoute) {
+      dispatchKeyboardMode({ type: 'set-route', sourceId: firstRoute.sourceId });
+      dispatchKeyboardMode({ type: 'begin', messageType: type, targetId: type === 'create' ? '' : firstRoute.targetId });
+      return;
+    }
     dispatchKeyboardMode({ type: 'begin', messageType: type, targetId: defaultTarget });
-  }, [content, keyboardMode.editId, keyboardMode.sourceId, keyboardParticipantIds, keyboardSlot, layout, showFeedback]);
+  }, [content, diagramHasActor, flatEntries, keyboardMode.editId, keyboardMode.sourceId, keyboardParticipantIds, keyboardSlot, layout, showFeedback]);
 
   const setKeyboardMessageType = useCallback((type: SequenceMessageType): void => {
     if (type === 'return') {
@@ -965,6 +978,40 @@ export function SequenceDiagramEditor({
     }
   }, [commit, content, keepAnchoredNotesWithTimeline, keyboardMode.guardFragmentId, keyboardMode.guardOperandId, keyboardMode.guardText, showFeedback]);
 
+  /**
+   * Right after a keyboard creation the focus goes straight to the text the
+   * diagram shows: the name in the tab for a single-branch fragment (loop,
+   * opt...) and the first branch's guard for alt / par.
+   */
+  const openKeyboardFragmentNameEditor = useCallback((fragment: SequenceFragment, nextLayout: ReturnType<typeof buildSequenceLayout>): void => {
+    const box = nextLayout.fragmentLayouts.get(fragment.id);
+    if (!box) return;
+    if (!isSingleOperandFragment(fragment)) {
+      const operand = fragment.operands[0];
+      const operandBox = box.operands.find((candidate) => candidate.id === operand.id);
+      if (operand && operandBox) {
+        setInlineFragmentEditor({
+          kind: 'guard',
+          fragmentId: fragment.id,
+          operandId: operand.id,
+          value: operand.guard,
+          x: box.x + 8,
+          y: operandBox.top + 2,
+          width: Math.min(260, Math.max(140, box.width - 30)),
+        });
+        return;
+      }
+    }
+    setInlineFragmentEditor({
+      kind: 'name',
+      fragmentId: fragment.id,
+      value: fragment.name,
+      x: box.x + 4,
+      y: box.y + 2,
+      width: Math.max(180, Math.min(box.width - 8, (box.tabWidth ?? 94) + 80)),
+    });
+  }, []);
+
   const commitKeyboardFragment = useCallback((): void => {
     if (!keyboardSlot) return;
     if (selectedTimelineIds.length > 0) {
@@ -978,6 +1025,7 @@ export function SequenceDiagramEditor({
         const nextSlots = buildSequenceKeyboardInsertionSlots(nextContent, buildSequenceLayout(nextContent));
         setSelectedTimelineIds([]);
         setSelection({ kind: 'fragment', id: result.createdFragment.id });
+        openKeyboardFragmentNameEditor(result.createdFragment, buildSequenceLayout(nextContent));
         dispatchKeyboardMode({
           type: 'committed',
           slotIndex: findSequenceKeyboardSlotAfterItem(nextSlots, result.createdFragment.id),
@@ -987,12 +1035,21 @@ export function SequenceDiagramEditor({
       }
       return;
     }
-    const fragment = createSequenceFragment(keyboardMode.fragmentOperator);
+    // A new empty fragment starts on the lifeline the cursor is on (with the
+    // usual left margin) instead of spanning the whole diagram.
+    const anchorId = content.participants.some((participant) => participant.id === keyboardMode.sourceId) ? keyboardMode.sourceId : undefined;
+    const fragment: SequenceFragment = {
+      ...createSequenceFragment(keyboardMode.fragmentOperator),
+      startParticipantId: anchorId,
+      endParticipantId: anchorId,
+    };
     const items = insertSequenceItemAtSlot(content.items, fragment, keyboardSlot);
     const nextContent = keepAnchoredNotesWithTimeline({ ...content, items });
     if (commit(nextContent)) {
-      const nextSlots = buildSequenceKeyboardInsertionSlots(nextContent, buildSequenceLayout(nextContent));
+      const nextLayout = buildSequenceLayout(nextContent);
+      const nextSlots = buildSequenceKeyboardInsertionSlots(nextContent, nextLayout);
       setSelection({ kind: 'fragment', id: fragment.id });
+      openKeyboardFragmentNameEditor(fragment, nextLayout);
       dispatchKeyboardMode({
         type: 'committed',
         slotIndex: findSequenceKeyboardSlotAfterItem(nextSlots, fragment.id),
@@ -1000,7 +1057,7 @@ export function SequenceDiagramEditor({
       });
       showFeedback(`Fragmento ${keyboardMode.fragmentOperator} creado.`);
     }
-  }, [commit, content, keepAnchoredNotesWithTimeline, keyboardMode.fragmentOperator, keyboardMode.sourceId, keyboardSlot, selectedTimelineIds, setSelectedTimelineIds, setSelection, showFeedback]);
+  }, [commit, content, keepAnchoredNotesWithTimeline, keyboardMode.fragmentOperator, keyboardMode.sourceId, keyboardSlot, openKeyboardFragmentNameEditor, selectedTimelineIds, setSelectedTimelineIds, setSelection, showFeedback]);
 
   const commitKeyboardMessage = useCallback((addAutomaticReturn = false): void => {
     if (!keyboardSlot || (keyboardMode.stage !== 'aim' && keyboardMode.stage !== 'typing')) return;
@@ -1159,9 +1216,12 @@ export function SequenceDiagramEditor({
   }, [keyboardMode.slotIndex, keyboardMode.stage, keyboardSlots.length]);
 
   const handleKeyboardMode = useEffectEvent((event: KeyboardEvent): void => {
-      if (isNotebookEvent(event)) return;
+      if (shouldIgnoreEditorShortcut(event, document) || isNotebookEvent(event)) return;
+      // The fragment name field owns the keyboard while it is open.
+      if (inlineFragmentEditor) return;
       const editableTarget = isKeyboardTextTarget(event.target);
       const key = event.key.toLocaleLowerCase();
+      if (key.length === 1 && hasCommandModifier(event)) return;
 
       if (keyboardMode.stage === 'off') {
         const activeElement = document.activeElement;
@@ -1178,7 +1238,7 @@ export function SequenceDiagramEditor({
       if (key === 'm' && !event.metaKey && !event.ctrlKey && !event.altKey) {
         event.preventDefault();
         dispatchKeyboardMode({ type: 'deactivate' });
-        showFeedback('Modo mensajes desactivado.');
+        showFeedback('Modo teclado desactivado.');
         return;
       }
 
@@ -1280,9 +1340,7 @@ export function SequenceDiagramEditor({
             dispatchKeyboardMode({ type: 'set-route', returnCandidateIndex: nextCandidateIndex });
             return;
           }
-          const currentType = keyboardMode.messageType === 'asynchronous' ? 'synchronous' : keyboardMode.messageType;
-          const messageType = moveCircular(sequenceKeyboardMessageTypes, currentType, direction);
-          if (messageType) setKeyboardMessageType(messageType);
+          // The type is chosen with S, R, C and D (or by clicking it); the vertical arrows do not change it.
           return;
         }
         const key = event.key.toLocaleLowerCase();
@@ -1378,7 +1436,7 @@ export function SequenceDiagramEditor({
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape' || isNotebookEvent(event)) return;
+      if (shouldIgnoreEditorShortcut(event, document) || event.key !== 'Escape' || isNotebookEvent(event)) return;
       setQuickMessage(null);
       setParticipantDraft(null);
       setParticipantPreview({});
@@ -1397,7 +1455,7 @@ export function SequenceDiagramEditor({
       });
     };
     const closeMenusOnEscape = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape' && !isNotebookEvent(event)) {
+      if (!shouldIgnoreEditorShortcut(event, document) && event.key === 'Escape' && !isNotebookEvent(event)) {
         toolbarRef.current?.querySelectorAll('details[open]').forEach((details) => details.removeAttribute('open'));
       }
     };
@@ -1446,6 +1504,42 @@ export function SequenceDiagramEditor({
       behavior: 'smooth',
     });
   }, [layout.bounds]);
+
+  const keyboardModeOff = keyboardMode.stage === 'off';
+  const keyboardGuideRef = useRef<HTMLDivElement | null>(null);
+  // The help bar can wrap onto two lines; the canvas below follows its height.
+  useLayoutEffect(() => {
+    const guide = keyboardGuideRef.current;
+    const panel = guide?.parentElement;
+    if (!guide || !panel || keyboardModeOff) return;
+    const sync = (): void => { panel.style.setProperty('--sequence-guide-height', `${guide.offsetHeight}px`); };
+    sync();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(sync);
+    observer?.observe(guide);
+    return () => {
+      observer?.disconnect();
+      panel.style.removeProperty('--sequence-guide-height');
+    };
+  }, [keyboardModeOff]);
+
+  // A sequence opened for the first time in the session starts fitted to the
+  // view when it does not fit at 100%. A remembered view is always respected.
+  const initialFitDone = useRef(false);
+  useLayoutEffect(() => {
+    if (initialFitDone.current) return;
+    initialFitDone.current = true;
+    const scrollEl = scrollRef.current;
+    if (!scrollEl || initialView !== undefined || content.participants.length === 0) return;
+    const fit = fitSequenceZoomToView({
+      viewportWidth: scrollEl.clientWidth,
+      viewportHeight: scrollEl.clientHeight,
+      bounds: layout.bounds,
+    });
+    if (fit >= 1) return;
+    setZoom(fit);
+    scrollEl.scrollLeft = Math.max(0, (layout.bounds.left - 40) * fit);
+    scrollEl.scrollTop = Math.max(0, (layout.bounds.top - 40) * fit);
+  }, [content.participants.length, initialView, layout.bounds]);
 
   const getSelectionTarget = useCallback((targetSelection: SequenceSelection): SequenceViewportTarget | undefined => {
     if (targetSelection === null) return undefined;
@@ -1521,7 +1615,7 @@ export function SequenceDiagramEditor({
     if (total > 1) {
       if (!marqueeTipShownRef.current) {
         marqueeTipShownRef.current = true;
-        showFeedback(`${total} elementos seleccionados en bloque. Tip: Mayús+arrastrar selecciona dentro de fragmentos.`);
+        showFeedback(`${total} elementos seleccionados en bloque. Consejo: Mayús+arrastrar selecciona dentro de fragmentos.`);
       } else {
         showFeedback(`${total} elementos seleccionados en bloque.`);
       }
@@ -1730,25 +1824,6 @@ export function SequenceDiagramEditor({
     window.addEventListener('pointerup', finish, { once: true });
   }, [content, layout, existingArtifactIds, zoom, showFeedback, commit, keepAnchoredNotesWithTimeline, selectedTimelineIds, setSelection]);
 
-  const handleLoadTemplate = useCallback((templateId: string, asNew: boolean): void => {
-    const tmpl = SEQUENCE_TEMPLATES.find((t) => t.id === templateId);
-    if (!tmpl) return;
-    const newContent = tmpl.createContent();
-    if (asNew && onCreateSequenceDiagramArtifact) {
-      onCreateSequenceDiagramArtifact(tmpl.name, newContent);
-      setIsTemplatesOpen(false);
-      showFeedback(`Diagrama "${tmpl.name}" creado con plantilla.`);
-    } else {
-      const ok = commit(keepAnchoredNotesWithTimeline(newContent), true);
-      if (ok) {
-        setIsTemplatesOpen(false);
-        setSelection(null);
-        setSelectedTimelineIds([]);
-        showFeedback(`Plantilla "${tmpl.name}" cargada.`);
-      }
-    }
-  }, [commit, keepAnchoredNotesWithTimeline, onCreateSequenceDiagramArtifact, setSelectedTimelineIds, setSelection, showFeedback]);
-
   const selectOutlineItem = useCallback((nextSelection: Exclude<SequenceSelection, null>): void => {
     setSelection(nextSelection);
     setHighlightedSelection(nextSelection);
@@ -1774,6 +1849,19 @@ export function SequenceDiagramEditor({
     if (highlightTimeoutRef.current !== null) window.clearTimeout(highlightTimeoutRef.current);
   }, []);
 
+  const closeReviewPanel = useCallback(() => setIsReviewPanelOpen(false), []);
+  const reviewIssues = useMemo(() => reviewProblems.map((problem) => ({
+    id: problem.id,
+    kind: problem.severity === 'error' ? 'error' as const : 'review' as const,
+    message: problem.message,
+    problem,
+  })), [reviewProblems]);
+  const focusReviewIssue = useCallback(({ problem }: { problem: SequenceDiagramProblem }): void => {
+    if (problem.messageId) selectOutlineItem({ kind: 'message', id: problem.messageId });
+    else if (problem.fragmentId) selectOutlineItem({ kind: 'fragment', id: problem.fragmentId });
+    else if (problem.participantId) selectOutlineItem({ kind: 'participant', id: problem.participantId });
+  }, [selectOutlineItem]);
+
   const handleToolbarMenuToggle = (event: SyntheticEvent<HTMLDetailsElement>): void => {
     const details = event.currentTarget;
     if (!details.open) return;
@@ -1782,7 +1870,6 @@ export function SequenceDiagramEditor({
     });
   };
 
-  const diagramHasActor = content.participants.some((participant) => participant.kind === 'actor');
   // The actor is almost always the first participant and there is usually
   // one: the composer starts on Actor until the diagram has one.
   const beginParticipantCreation = useCallback((kind?: 'object' | 'actor'): void => {
@@ -1861,9 +1948,12 @@ export function SequenceDiagramEditor({
     const chainFrom = selectedItem?.kind === 'message'
       ? selectedItem
       : selectedItem === null && lastMessage?.kind === 'message' ? lastMessage : undefined;
-    const sourceId = selectedParticipant?.id ?? chainFrom?.targetId ?? sorted[0].id;
+    // The first message of a diagram starts at the actor, whatever is selected.
+    const hasMessages = lastMessage !== undefined;
+    const firstRoute = hasMessages ? undefined : firstMessageRoute(content.participants);
+    const sourceId = firstRoute?.sourceId ?? selectedParticipant?.id ?? chainFrom?.targetId ?? sorted[0].id;
     const sourceIndex = sorted.findIndex((participant) => participant.id === sourceId);
-    const targetId = sorted[sourceIndex + 1]?.id ?? sorted[sourceIndex - 1]?.id ?? sourceId;
+    const targetId = firstRoute?.targetId ?? sorted[sourceIndex + 1]?.id ?? sorted[sourceIndex - 1]?.id ?? sourceId;
     setQuickMessage(createSequenceMessageEditModel({
       type,
       sourceId,
@@ -1947,7 +2037,7 @@ export function SequenceDiagramEditor({
       const index = ordered.findIndex((item) => item.id === (activeDraft.editId ?? probe.id));
       const usedBefore = ordered.slice(0, index).some((item) => item.sourceId === activeDraft.targetId || item.targetId === activeDraft.targetId);
       const createdElsewhere = ordered.some((item) => item.id !== (activeDraft.editId ?? probe.id) && item.type === 'create' && item.targetId === activeDraft.targetId);
-      if (usedBefore || createdElsewhere) { showFeedback('create() debe ser la primera interacción del objeto. Usá el botón create() para crear un DTO nuevo.'); return; }
+      if (usedBefore || createdElsewhere) { showFeedback('La creación debe ser la primera interacción del objeto. Agregá un mensaje de tipo «Crear» con «Objeto nuevo».'); return; }
     }
     let saved: boolean;
     if (activeDraft.editId) {
@@ -2190,6 +2280,7 @@ export function SequenceDiagramEditor({
 
   useEffect(() => {
     const handleDeleteSelection = (event: KeyboardEvent): void => {
+      if (shouldIgnoreEditorShortcut(event, document)) return;
       if (event.key !== 'Delete' && event.key !== 'Backspace') return;
       if (quickMessage !== null || isNotebookEvent(event)) return;
       const target = event.target instanceof Element ? event.target : null;
@@ -2499,14 +2590,13 @@ export function SequenceDiagramEditor({
 
   useEffect(() => {
     const handleTimelineShortcuts = (event: KeyboardEvent): void => {
-      if (isNotebookEvent(event)) return;
+      if (shouldIgnoreEditorShortcut(event, document) || isNotebookEvent(event)) return;
       const target = event.target instanceof Element ? event.target : null;
       if (target?.closest('input, textarea, select, [contenteditable="true"], dialog') !== null) return;
-      if (quickMessage !== null) return;
+      if (quickMessage !== null || inlineFragmentEditor !== null) return;
 
       if (!event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
-        && keyboardMode.stage === 'off' && !inlineNoteEditor
-        && !document.querySelector('[role="dialog"], dialog[open], [aria-modal="true"]')) {
+        && keyboardMode.stage === 'off' && !inlineNoteEditor) {
         if (event.key.toLowerCase() === 'n') {
           event.preventDefault();
           addNote();
@@ -2521,8 +2611,7 @@ export function SequenceDiagramEditor({
 
       if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey
         && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')
-        && selection?.kind === 'participant' && keyboardMode.stage === 'off' && !inlineNoteEditor
-        && !document.querySelector('[role="dialog"], dialog[open], [aria-modal="true"]')) {
+        && selection?.kind === 'participant' && keyboardMode.stage === 'off' && !inlineNoteEditor) {
         event.preventDefault();
         moveParticipantHorizontal(selection.id, event.key === 'ArrowLeft' ? -1 : 1);
         return;
@@ -2571,7 +2660,7 @@ export function SequenceDiagramEditor({
     };
     window.addEventListener('keydown', handleTimelineShortcuts);
     return () => window.removeEventListener('keydown', handleTimelineShortcuts);
-  }, [moveParticipantHorizontal, addNote, handleEditNote, inlineNoteEditor, keyboardMode.stage, quickMessage, selection, selectedTimelineIds, moveSelectedItem, duplicateSelectedItem, copyBlockSelection, pasteBlockSelection, handleUnwrapFragment]);
+  }, [moveParticipantHorizontal, addNote, handleEditNote, inlineNoteEditor, keyboardMode.stage, quickMessage, selection, selectedTimelineIds, moveSelectedItem, duplicateSelectedItem, copyBlockSelection, pasteBlockSelection, handleUnwrapFragment, inlineFragmentEditor]);
 
   const commitInlineNoteEdit = useCallback((): void => {
     if (!inlineNoteEditor) return;
@@ -2642,16 +2731,23 @@ export function SequenceDiagramEditor({
 
   const handleEditFragmentName = useCallback(
     (fragmentId: string, currentName: string, rect: { x: number; y: number; width: number }) => {
+      // A single-branch fragment may keep its text in the branch guard (older
+      // data): edit that field so nothing is duplicated or lost.
+      const target = findSequenceItem(content.items, fragmentId);
+      if (target?.kind === 'fragment' && getFragmentTabLabel(target).field === 'guard') {
+        setInlineFragmentEditor({ kind: 'guard', fragmentId, operandId: target.operands[0].id, value: currentName, x: rect.x, y: rect.y, width: rect.width });
+        return;
+      }
       setInlineFragmentEditor({
         kind: 'name',
         fragmentId,
-        value: currentName,
+        value: target?.kind === 'fragment' ? target.name : currentName,
         x: rect.x,
         y: rect.y,
         width: rect.width,
       });
     },
-    [],
+    [content.items],
   );
 
   const handleAddFragmentOperand = useCallback(
@@ -2870,11 +2966,11 @@ export function SequenceDiagramEditor({
           const numAbsorbed = lastValidMoveChanges.itemsToAbsorb.length;
           const numEjected = lastValidMoveChanges.itemsToEject.length;
           if (numAbsorbed > 0 && numEjected > 0) {
-            showFeedback(`Fragmento actualizado: ${numAbsorbed} mensaje(s) incorporado(s), ${numEjected} liberado(s).`);
+            showFeedback(`Fragmento actualizado: ${formatSequenceMessageChange(numAbsorbed, 'incorporado')}, ${formatSequenceMessageChange(numEjected, 'liberado')}.`);
           } else if (numAbsorbed > 0) {
-            showFeedback(`Fragmento movido: ${numAbsorbed} mensaje(s) incorporado(s).`);
+            showFeedback(`Fragmento movido: ${formatSequenceMessageChange(numAbsorbed, 'incorporado')}.`);
           } else if (numEjected > 0) {
-            showFeedback(`Fragmento movido: ${numEjected} mensaje(s) liberado(s).`);
+            showFeedback(`Fragmento movido: ${formatSequenceMessageChange(numEjected, 'liberado')}.`);
           } else {
             showFeedback('Fragmento reubicado.');
           }
@@ -3091,11 +3187,11 @@ export function SequenceDiagramEditor({
           const numAbsorbed = lastValidBoundaryChanges.itemsToAbsorb.length;
           const numEjected = lastValidBoundaryChanges.itemsToEject.length;
           if (numAbsorbed > 0 && numEjected > 0) {
-            showFeedback(`Fragmento actualizado: ${numAbsorbed} mensaje(s) incorporado(s), ${numEjected} liberado(s).`);
+            showFeedback(`Fragmento actualizado: ${formatSequenceMessageChange(numAbsorbed, 'incorporado')}, ${formatSequenceMessageChange(numEjected, 'liberado')}.`);
           } else if (numAbsorbed > 0) {
-            showFeedback(`Fragmento expandido: ${numAbsorbed} mensaje(s) incorporado(s).`);
+            showFeedback(`Fragmento expandido: ${formatSequenceMessageChange(numAbsorbed, 'incorporado')}.`);
           } else if (numEjected > 0) {
-            showFeedback(`Fragmento reducido: ${numEjected} mensaje(s) liberado(s).`);
+            showFeedback(`Fragmento reducido: ${formatSequenceMessageChange(numEjected, 'liberado')}.`);
           }
         }
       } else if (didChange) {
@@ -3200,37 +3296,30 @@ export function SequenceDiagramEditor({
 
     const participant = content.participants.find((candidate) => candidate.id === selectedItem.targetId);
     const classNode = participant ? resolveParticipantClassNode(participant, associatedClassDiagram.content) : undefined;
-    // The message's arguments are what this call passes, not the method's
-    // signature: the method is matched and created by name alone.
-    const methodName = selectedItem.name.replace(/\(.*$/, '').trim();
+    // The call's declared parameters travel with it, exactly as in "Traer"
+    // from Clases de secuencias; the shared importer decides what they are.
+    const resolved = resolveMessageOperation(classNode?.data.methods ?? [], selectedItem);
 
     if (classNode === undefined && onImportSequenceIntoClassModel) {
       importIntoModel();
       return;
     }
 
-    if (classNode === undefined || methodName.length === 0) {
+    if (classNode === undefined || resolved === null) {
       showFeedback('Seleccioná una clase y escribí una operación antes de sincronizar.');
       return;
     }
 
-    const matchingMethod = classNode.data.methods.find((method) =>
-      method.name.replace(/\(.*$/, '').trim().toLocaleLowerCase() === methodName.toLocaleLowerCase(),
-    );
-
-    if (matchingMethod !== undefined) {
-      updateMessageEditModel(selectedItem.id, { operationMethodId: matchingMethod.id });
+    if (resolved.existing !== undefined) {
+      if (resolved.parametersToAdd !== undefined && resolved.parametersToAdd !== '') {
+        onCompleteClassMethodParameters?.(associatedClassDiagram.id, classNode.id, resolved.existing.id, resolved.parametersToAdd);
+      }
+      updateMessageEditModel(selectedItem.id, { operationMethodId: resolved.existing.id });
       showFeedback('Mensaje vinculado con el método existente.');
       return;
     }
 
-    const method: ClassMethod = {
-      id: createId(),
-      visibility: '+',
-      name: methodName,
-      parameters: '',
-      returnType: selectedItem.returnType.trim(),
-    };
+    const method: ClassMethod = { id: createId(), visibility: '+', ...resolved.operation };
     onCreateClassMethod(associatedClassDiagram.id, classNode.id, method);
     updateMessageEditModel(selectedItem.id, { operationMethodId: method.id });
     showFeedback(`Método ${method.name} agregado a «${associatedClassDiagram.name}».`);
@@ -3290,12 +3379,12 @@ export function SequenceDiagramEditor({
           ) : <span className="sequence-outline-dot" />}
           <span>
             <strong>{item.kind === 'fragment' ? item.operator : item.type === 'return' ? 'Retorno' : formatSequenceMessageLabel(item)}</strong>
-            {item.kind === 'fragment' ? <small>{item.name || 'Bloque combinado'}</small> : <small>{messageTypeLabels[item.type]}</small>}
+            {item.kind === 'fragment' ? <small>{getFragmentTabLabel(item).text || 'Bloque combinado'}</small> : <small>{messageTypeLabels[item.type]}</small>}
           </span>
         </button>
         {item.kind === 'fragment' && !isCollapsed ? item.operands.map((operand) => (
           <div className="sequence-outline-operand" key={operand.id}>
-            {operand.guard.trim() ? <span style={{ paddingLeft: 24 + depth * 16 }}>[{operand.guard}]</span> : null}
+            {item.operands.length > 1 && operand.guard.trim() ? <span style={{ paddingLeft: 24 + depth * 16 }}>[{operand.guard}]</span> : null}
             {renderOutline(operand.items, depth + 1)}
           </div>
         )) : null}
@@ -3347,7 +3436,10 @@ export function SequenceDiagramEditor({
       ? Math.max(90, Math.min(...content.participants.map((participant) => participant.x)) - 230)
       : Math.max(...content.participants.map((participant) => participant.x)) + 230
     : undefined;
-  const keyboardRouteMidpoint = keyboardSlot
+  const keyboardRouteMidpoint = keyboardSlot && keyboardMode.stage === 'navigate'
+    // Navigating has no destination yet (the last one is stale): the sign sits on the lifeline.
+    ? layout.participantX.get(keyboardMode.sourceId) ?? 120
+    : keyboardSlot
     ? ((layout.participantX.get(keyboardMode.sourceId) ?? 120)
       + (keyboardGhostX ?? layout.participantX.get(keyboardMode.targetId) ?? layout.participantX.get(keyboardMode.sourceId) ?? 120)) / 2
     : 120;
@@ -3359,7 +3451,7 @@ export function SequenceDiagramEditor({
   const slotScreenY = rawSlotY * zoom - scrollPosition.top + keyboardGuideHeight;
   const isPopoverBelow = rawSlotY < 180;
   const keyboardPopoverPlacement: 'above' | 'below' = isPopoverBelow ? 'below' : 'above';
-  const popoverHalfWidth = keyboardMode.stage === 'navigate' ? 70 : 188;
+  const popoverHalfWidth = keyboardMode.stage === 'navigate' ? 140 : 188;
   const keyboardPopoverPosition = {
     left: `clamp(${popoverHalfWidth}px, ${keyboardRouteMidpoint * zoom - scrollPosition.left}px, calc(100% - ${popoverHalfWidth}px))`,
     top: isPopoverBelow
@@ -3433,7 +3525,7 @@ export function SequenceDiagramEditor({
             className="sequence-compact-input"
             value={selectedParticipant.name}
             onChange={(event) => updateParticipant(selectedParticipant.id, { name: event.target.value }, true)}
-            placeholder="Consultor"
+            placeholder="Actor principal"
           />
         </label>
       ) : (
@@ -3444,8 +3536,8 @@ export function SequenceDiagramEditor({
             value={participantEditText}
             onChange={(event) => updateParticipantLabel(selectedParticipant.id, event.target.value)}
             onBlur={() => setParticipantColorReference(null)}
-            onKeyDown={(event) => { if (event.key === 'Enter') setParticipantColorReference(null); }}
-            placeholder="TramiteActual:Tramite o :Clase"
+            onKeyDown={(event) => { if (!shouldIgnoreEditorShortcut(event, document) && event.key === 'Enter') setParticipantColorReference(null); }}
+            placeholder="nombre:Clase"
           />
           <small className="sequence-inspector-hint" style={{ marginTop: 4, display: 'block' }}>
             La instancia puede quedar vacía antes de “:”.
@@ -3675,7 +3767,7 @@ export function SequenceDiagramEditor({
               rows={3}
               className="sequence-inspector-signature-textarea"
               value={signatureValue}
-              placeholder="Ej: buscar(id): Caso"
+              placeholder="operación(parámetros): retorno"
               onChange={(e) => {
                 setMessageSignatureDraft(createSequenceSignatureDraft(selectedItem, e.target.value));
                 const parsed = parseMessageSignature(e.target.value);
@@ -3909,7 +4001,7 @@ export function SequenceDiagramEditor({
 
   const fragmentInspector = selectedItem?.kind === 'fragment' ? (() => {
     const activeOp = selectedItem.operands.find((op) => op.id === activeOperandId) ?? selectedItem.operands[0];
-    const totalMessages = selectedItem.operands.reduce((acc, op) => acc + op.items.length, 0);
+    const totalMessages = countSequenceMessages([selectedItem]);
 
     const allMessagesInDiagram: {
       message: SequenceMessage;
@@ -4112,7 +4204,7 @@ export function SequenceDiagramEditor({
         <section className="sequence-inspector-section sequence-inspector-operands-section" style={{ marginTop: 6 }}>
           <div className="sequence-fragment-branches-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <h4 style={{ margin: 0, fontSize: '0.78rem', fontWeight: 600 }}>Ramas y Mensajes</h4>
+              <h4 style={{ margin: 0, fontSize: '0.78rem', fontWeight: 600 }}>Ramas y mensajes</h4>
               <span className="sequence-counter-badge">{totalMessages} {totalMessages === 1 ? 'mensaje' : 'mensajes'}</span>
             </div>
             {(selectedItem.operator === 'alt' || selectedItem.operator === 'par') ? (
@@ -4149,7 +4241,7 @@ export function SequenceDiagramEditor({
                     onClick={() => setActiveOperandId(op.id)}
                   >
                     <span>{tabLabel}</span>
-                    <span className={`sequence-tab-counter ${isTabActive ? 'active' : ''}`}>{op.items.length}</span>
+                    <span className={`sequence-tab-counter ${isTabActive ? 'active' : ''}`}>{countSequenceMessages(op.items)}</span>
                   </button>
                 );
               })}
@@ -4199,7 +4291,7 @@ export function SequenceDiagramEditor({
                     onChange={(event) => updateItem(selectedItem.id, {
                       operands: selectedItem.operands.map((c) => (c.id === activeOp.id ? { ...c, guard: event.target.value } : c)),
                     }, true)}
-                    placeholder={selectedItem.operands.indexOf(activeOp) === 0 ? 'ej. valido == true' : 'else'}
+                    placeholder={selectedItem.operands.indexOf(activeOp) === 0 ? 'condición' : 'else'}
                   />
                   <span className="sequence-fragment-guard-bracket">]</span>
                 </div>
@@ -4346,7 +4438,7 @@ export function SequenceDiagramEditor({
                       <input
                         autoFocus
                         className="sequence-operand-picker-search"
-                        placeholder="Buscar por nombre o participante..."
+                        placeholder="Buscar por nombre o participante…"
                         value={includeSearchFilter}
                         onChange={(e) => setIncludeSearchFilter(e.target.value)}
                       />
@@ -4484,7 +4576,7 @@ export function SequenceDiagramEditor({
           onChange={(event) => {
             updateNote(selectedNote.id, { text: event.target.value }, true);
           }}
-          placeholder="Escribí aquí una nota de apoyo o aclaración..."
+          placeholder="Escribí aquí una nota de apoyo o aclaración…"
         />
         <small className="sequence-inspector-hint" style={{ marginTop: 4, display: 'block' }}>
           Doble clic o Enter en el lienzo para escribir · Tiradores para redimensionar en ancho y alto.
@@ -4708,14 +4800,14 @@ export function SequenceDiagramEditor({
             {associatedClassDiagram ? <ToolMenu icon={GitBranch} label={missingCount > 0 ? `${missingCount} ${missingCount === 1 ? 'falta' : 'faltan'}` : '✓ Al día'} title={missingCount > 0 ? `${missingCount} ${missingCount === 1 ? 'elemento falta' : 'elementos faltan'} en «${associatedClassDiagram.name}»` : `Al día con «${associatedClassDiagram.name}»`} align="start" className={`sequence-model-status ${missingCount > 0 ? 'has-novelties' : ''}`}>
               {missingCount > 0 ? <MenuItem disabled={!onImportSequenceIntoClassModel} onSelect={importIntoModel}>Agregar todo a «{associatedClassDiagram.name}»</MenuItem> : null}
               <MenuItem icon={Link2} disabled={!onNavigateToArtifact} onSelect={() => onNavigateToArtifact?.(associatedClassDiagram.id)}>Abrir «{associatedClassDiagram.name}»</MenuItem>
-              <MenuItem icon={Unlink} onSelect={() => commit({ ...content, classDiagramArtifactId: undefined })}>Desvincular</MenuItem>
+              <MenuItem icon={Unlink} onSelect={() => commit({ ...content, classDiagramArtifactId: null })}>Desvincular</MenuItem>
             </ToolMenu> : (
-              <ToolMenu icon={GitBranch} label="Sin modelo" title="Vinculá la secuencia con un artefacto de clases de secuencias" align="start" className="sequence-model-status">
+              <ToolMenu icon={GitBranch} label="Sin vincular" title="Vinculá esta secuencia con unas Clases de secuencias para elegir clases y operaciones ya hechas y mantener los nombres al día." align="start" className="sequence-model-status">
                 {classDiagrams.length > 0 ? <MenuLabel>Vincular con</MenuLabel> : null}
                 {classDiagrams.map((model) => (
                   <MenuItem key={model.id} icon={Link2} onSelect={() => commit({ ...content, classDiagramArtifactId: model.id })}>{model.name}</MenuItem>
                 ))}
-                {onCreateSequenceModel ? <MenuItem icon={Plus} onSelect={onCreateSequenceModel}>Crear clases de secuencias</MenuItem> : null}
+                {onCreateSequenceModel ? <MenuItem icon={Plus} onSelect={onCreateSequenceModel}>Crear Clases de secuencias y vincular</MenuItem> : null}
               </ToolMenu>
             )}
           </>
@@ -4726,11 +4818,19 @@ export function SequenceDiagramEditor({
               icon={MessageSquarePlus}
               label="Mensaje"
               showLabel
-              variant="primary"
-              title="Insertar mensaje (o doble clic en el lienzo)"
+              variant={content.participants.length === 0 ? 'default' : 'primary'}
+              disabled={content.participants.length === 0}
+              title={content.participants.length === 0 ? 'Primero agregá participantes' : 'Insertar mensaje (o doble clic en el lienzo)'}
               onClick={() => beginMessage()}
             />
-            <ToolButton icon={UserRoundPlus} label="Participante" showLabel title="Agregar participante (objeto o actor)" onClick={() => beginParticipantCreation()} />
+            <ToolButton
+              icon={UserRoundPlus}
+              label="Participante"
+              showLabel
+              variant={content.participants.length === 0 ? 'primary' : 'default'}
+              title="Agregar participante (objeto o actor)"
+              onClick={() => beginParticipantCreation()}
+            />
             <ToolMenu icon={BoxSelect} label="Fragmento" align="start" title="Agregar fragmento combinado (alt, loop, opt…)">
               {Object.entries(fragmentLabels).map(([value, label]) => {
                 const [operator, description] = label.split(' · ');
@@ -4742,7 +4842,6 @@ export function SequenceDiagramEditor({
               })}
             </ToolMenu>
             <ToolButton icon={StickyNote} label="Nota" title="Agregar nota" onClick={addNote} />
-            <ToolButton icon={LayoutTemplate} label="Plantillas" title="Plantillas educativas" onClick={() => setIsTemplatesOpen(true)} />
             <ToolbarDivider />
             <ToolButton
               icon={Keyboard}
@@ -4760,7 +4859,7 @@ export function SequenceDiagramEditor({
               count={reviewProblems.length}
               hasErrors={reviewProblems.some((problem) => problem.severity === 'error')}
               open={isReviewPanelOpen}
-              onToggle={() => setIsReviewPanelOpen(!isReviewPanelOpen)}
+              onToggle={() => setIsReviewPanelOpen((open) => !open)}
             />
             <ToolMenu icon={Eye} label="Vista">
               <MenuLabel>Paneles</MenuLabel>
@@ -4789,9 +4888,13 @@ export function SequenceDiagramEditor({
               </MenuField>
               <MenuSeparator />
               <MenuLabel>Referencias</MenuLabel>
-              <MenuField label="Clases de secuencias">
-                <select value={associatedClassDiagram?.id ?? ''} onChange={(event) => commit({ ...content, classDiagramArtifactId: event.target.value || undefined })}>
-                  <option value="">Sin modelo</option>
+              <MenuField label="Clases de secuencias" hint="Vinculá esta secuencia con unas Clases de secuencias para elegir clases y operaciones ya hechas y mantener los nombres al día.">
+                <select
+                  title="Vinculá esta secuencia con unas Clases de secuencias para elegir clases y operaciones ya hechas y mantener los nombres al día."
+                  value={associatedClassDiagram?.id ?? ''}
+                  onChange={(event) => commit({ ...content, classDiagramArtifactId: event.target.value || null })}
+                >
+                  <option value="">Sin vincular</option>
                   {classDiagrams.map((diagram) => <option key={diagram.id} value={diagram.id}>{diagram.name}</option>)}
                 </select>
               </MenuField>
@@ -4897,9 +5000,10 @@ export function SequenceDiagramEditor({
             key={participantDraft.kind}
             aria-label={participantDraft.kind === 'actor' ? 'Nombre del actor' : 'Identificación del participante'}
             value={participantDraft.text}
-            placeholder={participantDraft.kind === 'actor' ? 'Consultor' : 'TramiteActual:Tramite'}
+            placeholder={participantDraft.kind === 'actor' ? 'Actor principal' : 'nombre:Clase'}
             onChange={(event) => setParticipantDraft((current) => current ? { ...current, text: event.target.value } : current)}
             onKeyDown={(event) => {
+              if (shouldIgnoreEditorShortcut(event, document)) return;
               if (event.key === 'Escape') {
                 event.preventDefault();
                 setParticipantDraft(null);
@@ -4943,9 +5047,9 @@ export function SequenceDiagramEditor({
         </aside>
         <section className={`sequence-canvas-panel ${isKeyboardActive ? 'keyboard-mode-active' : ''}`}>
           {isKeyboardActive ? (
-            <div className="sequence-canvas-guide is-keyboard-active" data-export-control="true">
+            <div className="sequence-canvas-guide is-keyboard-active" data-export-control="true" ref={keyboardGuideRef}>
               <div className="sequence-keyboard-guide-body">
-                <span className="sequence-keyboard-status-badge">MODO MENSAJES</span>
+                <span className="sequence-keyboard-status-badge">MODO TECLADO</span>
                 {keyboardContext ? (
                   <strong className="sequence-keyboard-guide-context" title={keyboardContext}>
                     {keyboardContext}
@@ -4956,10 +5060,10 @@ export function SequenceDiagramEditor({
               <button
                 type="button"
                 className="sequence-keyboard-exit-pill"
-                title="Salir del modo teclado (Esc)"
+                title="Salir del modo teclado (M)"
                 onClick={() => dispatchKeyboardMode({ type: 'deactivate' })}
               >
-                Salir <kbd>Esc</kbd>
+                Salir <kbd>M</kbd>
               </button>
             </div>
           ) : null}
@@ -4989,6 +5093,10 @@ export function SequenceDiagramEditor({
                 text: methodInsertText(method),
               })}
               onAddParticipant={() => dispatchKeyboardMode({ type: 'begin-participant' })}
+              onOpenFragment={() => dispatchKeyboardMode({ type: 'open-fragment' })}
+              onSelectType={setKeyboardMessageType}
+              onMoveTarget={(direction) => moveKeyboardParticipant(direction, true)}
+              returnAvailable={keyboardMode.stage !== 'aim' || findCompatibleSequenceReturnCalls(content, layout, keyboardSlot, keyboardMode.sourceId).length > 0}
             />
           ) : null}
           {content.participants.length === 0 && !participantDraft ? (
@@ -5005,7 +5113,7 @@ export function SequenceDiagramEditor({
                 </>
               )}
             >
-              El actor del caso de uso inicia la secuencia; después, los objetos con <code>instancia:Clase</code>, por ejemplo <code>TramiteActual:Tramite</code>.
+              El actor del caso de uso inicia la secuencia; después, agregá objetos con la forma <code>nombre:Clase</code>.
             </CanvasStartCard>
           ) : null}
           {quickMessage ? <SequenceMessageDialog routeEditable={quickMessageRouteEditable} draft={quickMessage} participants={content.participants} methodOptions={quickMessageMethodOptions} flowOptions={flowOptions} referenceStatus={quickMessageReferenceStatus} onChange={setQuickMessage} onSwap={swapQuickMessage} onSubmit={saveQuickMessage} onCancel={() => setQuickMessage(null)} /> : null}
@@ -5138,14 +5246,19 @@ export function SequenceDiagramEditor({
                       }}
                       value={inlineFragmentEditor.value}
                       placeholder={inlineFragmentEditor.kind === 'guard' ? 'condición' : 'nombre del fragmento'}
+                      // The text it opens with is selected, so typing replaces a default like «condición».
+                      onFocus={(e) => e.currentTarget.select()}
                       onChange={(e) => setInlineFragmentEditor({ ...inlineFragmentEditor, value: e.target.value })}
                       onKeyDown={(e) => {
+                        if (shouldIgnoreEditorShortcut(e, document)) return;
                         if (e.key === 'Enter') {
                           e.preventDefault();
                           commitInlineFragmentEdit();
+                          window.requestAnimationFrame(() => svgRef.current?.focus());
                         } else if (e.key === 'Escape') {
                           e.preventDefault();
                           setInlineFragmentEditor(null);
+                          window.requestAnimationFrame(() => svgRef.current?.focus());
                         }
                       }}
                       onBlur={() => commitInlineFragmentEdit()}
@@ -5281,6 +5394,7 @@ export function SequenceDiagramEditor({
                           }
                         }}
                         onKeyDown={(e) => {
+                          if (shouldIgnoreEditorShortcut(e, document)) return;
                           if (e.key === 'Escape') {
                             e.preventDefault();
                             setNotePreview({});
@@ -5303,10 +5417,13 @@ export function SequenceDiagramEditor({
           </div>
         </section>
         {isReviewPanelOpen ? (
-          <SequenceReviewPanel
-            problems={reviewProblems}
-            onSelectProblemTarget={selectOutlineItem}
-            onClose={() => setIsReviewPanelOpen(false)}
+          <DiagramReviewPanel
+            helper="Comprueba mensajes sin nombre, fragmentos incompletos y el ciclo de vida de los participantes. No reemplaza la revisión del diagrama."
+            isEmpty={content.participants.length === 0 && content.items.length === 0}
+            issues={reviewIssues}
+            title="Revisión del diagrama"
+            onClose={closeReviewPanel}
+            onFocus={focusReviewIssue}
           />
         ) : null}
         <InspectorPanel
@@ -5347,75 +5464,13 @@ export function SequenceDiagramEditor({
         open={exportDialogOpen}
         content={displayContent}
         layout={layout}
+        getSvg={getExportSvg}
         options={exportOptions}
         onOptionsChange={setExportOptions}
         onClose={() => setExportDialogOpen(false)}
         onExportPng={() => { void exportPng(); }}
         onExportPdf={() => { void exportPdf(); }}
       />
-      {isTemplatesOpen ? (
-        <div
-          className="sequence-modal-backdrop"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setIsTemplatesOpen(false);
-          }}
-        >
-          <div
-            ref={templateDialogRef}
-            aria-labelledby="sequence-templates-dialog-title"
-            aria-modal="true"
-            className="sequence-modal-card sequence-templates-card"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            tabIndex={-1}
-          >
-            <div className="sequence-modal-header">
-              <div className="sequence-modal-title">
-                <LayoutTemplate size={22} />
-                <div>
-                  <h3 id="sequence-templates-dialog-title">Plantillas educativas de secuencia</h3>
-                  <p>Ejemplos prediseñados listos para usar sin alterar proyectos existentes.</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label="Cerrar"
-                onClick={() => setIsTemplatesOpen(false)}
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="sequence-templates-grid">
-              {SEQUENCE_TEMPLATES.map((tmpl) => (
-                <div key={tmpl.id} className="sequence-template-item">
-                  <span className="sequence-template-badge">{tmpl.category}</span>
-                  <h4>{tmpl.name}</h4>
-                  <p>{tmpl.description}</p>
-                  <div className="sequence-template-actions">
-                    <button
-                      type="button"
-                      className="primary-action"
-                      onClick={() => handleLoadTemplate(tmpl.id, false)}
-                    >
-                      Cargar en este diagrama
-                    </button>
-                    {onCreateSequenceDiagramArtifact ? (
-                      <button
-                        type="button"
-                        className="secondary-action"
-                        onClick={() => handleLoadTemplate(tmpl.id, true)}
-                      >
-                        Crear como nuevo diagrama
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : null}
       {exportDialogOpen ? (
         <div className="sequence-export-source" aria-hidden="true">
           <SequenceDiagramCanvas

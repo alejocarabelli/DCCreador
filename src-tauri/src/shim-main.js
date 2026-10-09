@@ -35,6 +35,7 @@
   // Si ya había un respaldo en curso, la app ignora el pedido nuevo; por eso se
   // espera ese y se pide otra vez, con el estado más reciente.
   const flushAndBackUp = async () => {
+    window.dispatchEvent(new Event('modelador:flush-drafts'));
     for (let round = 0; round < 2; round += 1) {
       window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: false }));
       await new Promise((resolve) => setTimeout(resolve, 0));

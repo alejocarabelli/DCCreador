@@ -195,7 +195,8 @@ export type AlternativeUseCaseFlow = {
 };
 
 export type UseCaseFlowContent = {
-  classDiagramArtifactId?: string;
+  /** null: "Sin referencia" chosen explicitly. Absent: never chosen, so the project's only class diagram is used. */
+  classDiagramArtifactId?: string | null;
   description: UseCaseFlowDescription;
   basicFlow: UseCaseFlowStep[];
   alternativeFlows: AlternativeUseCaseFlow[];
@@ -378,7 +379,8 @@ export type SequenceSpacingMode = 'normal' | 'compact';
 
 export type SequenceDiagramContent = {
   version: 1;
-  classDiagramArtifactId?: string;
+  /** `undefined` = never chose; `null` = "Sin vincular" chosen on purpose (automatic links skip it). */
+  classDiagramArtifactId?: string | null;
   flowArtifactId?: string;
   numbering: SequenceNumberingMode;
   showActivations: boolean;

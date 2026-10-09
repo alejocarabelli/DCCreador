@@ -8,6 +8,7 @@ import {
   getSequenceMessageReferenceStatus,
   getSequenceMethodOptions,
   getSequenceSignatureInputValue,
+  formatArgumentList,
   formatMessageSignature,
   parseMessageSignature,
   reconcileMessageLifecycleMarkers,
@@ -15,8 +16,9 @@ import {
   sequenceMessageEditModelToPatch,
   swapSequenceMessageEditModel,
   updateSequenceMessageEditModel,
+  withReadableArguments,
 } from './sequenceMessageEditing';
-import { applySequenceDiagramMutation, createEmptySequenceDiagramContent, normalizeSequenceDiagramContent, updateSequenceItem } from './sequenceDiagram';
+import { applySequenceDiagramMutation, createEmptySequenceDiagramContent, formatSequenceMessageLabel, normalizeSequenceDiagramContent, updateSequenceItem } from './sequenceDiagram';
 
 const participants: SequenceParticipant[] = [
   { id: 'caller', kind: 'object', name: 'caller', classifierName: 'Caller', classifierNodeId: 'class-caller', x: 120 },
@@ -317,5 +319,57 @@ describe('method link while editing a message', () => {
     expect(updateSequenceMessageEditModel(linked, { name: 'buscarPrestamos', arguments: '5001' }).operationMethodId).toBe('m1');
     expect(updateSequenceMessageEditModel(linked, { returnType: 'Prestamo[]' }).operationMethodId).toBe('m1');
     expect(updateSequenceMessageEditModel(linked, { name: 'buscarSocios' }).operationMethodId).toBeUndefined();
+  });
+});
+
+describe('message arguments shown with ", "', () => {
+  it('writes the signature with a comma and a space between arguments', () => {
+    expect(formatMessageSignature({ type: 'synchronous', name: 'f', arguments: 'a,b' })).toBe('f(a, b)');
+    expect(formatMessageSignature({ type: 'synchronous', name: 'f(a,b)' })).toBe('f(a, b)');
+    expect(formatMessageSignature({ type: 'synchronous', name: 'validar', arguments: 'calcular(a,b),c' })).toBe('validar(calcular(a, b), c)');
+  });
+
+  it('does not touch commas inside types or quotes', () => {
+    expect(formatMessageSignature({ type: 'synchronous', name: 'f', arguments: 'Map<String,Integer> m,"x,y"' })).toBe('f(Map<String,Integer> m, "x,y")');
+  });
+
+  it('keeps the saved message and only changes the shown label', () => {
+    // The label itself now always shows "a, b"; the saved arguments keep what was typed.
+    const message: SequenceMessage = {
+      id: 'msg-1',
+      type: 'synchronous',
+      sourceId: 'p1',
+      targetId: 'p2',
+      name: 'f',
+      arguments: 'a,b',
+    } as SequenceMessage;
+
+    expect(formatSequenceMessageLabel(withReadableArguments(message))).toBe('f(a, b)');
+    expect(formatSequenceMessageLabel(message)).toBe('f(a, b)');
+    expect(message.arguments).toBe('a,b');
+  });
+});
+
+
+describe('escaped quotes in displayed arguments', () => {
+  it.each([
+    [String.raw`"a\",b,c",d`, String.raw`f("a\",b,c", d)`],
+    [String.raw`'a\',b,c',d`, String.raw`f('a\',b,c', d)`],
+    [String.raw`"a\\",d`, String.raw`f("a\\", d)`],
+    [String.raw`g("a\",b,c",d),e`, String.raw`f(g("a\",b,c", d), e)`],
+  ])('preserves quoted contents of %s', (args, expected) => {
+    expect(formatMessageSignature({ name: 'f', arguments: args })).toBe(expected);
+  });
+});
+
+describe('deeply nested arguments do not overflow the stack', () => {
+  it('formatArgumentList returns text containing the innermost argument instead of throwing', () => {
+    const args = 'f('.repeat(3200) + 'id' + ')'.repeat(3200);
+
+    let result = '';
+    expect(() => {
+      result = formatArgumentList(args);
+    }).not.toThrow();
+    expect(result).toContain('id');
   });
 });

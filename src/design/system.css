@@ -135,10 +135,12 @@
 }
 
 .app-shell[data-ui-version='refined'] .artifact-tabs-project {
-  align-self: center;
+  align-self: flex-end;
   color: var(--panel-muted-text);
   flex: 0 0 auto;
   font-size: var(--text-sm);
+  line-height: 28px;
+  margin-bottom: -1px;
   max-width: 22ch;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -146,10 +148,11 @@
 }
 
 .app-shell[data-ui-version='refined'] .artifact-tabs-divider {
-  align-self: center;
+  align-self: flex-end;
   background: var(--panel-border);
   flex: 0 0 1px;
   height: 16px;
+  margin-bottom: 5px;
 }
 
 .app-shell[data-ui-version='refined'] .artifact-tabs-list {
@@ -350,12 +353,30 @@
 /* Layout contract 1: the toolbar never overflows. The row is a size
    container; as it narrows, labels fold into their icons — first the
    secondary tools and the end zone, then the primary action. Every tool keeps its name in
-   aria-label and title, so folding costs nothing to VoiceOver. */
+   aria-label and title, so folding costs nothing to VoiceOver. The thresholds
+   are tuned so a 1280px window with the rail open (row ~1024px) keeps every
+   label in all five editors; the widest bar (sequence) needs the labelled
+   buttons tightened and its sync badge folded to fit. */
 .app-shell .v2-toolbar-row {
   container: v2-toolbar / inline-size;
 }
 
+@container v2-toolbar (max-width: 1100px) {
+  .app-shell :is(.v2-toolbar-create, .v2-toolbar-end) .v2-tool.has-label {
+    gap: 4px;
+    padding-inline: 6px;
+  }
+}
+
+/* The sequence bar is the widest: its sync badge (not an action) gives up its
+   word first, keeping the icon, title and aria-label. */
 @container v2-toolbar (max-width: 1040px) {
+  .app-shell .sequence-editor-shell .sequence-model-status .v2-tool-label {
+    display: none;
+  }
+}
+
+@container v2-toolbar (max-width: 940px) {
   .app-shell :is(.v2-toolbar-create .v2-tool:not(.is-primary), .v2-toolbar-end .v2-tool) .v2-tool-label {
     display: none;
   }
@@ -880,6 +901,78 @@
   margin: 0 0 var(--space-4);
 }
 
+.app-shell .project-create-dialog {
+  max-height: calc(100dvh - var(--space-8));
+  overflow-y: auto;
+  width: min(480px, calc(100vw - var(--space-8)));
+}
+
+.app-shell .project-artifact-choice {
+  border: 0;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.app-shell .project-artifact-choice legend {
+  color: var(--panel-text);
+  font-size: var(--text-md);
+  font-weight: 500;
+  margin-bottom: var(--space-2);
+  padding: 0;
+}
+
+.app-shell .project-artifact-option {
+  align-items: center;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 16px 20px minmax(0, 1fr);
+  padding: var(--space-3) var(--space-2);
+}
+
+.app-shell .project-artifact-option:hover {
+  background: var(--ui-hover-background);
+}
+
+.app-shell .project-artifact-option:has(input:checked) {
+  background: var(--accent-soft);
+}
+
+.app-shell .project-artifact-option:has(input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+.app-shell .project-artifact-option input {
+  accent-color: var(--accent);
+  height: 16px;
+  margin: 0;
+  min-height: 0;
+  padding: 0;
+  width: 16px;
+}
+
+.app-shell .project-artifact-option > svg {
+  color: var(--accent);
+}
+
+.app-shell .project-artifact-option-text {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.app-shell .project-artifact-option-text strong {
+  color: var(--panel-text);
+  font-size: var(--text-md);
+  font-weight: 500;
+}
+
+.app-shell .project-artifact-option-text > span {
+  color: var(--panel-secondary-text);
+  font-size: var(--text-sm);
+}
+
 .app-shell[data-ui-version='refined'] .dialog-actions {
   border-top: 0;
   display: flex;
@@ -1027,4 +1120,31 @@
 .app-shell .v2-inspector-body .v2-segmented {
   display: flex;
   margin-bottom: var(--space-3);
+}
+
+.app-shell[data-ui-version='refined'] .artifact-editor-column.has-backup-error {
+  grid-template-rows: 36px auto minmax(0, 1fr);
+}
+
+.app-shell .project-backup-warning {
+  align-items: center;
+  background: var(--status-warning-soft);
+  border-bottom: 1px solid var(--status-warning-border);
+  color: var(--status-warning-text);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--text-sm);
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+
+.app-shell .project-backup-warning span {
+  flex: 1 1 280px;
+}
+
+.app-shell .storage-warning-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }

@@ -1,4 +1,4 @@
-import { findUnlinkedSequences, linkNewSequenceToOnlyModel, linkSequencesToModel, reconcileSequenceModelLinks } from '../utils/sequenceModelLink';
+import { findNeverLinkedSequences, findSequenceModel, findUnlinkedSequences, linkNewSequenceToOnlyModel, linkSequencesToModel, reconcileSequenceModelLinks } from '../utils/sequenceModelLink';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ArtifactContent,
@@ -10,9 +10,7 @@ import type {
   DiagramContent,
   DiagramProject,
   DesignArtifact,
-  SequenceDiagramArtifact,
   SequenceDiagramContent,
-  UseCaseFlowArtifact,
   UseCaseFlowContent,
   UseCaseModelArtifact,
   UseCaseModelContent,
@@ -22,6 +20,7 @@ import {
   BACKUP_INTERVAL_MS,
   isBackupAvailable,
   readLastBackupAt,
+  preserveRecoveryCopy,
   revealBackups,
   writeBackup,
   type BackupState,
@@ -36,11 +35,16 @@ import {
 } from '../utils/diagramNormalization';
 import {
   applyClassModelRenamesToSequence,
+  applyModelNamesToSequence,
   findClassModelRenames,
   hasClassModelRenames,
   isSequenceUsingClassModel,
+  retainNonEmptyClassModelNames,
 } from '../utils/classRenamePropagation';
 import { createId } from '../utils/id';
+import { artifactTypeInfo } from '../constants/artifactTypes';
+import { copyProject, sameProjectContent, type ProjectImportCounts } from '../utils/projectRecovery';
+import { saveBlob } from '../utils/saveFile';
 import { isNotebookEmpty } from '../utils/artifactNotebook';
 import { createEmptySequenceDiagramContent, normalizeSequenceDiagramContent } from '../utils/sequenceDiagram';
 import { importArtifactIntoProjects, moveArtifactsBetweenProjects, type ArtifactMoveResult } from '../utils/artifactTransfer';
@@ -88,25 +92,63 @@ const createClassSequenceContent = (
   linkedSequenceDiagramIds,
 });
 
-const buildProject = (name: string): DiagramProject => {
+/** Shared by new projects and the “Nuevo artefacto” actions, including model links. */
+const addArtifactToProject = (
+  project: DiagramProject,
+  type: DesignArtifact['type'],
+  name: string,
+): DiagramProject => {
   const now = new Date().toISOString();
-  const artifact: ClassDiagramArtifact = {
+  const base = {
     id: createId(),
-    type: 'class-diagram',
-    name: 'Diagrama de clases',
+    name: name.trim() || (type === 'class-diagram' ? 'Nuevo diagrama de clases' : artifactTypeInfo(type).label),
     createdAt: now,
     updatedAt: now,
-    content: createEmptyContent(),
   };
+  let artifact: DesignArtifact;
+  switch (type) {
+    case 'use-case-model':
+      artifact = { ...base, type, content: createEmptyUseCaseModelContent() };
+      break;
+    case 'use-case-flow':
+      artifact = { ...base, type, content: createEmptyUseCaseFlowContent() };
+      break;
+    case 'sequence-diagram':
+      artifact = {
+        ...base, type,
+        content: createEmptySequenceDiagramContent(),
+      };
+      break;
+    case 'class-sequence-diagram':
+      artifact = { ...base, type, content: createClassSequenceContent(undefined, []) };
+      break;
+    case 'class-diagram':
+      artifact = { ...base, type, content: createEmptyContent() };
+      break;
+  }
 
-  return {
+  let artifacts = [...project.artifacts, artifact];
+  if (artifact.type === 'sequence-diagram') {
+    artifacts = linkNewSequenceToOnlyModel(project.artifacts, artifact);
+  } else if (artifact.type === 'class-sequence-diagram') {
+    // A new model takes only the sequences that never chose (not the ones unlinked on purpose).
+    const unlinkedIds = findNeverLinkedSequences(project.artifacts).map((sequence) => sequence.id);
+    artifacts = linkSequencesToModel(artifacts, unlinkedIds, artifact.id, now);
+  }
+
+  return { ...project, activeArtifactId: artifact.id, artifacts, updatedAt: now };
+};
+
+export const buildProject = (name: string, artifactType: DesignArtifact['type'] = 'use-case-model'): DiagramProject => {
+  const now = new Date().toISOString();
+  return addArtifactToProject({
     id: createId(),
     name,
     createdAt: now,
     updatedAt: now,
-    activeArtifactId: artifact.id,
-    artifacts: [artifact],
-  };
+    activeArtifactId: '',
+    artifacts: [],
+  }, artifactType, artifactTypeInfo(artifactType).label);
 };
 
 /** Returns the same project object when nothing about the notes changes. */
@@ -134,15 +176,57 @@ export const setNotebookInProject = (
 
 export type DiagramSaveStatus = 'saved' | 'saving' | 'error';
 
+// Only callers without App's explicit history use this fallback cache.
+const MAX_SEQUENCE_SNAPSHOT_MODELS = 121; // 60 past + 60 future + current
+
+type SequenceSnapshotModels = {
+  managed: boolean;
+  models: Map<string, Pick<ClassDiagramContent, 'nodes'>>;
+};
+
 export const useProjects = () => {
-  const [initialLoad] = useState(loadProjects);
-  const [projects, setProjects] = useState<DiagramProject[]>(initialLoad.projects);
+  const [storageLoad, setStorageLoad] = useState(loadProjects);
+  const [projects, setProjects] = useState<DiagramProject[]>(storageLoad.projects);
+  // App's undo entries are JSON clones. Keep their model baseline here, outside
+  // persisted/exported data, keyed by the exact sequence state they clone.
+  const sequenceSnapshotModels = useRef(new Map<string, SequenceSnapshotModels>());
+  const lastNonEmptyModels = useRef(new Map<string, Pick<ClassDiagramContent, 'nodes'>>());
+  // The same immutable state can be processed twice by StrictMode. Remember
+  // its effective names by identity so the second pass sees the same baseline.
+  const effectiveModelVersions = useRef(new WeakMap<Pick<ClassDiagramContent, 'nodes'>, Pick<ClassDiagramContent, 'nodes'>>());
+  const artifactKey = (projectId: string, artifactId: string): string => JSON.stringify([projectId, artifactId]);
+  useEffect(() => {
+    const sequences = new Set<string>();
+    const models = new Set<string>();
+    projects.forEach((project) => project.artifacts.forEach((artifact) => {
+      const key = artifactKey(project.id, artifact.id);
+      if (artifact.type === 'sequence-diagram') sequences.add(key);
+      if (artifact.type === 'class-sequence-diagram') models.add(key);
+    }));
+    for (const key of sequenceSnapshotModels.current.keys()) {
+      if (!sequences.has(key)) sequenceSnapshotModels.current.delete(key);
+    }
+    for (const key of lastNonEmptyModels.current.keys()) {
+      if (!models.has(key)) lastNonEmptyModels.current.delete(key);
+    }
+  }, [projects]);
   // Start at the project archive so opening the app does not silently jump into
   // an arbitrary artifact. Creating or selecting a project still opens it as before.
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
-  const [storageWarning, setStorageWarning] = useState<string | null>(initialLoad.warning);
-  const [saveStatus, setSaveStatus] = useState<DiagramSaveStatus>('saved');
-  const skipInitialSaveRef = useRef(initialLoad.skipInitialSave);
+  const [storageWarning, setStorageWarning] = useState<string | null>(storageLoad.warning);
+  const [saveStatus, setSaveStatusState] = useState<DiagramSaveStatus>(storageLoad.skipInitialSave ? 'error' : 'saved');
+  const saveStatusRef = useRef(saveStatus);
+  // Typing changes projects on every keystroke. Setting the status it already has would still queue a
+  // synchronous render per keystroke and, typing fast enough, trip React's update-depth limit.
+  const setSaveStatus = useCallback((next: DiagramSaveStatus): void => {
+    if (saveStatusRef.current === next) return;
+    saveStatusRef.current = next;
+    setSaveStatusState(next);
+  }, []);
+  const [saveBlocked, setSaveBlocked] = useState(storageLoad.recoveryRaw !== null);
+  const saveBlockedRef = useRef(storageLoad.recoveryRaw !== null);
+  const storageUnavailableRef = useRef(storageLoad.storageUnavailable);
+  const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
   const latestProjectsRef = useRef(projects);
   const hasPendingSaveRef = useRef(false);
   const [backup, setBackup] = useState<BackupState>({
@@ -151,19 +235,62 @@ export const useProjects = () => {
     at: readLastBackupAt(),
     error: null,
   });
-  const backupInFlightRef = useRef(false);
+  const lastBackupAtRef = useRef(backup.at);
+  const backupQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const backupTimeoutRef = useRef<number | null>(null);
+  const mountedRef = useRef(true);
+
+  const allowSaving = useCallback((): void => {
+    saveBlockedRef.current = false;
+    setSaveBlocked(false);
+    setStorageWarning(null);
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  useEffect(() => {
+    if (storageLoad.recoveryRaw === null) return;
+    let cancelled = false;
+    void preserveRecoveryCopy(storageLoad.recoveryRaw).then((preserved) => {
+      if (cancelled || !preserved) return;
+      setRecoveryNotice('No se pudo leer todo el trabajo guardado. Se guardó una copia en Documentos › Modelador de Sistemas › Respaldos.');
+      allowSaving();
+    });
+    return () => { cancelled = true; };
+  }, [storageLoad, allowSaving]);
+
+  const downloadRecoveryCopy = async (): Promise<boolean> => {
+    if (storageLoad.recoveryRaw === null) return false;
+    const outcome = await saveBlob(new Blob([storageLoad.recoveryRaw], { type: 'application/json' }), `recuperacion-${Date.now()}.json`);
+    if (outcome.status === 'saved') {
+      if (outcome.path === null) return true;
+      setRecoveryNotice('No se pudo leer todo el trabajo guardado. Se guardó una copia de seguridad del original.');
+      allowSaving();
+    } else if (outcome.status === 'failed') {
+      setStorageWarning('No se pudo guardar la copia de seguridad. Reintentá la descarga. El original sigue protegido.');
+    }
+    return false;
+  };
+
+  const confirmRecoveryDownload = (): void => {
+    setRecoveryNotice('No se pudo leer todo el trabajo guardado. Se descargó una copia de seguridad del original.');
+    allowSaving();
+  };
 
   useEffect(() => {
     latestProjectsRef.current = projects;
 
-    if (skipInitialSaveRef.current) {
-      skipInitialSaveRef.current = false;
+    if (saveBlockedRef.current || storageUnavailableRef.current) {
       return;
     }
 
     setSaveStatus('saving');
     hasPendingSaveRef.current = true;
     const timeoutId = window.setTimeout(() => {
+      if (saveBlockedRef.current || storageUnavailableRef.current) return;
       const result = saveProjects(projects);
       hasPendingSaveRef.current = false;
       setStorageWarning(result.error);
@@ -175,11 +302,11 @@ export const useProjects = () => {
     }, 250);
 
     return () => window.clearTimeout(timeoutId);
-  }, [projects]);
+  }, [projects, saveBlocked, setSaveStatus, storageLoad.storageUnavailable]);
 
   useEffect(() => {
     const flushPendingSave = (): void => {
-      if (!hasPendingSaveRef.current) {
+      if (saveBlockedRef.current || storageUnavailableRef.current || !hasPendingSaveRef.current) {
         return;
       }
 
@@ -208,51 +335,80 @@ export const useProjects = () => {
       document.removeEventListener('visibilitychange', flushWhenHidden);
       flushPendingSave();
     };
+  }, [setSaveStatus]);
+
+  const runBackup = useCallback(async function performBackup(force: boolean, snapshot?: DiagramProject[]): Promise<void> {
+    if (!isBackupAvailable() || saveBlockedRef.current) return;
+    const task = backupQueueRef.current.then(async () => {
+      if (!mountedRef.current || saveBlockedRef.current) return;
+      const last = readLastBackupAt() ?? lastBackupAtRef.current;
+      if (!force && last !== null && Date.now() - last < BACKUP_INTERVAL_MS) {
+        if (backupTimeoutRef.current !== null) window.clearTimeout(backupTimeoutRef.current);
+        backupTimeoutRef.current = window.setTimeout(() => {
+          backupTimeoutRef.current = null;
+          void performBackup(false);
+        }, BACKUP_INTERVAL_MS - (Date.now() - last));
+        return;
+      }
+      if (backupTimeoutRef.current !== null) window.clearTimeout(backupTimeoutRef.current);
+      backupTimeoutRef.current = null;
+      const result = await writeBackup(snapshot ?? latestProjectsRef.current);
+      if (result.at !== null) lastBackupAtRef.current = result.at;
+      if (mountedRef.current && (result.at !== null || result.error !== null)) setBackup(result);
+    });
+    backupQueueRef.current = task;
+    await task;
   }, []);
 
-  const runBackup = useCallback(async (force: boolean): Promise<void> => {
-    if (!isBackupAvailable() || backupInFlightRef.current) return;
-
-    const last = readLastBackupAt();
-    if (!force && last !== null && Date.now() - last < BACKUP_INTERVAL_MS) return;
-    if (latestProjectsRef.current.length === 0) return;
-
-    backupInFlightRef.current = true;
-    try {
-      const result = await writeBackup(latestProjectsRef.current);
-      if (result.at !== null || result.error !== null) setBackup(result);
-    } finally {
-      backupInFlightRef.current = false;
-    }
-  }, []);
-
-  // A snapshot rides along with editing (throttled to BACKUP_INTERVAL_MS) and
-  // one more is forced when the window goes away, which is the moment a lost
-  // localStorage would actually cost work.
   useEffect(() => {
-    if (!isBackupAvailable()) return;
+    if (!saveBlocked) void runBackup(false);
+  }, [projects, saveBlocked, runBackup]);
 
-    void runBackup(false);
-
+  useEffect(() => {
+    const onPageHide = (): void => { void runBackup(true); };
     const onHide = (): void => {
       if (document.visibilityState === 'hidden') void runBackup(true);
     };
-
-    window.addEventListener('pagehide', () => void runBackup(true));
+    window.addEventListener('pagehide', onPageHide);
     document.addEventListener('visibilitychange', onHide);
-
     return () => {
+      window.removeEventListener('pagehide', onPageHide);
       document.removeEventListener('visibilitychange', onHide);
+      if (backupTimeoutRef.current !== null) window.clearTimeout(backupTimeoutRef.current);
     };
-  }, [projects, runBackup]);
+  }, [runBackup]);
+
+  const retryStorage = (): void => {
+    const loaded = loadProjects();
+    if (loaded.storageUnavailable) {
+      setStorageWarning(loaded.warning);
+      return;
+    }
+    saveBlockedRef.current = loaded.recoveryRaw !== null;
+    storageUnavailableRef.current = false;
+    hasPendingSaveRef.current = false;
+    setSaveBlocked(saveBlockedRef.current);
+    setStorageLoad(loaded);
+    setStorageWarning(loaded.warning);
+    setSaveStatus(loaded.skipInitialSave ? 'error' : 'saved');
+    setProjects((sessionProjects) => {
+      const stored = new Map(loaded.projects.map((project) => [project.id, project]));
+      const session = sessionProjects.flatMap((project) => {
+        const existing = stored.get(project.id);
+        if (existing === undefined) return [project];
+        return sameProjectContent(existing, project) ? [] : [copyProject(project)];
+      });
+      return [...loaded.projects, ...session];
+    });
+  };
 
   const activeProject = useMemo(
     () => projects.find((project) => project.id === activeProjectId) ?? null,
     [activeProjectId, projects],
   );
 
-  const createProject = (name: string): void => {
-    const project = buildProject(name.trim() || 'Nuevo proyecto');
+  const createProject = (name: string, artifactType: DesignArtifact['type'] = 'use-case-model'): void => {
+    const project = buildProject(name.trim() || 'Nuevo proyecto', artifactType);
     setProjects((currentProjects) => [project, ...currentProjects]);
     setActiveProjectId(project.id);
   };
@@ -274,6 +430,7 @@ export const useProjects = () => {
   };
 
   const deleteProject = (projectId: string): void => {
+    if (projects.some((project) => project.id === projectId)) void runBackup(true, projects);
     setProjects((currentProjects) => {
       const nextProjects = currentProjects.filter((project) => project.id !== projectId);
 
@@ -295,133 +452,45 @@ export const useProjects = () => {
     );
   };
 
-  const createClassDiagramArtifact = (projectId: string, name: string): void => {
-    const now = new Date().toISOString();
-    const artifact: ClassDiagramArtifact = {
-      id: createId(),
-      type: 'class-diagram',
-      name: name.trim() || 'Nuevo diagrama de clases',
-      createdAt: now,
-      updatedAt: now,
-      content: createEmptyContent(),
-    };
-
-    setProjects((currentProjects) =>
-      currentProjects.map((project) =>
-        project.id === projectId
-          ? {
-              ...project,
-              activeArtifactId: artifact.id,
-              artifacts: [...project.artifacts, artifact],
-              updatedAt: now,
-            }
-          : project,
-      ),
-    );
+  const createArtifact = (
+    projectId: string,
+    type: DesignArtifact['type'],
+    name: string,
+  ): void => {
+    setProjects((currentProjects) => currentProjects.map((project) =>
+      project.id === projectId ? addArtifactToProject(project, type, name) : project));
   };
 
-  const createClassSequenceDiagramArtifact = (projectId: string, name: string): void => {
-    const now = new Date().toISOString();
+  const createClassDiagramArtifact = (projectId: string, name: string): void => {
+    createArtifact(projectId, 'class-diagram', name);
+  };
 
+  /** A sequence that asks for the new model is linked to it even if it was unlinked on purpose. */
+  const createClassSequenceDiagramArtifact = (projectId: string, name: string, forSequenceId?: string): void => {
+    if (forSequenceId === undefined) {
+      createArtifact(projectId, 'class-sequence-diagram', name);
+      return;
+    }
     setProjects((currentProjects) => currentProjects.map((project) => {
-      if (project.id !== projectId) {
-        return project;
-      }
-
-      // A new model starts empty and takes the sequences that have none yet; a
-      // sequence already drawn on another model keeps it.
-      const artifact: ClassSequenceDiagramArtifact = {
-        id: createId(),
-        type: 'class-sequence-diagram',
-        name: name.trim() || 'Clases de secuencias',
-        createdAt: now,
-        updatedAt: now,
-        content: createClassSequenceContent(undefined, []),
-      };
-      const unlinkedIds = findUnlinkedSequences(project.artifacts).map((sequence) => sequence.id);
-
-      return {
-        ...project,
-        activeArtifactId: artifact.id,
-        artifacts: linkSequencesToModel([...project.artifacts, artifact], unlinkedIds, artifact.id, now),
-        updatedAt: now,
-      };
+      if (project.id !== projectId) return project;
+      const next = addArtifactToProject(project, 'class-sequence-diagram', name);
+      const previousIds = new Set(project.artifacts.map((artifact) => artifact.id));
+      const model = next.artifacts.find((artifact) => !previousIds.has(artifact.id));
+      if (model === undefined) return next;
+      return { ...next, artifacts: linkSequencesToModel(next.artifacts, [forSequenceId], model.id, next.updatedAt) };
     }));
   };
 
   const createUseCaseModelArtifact = (projectId: string, name: string): void => {
-    const now = new Date().toISOString();
-    const artifact: UseCaseModelArtifact = {
-      id: createId(),
-      type: 'use-case-model',
-      name: name.trim() || 'Modelo de casos de uso',
-      createdAt: now,
-      updatedAt: now,
-      content: createEmptyUseCaseModelContent(),
-    };
-
-    setProjects((currentProjects) =>
-      currentProjects.map((project) =>
-        project.id === projectId
-          ? {
-              ...project,
-              activeArtifactId: artifact.id,
-              artifacts: [...project.artifacts, artifact],
-              updatedAt: now,
-            }
-          : project,
-      ),
-    );
+    createArtifact(projectId, 'use-case-model', name);
   };
 
   const createUseCaseFlowArtifact = (projectId: string, name: string): void => {
-    const now = new Date().toISOString();
-    const artifact: UseCaseFlowArtifact = {
-      id: createId(),
-      type: 'use-case-flow',
-      name: name.trim() || 'Flujo de sucesos',
-      createdAt: now,
-      updatedAt: now,
-      content: createEmptyUseCaseFlowContent(),
-    };
-
-    setProjects((currentProjects) =>
-      currentProjects.map((project) =>
-        project.id === projectId
-          ? {
-              ...project,
-              activeArtifactId: artifact.id,
-              artifacts: [...project.artifacts, artifact],
-              updatedAt: now,
-            }
-          : project,
-      ),
-    );
+    createArtifact(projectId, 'use-case-flow', name);
   };
 
-  const createSequenceDiagramArtifact = (
-    projectId: string,
-    name: string,
-    initialContent?: SequenceDiagramContent,
-  ): void => {
-    const now = new Date().toISOString();
-    const artifact: SequenceDiagramArtifact = {
-      id: createId(),
-      type: 'sequence-diagram',
-      name: name.trim() || 'Diagrama de secuencia',
-      createdAt: now,
-      updatedAt: now,
-      content: initialContent ? normalizeSequenceDiagramContent(initialContent) : createEmptySequenceDiagramContent(),
-    };
-
-    setProjects((currentProjects) => currentProjects.map((project) => project.id === projectId
-      ? {
-          ...project,
-          activeArtifactId: artifact.id,
-          artifacts: linkNewSequenceToOnlyModel(project.artifacts, artifact),
-          updatedAt: now,
-        }
-      : project));
+  const createSequenceDiagramArtifact = (projectId: string, name: string): void => {
+    createArtifact(projectId, 'sequence-diagram', name);
   };
 
   /**
@@ -444,8 +513,8 @@ export const useProjects = () => {
 
   /**
    * Turns a plain class diagram into a "Clases de secuencias" model in place:
-   * same id, name, classes and relations. It takes the sequences that have no
-   * model yet. Flows that pointed at it lose that link, since a flow reads a
+   * same id, name, classes and relations. It takes the sequences that never
+   * chose a model. Flows that pointed at it lose that link, since a flow reads a
    * plain class diagram.
    */
   const convertClassDiagramToSequenceModel = (projectId: string, artifactId: string): void => {
@@ -473,11 +542,11 @@ export const useProjects = () => {
       const artifacts = project.artifacts.map((artifact): DesignArtifact => {
         if (artifact.id === source.id) return converted;
         if (artifact.type === 'use-case-flow' && artifact.content.classDiagramArtifactId === source.id) {
-          return { ...artifact, updatedAt: now, content: { ...artifact.content, classDiagramArtifactId: undefined } };
+          return { ...artifact, updatedAt: now, content: { ...artifact.content, classDiagramArtifactId: null } };
         }
         return artifact;
       });
-      const unlinkedIds = findUnlinkedSequences(artifacts).map((sequence) => sequence.id);
+      const unlinkedIds = findNeverLinkedSequences(artifacts).map((sequence) => sequence.id);
 
       return {
         ...project,
@@ -525,6 +594,10 @@ export const useProjects = () => {
   };
 
   const deleteArtifact = (projectId: string, artifactId: string): void => {
+    const target = projects.find((project) => project.id === projectId);
+    if (target && target.artifacts.length > 1 && target.artifacts.some((artifact) => artifact.id === artifactId)) {
+      void runBackup(true, projects);
+    }
     const now = new Date().toISOString();
 
     setProjects((currentProjects) =>
@@ -554,7 +627,7 @@ export const useProjects = () => {
     projectId: string,
     artifactId: string,
     content: ArtifactContent,
-    options?: { alreadyNormalized?: boolean },
+    options?: { alreadyNormalized?: boolean; fromHistory?: boolean; historySnapshots?: ArtifactContent[] },
   ): void => {
     const now = new Date().toISOString();
 
@@ -566,6 +639,30 @@ export const useProjects = () => {
       const targetArtifact = project.artifacts.find((artifact) => artifact.id === artifactId);
       if (targetArtifact === undefined) {
         return project;
+      }
+
+      // Only a sequence keeps model baselines: skip the serialization for every other artifact.
+      const retainedSnapshots = options?.historySnapshots === undefined || targetArtifact.type !== 'sequence-diagram' ? undefined
+        : new Set(options.historySnapshots.map((snapshot) => JSON.stringify(snapshot)));
+      // Capture only a current state entering history, never infer a baseline
+      // for an unknown old snapshot. Other artifacts cannot evict these entries.
+      for (const artifact of project.artifacts) {
+        if (artifact.type !== 'sequence-diagram') continue;
+        const model = findSequenceModel(project.artifacts, artifact);
+        if (model === undefined) continue;
+        const key = artifactKey(projectId, artifact.id);
+        const cache = sequenceSnapshotModels.current.get(key) ?? { managed: false, models: new Map() };
+        sequenceSnapshotModels.current.set(key, cache);
+        const snapshots = artifact.id === artifactId ? retainedSnapshots : undefined;
+        if (snapshots !== undefined) cache.managed = true;
+        const snapshotKey = JSON.stringify(artifact.content);
+        if ((!cache.managed || snapshots?.has(snapshotKey)) && !cache.models.has(snapshotKey)) {
+          cache.models.set(snapshotKey, effectiveModelVersions.current.get(model.content)
+            ?? lastNonEmptyModels.current.get(artifactKey(projectId, model.id)) ?? model.content);
+          if (!cache.managed && cache.models.size > MAX_SEQUENCE_SNAPSHOT_MODELS) {
+            cache.models.delete(cache.models.keys().next().value!);
+          }
+        }
       }
 
       const normalizedTargetContent = targetArtifact.type === 'use-case-model'
@@ -584,14 +681,49 @@ export const useProjects = () => {
       // classes and methods reach the sequences drawn on it. Undo replays
       // through here, so it carries the old names back. A plain class diagram
       // stays on its own.
-      const renames = targetArtifact.type === 'class-sequence-diagram'
-        ? findClassModelRenames(targetArtifact.content, normalizedTargetContent as ClassDiagramContent)
+      const modelKey = artifactKey(projectId, artifactId);
+      const previousModel = targetArtifact.type === 'class-sequence-diagram'
+        ? effectiveModelVersions.current.get(targetArtifact.content)
+          ?? retainNonEmptyClassModelNames(lastNonEmptyModels.current.get(modelKey) ?? targetArtifact.content, targetArtifact.content)
         : undefined;
+      const renames = previousModel === undefined ? undefined
+        : findClassModelRenames(previousModel, normalizedTargetContent as ClassDiagramContent);
+      if (previousModel !== undefined) {
+        effectiveModelVersions.current.set(targetArtifact.content as ClassDiagramContent, previousModel);
+        const nextModel = retainNonEmptyClassModelNames(previousModel, normalizedTargetContent as ClassDiagramContent);
+        effectiveModelVersions.current.set(normalizedTargetContent as ClassDiagramContent, nextModel);
+        lastNonEmptyModels.current.set(modelKey, nextModel);
+      }
       const propagatesRenames = renames !== undefined && hasClassModelRenames(renames);
+
+      // Only a restored sequence snapshot takes the linked names from the model
+      // again: it can predate a rename. Ordinary edits keep what was typed,
+      // since a linked participant may read another name on purpose.
+      const sequenceModel = targetArtifact.type === 'sequence-diagram' && options?.fromHistory
+        ? findSequenceModel(project.artifacts, { content: normalizedTargetContent as SequenceDiagramContent })
+        : undefined;
+      const snapshotModel = sequenceModel === undefined ? undefined
+        : sequenceSnapshotModels.current.get(artifactKey(projectId, artifactId))?.models.get(JSON.stringify(normalizedTargetContent));
+      const restoredContent = sequenceModel === undefined || snapshotModel === undefined
+        ? normalizedTargetContent
+        : applyModelNamesToSequence(normalizedTargetContent as SequenceDiagramContent, sequenceModel.content, snapshotModel) ?? normalizedTargetContent;
+
+      // Read the restored snapshot before pruning: undo/redo just removed it
+      // from one stack. Also retain that baseline for a repeated StrictMode
+      // pass; the next history update prunes it. At most history + one entry.
+      if (retainedSnapshots !== undefined) {
+        if (options?.fromHistory) retainedSnapshots.add(JSON.stringify(normalizedTargetContent));
+        const cache = sequenceSnapshotModels.current.get(artifactKey(projectId, artifactId));
+        if (cache !== undefined) {
+          for (const key of cache.models.keys()) {
+            if (!retainedSnapshots.has(key)) cache.models.delete(key);
+          }
+        }
+      }
 
       const updatedArtifacts = project.artifacts.map((artifact) => {
         if (artifact.id === artifactId) {
-          return { ...artifact, content: normalizedTargetContent, updatedAt: now } as typeof artifact;
+          return { ...artifact, content: restoredContent, updatedAt: now } as typeof artifact;
         }
 
         if (propagatesRenames && artifact.type === 'sequence-diagram' && isSequenceUsingClassModel(artifact.content, artifactId)) {
@@ -629,10 +761,8 @@ export const useProjects = () => {
 
     setProjects((currentProjects) => {
       const idExists = currentProjects.some((currentProject) => currentProject.id === normalizedProject.id);
-      const importedId = normalizedProject.id && !idExists ? normalizedProject.id : createId();
       const importedProject = {
-        ...normalizedProject,
-        id: importedId,
+        ...(idExists ? copyProject(normalizedProject) : normalizedProject),
         createdAt: normalizedProject.createdAt || now,
         updatedAt: now,
       };
@@ -656,29 +786,25 @@ export const useProjects = () => {
     return result;
   };
 
-  /**
-   * Brings in many projects at once (a backup of the first version). A project
-   * whose id is already here is skipped, so importing the same backup twice
-   * does not duplicate anything.
-   */
-  const importProjects = (incoming: DiagramProject[]): { imported: number; skipped: number } => {
-    const knownIds = new Set(projects.map((project) => project.id));
-    const now = new Date().toISOString();
-    const fresh = incoming
-      .map((project) => normalizeDiagramProject(project))
-      .filter((project) => {
-        if (project.id && knownIds.has(project.id)) return false;
-        if (project.id) knownIds.add(project.id);
-        return true;
-      })
-      .map((project) => ({
-        ...project,
-        id: project.id || createId(),
-        createdAt: project.createdAt || now,
-        updatedAt: project.updatedAt || now,
-      }));
+  const importProjects = (incoming: DiagramProject[]): ProjectImportCounts => {
+    const known = new Map(projects.map((project) => [project.id, project]));
+    const counts: ProjectImportCounts = { imported: 0, recovered: 0, skipped: 0 };
+    const fresh: DiagramProject[] = [];
+    incoming.forEach((project) => {
+      const normalized = normalizeDiagramProject(project);
+      const existing = known.get(normalized.id);
+      if (existing && sameProjectContent(existing, normalized)) {
+        counts.skipped += 1;
+        return;
+      }
+      const imported = existing ? copyProject(normalized, `${normalized.name} (recuperado)`) : normalized;
+      if (existing) counts.recovered += 1;
+      else counts.imported += 1;
+      fresh.push(imported);
+      known.set(imported.id, imported);
+    });
     if (fresh.length > 0) setProjects((currentProjects) => [...fresh, ...currentProjects]);
-    return { imported: fresh.length, skipped: incoming.length - fresh.length };
+    return counts;
   };
 
   return {
@@ -708,7 +834,16 @@ export const useProjects = () => {
     saveStatus,
     setActiveArtifactId,
     setActiveProjectId,
-    storageWarning,
+    storageWarning: storageWarning ?? recoveryNotice,
+    recoveryPending: saveBlocked && storageLoad.recoveryRaw !== null,
+    storageUnavailable: storageLoad.storageUnavailable,
+    retryStorage,
+    downloadRecoveryCopy,
+    confirmRecoveryDownload,
+    continueWithoutRecovery: () => {
+      setRecoveryNotice('Elegiste seguir sin copia de seguridad. El próximo guardado reemplaza el original.');
+      allowSaving();
+    },
     updateArtifactNotebook,
     updateProjectArtifactContent,
     updateProjectContent,

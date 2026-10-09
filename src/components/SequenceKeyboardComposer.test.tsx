@@ -7,7 +7,10 @@ import {
   sequenceKeyboardModeReducer,
 } from '../utils/sequenceKeyboardMode';
 
-const renderComposer = (state: ReturnType<typeof createInactiveSequenceKeyboardState>): string => renderToString(
+const onSelectType = vi.fn();
+const onMoveTarget = vi.fn();
+
+const renderComposer = (state: ReturnType<typeof createInactiveSequenceKeyboardState>, extra: { returnAvailable?: boolean } = {}): string => renderToString(
   <SequenceKeyboardComposer
     state={state}
     context="Secuencia principal"
@@ -23,6 +26,9 @@ const renderComposer = (state: ReturnType<typeof createInactiveSequenceKeyboardS
     onBack={vi.fn()}
     onMethodSelect={vi.fn()}
     onAddParticipant={vi.fn()}
+    onSelectType={onSelectType}
+    onMoveTarget={onMoveTarget}
+    {...extra}
   />,
 );
 
@@ -34,8 +40,10 @@ describe('SequenceKeyboardComposer participant flow', () => {
     );
     const html = renderComposer(state);
 
-    expect(html).toContain('Participante');
-    expect(html).toContain('P');
+    expect(html).toContain('participante');
+    expect(html).toContain('<kbd>P</kbd>');
+    expect(html).toContain('<kbd>F</kbd>');
+    expect(html).toContain('fragmento');
   });
 
   it('renders the shared textual participant input and cancellation hint', () => {
@@ -77,10 +85,10 @@ describe('SequenceKeyboardComposer participant flow', () => {
     });
 
     const html = renderComposer(state);
-    expect(html).toContain('Mensaje');
-    expect(html).toContain('Retorno');
-    expect(html).toContain('Crear');
-    expect(html).toContain('Destruir');
+    expect(html).toContain('mensaje');
+    expect(html).toContain('retorno');
+    expect(html).toContain('crear');
+    expect(html).toContain('destruir');
     expect(html).not.toContain('Síncrono');
     expect(html).not.toContain('Asíncrono');
     expect(html).toContain('aria-selected="true" class="active" data-message-type="return"');
@@ -96,7 +104,7 @@ describe('SequenceKeyboardComposer participant flow', () => {
       state = sequenceKeyboardModeReducer(state, { type: 'begin', messageType, targetId: 'b' });
 
       const html = renderComposer(state);
-      expect(html).toContain(`class="sequence-keyboard-route" data-message-type="${messageType}"`);
+      expect(html).toContain(`class="sequence-keyboard-dest" data-message-type="${messageType}"`);
       expect(html).toContain(`aria-selected="true" class="active" data-message-type="${messageType}"`);
       expect((html.match(/aria-selected="true"/g) ?? [])).toHaveLength(1);
     }
@@ -110,8 +118,7 @@ describe('SequenceKeyboardComposer participant flow', () => {
     state = sequenceKeyboardModeReducer(state, { type: 'begin', messageType: 'asynchronous', targetId: 'b' });
 
     const html = renderComposer(state);
-    expect(html).toContain('aria-label="Tipo de mensaje: Mensaje"');
-    expect(html).toContain('class="sequence-keyboard-route" data-message-type="synchronous"');
+    expect(html).toContain('class="sequence-keyboard-dest" data-message-type="synchronous"');
     expect(html).toContain('aria-selected="true" class="active" data-message-type="synchronous"');
     expect((html.match(/aria-selected="true"/g) ?? [])).toHaveLength(1);
   });
@@ -133,5 +140,38 @@ describe('SequenceKeyboardComposer participant flow', () => {
     expect(html).not.toContain('<input');
     expect(html).not.toContain('resultado legado');
     expect(html).toContain('Retorno');
+  });
+});
+
+describe('message type pills', () => {
+  it('marks exactly the current type and disables a return with nothing to return', () => {
+    let state = sequenceKeyboardModeReducer(createInactiveSequenceKeyboardState(), { type: 'activate', slotIndex: 0, sourceId: 'a' });
+    state = sequenceKeyboardModeReducer(state, { type: 'begin', messageType: 'create' });
+    const html = renderComposer(state, { returnAvailable: false });
+    expect(html.match(/aria-selected="true"/g)).toHaveLength(1);
+    expect(html).toMatch(/<button[^>]*data-message-type="create"[^>]*aria-selected="true"|<button[^>]*aria-selected="true"[^>]*data-message-type="create"/);
+    expect(html).toMatch(/<button[^>]*data-message-type="return"[^>]*disabled/);
+    expect(html).toContain('No hay llamada pendiente para retornar.');
+  });
+});
+
+describe('aim stage panel', () => {
+  const aim = () => {
+    let state = sequenceKeyboardModeReducer(createInactiveSequenceKeyboardState(), { type: 'activate', slotIndex: 0, sourceId: 'a' });
+    state = sequenceKeyboardModeReducer(state, { type: 'begin', messageType: 'synchronous', targetId: 'b' });
+    return state;
+  };
+
+  it('shows each type with its letter and the full destination, with no vertical-arrow help', () => {
+    const html = renderComposer(aim());
+    for (const letter of ['S', 'R', 'C', 'D']) expect(html).toContain(`<kbd class="sequence-keyboard-key">${letter}</kbd>`);
+    expect(html).toContain('Destino');
+    expect(html).not.toContain('↑');
+  });
+
+  it('offers the arrow keys as buttons for the destination', () => {
+    const html = renderComposer(aim());
+    expect(html).toMatch(/<button[^>]*aria-label="Destino anterior"/);
+    expect(html).toMatch(/<button[^>]*aria-label="Destino siguiente"/);
   });
 });

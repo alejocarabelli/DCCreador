@@ -2,7 +2,7 @@ import { getClassGroupColor } from '../constants/classGroupColors';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FocusEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import type { NodeProps } from 'reactflow';
 import { Handle, Position } from 'reactflow';
-import { INLINE_ATTRIBUTE_TYPE_SUGGESTIONS } from '../constants/attributeTypes';
+import { INLINE_ATTRIBUTE_TYPE_SUGGESTIONS, suggestionWithTypedCase } from '../constants/attributeTypes';
 import type { ClassAttribute, ClassMethod, ClassNodeData, ConnectionSide } from '../types/diagram';
 import { createId } from '../utils/id';
 
@@ -39,7 +39,9 @@ const getActiveTypeSuggestion = (typeValue: string): string | null => {
     return null;
   }
 
-  return INLINE_ATTRIBUTE_TYPE_SUGGESTIONS.find((type) => type.startsWith(normalizedTypeValue)) ?? null;
+  const suggestion = INLINE_ATTRIBUTE_TYPE_SUGGESTIONS.find((type) => type.startsWith(normalizedTypeValue));
+
+  return suggestion === undefined ? null : suggestionWithTypedCase(typeValue, suggestion);
 };
 
 type ClassConnectionHandle = {
@@ -143,13 +145,16 @@ export function ClassNode({ id, data, selected }: NodeProps<ClassNodeData>) {
   }, [methodDraft, data.methods]);
 
   const typeSuggestions = useMemo(() => {
-    const typeValue = attributeDraft?.type.trim().toLowerCase() ?? '';
+    const typedType = attributeDraft?.type.trim() ?? '';
+    const typeValue = typedType.toLowerCase();
 
     if (attributeEditPhase !== 'type' || typeValue.length === 0) {
       return [];
     }
 
-    return INLINE_ATTRIBUTE_TYPE_SUGGESTIONS.filter((type) => type.startsWith(typeValue));
+    return INLINE_ATTRIBUTE_TYPE_SUGGESTIONS
+      .filter((type) => type.startsWith(typeValue))
+      .map((type) => suggestionWithTypedCase(typedType, type));
   }, [attributeDraft?.type, attributeEditPhase]);
 
   const activeTypeSuggestion = typeSuggestions[0] ?? null;

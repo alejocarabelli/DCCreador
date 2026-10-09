@@ -52,7 +52,8 @@ describe('artifact import into an existing project', () => {
   it('detaches external links even if destination IDs match, preserving messages, texts and local note anchors', () => {
     const [result] = importArtifactIntoProjects([project('destination', [model, flow, reference])], 'destination', sequence);
     const imported = result.artifacts.at(-1) as SequenceDiagramArtifact;
-    expect(imported.content.classDiagramArtifactId).toBeUndefined();
+    // The model it pointed at does not travel: that is a choice of "Sin vincular", not a blank.
+    expect(imported.content.classDiagramArtifactId).toBeNull();
     expect(imported.content.flowArtifactId).toBeUndefined();
     expect(imported.content.participants[0].classifierNodeId).toBeUndefined();
     expect(imported.content.participants[0].classifierName).toBe('Persona');
@@ -66,6 +67,22 @@ describe('artifact import into an existing project', () => {
   it('does nothing if the destination no longer exists', () => {
     const projects = [destination];
     expect(importArtifactIntoProjects(projects, 'missing', model)).toBe(projects);
+  });
+
+  it('imports a flow that pointed at another diagram as "Sin referencia", not as the only local diagram', () => {
+    const local = project('destination', [{ ...model, id: 'local-model' }]);
+    const [result] = importArtifactIntoProjects([local], local.id, flow);
+    expect((result.artifacts.at(-1) as UseCaseFlowArtifact).content.classDiagramArtifactId).toBeNull();
+  });
+
+  it('keeps an explicit "Sin referencia" on import and a never-chosen flow never chosen', () => {
+    const local = project('destination', [{ ...model, id: 'local-model' }]);
+    const none = { ...flow, content: { ...flow.content, classDiagramArtifactId: null } };
+    const never = { ...flow, content: { ...flow.content, classDiagramArtifactId: undefined } };
+    const [withNone] = importArtifactIntoProjects([local], local.id, none);
+    const [withNever] = importArtifactIntoProjects([local], local.id, never);
+    expect((withNone.artifacts.at(-1) as UseCaseFlowArtifact).content.classDiagramArtifactId).toBeNull();
+    expect((withNever.artifacts.at(-1) as UseCaseFlowArtifact).content.classDiagramArtifactId).toBeUndefined();
   });
 });
 
@@ -97,6 +114,14 @@ describe('moving artifacts between projects', () => {
     expect(moved.content.participants[0].classifierNodeId).toBeUndefined();
   });
 
+  it('keeps a sequence unlinked on purpose (null) as null at the destination', () => {
+    const none = { ...sequence, content: { ...sequence.content, classDiagramArtifactId: null } };
+    const original = project('source', [model, none]);
+    const target = project('destination', [{ ...classSequence, id: 'different-model', content: { ...classSequence.content, linkedSequenceDiagramIds: [] } }]);
+    const result = moveArtifactsBetweenProjects([original, target], original.id, target.id, none.id, true);
+    expect((result.projects[1].artifacts.at(-1) as SequenceDiagramArtifact).content.classDiagramArtifactId).toBeNull();
+  });
+
   it('preserves the implicit class model used by a flow at a destination with several models', () => {
     const implicit = { ...flow, content: { ...flow.content, classDiagramArtifactId: undefined } };
     const original = project('source', [model, implicit]);
@@ -105,6 +130,45 @@ describe('moving artifacts between projects', () => {
     expect(result.idMap.size).toBe(2);
     const moved = result.projects[1].artifacts.at(-1) as UseCaseFlowArtifact;
     expect(moved.content.classDiagramArtifactId).toBe(model.id);
+  });
+
+  it('keeps an explicit "Sin referencia" when the flow moves alone, even if the destination has one diagram', () => {
+    const none = { ...flow, content: { ...flow.content, classDiagramArtifactId: null } };
+    const original = project('source', [model, none]);
+    const target = project('destination', [{ ...model, id: 'different-model' }]);
+    const result = moveArtifactsBetweenProjects([original, target], original.id, target.id, none.id, false);
+    expect((result.projects[1].artifacts.at(-1) as UseCaseFlowArtifact).content.classDiagramArtifactId).toBeNull();
+  });
+
+  it('does not pull a "Sin referencia" flow along when its model moves', () => {
+    const none = { ...flow, content: { ...flow.content, classDiagramArtifactId: null } };
+    const original = project('source', [model, none]);
+    const result = moveArtifactsBetweenProjects([original, destination], original.id, destination.id, model.id, true);
+    expect(result.idMap.size).toBe(1);
+    expect(result.projects[1].artifacts.map((artifact) => artifact.id)).not.toContain(none.id);
+    expect(result.projects[0].artifacts.find((artifact) => artifact.id === none.id)?.content).toEqual(none.content);
+  });
+
+  it('turns a choice whose diagram does not come along into "Sin referencia" instead of re-picking another diagram', () => {
+    const original = project('source', [model, flow]);
+    const target = project('destination', [{ ...model, id: 'different-model' }]);
+    const result = moveArtifactsBetweenProjects([original, target], original.id, target.id, flow.id, false);
+    expect((result.projects[1].artifacts.at(-1) as UseCaseFlowArtifact).content.classDiagramArtifactId).toBeNull();
+  });
+
+  it('turns a stale reference into "Sin referencia" at the destination', () => {
+    const stale = { ...flow, content: { ...flow.content, classDiagramArtifactId: 'previously-deleted-model' } };
+    const original = project('source', [model, stale]);
+    const target = project('destination', [{ ...model, id: 'different-model' }]);
+    const result = moveArtifactsBetweenProjects([original, target], original.id, target.id, stale.id, false);
+    expect((result.projects[1].artifacts.at(-1) as UseCaseFlowArtifact).content.classDiagramArtifactId).toBeNull();
+  });
+
+  it('leaves the flow at the source as "Sin referencia" when its model moves away alone', () => {
+    const original = project('source', [model, flow]);
+    const result = moveArtifactsBetweenProjects([original, destination], original.id, destination.id, model.id, false);
+    const remainingFlow = result.projects[0].artifacts.find((artifact) => artifact.id === flow.id) as UseCaseFlowArtifact;
+    expect(remainingFlow.content.classDiagramArtifactId).toBeNull();
   });
 
   it('keeps the content of unrelated artifacts at the source and only drops a stale model link', () => {
@@ -134,7 +198,8 @@ describe('moving artifacts between projects', () => {
     const remainingModel = result.projects[0].artifacts.find((artifact) => artifact.id === classSequence.id) as ClassSequenceDiagramArtifact;
     expect(remainingModel.content.linkedSequenceDiagramIds).toEqual([]);
     const moved = result.projects[1].artifacts.at(-1) as SequenceDiagramArtifact;
-    expect(moved.content.classDiagramArtifactId).toBeUndefined();
+    // The model stays behind: the sequence arrives as "Sin vincular" (null), not as never-chosen.
+    expect(moved.content.classDiagramArtifactId).toBeNull();
     expect(moved.content.flowArtifactId).toBeUndefined();
     expect(moved.content.items[0]).toMatchObject({ id: 'fragment', interactionArtifactId: undefined });
     expect(moved.content.notes).toEqual(sequence.content.notes);
@@ -143,7 +208,8 @@ describe('moving artifacts between projects', () => {
   it('moving a sequence model alone detaches its sequences at the source without deleting their data', () => {
     const result = moveArtifactsBetweenProjects([source, destination], source.id, destination.id, classSequence.id, false);
     const remaining = result.projects[0].artifacts.find((artifact) => artifact.id === sequence.id) as SequenceDiagramArtifact;
-    expect(remaining.content.classDiagramArtifactId).toBeUndefined();
+    // The model left: the sequence stays "Sin vincular" (null), like a flow whose diagram left.
+    expect(remaining.content.classDiagramArtifactId).toBeNull();
     expect(remaining.content.participants[0].classifierNodeId).toBeUndefined();
     expect(remaining.content.participants[0].classifierName).toBe('Persona');
     expect(remaining.content.flowArtifactId).toBe(flow.id);

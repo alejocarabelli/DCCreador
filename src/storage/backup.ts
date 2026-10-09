@@ -3,7 +3,7 @@ import type { DiagramProject } from '../types/diagram';
 type BackupReply = { path?: string; directory?: string };
 
 type BackupBridge = {
-  postMessage: (message: { action: 'write' | 'reveal'; payload?: string }) => Promise<BackupReply>;
+  postMessage: (message: { action: 'write' | 'reveal' | 'preserve'; payload?: string }) => Promise<BackupReply>;
 };
 
 declare global {
@@ -73,16 +73,18 @@ export const writeBackup = async (projects: DiagramProject[]): Promise<BackupSta
     return { path: null, directory: null, at: null, error: null };
   }
 
+  let payload: string;
   try {
-    const reply = await handler.postMessage({
-      action: 'write',
-      payload: JSON.stringify({ version: 2, projects }),
-    });
+    payload = JSON.stringify({ version: 2, projects });
+  } catch {
+    return { path: null, directory: null, at: null, error: 'No se pudo preparar la copia de seguridad. Exportá tu proyecto para conservar el trabajo.' };
+  }
+  try {
+    const reply = await handler.postMessage({ action: 'write', payload });
     rememberBackupAt(at);
     return { path: reply?.path ?? null, directory: reply?.directory ?? null, at, error: null };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'No se pudo escribir el respaldo.';
-    return { path: null, directory: null, at: null, error: message };
+  } catch {
+    return { path: null, directory: null, at: null, error: 'No se pudo guardar la copia en disco. Reintentá o exportá tu proyecto.' };
   }
 };
 
@@ -95,5 +97,16 @@ export const revealBackups = async (): Promise<string | null> => {
     return reply?.directory ?? reply?.path ?? null;
   } catch {
     return null;
+  }
+};
+
+export const preserveRecoveryCopy = async (raw: string): Promise<boolean> => {
+  const handler = bridge();
+  if (handler === null) return false;
+  try {
+    await handler.postMessage({ action: 'preserve', payload: raw });
+    return true;
+  } catch {
+    return false;
   }
 };

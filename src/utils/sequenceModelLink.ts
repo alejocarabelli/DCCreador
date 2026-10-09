@@ -16,7 +16,7 @@ export const findSequenceModel = (
   sequence: Pick<SequenceDiagramArtifact, 'content'>,
 ): ClassSequenceDiagramArtifact | undefined => {
   const modelId = sequence.content.classDiagramArtifactId;
-  if (modelId === undefined) return undefined;
+  if (modelId === undefined || modelId === null) return undefined;
   return artifacts.find((artifact): artifact is ClassSequenceDiagramArtifact =>
     artifact.id === modelId && isSequenceModelArtifact(artifact));
 };
@@ -30,7 +30,8 @@ export const findSequenceModel = (
  *   it already had.
  * - each linked sequence is tied to the model's classes and methods by name
  *   (see `bindSequenceToModel`), so renames in the model reach it.
- * A sequence with no model stays without one: unlinking is a choice.
+ * A sequence with no model stays without one: unlinking is a choice, and
+ * `null` ("Sin vincular", chosen on purpose) is left exactly as it is.
  * Returns the same array when nothing changes.
  */
 export const reconcileSequenceModelLinks = (artifacts: DesignArtifact[], now?: string): DesignArtifact[] => {
@@ -41,7 +42,7 @@ export const reconcileSequenceModelLinks = (artifacts: DesignArtifact[], now?: s
   const relinked = artifacts.map((artifact) => {
     if (artifact.type !== 'sequence-diagram') return artifact;
     const current = artifact.content.classDiagramArtifactId;
-    if (current === undefined || modelIds.has(current)) return artifact;
+    if (current === undefined || current === null || modelIds.has(current)) return artifact;
     const listing = models.find((model) => model.content.linkedSequenceDiagramIds.includes(artifact.id));
     changed = true;
     return {
@@ -53,7 +54,7 @@ export const reconcileSequenceModelLinks = (artifacts: DesignArtifact[], now?: s
 
   const sequencesByModel = new Map<string, string[]>();
   relinked.forEach((artifact) => {
-    if (artifact.type !== 'sequence-diagram' || artifact.content.classDiagramArtifactId === undefined) return;
+    if (artifact.type !== 'sequence-diagram' || artifact.content.classDiagramArtifactId == null) return;
     const ids = sequencesByModel.get(artifact.content.classDiagramArtifactId) ?? [];
     ids.push(artifact.id);
     sequencesByModel.set(artifact.content.classDiagramArtifactId, ids);
@@ -62,7 +63,7 @@ export const reconcileSequenceModelLinks = (artifacts: DesignArtifact[], now?: s
   const modelsById = new Map(models.map((model) => [model.id, model]));
   const result = relinked.map((artifact) => {
     if (artifact.type === 'sequence-diagram') {
-      const model = artifact.content.classDiagramArtifactId === undefined
+      const model = artifact.content.classDiagramArtifactId == null
         ? undefined
         : modelsById.get(artifact.content.classDiagramArtifactId);
       const bound = model === undefined ? artifact.content : bindSequenceToModel(artifact.content, model.content);
@@ -87,11 +88,14 @@ export const reconcileSequenceModelLinks = (artifacts: DesignArtifact[], now?: s
   return changed ? result : artifacts;
 };
 
-/** Points the given sequences at `modelId` (or unlinks them) and reconciles. */
+/**
+ * Points the given sequences at `modelId` and reconciles. `null` unlinks them on
+ * purpose; `undefined` leaves them as if they had never chosen.
+ */
 export const linkSequencesToModel = (
   artifacts: DesignArtifact[],
   sequenceIds: readonly string[],
-  modelId: string | undefined,
+  modelId: string | null | undefined,
   now?: string,
 ): DesignArtifact[] => reconcileSequenceModelLinks(artifacts.map((artifact) => {
   if (artifact.type !== 'sequence-diagram' || !sequenceIds.includes(artifact.id)) return artifact;
@@ -103,14 +107,21 @@ export const linkSequencesToModel = (
   };
 }), now);
 
-/** Sequences without a "Clases de secuencias" model. */
+/** Sequences without a "Clases de secuencias" model, including the ones unlinked on purpose (`null`). */
 export const findUnlinkedSequences = (artifacts: DesignArtifact[]): SequenceDiagramArtifact[] =>
   artifacts.filter((artifact): artifact is SequenceDiagramArtifact =>
     artifact.type === 'sequence-diagram' && findSequenceModel(artifacts, artifact) === undefined);
 
+/**
+ * Sequences that never chose: no model and not unlinked on purpose. These are the
+ * only ones automatic links (new model, converted diagram) may take.
+ */
+export const findNeverLinkedSequences = (artifacts: DesignArtifact[]): SequenceDiagramArtifact[] =>
+  findUnlinkedSequences(artifacts).filter((sequence) => sequence.content.classDiagramArtifactId !== null);
+
 /** Link a new sequence only when the project has an unambiguous sequence model. */
 export const linkNewSequenceToOnlyModel = (artifacts: DesignArtifact[], sequence: SequenceDiagramArtifact): DesignArtifact[] => {
-  if (sequence.content.classDiagramArtifactId !== undefined) return [...artifacts, sequence];
+  if (sequence.content.classDiagramArtifactId !== undefined) return [...artifacts, sequence]; // an id or null is already a choice
   const models = artifacts.filter(isSequenceModelArtifact);
   if (models.length !== 1) return [...artifacts, sequence];
   return linkSequencesToModel([...artifacts, sequence], [sequence.id], models[0].id, sequence.updatedAt);

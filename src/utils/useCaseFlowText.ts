@@ -80,8 +80,8 @@ const getHierarchicalBulletMarkerLength = (line: string): number => {
 export const normalizeStateBulletShortcut = (
   value: string,
   position: number,
-): { lineIndex: number; markerLength: number; value: string } | null => {
-  const { lineIndex, lines } = getLineInfo(value, position);
+): { caretPosition: number; lineIndex: number; markerLength: number; value: string } | null => {
+  const { lineColumn, lineIndex, lineStart, lines } = getLineInfo(value, position);
   const currentLine = lines[lineIndex] ?? '';
   const shortcutMatch = bulletShortcutPattern.exec(currentLine);
 
@@ -92,9 +92,18 @@ export const normalizeStateBulletShortcut = (
   const level = getIndentLevel(shortcutMatch[1]);
   lines[lineIndex] = formatHierarchicalBulletLine(level, shortcutMatch[2]);
   const nextValue = lines.join('\n');
+
+  if (nextValue === value) {
+    return null;
+  }
+
+  const markerLength = getHierarchicalBulletMarkerLength(lines[lineIndex]);
+  const previousMarkerLength = currentLine.length - shortcutMatch[2].length;
   return {
+    // Only the marker changed: keep the caret at the same offset in the body.
+    caretPosition: lineStart + Math.min(lines[lineIndex].length, markerLength + Math.max(0, lineColumn - previousMarkerLength)),
     lineIndex,
-    markerLength: getHierarchicalBulletMarkerLength(nextValue.split('\n')[lineIndex] ?? ''),
+    markerLength,
     value: nextValue,
   };
 };

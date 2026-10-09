@@ -7,11 +7,15 @@ const interactionIds = (items: SequenceTimelineItem[]): string[] => items.flatMa
   ? [...(item.interactionArtifactId ? [item.interactionArtifactId] : []), ...item.operands.flatMap((operand) => interactionIds(operand.items))]
   : []);
 
+/** null ("Sin referencia") links nothing, and a stored id that is gone is not replaced by another diagram. */
 const flowClassModelId = (artifact: Extract<DesignArtifact, { type: 'use-case-flow' }>, artifacts: DesignArtifact[]): string | undefined => {
+  const { classDiagramArtifactId } = artifact.content;
+  if (classDiagramArtifactId === null) return undefined;
   const models = artifacts.filter((candidate) => candidate.type === 'class-diagram');
-  return models.some((candidate) => candidate.id === artifact.content.classDiagramArtifactId)
-    ? artifact.content.classDiagramArtifactId
-    : models.length === 1 ? models[0].id : undefined;
+  if (classDiagramArtifactId !== undefined) {
+    return models.some((candidate) => candidate.id === classDiagramArtifactId) ? classDiagramArtifactId : undefined;
+  }
+  return models.length === 1 ? models[0].id : undefined;
 };
 
 const artifactReferences = (artifact: DesignArtifact, artifacts: DesignArtifact[]): string[] => {
@@ -69,12 +73,17 @@ export const relinkArtifactForProject = (
     } };
   }
   if (artifact.type === 'use-case-flow') {
-    return { ...artifact, content: { ...artifact.content, classDiagramArtifactId: resolve(flowClassModelId(artifact, originalArtifacts), ['class-diagram']) } };
+    // A flow that never chose a diagram keeps the current rule. A choice whose diagram does not come along
+    // becomes "Sin referencia" instead of letting the destination pick its only diagram.
+    const linked = resolve(flowClassModelId(artifact, originalArtifacts), ['class-diagram']);
+    return { ...artifact, content: { ...artifact.content, classDiagramArtifactId: artifact.content.classDiagramArtifactId === undefined ? linked : linked ?? null } };
   }
   if (artifact.type !== 'sequence-diagram') return artifact;
   // A sequence draws only on a "Clases de secuencias" model.
-  const classDiagramArtifactId = resolve(artifact.content.classDiagramArtifactId, ['class-sequence-diagram']);
-  const model = artifacts.find((candidate) => candidate.id === classDiagramArtifactId);
+  // undefined stays undefined, null stays null, and an id whose model does not travel becomes null.
+  const linkedModelId = resolve(artifact.content.classDiagramArtifactId ?? undefined, ['class-sequence-diagram']);
+  const classDiagramArtifactId = artifact.content.classDiagramArtifactId === undefined ? undefined : linkedModelId ?? null;
+  const model = artifacts.find((candidate) => candidate.id === linkedModelId);
   const classNodes = model?.type === 'class-diagram' || model?.type === 'class-sequence-diagram' ? model.content.nodes : [];
   const nodeIds = new Set(classNodes.map((node) => node.id));
   const methodIds = new Set(classNodes.flatMap((node) => node.data.methods.map((method) => method.id)));

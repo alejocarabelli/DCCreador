@@ -85,7 +85,7 @@ export function NotebookBlockView({
             fieldRef={(element) => registerElement(block.id, element)}
             placeholder={block.kind === 'question' ? '¿Qué duda tenés?' : 'Escribí algo…'}
             value={block.text}
-            onChange={(event) => onTextChange(block, event.currentTarget.value, event.currentTarget.selectionStart)}
+            onValueChange={(value, caret) => onTextChange(block, value, caret)}
             onKeyDown={(event) => onTextKeyDown(block, event)}
           />
         </div>

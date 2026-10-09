@@ -589,7 +589,7 @@ Este artefacto es una especificación textual con camino básico y caminos alter
 | `precondition`, `postcondition` | Condiciones anteriores y posteriores. |
 | `initialState`, `finalState` | Estados del dominio como texto; admiten saltos de línea `\n` y viñetas. |
 
-La vinculación opcional con el modelo de clases es `content.classDiagramArtifactId`, con el ID de un artefacto `class-diagram` del mismo proyecto. Se usa para consultar clases, atributos y operaciones al escribir. El editor utiliza el único diagrama de clases del proyecto si no se especifica otro; para un proyecto generado por IA, escribí el vínculo explícito.
+La vinculación opcional con el modelo de clases es `content.classDiagramArtifactId`, con el ID de un artefacto `class-diagram` del mismo proyecto. Se usa para consultar clases, atributos y operaciones al escribir. Si el campo falta, el editor usa el único diagrama de clases del proyecto; `null` significa «Sin referencia» elegida explícitamente y no se reemplaza. Para un proyecto generado por IA, escribí el vínculo explícito.
 
 No hay un campo que vincule el flujo a un nodo del modelo de casos de uso: la coherencia del caso se establece mediante `useCaseNumber` y `useCaseName`. No inventes `useCaseModelArtifactId`, `useCaseNodeId` ni referencias semejantes.
 
@@ -691,7 +691,7 @@ Una secuencia representa interacciones ordenadas en el tiempo. No usa nodos ni e
 | `showActivations` | Booleano para mostrar barras de activación. |
 | `participantColors` | `automatic` o `disabled`; no admite colores hexadecimales por participante. |
 | `spacing` | Opcional: `"compact"` reduce el espacio vertical entre mensajes. Omitilo para el espaciado normal. |
-| `classDiagramArtifactId` | Opcional: ID de un artefacto `class-sequence-diagram` del mismo proyecto. No admite un `class-diagram`. |
+| `classDiagramArtifactId` | Opcional: ID de un artefacto `class-sequence-diagram` del mismo proyecto. No admite un `class-diagram`. Si falta, la secuencia nunca eligió y la aplicación puede vincularla sola al crear o convertir unas Clases de secuencias; `null` significa «Sin vincular» elegido a propósito y no se vincula sola. |
 | `participants` | Arreglo de participantes. Planificá sus X y ordenalos de izquierda a derecha. |
 | `items` | Arreglo temporal de mensajes y fragmentos. Su orden determina el orden vertical. |
 | `activations` | Arreglo de activaciones manuales o guardadas; usá `[]` para inferencia automática. |
@@ -1094,8 +1094,8 @@ Para generar un proyecto con los cinco ejemplos, reuní sus objetos en `artifact
 
 | Campo | ID que espera | Valor en el proyecto de ejemplo |
 | --- | --- | --- |
-| Flujo: `content.classDiagramArtifactId` | Artefacto `class-diagram`. | `artefacto-clases` |
-| Secuencia: `content.classDiagramArtifactId` | Artefacto `class-sequence-diagram`. | `artefacto-clases-secuencias` |
+| Flujo: `content.classDiagramArtifactId` | Artefacto `class-diagram`, o `null` para «Sin referencia». | `artefacto-clases` |
+| Secuencia: `content.classDiagramArtifactId` | Artefacto `class-sequence-diagram`, o `null` para «Sin vincular». | `artefacto-clases-secuencias` |
 | Secuencia: `content.flowArtifactId` | Artefacto `use-case-flow`. | `artefacto-flujo` |
 | Clases de secuencias: `content.sourceClassDiagramArtifactId` | Origen opcional de tipo `class-diagram`, sin sincronización. | Omitir. |
 | Clases de secuencias: `content.linkedSequenceDiagramIds` | Arreglo derivado de los vínculos desde las secuencias. | La aplicación deriva `["artefacto-secuencia"]`. |

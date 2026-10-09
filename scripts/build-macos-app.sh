@@ -6,6 +6,8 @@ if [[ -d "/Library/Developer/CommandLineTools" ]]; then
 fi
 
 ROOT_DIR="${0:A:h:h}"
+# La versión sale de package.json (única fuente): nombres de entrega y Info.plist.
+VERSION="$(cd "$ROOT_DIR" && node -p "require('./package.json').version")"
 # La 2.0 reemplaza a la v1 en /Applications/Modelador de Sistemas.app.
 # La v1 queda en la rama version-1 y en la release v1.1.0 de GitHub.
 APP_NAME="Modelador de Sistemas"
@@ -17,8 +19,8 @@ CONTENTS_DIR="$APP_BUNDLE/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
 DELIVERY_DIR="$ROOT_DIR/build"
-DELIVERY_ZIP="$DELIVERY_DIR/Modelador-de-Sistemas-2.4.1-macOS.zip"
-DELIVERY_DMG="$DELIVERY_DIR/Modelador-de-Sistemas-2.4.1-macOS.dmg"
+DELIVERY_ZIP="$DELIVERY_DIR/Modelador-de-Sistemas-$VERSION-macOS.zip"
+DELIVERY_DMG="$DELIVERY_DIR/Modelador-de-Sistemas-$VERSION-macOS.dmg"
 
 cd "$ROOT_DIR"
 npm run build
@@ -26,6 +28,8 @@ npm run build
 rm -rf "$BUILD_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR/WebApp" "$DELIVERY_DIR"
 cp "$ROOT_DIR/macos/Info.plist" "$CONTENTS_DIR/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$CONTENTS_DIR/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$CONTENTS_DIR/Info.plist"
 ditto --norsrc --noextattr --noqtn --noacl "$ROOT_DIR/dist" "$RESOURCES_DIR/WebApp"
 
 clang -O2 -fobjc-arc \

@@ -132,7 +132,7 @@ const normalizeShape = (value: unknown, usedIds: Set<string>): SketchShape | nul
     const { x, y, text } = value;
     if (!isFiniteNumber(x) || !isFiniteNumber(y) || typeof text !== 'string') return null;
     if (text.trim().length === 0) return null;
-    return { id, kind: 'text', color, x: toInt(x), y: toInt(y), text: text.slice(0, MAX_TEXT_LENGTH) };
+    return { id, kind: 'text', color, x: toInt(x), y: toInt(y), text };
   }
 
   return null;
@@ -144,7 +144,7 @@ const normalizeBlock = (value: unknown, usedIds: Set<string>): NotebookBlock | n
   if (value.kind === 'text' || value.kind === 'question') {
     if (typeof value.text !== 'string') return null;
     const id = takeId(value.id, usedIds);
-    const text = value.text.slice(0, MAX_TEXT_LENGTH);
+    const text = value.text;
     return value.kind === 'text'
       ? { id, kind: 'text', text }
       : { id, kind: 'question', text, resolved: value.resolved === true };
@@ -159,7 +159,6 @@ const normalizeBlock = (value: unknown, usedIds: Set<string>): NotebookBlock | n
     const shapeIds = new Set<string>();
     if (Array.isArray(value.shapes)) {
       for (const rawShape of value.shapes) {
-        if (shapes.length >= MAX_SHAPES_PER_SKETCH) break;
         const shape = normalizeShape(rawShape, shapeIds);
         if (shape !== null) shapes.push(shape);
       }
@@ -177,7 +176,6 @@ export const normalizeArtifactNotebook = (value: unknown): ArtifactNotebook | un
   const usedIds = new Set<string>();
   const blocks: NotebookBlock[] = [];
   for (const rawBlock of value.blocks) {
-    if (blocks.length >= MAX_BLOCKS) break;
     const block = normalizeBlock(rawBlock, usedIds);
     if (block !== null) blocks.push(block);
   }
