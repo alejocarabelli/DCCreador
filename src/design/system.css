@@ -1028,3 +1028,30 @@
   display: flex;
   margin-bottom: var(--space-3);
 }
+
+.app-shell[data-ui-version='refined'] .artifact-editor-column.has-backup-error {
+  grid-template-rows: 36px auto minmax(0, 1fr);
+}
+
+.app-shell .project-backup-warning {
+  align-items: center;
+  background: var(--status-warning-soft);
+  border-bottom: 1px solid var(--status-warning-border);
+  color: var(--status-warning-text);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--text-sm);
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+
+.app-shell .project-backup-warning span {
+  flex: 1 1 280px;
+}
+
+.app-shell .storage-warning-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}

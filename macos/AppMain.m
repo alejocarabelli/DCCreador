@@ -296,7 +296,8 @@ static NSUInteger const kBackupsToKeep = 10;
         return;
     }
 
-    if (![action isEqualToString:@"write"]) {
+    BOOL preserve = [action isEqualToString:@"preserve"];
+    if (![action isEqualToString:@"write"] && !preserve) {
         replyHandler(nil, @"Acción de respaldo desconocida.");
         return;
     }
@@ -308,9 +309,9 @@ static NSUInteger const kBackupsToKeep = 10;
     }
 
     NSDateFormatter *stamp = [[NSDateFormatter alloc] init];
-    stamp.dateFormat = @"yyyy-MM-dd-HHmmss";
+    stamp.dateFormat = @"yyyy-MM-dd-HHmmss-SSS";
     stamp.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
-    NSString *filename = [NSString stringWithFormat:@"respaldo-%@.json", [stamp stringFromDate:[NSDate date]]];
+    NSString *filename = [NSString stringWithFormat:@"%@-%@.json", preserve ? @"recuperacion" : @"respaldo", [stamp stringFromDate:[NSDate date]]];
     NSURL *destination = [directory URLByAppendingPathComponent:filename];
 
     if (![payload writeToURL:destination atomically:YES encoding:NSUTF8StringEncoding error:&error]) {
@@ -318,7 +319,7 @@ static NSUInteger const kBackupsToKeep = 10;
         return;
     }
 
-    [BackupBridge pruneBackupsIn:directory];
+    if (!preserve) [BackupBridge pruneBackupsIn:directory];
     replyHandler(@{@"path": destination.path, @"directory": directory.path}, nil);
 }
 

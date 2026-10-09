@@ -5,6 +5,7 @@ import { ProjectNameDialog } from './components/ProjectNameDialog';
 import { ArtifactImportDialog } from './components/ArtifactImportDialog';
 import { ArtifactMoveDialog } from './components/ArtifactMoveDialog';
 import { ProjectHome } from './components/ProjectHome';
+import { ProjectBackupWarning } from './components/ProjectBackupWarning';
 import { ProjectSidebar } from './components/ProjectSidebar';
 import { ShortcutsDialog } from './components/ShortcutsDialog';
 import { ArtifactTabs } from './components/ArtifactTabs';
@@ -158,6 +159,7 @@ function App() {
     backup,
     backupAvailable,
     revealBackups,
+    runBackupNow,
     createClassDiagramArtifact,
     createClassSequenceDiagramArtifact,
     createUseCaseFlowArtifact,
@@ -179,6 +181,10 @@ function App() {
     setActiveArtifactId,
     setActiveProjectId,
     storageWarning,
+    recoveryPending,
+    downloadRecoveryCopy,
+    confirmRecoveryDownload,
+    continueWithoutRecovery,
     updateArtifactNotebook,
     updateProjectArtifactContent,
   } = useProjects();
@@ -766,7 +772,30 @@ function App() {
     >
       {storageWarning !== null ? (
         <div className="app-storage-warning" role="status">
-          {storageWarning}
+          <span>{storageWarning}</span>
+          {recoveryPending ? (
+            <div className="storage-warning-actions">
+              <button className="home-button" type="button" onClick={async () => {
+                if (await downloadRecoveryCopy()) {
+                  const saved = await confirm({
+                    title: '¿Guardaste la copia de seguridad?',
+                    confirmLabel: 'Sí, guardé la copia',
+                    tone: 'neutral',
+                    description: 'Revisá que el archivo se haya guardado antes de continuar. Si cancelaste la descarga, elegí Cancelar.',
+                  });
+                  if (saved) confirmRecoveryDownload();
+                }
+              }}>Descargar copia de seguridad</button>
+              <button className="home-button" type="button" onClick={async () => {
+                const proceed = await confirm({
+                  title: '¿Seguir sin copia de seguridad?',
+                  confirmLabel: 'Seguir sin copia',
+                  description: 'El próximo guardado reemplaza el original. Podés perder el trabajo que no se pudo leer.',
+                });
+                if (proceed) continueWithoutRecovery();
+              }}>Seguir sin copia</button>
+            </div>
+          ) : null}
         </div>
       ) : null}
       <ProjectSidebar
@@ -800,6 +829,7 @@ function App() {
           backup={backup}
           backupAvailable={backupAvailable}
           onRevealBackups={() => void revealBackups()}
+          onRetryBackup={() => void runBackupNow()}
           projects={projects}
           onCreateProject={handleCreateProject}
           onImportProject={importProject}
@@ -807,7 +837,7 @@ function App() {
           onOpenProject={setActiveProjectId}
         />
       ) : (
-        <div className="artifact-editor-column">
+        <div className={`artifact-editor-column ${backup.error !== null ? 'has-backup-error' : ''}`}>
           <ArtifactTabs
             key={activeProject.id}
             projectName={activeProject.name}
@@ -824,6 +854,12 @@ function App() {
               artifactId,
               `${activeProject.artifacts.find((candidate) => candidate.id === artifactId)?.name ?? 'Diagrama'} · vista`,
             )}
+          />
+          <ProjectBackupWarning
+            error={backup.error}
+            saveStatus={saveStatus}
+            onRetry={() => void runBackupNow()}
+            onExport={() => handleExportProject(activeProject.id)}
           />
           <NotebookContext.Provider value={notebookContext}>
             <div

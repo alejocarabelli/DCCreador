@@ -39,8 +39,9 @@ describe('projects storage', () => {
 
     expect(loaded.projects).toEqual([]);
     expect(loaded.skipInitialSave).toBe(true);
-    expect(loaded.warning).toContain('recuperación');
+    expect(loaded.warning).toContain('original');
+    expect(loaded.recoveryRaw).toBe('{not valid json');
     expect([...Array(localStorage.length).keys()].map((index) => localStorage.key(index)))
-      .toContainEqual(expect.stringContaining('design-projects:recovery:'));
+      .toEqual(['design-projects:v2']);
   });
 });

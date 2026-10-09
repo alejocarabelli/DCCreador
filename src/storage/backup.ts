@@ -3,7 +3,7 @@ import type { DiagramProject } from '../types/diagram';
 type BackupReply = { path?: string; directory?: string };
 
 type BackupBridge = {
-  postMessage: (message: { action: 'write' | 'reveal'; payload?: string }) => Promise<BackupReply>;
+  postMessage: (message: { action: 'write' | 'reveal' | 'preserve'; payload?: string }) => Promise<BackupReply>;
 };
 
 declare global {
@@ -25,6 +25,7 @@ export type BackupState = {
 };
 
 const LAST_BACKUP_KEY = 'design-projects:last-backup';
+const LAST_BACKUP_HASH_KEY = 'design-projects:last-backup-hash';
 
 /** At most one snapshot every ten minutes of actual editing. */
 export const BACKUP_INTERVAL_MS = 10 * 60 * 1000;
@@ -53,9 +54,21 @@ export const readLastBackupAt = (): number | null => {
   }
 };
 
-const rememberBackupAt = (at: number): void => {
+const payloadHash = (payload: string): string => {
+  let first = 2166136261;
+  let second = 5381;
+  for (let index = 0; index < payload.length; index += 1) {
+    const code = payload.charCodeAt(index);
+    first = Math.imul(first ^ code, 16777619);
+    second = Math.imul(second, 33) ^ code;
+  }
+  return `${payload.length}:${first >>> 0}:${second >>> 0}`;
+};
+
+const rememberBackupAt = (at: number, hash: string): void => {
   try {
     localStorage.setItem(LAST_BACKUP_KEY, String(at));
+    localStorage.setItem(LAST_BACKUP_HASH_KEY, hash);
   } catch {
     // A failed bookkeeping write must not fail the backup itself.
   }
@@ -73,16 +86,27 @@ export const writeBackup = async (projects: DiagramProject[]): Promise<BackupSta
     return { path: null, directory: null, at: null, error: null };
   }
 
+  let payload: string;
   try {
-    const reply = await handler.postMessage({
-      action: 'write',
-      payload: JSON.stringify({ version: 2, projects }),
-    });
-    rememberBackupAt(at);
+    payload = JSON.stringify({ version: 2, projects });
+  } catch {
+    return { path: null, directory: null, at: null, error: 'No se pudo preparar la copia de seguridad. Exportá tu proyecto para conservar el trabajo.' };
+  }
+  const hash = payloadHash(payload);
+  try {
+    if (localStorage.getItem(LAST_BACKUP_HASH_KEY) === hash) {
+      return { path: null, directory: null, at: readLastBackupAt(), error: null };
+    }
+  } catch {
+    // A missing hash only means that the snapshot may be repeated.
+  }
+
+  try {
+    const reply = await handler.postMessage({ action: 'write', payload });
+    rememberBackupAt(at, hash);
     return { path: reply?.path ?? null, directory: reply?.directory ?? null, at, error: null };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'No se pudo escribir el respaldo.';
-    return { path: null, directory: null, at: null, error: message };
+  } catch {
+    return { path: null, directory: null, at: null, error: 'No se pudo guardar la copia en disco. Reintentá o exportá tu proyecto.' };
   }
 };
 
@@ -95,5 +119,16 @@ export const revealBackups = async (): Promise<string | null> => {
     return reply?.directory ?? reply?.path ?? null;
   } catch {
     return null;
+  }
+};
+
+export const preserveRecoveryCopy = async (raw: string): Promise<boolean> => {
+  const handler = bridge();
+  if (handler === null) return false;
+  try {
+    await handler.postMessage({ action: 'preserve', payload: raw });
+    return true;
+  } catch {
+    return false;
   }
 };
