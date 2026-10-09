@@ -831,7 +831,7 @@ export function UseCaseModelEditor({
                 {(selectedEdge.data?.relationType ?? 'association') === 'association' ? (
                   <label className="field">
                     Etiqueta
-                    <input value={selectedEdge.data?.label ?? ''} onChange={(event) => updateSelectedEdge({ label: event.target.value })} placeholder="<i>" />
+                    <input value={selectedEdge.data?.label ?? ''} onChange={(event) => updateSelectedEdge({ label: event.target.value })} placeholder="Etiqueta (opcional)" />
                   </label>
                 ) : null}
                 <button className="secondary-action v2-inspector-block-action" type="button" onClick={invertSelectedEdge}>Invertir dirección</button>

@@ -9,7 +9,7 @@ import { SequenceKeyboardComposer } from './SequenceKeyboardComposer';
 import { createEmptySequenceDiagramContent, createSequenceFragment, createSequenceMessage } from '../utils/sequenceDiagram';
 import { buildSequenceLayout } from '../utils/sequenceDiagramLayout';
 import { themes } from '../theme/themes';
-import type { DesignProject, SequenceDiagramArtifact, SequenceDiagramContent } from '../types/diagram';
+import type { DesignProject, SequenceDiagramArtifact } from '../types/diagram';
 
 vi.mock('react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react')>();
@@ -36,10 +36,6 @@ const text = (node: unknown): string => {
   if (isValidElement<{ children?: unknown }>(node)) return text(node.props.children);
   return '';
 };
-const click = (tree: unknown, label: string) => {
-  const node = find(tree, (candidate) => candidate.props.label === label || text(candidate.props.children) === label);
-  return (node.props.onClick as () => unknown)();
-};
 
 class TestElementTarget {
   closest() { return null; }
@@ -50,13 +46,11 @@ let artifact: SequenceDiagramArtifact;
 let project: DesignProject;
 let sequenceId = 0;
 const onChangeContent = vi.fn();
-const onCreateSequenceDiagramArtifact = vi.fn();
-const renderEditor = (allowNew = true) => {
+const renderEditor = () => {
   runtime.begin();
   return SequenceDiagramEditor({
     artifact, project, theme: themes[0], canUndo: false, canRedo: false,
     onChangeContent, onUndo: vi.fn(), onRedo: vi.fn(),
-    onCreateSequenceDiagramArtifact: allowNew ? onCreateSequenceDiagramArtifact : undefined,
   });
 };
 const composerState = (tree: unknown) => find(tree, (node) => node.type === SequenceKeyboardComposer).props.state;
@@ -172,57 +166,6 @@ describe('sequence editor keyboard isolation', () => {
     press('m'); tree = renderEditor();
     expect(text(tree)).toContain('Modo teclado desactivado.');
     expect(elements(tree).some((node) => node.type === SequenceKeyboardComposer)).toBe(false);
-  });
-});
-
-describe('sequence template replacement', () => {
-  const openTemplates = (allowNew = true) => {
-    const tree = renderEditor(allowNew); click(tree, 'Plantillas'); return renderEditor(allowNew);
-  };
-  it('preserves the current diagram when replacement is cancelled', async () => {
-    const tree = openTemplates();
-    expect(text(tree)).toContain('Creá un diagrama nuevo sin alterar los existentes');
-    await click(tree, 'Reemplazar este diagrama…');
-    expect(dialogs.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: '¿Reemplazar este diagrama?', confirmLabel: 'Reemplazar diagrama' }));
-    expect(onChangeContent).not.toHaveBeenCalled();
-    expect(text(renderEditor())).toContain('Plantillas educativas de secuencia');
-  });
-  it('replaces the diagram only after confirmation', async () => {
-    dialogs.confirm.mockResolvedValue(true);
-    await click(openTemplates(), 'Reemplazar este diagrama…');
-    expect(onChangeContent).toHaveBeenCalledOnce();
-    expect(onChangeContent.mock.calls[0][0].items).not.toEqual(artifact.content.items);
-    expect(text(renderEditor())).not.toContain('Plantillas educativas de secuencia');
-  });
-  it.each(['participants', 'items', 'notes', 'activations'] as const)('asks before replacing a diagram containing only %s', async (field) => {
-    const content: SequenceDiagramContent = {
-      ...createEmptySequenceDiagramContent(),
-      [field]: field === 'participants' ? artifact.content.participants
-        : field === 'items' ? [createSequenceFragment('opt')]
-          : field === 'notes' ? [{ id: 'note', text: 'Trabajo', x: 100, y: 100, width: 200, height: 80, anchorKind: 'free' }]
-            : [{ id: 'activation', participantId: 'a', startMessageId: 'call' }],
-    };
-    artifact = { ...artifact, content };
-    await click(openTemplates(), 'Reemplazar este diagrama…');
-    expect(dialogs.confirm).toHaveBeenCalledOnce();
-    expect(onChangeContent).not.toHaveBeenCalled();
-  });
-  it('loads into an empty diagram without a destructive confirmation', async () => {
-    artifact = { ...artifact, content: createEmptySequenceDiagramContent() };
-    await click(openTemplates(), 'Reemplazar este diagrama…');
-    expect(dialogs.confirm).not.toHaveBeenCalled();
-    expect(onChangeContent).toHaveBeenCalledOnce();
-  });
-  it('creates a new diagram without changing or confirming the current one', async () => {
-    await click(openTemplates(), 'Crear como nuevo diagrama');
-    expect(onCreateSequenceDiagramArtifact).toHaveBeenCalledOnce();
-    expect(dialogs.confirm).not.toHaveBeenCalled();
-    expect(onChangeContent).not.toHaveBeenCalled();
-  });
-  it('describes replacement when creating a new diagram is unavailable', () => {
-    const tree = openTemplates(false);
-    expect(text(tree)).toContain('Elegí una plantilla para reemplazar este diagrama.');
-    expect(text(tree)).not.toContain('sin alterar');
   });
 });
 

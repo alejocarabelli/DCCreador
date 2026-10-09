@@ -56,6 +56,24 @@ describe('SequenceMessageDialog', () => {
     expect(html).toContain('Guardar');
   });
 
+  it('suggests the nombre:Clase pattern for a new object instead of example names', () => {
+    const draft = createSequenceMessageEditModel({ sourceId: 'src', targetId: 'tgt', type: 'create' });
+
+    const html = renderToString(
+      <SequenceMessageDialog
+        draft={draft}
+        participants={participants}
+        routeEditable
+        onChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain('placeholder="nombre:Clase"');
+    expect(html).not.toContain('nuevo:Clase');
+  });
+
   it('renders a textless return without offering input that persistence discards', () => {
     const draft = createSequenceMessageEditModel({
       sourceId: 'src',

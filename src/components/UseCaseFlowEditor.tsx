@@ -1627,7 +1627,7 @@ export function UseCaseFlowEditor({
                 <span className="flow-field-label">Actor</span>
                 <input
                   value={content.description.actor}
-                  placeholder="Consultor"
+                  placeholder="Actor principal"
                   onChange={(event) => updateDescription('actor', event.target.value)}
                 />
               </label>
@@ -1651,6 +1651,7 @@ export function UseCaseFlowEditor({
               <label className="flow-field flow-field-diagram">
                 <span className="flow-field-label">Diagrama de clases</span>
                 <select
+                  title="Vincular el diagrama de clases permite revisar que las clases y atributos que nombrás existan."
                   value={associatedClassDiagramId ?? ''}
                   onChange={(event) => updateAssociatedClassDiagram(event.target.value)}
                 >
@@ -1683,7 +1684,7 @@ export function UseCaseFlowEditor({
                 <AutoGrowTextarea
                   value={content.description.inputParameters}
                   minRows={1}
-                  placeholder="VcodConsultor, VnroTramite, acción (Confirmar-Rechazar)"
+                  placeholder="Datos que recibe, separados por coma"
                   onChange={(event) => updateDescription('inputParameters', event.target.value)}
                 />
               </label>
@@ -1692,7 +1693,7 @@ export function UseCaseFlowEditor({
                 <AutoGrowTextarea
                   value={content.description.precondition}
                   minRows={2}
-                  placeholder="El consultor inició sesión en el sistema."
+                  placeholder="Condición que debe cumplirse antes"
                   onChange={(event) => updateDescription('precondition', event.target.value)}
                 />
               </label>
@@ -1701,12 +1702,12 @@ export function UseCaseFlowEditor({
                 <AutoGrowTextarea
                   value={content.description.postcondition}
                   minRows={2}
-                  placeholder="Qué queda verdadero al terminar."
+                  placeholder="Cómo queda el sistema al terminar"
                   onChange={(event) => updateDescription('postcondition', event.target.value)}
                 />
               </label>
-              {renderStateField('initialState', 'Estado inicial', 'Instancia de Consultor con:\n• fechaHoraBajaConsultor igual a vacío')}
-              {renderStateField('finalState', 'Estado final', 'Si …\nInstancia de TramiteEstado creada con:\n• fechaDesdeTramiteEstado igual a fecha actual')}
+              {renderStateField('initialState', 'Estado inicial', 'Qué datos existen antes de empezar')}
+              {renderStateField('finalState', 'Estado final', 'Qué datos existen al terminar')}
             </div>
           </section>
 
@@ -1760,7 +1761,7 @@ export function UseCaseFlowEditor({
                           else alternativeNameRefs.current.set(flow.id, element);
                         }}
                         value={flow.name}
-                        placeholder="Datos inconsistentes"
+                        placeholder="Nombre del camino alternativo"
                         onChange={(event) => updateAlternativeFlow(flow.id, { name: event.target.value })}
                         onKeyDown={(event) => {
                           if (event.key === 'Enter' && flow.steps[0] !== undefined) {
